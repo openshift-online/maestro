@@ -1,31 +1,6 @@
 Maestro
 ---
 
- **Maestro** is RH **T**AP's **R**est **Ex**ample
-
-![Trexxy](rhtap-maestro_sm.png)
-
-
-Maestro is a full-featured REST API that persists _dinosaurs_, making it a solid foundation from which developers can quickly bootstrap new services.
-
-Some of the features included are:
-
-* Openapi generation
-* CRUD code foundation
-* Standard API guidelines, paging, etc.
-* Test driven development built-in
-* GORM and DB migrations
-* OIDC authentication
-* Responsive control plane
-* Blocking and Non-blocking locks
-
-When looking through the code, anything talking about dinosaurs is business logic, which you
-will replace with your business logic. The rest is infrastructure that you will probably want to preserve without change.
-
-It's up to you to port future improvements to this project to your own fork. A goal of this project is to become a 
-framework with an upgrade path.
-
-
 ## Run for the first time
 
 ### Make a build and run postgres
