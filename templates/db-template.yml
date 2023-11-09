@@ -1,0 +1,177 @@
+---
+apiVersion: v1
+kind: Template
+metadata:
+  annotations:
+    description: PostgreSQL database service for use with the maestro
+    iconClass: icon-postgresql
+    openshift.io/display-name: Example Service PostgreSQL Database
+    tags: database,postgresql
+  name: maestro-db
+parameters:
+
+  - name: POSTGRESQL_IMAGESTREAM_NAMESPACE
+    description: The OpenShift Namespace where the ImageStream resides.
+    displayName: Namespace
+    value: openshift
+
+  - name: DATABASE_SERVICE_NAME
+    description: The name of the OpenShift Service exposed for the database.
+    displayName: Database Service Name
+    required: true
+    value: maestro-db
+
+  - name: DATABASE_USER
+    description: Username for PostgreSQL user that will be used for accessing the database.
+    displayName: PostgreSQLUsername
+    required: true
+    value: ocm
+
+  - name: DATABASE_PASSWORD
+    description: Password for the PostgreSQL connection user.
+    displayName: PostgreSQL Password
+    required: true
+    value: TheBlurstOfTimes
+
+  - name: DATABASE_NAME
+    description: Name of the PostgreSQL database accessed.
+    displayName: PostgreSQL Database Name
+    required: true
+    value: ocmexservice
+
+  - name: DATABASE_VOLUME_CAPACITY
+    description: Volume space available for data, e.g. 512Mi, 2Gi.
+    displayName: Volume Capacity
+    required: true
+    value: 512Mi
+
+  - name: POSTGRESQL_VERSION
+    description: Version of PostgreSQL image to be used (10 or latest).
+    displayName: Version of PostgreSQL Image
+    required: true
+    value: "10"
+
+objects:
+
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        template.openshift.io/expose-uri: postgres://{.spec.clusterIP}:{.spec.ports[?(.name==\postgresql\)].port}
+      name: ${DATABASE_SERVICE_NAME}
+    spec:
+      ports:
+        - name: postgresql
+          nodePort: 0
+          port: 5432
+          protocol: TCP
+          targetPort: 5432
+      selector:
+        name: ${DATABASE_SERVICE_NAME}
+      sessionAffinity: None
+      type: ClusterIP
+    status:
+      loadBalancer: {}
+  - apiVersion: v1
+    kind: PersistentVolumeClaim
+    metadata:
+      name: ${DATABASE_SERVICE_NAME}
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: ${DATABASE_VOLUME_CAPACITY}
+  - apiVersion: v1
+    kind: DeploymentConfig
+    metadata:
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: true
+      name: ${DATABASE_SERVICE_NAME}
+    spec:
+      replicas: 1
+      selector:
+        name: ${DATABASE_SERVICE_NAME}
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: ${DATABASE_SERVICE_NAME}
+        spec:
+          containers:
+            - capabilities: {}
+              env:
+                - name: POSTGRESQL_USER
+                  valueFrom:
+                    secretKeyRef:
+                      key: database-user
+                      name: ${DATABASE_SERVICE_NAME}
+                - name: POSTGRESQL_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      key: database-password
+                      name: ${DATABASE_SERVICE_NAME}
+                - name: POSTGRESQL_DATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      key: database-name
+                      name: ${DATABASE_SERVICE_NAME}
+              image: ""
+              imagePullPolicy: IfNotPresent
+              livenessProbe:
+                exec:
+                  command:
+                    - /usr/libexec/check-container
+                    - --live
+                initialDelaySeconds: 120
+                timeoutSeconds: 10
+              name: postgresql
+              ports:
+                - containerPort: 5432
+                  protocol: TCP
+              readinessProbe:
+                exec:
+                  command:
+                    - /usr/libexec/check-container
+                initialDelaySeconds: 5
+                timeoutSeconds: 1
+              securityContext:
+                capabilities: {}
+                privileged: false
+              terminationMessagePath: /dev/termination-log
+              volumeMounts:
+                - mountPath: /var/lib/pgsql/data
+                  name: ${DATABASE_SERVICE_NAME}-data
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+          volumes:
+            - name: ${DATABASE_SERVICE_NAME}-data
+              persistentVolumeClaim:
+                claimName: ${DATABASE_SERVICE_NAME}
+      triggers:
+        - type: ImageChange
+          imageChangeParams:
+            automatic: true
+            containerNames:
+              - postgresql
+            from:
+              kind: ImageStreamTag
+              name: postgresql:${POSTGRESQL_VERSION}
+              namespace: ${POSTGRESQL_IMAGESTREAM_NAMESPACE}
+        - type: ConfigChange
+    status: {}
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      annotations:
+        template.openshift.io/expose-database_name: "{.data['database-name']}"
+        template.openshift.io/expose-password: "{.data['database-password']}"
+        template.openshift.io/expose-username: "{.data['database-user']}"
+      name: ${DATABASE_SERVICE_NAME}
+    stringData:
+      database-name: ${DATABASE_NAME}
+      database-password: ${DATABASE_PASSWORD}
+      database-user: ${DATABASE_USER}
+

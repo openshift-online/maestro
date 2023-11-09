@@ -1,0 +1,29 @@
+FROM openapitools/openapi-generator-cli:v6.6.0
+
+RUN apt-get update
+RUN apt-get install -y make sudo git
+
+# Add sources to get golang 1.21 and skip time related release not valid until failures
+RUN echo "deb http://deb.debian.org/debian bookworm-backports main contrib non-free\ndeb-src http://deb.debian.org/debian bookworm-backports main contrib non-free" >> /etc/apt/sources.list
+RUN echo "Acquire::Check-Valid-Until \"false\";\nAcquire::Check-Date \"false\";" | cat > /etc/apt/apt.conf.d/10no--check-valid-until
+RUN apt-get update
+RUN apt-get install -y golang-1.21
+
+RUN mkdir -p /local
+COPY . /local
+
+ENV PATH="/uhc/bin:/usr/lib/go-1.21/bin/:${PATH}"
+ENV GOPATH="/uhc"
+ENV GOBIN /usr/lib/go-1.21/bin/
+ENV CGO_ENABLED=0
+
+# these git and go flags to avoid self signed certificate errors
+
+WORKDIR /local
+
+RUN go install -a github.com/go-bindata/go-bindata/...@v3.1.2
+RUN bash /usr/local/bin/docker-entrypoint.sh generate -i /local/openapi/openapi.yaml -g go -o /local/pkg/api/openapi
+RUN rm /local/pkg/api/openapi/go.mod /local/pkg/api/openapi/go.sum
+RUN rm -r /local/pkg/api/openapi/test
+RUN go generate /local/cmd/maestro/main.go
+RUN gofmt -w /local/pkg/api/openapi

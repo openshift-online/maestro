@@ -1,0 +1,78 @@
+package services
+
+import (
+	"context"
+	"github.com/openshift-online/maestro/pkg/dao"
+
+	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/errors"
+)
+
+type {{.Kind}}Service interface {
+	Get(ctx context.Context, id string) (*api.{{.Kind}}, *errors.ServiceError)
+	Create(ctx context.Context, {{.KindLowerSingular}} *api.{{.Kind}}) (*api.{{.Kind}}, *errors.ServiceError)
+	Replace(ctx context.Context, {{.KindLowerSingular}} *api.{{.Kind}}) (*api.{{.Kind}}, *errors.ServiceError)
+	Delete(ctx context.Context, id string) *errors.ServiceError
+	All(ctx context.Context) (api.{{.Kind}}List, *errors.ServiceError)
+
+	FindByIDs(ctx context.Context, ids []string) (api.{{.Kind}}List, *errors.ServiceError)
+}
+
+func New{{.Kind}}Service({{.KindLowerSingular}}Dao dao.{{.Kind}}Dao) {{.Kind}}Service {
+	return &sql{{.Kind}}Service{
+		{{.KindLowerSingular}}Dao: {{.KindLowerSingular}}Dao,
+	}
+}
+
+var _ {{.Kind}}Service = &sql{{.Kind}}Service{}
+
+type sql{{.Kind}}Service struct {
+	{{.KindLowerSingular}}Dao dao.{{.Kind}}Dao
+}
+
+func (s *sql{{.Kind}}Service) Get(ctx context.Context, id string) (*api.{{.Kind}}, *errors.ServiceError) {
+	{{.KindLowerSingular}}, err := s.{{.KindLowerSingular}}Dao.Get(ctx, id)
+	if err != nil {
+		return nil, handleGetError("{{.Kind}}", "id", id, err)
+	}
+	return {{.KindLowerSingular}}, nil
+}
+
+func (s *sql{{.Kind}}Service) Create(ctx context.Context, {{.KindLowerSingular}} *api.{{.Kind}}) (*api.{{.Kind}}, *errors.ServiceError) {
+	{{.KindLowerSingular}}, err := s.{{.KindLowerSingular}}Dao.Create(ctx, {{.KindLowerSingular}})
+	if err != nil {
+		return nil, handleCreateError("{{.Kind}}", err)
+	}
+	return {{.KindLowerSingular}}, nil
+}
+
+func (s *sql{{.Kind}}Service) Replace(ctx context.Context, {{.KindLowerSingular}} *api.{{.Kind}}) (*api.{{.Kind}}, *errors.ServiceError) {
+	{{.KindLowerSingular}}, err := s.{{.KindLowerSingular}}Dao.Replace(ctx, {{.KindLowerSingular}})
+	if err != nil {
+		return nil, handleUpdateError("{{.Kind}}", err)
+	}
+	return {{.KindLowerSingular}}, nil
+}
+
+func (s *sql{{.Kind}}Service) Delete(ctx context.Context, id string) *errors.ServiceError {
+	if err := s.{{.KindLowerSingular}}Dao.Delete(ctx, id); err != nil {
+		return handleDeleteError("{{.Kind}}", errors.GeneralError("Unable to delete {{.KindLowerSingular}}: %s", err))
+	}
+	return nil
+}
+
+func (s *sql{{.Kind}}Service) FindByIDs(ctx context.Context, ids []string) (api.{{.Kind}}List, *errors.ServiceError) {
+	{{.KindLowerPlural}}, err := s.{{.KindLowerSingular}}Dao.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to get all {{.KindLowerPlural}}: %s", err)
+	}
+	return {{.KindLowerPlural}}, nil
+}
+
+func (s *sql{{.Kind}}Service) All(ctx context.Context) (api.{{.Kind}}List, *errors.ServiceError) {
+	{{.KindLowerPlural}}, err := s.{{.KindLowerSingular}}Dao.All(ctx)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to get all {{.KindLowerPlural}}: %s", err)
+	}
+	return {{.KindLowerPlural}}, nil
+}

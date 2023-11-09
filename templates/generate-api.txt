@@ -1,0 +1,27 @@
+package api
+
+import "gorm.io/gorm"
+
+type {{.Kind}} struct {
+	Meta
+}
+
+type {{.Kind}}List []*{{.Kind}}
+type {{.Kind}}Index map[string]*{{.Kind}}
+
+func (l {{.Kind}}List) Index() {{.Kind}}Index {
+	index := {{.Kind}}Index{}
+	for _, o := range l {
+		index[o.ID] = o
+	}
+	return index
+}
+
+func (d *{{.Kind}}) BeforeCreate(tx *gorm.DB) error {
+	d.ID = NewID()
+	return nil
+}
+
+type {{.Kind}}PatchRequest struct {
+
+}

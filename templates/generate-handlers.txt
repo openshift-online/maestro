@@ -1,0 +1,142 @@
+package handlers
+
+import (
+	"net/http"
+
+	"github.com/gorilla/mux"
+
+	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/maestro/pkg/api/presenters"
+	"github.com/openshift-online/maestro/pkg/errors"
+	"github.com/openshift-online/maestro/pkg/services"
+)
+
+var _ RestHandler = {{.KindLowerSingular}}Handler{}
+
+type {{.KindLowerSingular}}Handler struct {
+	{{.KindLowerSingular}} services.{{.Kind}}Service
+	generic  services.GenericService
+}
+
+func New{{.Kind}}Handler({{.KindLowerSingular}} services.{{.Kind}}Service, generic services.GenericService) *{{.KindLowerSingular}}Handler {
+	return &{{.KindLowerSingular}}Handler{
+		{{.KindLowerSingular}}: {{.KindLowerSingular}},
+		generic:  generic,
+	}
+}
+
+func (h {{.KindLowerSingular}}Handler) Create(w http.ResponseWriter, r *http.Request) {
+	var {{.KindLowerSingular}} openapi.{{.Kind}}
+	cfg := &handlerConfig{
+		&{{.KindLowerSingular}},
+		[]validate{
+			validateEmpty(&{{.KindLowerSingular}}, "Id", "id"),
+		},
+		func() (interface{}, *errors.ServiceError) {
+			ctx := r.Context()
+			dino := presenters.Convert{{.Kind}}({{.KindLowerSingular}})
+			dino, err := h.{{.KindLowerSingular}}.Create(ctx, dino)
+			if err != nil {
+				return nil, err
+			}
+			return presenters.Present{{.Kind}}(dino), nil
+		},
+		handleError,
+	}
+
+	handle(w, r, cfg, http.StatusCreated)
+}
+
+func (h {{.KindLowerSingular}}Handler) Patch(w http.ResponseWriter, r *http.Request) {
+	var patch openapi.{{.Kind}}PatchRequest
+
+	cfg := &handlerConfig{
+		&patch,
+		[]validate{
+			validate{{.Kind}}Patch(&patch),
+		},
+		func() (interface{}, *errors.ServiceError) {
+			ctx := r.Context()
+			id := mux.Vars(r)["id"]
+			found, err := h.{{.KindLowerSingular}}.Get(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+
+            //patch a field
+
+			dino, err := h.{{.KindLowerSingular}}.Replace(ctx, found)
+			if err != nil {
+				return nil, err
+			}
+			return presenters.Present{{.Kind}}(dino), nil
+		},
+		handleError,
+	}
+
+	handle(w, r, cfg, http.StatusOK)
+}
+
+func (h {{.KindLowerSingular}}Handler) List(w http.ResponseWriter, r *http.Request) {
+	cfg := &handlerConfig{
+		Action: func() (interface{}, *errors.ServiceError) {
+			ctx := r.Context()
+
+			listArgs := services.NewListArguments(r.URL.Query())
+			var {{.KindLowerPlural}} = []api.{{.Kind}}{}
+			paging, err := h.generic.List(ctx, "username", listArgs, &{{.KindLowerPlural}})
+			if err != nil {
+				return nil, err
+			}
+			dinoList := openapi.{{.Kind}}List{
+				Kind:  "{{.Kind}}List",
+				Page:  int32(paging.Page),
+				Size:  int32(paging.Size),
+				Total: int32(paging.Total),
+				Items: []openapi.{{.Kind}}{},
+			}
+
+			for _, dino := range {{.KindLowerPlural}} {
+				converted := presenters.Present{{.Kind}}(&dino)
+				dinoList.Items = append(dinoList.Items, converted)
+			}
+			if listArgs.Fields != nil {
+				filteredItems, err := presenters.SliceFilter(listArgs.Fields, dinoList.Items)
+				if err != nil {
+					return nil, err
+				}
+				return filteredItems, nil
+			}
+			return dinoList, nil
+		},
+	}
+
+	handleList(w, r, cfg)
+}
+
+func (h {{.KindLowerSingular}}Handler) Get(w http.ResponseWriter, r *http.Request) {
+	cfg := &handlerConfig{
+		Action: func() (interface{}, *errors.ServiceError) {
+			id := mux.Vars(r)["id"]
+			ctx := r.Context()
+			{{.KindLowerSingular}}, err := h.{{.KindLowerSingular}}.Get(ctx, id)
+			if err != nil {
+				return nil, err
+			}
+
+			return presenters.Present{{.Kind}}({{.KindLowerSingular}}), nil
+		},
+	}
+
+	handleGet(w, r, cfg)
+}
+
+func (h {{.KindLowerSingular}}Handler) Delete(w http.ResponseWriter, r *http.Request) {
+	cfg := &handlerConfig{
+		Action: func() (interface{}, *errors.ServiceError) {
+			return nil, errors.NotImplemented("delete")
+		},
+	}
+	handleDelete(w, r, cfg, http.StatusNoContent)
+}

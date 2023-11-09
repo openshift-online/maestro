@@ -1,0 +1,40 @@
+FROM quay.io/app-sre/postgres:buster
+
+ENV POSTGRES_PASSWORD foobar-bizz-buzz
+ENV POSTGRES_USER maestro
+ENV POSTGRES_DB maestro
+
+ENV GORM_DIALECT postgres
+ENV GORM_HOST 127.0.0.1
+ENV GORM_PORT 5432
+ENV GORM_NAME maestro
+ENV GORM_USERNAME maestro
+ENV GORM_PASSWORD foobar-bizz-buzz
+ENV GORM_SSLMODE disable
+ENV GORM_DEBUG false
+
+RUN apt-get update && apt-get install -y make sudo git wget curl ca-certificates
+
+COPY cas/redhat-it.pem /usr/local/share/ca-certificates/redhat-it.crt
+RUN update-ca-certificates
+
+COPY db_setup_docker.sql /docker-entrypoint-initdb.d/
+COPY pr_check_docker.sh /docker-entrypoint-initdb.d/
+
+COPY go1.18.1.linux-amd64.tar.gz .
+RUN tar -C /usr/local -xzf go1.18.1.linux-amd64.tar.gz
+
+ENV PATH="/ocm/bin:/usr/local/go/bin:${PATH}"
+ENV GOPATH="/ocm"
+ENV CGO_ENABLED=0
+
+RUN mkdir -p /ocm/src/gitlab.cee.redhat.com/service/maestro
+COPY . /ocm/src/gitlab.cee.redhat.com/service/maestro
+
+# Docker built / owned  as 'root' but the 'postgres' user runs the image
+RUN chown -R postgres:postgres /ocm /usr/local/go
+WORKDIR /ocm/src/gitlab.cee.redhat.com/service/maestro
+
+ENTRYPOINT ["docker-entrypoint.sh"]
+
+CMD ["postgres"]
