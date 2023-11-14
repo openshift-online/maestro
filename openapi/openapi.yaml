@@ -187,6 +187,182 @@ paths:
                 $ref: '#/components/schemas/Error'
     parameters:
     - $ref: '#/components/parameters/id'
+  /api/maestro/v1/consumers:
+    get:
+      summary: Returns a list of consumers
+      security:
+        - Bearer: []
+      responses:
+        '200':
+          description: A JSON array of consumer objects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumerList'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Unexpected error occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+        - $ref: '#/components/parameters/search'
+        - $ref: '#/components/parameters/orderBy'
+        - $ref: '#/components/parameters/fields'
+    post:
+      summary: Create a new consumer
+      security:
+        - Bearer: []
+      requestBody:
+        description: Consumer data
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Consumer'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+        '400':
+          description: Validation errors occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Consumer already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: An unexpected error occurred creating the consumer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/maestro/v1/consumers/{id}:
+    get:
+      summary: Get an consumer by id
+      security:
+        - Bearer: []
+      responses:
+        '200':
+          description: Consumer found by id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No consumer with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Unexpected error occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update an consumer
+      security:
+        - Bearer: []
+      requestBody:
+        description: Updated consumer data
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConsumerPatchRequest'
+      responses:
+        '200':
+          description: Consumer updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Consumer'
+        '400':
+          description: Validation errors occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No consumer with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Consumer already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Unexpected error updating consumer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    parameters:
+      - $ref: '#/components/parameters/id'
 components:
   securitySchemes:
     Bearer:
@@ -271,6 +447,35 @@ components:
       properties:
         manifest:
           type: object
+        species:
+          type: string
+    Consumer:
+      allOf:
+        - $ref: '#/components/schemas/ObjectReference'
+        - type: object
+          properties:
+            name:
+              type: string
+            created_at:
+              type: string
+              format: date-time
+            updated_at:
+              type: string
+              format: date-time
+    ConsumerList:
+      allOf:
+        - $ref: '#/components/schemas/List'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Consumer'
+    ConsumerPatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
   parameters:
     id:
       name: id

@@ -23,6 +23,7 @@ func (s *apiServer) routes() *mux.Router {
 	}
 
 	resourceHandler := handlers.NewResourceHandler(services.Resources(), services.Generic())
+	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Generic())
 	errorsHandler := handlers.NewErrorsHandler()
 
 	authMiddleware, err := auth.NewAuthMiddleware()
@@ -74,6 +75,16 @@ func (s *apiServer) routes() *mux.Router {
 	apiV1ResourceRouter.Use(authMiddleware.AuthenticateAccountJWT)
 
 	apiV1ResourceRouter.Use(authzMiddleware.AuthorizeApi)
+
+	//  /api/maestro/v1/consumers
+	apiV1ConsumersRouter := apiV1Router.PathPrefix("/consumers").Subrouter()
+	apiV1ConsumersRouter.HandleFunc("", consumerHandler.List).Methods(http.MethodGet)
+	apiV1ConsumersRouter.HandleFunc("/{id}", consumerHandler.Get).Methods(http.MethodGet)
+	apiV1ConsumersRouter.HandleFunc("", consumerHandler.Create).Methods(http.MethodPost)
+	apiV1ConsumersRouter.HandleFunc("/{id}", consumerHandler.Patch).Methods(http.MethodPatch)
+	apiV1ConsumersRouter.HandleFunc("/{id}", consumerHandler.Delete).Methods(http.MethodDelete)
+	apiV1ConsumersRouter.Use(authMiddleware.AuthenticateAccountJWT)
+	apiV1ConsumersRouter.Use(authzMiddleware.AuthorizeApi)
 
 	return mainRouter
 }

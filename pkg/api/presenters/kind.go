@@ -9,6 +9,8 @@ import (
 func ObjectKind(i interface{}) *string {
 	result := ""
 	switch i.(type) {
+	case api.Consumer, *api.Consumer:
+		result = "Consumer"
 	case api.Resource, *api.Resource:
 		result = "Resource"
 	case errors.ServiceError, *errors.ServiceError:
