@@ -70,9 +70,9 @@ func SendAPIV1(w http.ResponseWriter, r *http.Request) {
 	id := "v1"
 	collections := []CollectionMetadata{
 		{
-			ID:   "dinosaurs",
-			Kind: "DinosaurList",
-			HREF: r.URL.Path + "/dinosaurs",
+			ID:   "resources",
+			Kind: "ResourceList",
+			HREF: r.URL.Path + "/resources",
 		},
 	}
 	body := VersionMetadata{

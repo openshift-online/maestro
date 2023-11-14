@@ -319,7 +319,7 @@ func (helper *Helper) MigrateDBTo(migrationID string) {
 }
 
 func (helper *Helper) ClearAllTables() {
-	helper.DeleteAll(&api.Dinosaur{})
+	helper.DeleteAll(&api.Resource{})
 }
 
 func (helper *Helper) CleanDB() error {

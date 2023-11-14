@@ -41,7 +41,7 @@ func TestSQLTranslation(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		list := []api.Dinosaur{}
+		list := []api.Resource{}
 		search := test["search"].(string)
 		errorMsg := test["error"].(string)
 		listCtx, model, serviceErr := genericService.newListContext(context.Background(), "", &ListArguments{Search: search}, &list)
@@ -63,7 +63,7 @@ func TestSQLTranslation(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		list := []api.Dinosaur{}
+		list := []api.Resource{}
 		search := test["search"].(string)
 		sqlReal := test["sql"].(string)
 		valuesReal := test["values"].(types.GomegaMatcher)

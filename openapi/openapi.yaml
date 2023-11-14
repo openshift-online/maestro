@@ -11,18 +11,18 @@ servers:
   - url: https://api.stage.openshift.com
     description: Staging server
 paths:
-  /api/maestro/v1/dinosaurs:
+  /api/maestro/v1/resources:
     get:
-      summary: Returns a list of dinosaurs
+      summary: Returns a list of resources
       security:
         - Bearer: []
       responses:
         '200':
-          description: A JSON array of dinosaur objects
+          description: A JSON array of resource objects
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DinosaurList'
+                $ref: '#/components/schemas/ResourceList'
         '401':
           description: Auth token is invalid
           content:
@@ -48,23 +48,23 @@ paths:
       - $ref: '#/components/parameters/orderBy'
       - $ref: '#/components/parameters/fields'
     post:
-      summary: Create a new dinosaur
+      summary: Create a new resource
       security:
         - Bearer: []
       requestBody:
-        description: Dinosaur data
+        description: Resource data
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Dinosaur'
+              $ref: '#/components/schemas/Resource'
       responses:
         '201':
           description: Created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dinosaur'
+                $ref: '#/components/schemas/Resource'
         '400':
           description: Validation errors occurred
           content:
@@ -84,29 +84,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: Dinosaur already exists
+          description: Resource already exists
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '500':
-          description: An unexpected error occurred creating the dinosaur
+          description: An unexpected error occurred creating the resource
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-  /api/maestro/v1/dinosaurs/{id}:
+  /api/maestro/v1/resources/{id}:
     get:
-      summary: Get an dinosaur by id
+      summary: Get an resource by id
       security:
         - Bearer: []
       responses:
         '200':
-          description: Dinosaur found by id
+          description: Resource found by id
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dinosaur'
+                $ref: '#/components/schemas/Resource'
         '401':
           description: Auth token is invalid
           content:
@@ -120,7 +120,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: No dinosaur with specified id exists
+          description: No resource with specified id exists
           content:
             application/json:
               schema:
@@ -132,23 +132,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
     patch:
-      summary: Update an dinosaur
+      summary: Update an resource
       security:
         - Bearer: []
       requestBody:
-        description: Updated dinosaur data
+        description: Updated resource data
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DinosaurPatchRequest'
+              $ref: '#/components/schemas/ResourcePatchRequest'
       responses:
         '200':
-          description: Dinosaur updated successfully
+          description: Resource updated successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dinosaur'
+                $ref: '#/components/schemas/Resource'
         '400':
           description: Validation errors occurred
           content:
@@ -168,19 +168,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
         '404':
-          description: No dinosaur with specified id exists
+          description: No resource with specified id exists
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '409':
-          description: Dinosaur already exists
+          description: Resource already exists
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '500':
-          description: Unexpected error updating dinosaur
+          description: Unexpected error updating resource
           content:
             application/json:
               schema:
@@ -240,20 +240,24 @@ components:
             type: array
             items:
               $ref: '#/components/schemas/Error'
-    Dinosaur:
+    Resource:
       allOf:
       - $ref: '#/components/schemas/ObjectReference'
       - type: object
         properties:
-          species:
+          consumer_id:
             type: string
+          version:
+            type: integer
           created_at:
             type: string
             format: date-time
           updated_at:
             type: string
             format: date-time
-    DinosaurList:
+          manifest:
+            type: object
+    ResourceList:
       allOf:
       - $ref: '#/components/schemas/List'
       - type: object
@@ -261,12 +265,12 @@ components:
           items:
             type: array
             items:
-              $ref: '#/components/schemas/Dinosaur'
-    DinosaurPatchRequest:
+              $ref: '#/components/schemas/Resource'
+    ResourcePatchRequest:
       type: object
       properties:
-        species:
-          type: string
+        manifest:
+          type: object
   parameters:
     id:
       name: id

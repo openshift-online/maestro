@@ -2,30 +2,26 @@ package test
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/openshift-online/maestro/pkg/api"
 )
 
-func (helper *Helper) NewDinosaur(species string) *api.Dinosaur {
-	dinoService := helper.Env().Services.Dinosaurs()
+func (helper *Helper) NewResource() *api.Resource {
+	resourceService := helper.Env().Services.Resources()
 
-	dinosaur := &api.Dinosaur{
-		Species: species,
-	}
+	resource := &api.Resource{}
 
-	dino, err := dinoService.Create(context.Background(), dinosaur)
+	res, err := resourceService.Create(context.Background(), resource)
 	if err != nil {
-		helper.T.Errorf("error creating dinosaur: %q", err)
+		helper.T.Errorf("error creating resource: %q", err)
 	}
 
-	return dino
+	return res
 }
 
-func (helper *Helper) NewDinosaurList(namePrefix string, count int) (dinosaurs []*api.Dinosaur) {
+func (helper *Helper) NewResourceList(count int) (resource []*api.Resource) {
 	for i := 1; i <= count; i++ {
-		name := fmt.Sprintf("%s_%d", namePrefix, i)
-		dinosaurs = append(dinosaurs, helper.NewDinosaur(name))
+		resource = append(resource, helper.NewResource())
 	}
-	return dinosaurs
+	return resource
 }

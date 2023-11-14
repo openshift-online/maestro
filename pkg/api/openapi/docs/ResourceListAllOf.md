@@ -1,52 +1,52 @@
-# DinosaurListAllOf
+# ResourceListAllOf
 
 ## Properties
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**Items** | Pointer to [**[]Dinosaur**](Dinosaur.md) |  | [optional] 
+**Items** | Pointer to [**[]Resource**](Resource.md) |  | [optional] 
 
 ## Methods
 
-### NewDinosaurListAllOf
+### NewResourceListAllOf
 
-`func NewDinosaurListAllOf() *DinosaurListAllOf`
+`func NewResourceListAllOf() *ResourceListAllOf`
 
-NewDinosaurListAllOf instantiates a new DinosaurListAllOf object
+NewResourceListAllOf instantiates a new ResourceListAllOf object
 This constructor will assign default values to properties that have it defined,
 and makes sure properties required by API are set, but the set of arguments
 will change when the set of required properties is changed
 
-### NewDinosaurListAllOfWithDefaults
+### NewResourceListAllOfWithDefaults
 
-`func NewDinosaurListAllOfWithDefaults() *DinosaurListAllOf`
+`func NewResourceListAllOfWithDefaults() *ResourceListAllOf`
 
-NewDinosaurListAllOfWithDefaults instantiates a new DinosaurListAllOf object
+NewResourceListAllOfWithDefaults instantiates a new ResourceListAllOf object
 This constructor will only assign default values to properties that have it defined,
 but it doesn't guarantee that properties required by API are set
 
 ### GetItems
 
-`func (o *DinosaurListAllOf) GetItems() []Dinosaur`
+`func (o *ResourceListAllOf) GetItems() []Resource`
 
 GetItems returns the Items field if non-nil, zero value otherwise.
 
 ### GetItemsOk
 
-`func (o *DinosaurListAllOf) GetItemsOk() (*[]Dinosaur, bool)`
+`func (o *ResourceListAllOf) GetItemsOk() (*[]Resource, bool)`
 
 GetItemsOk returns a tuple with the Items field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetItems
 
-`func (o *DinosaurListAllOf) SetItems(v []Dinosaur)`
+`func (o *ResourceListAllOf) SetItems(v []Resource)`
 
 SetItems sets Items field to given value.
 
 ### HasItems
 
-`func (o *DinosaurListAllOf) HasItems() bool`
+`func (o *ResourceListAllOf) HasItems() bool`
 
 HasItems returns a boolean if a field has been set.
 

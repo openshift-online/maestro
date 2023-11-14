@@ -43,7 +43,7 @@ type Handlers struct {
 }
 
 type Services struct {
-	Dinosaurs DinosaurServiceLocator
+	Resources ResourceServiceLocator
 	Generic   GenericServiceLocator
 	Events    EventServiceLocator
 }

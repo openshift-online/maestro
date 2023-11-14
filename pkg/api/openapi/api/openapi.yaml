@@ -1,7 +1,7 @@
 openapi: 3.0.0
 info:
-  description: maestro API
-  title: maestro API
+  description: maestro Service API
+  title: maestro Service API
   version: 0.0.1
 servers:
 - description: current domain
@@ -11,7 +11,7 @@ servers:
 - description: Staging server
   url: https://api.stage.openshift.com
 paths:
-  /api/maestro/v1/dinosaurs:
+  /api/maestro/v1/resources:
     get:
       parameters:
       - description: Page number of record list when record list exceeds specified
@@ -98,8 +98,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DinosaurList'
-          description: A JSON array of dinosaur objects
+                $ref: '#/components/schemas/ResourceList'
+          description: A JSON array of resource objects
         "401":
           content:
             application/json:
@@ -120,21 +120,21 @@ paths:
           description: Unexpected error occurred
       security:
       - Bearer: []
-      summary: Returns a list of dinosaurs
+      summary: Returns a list of resources
     post:
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Dinosaur'
-        description: Dinosaur data
+              $ref: '#/components/schemas/Resource'
+        description: Resource data
         required: true
       responses:
         "201":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dinosaur'
+                $ref: '#/components/schemas/Resource'
           description: Created
         "400":
           content:
@@ -159,17 +159,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Dinosaur already exists
+          description: Resource already exists
         "500":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: An unexpected error occurred creating the dinosaur
+          description: An unexpected error occurred creating the resource
       security:
       - Bearer: []
-      summary: Create a new dinosaur
-  /api/maestro/v1/dinosaurs/{id}:
+      summary: Create a new resource
+  /api/maestro/v1/resources/{id}:
     get:
       parameters:
       - description: The id of record
@@ -185,8 +185,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dinosaur'
-          description: Dinosaur found by id
+                $ref: '#/components/schemas/Resource'
+          description: Resource found by id
         "401":
           content:
             application/json:
@@ -204,7 +204,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: No dinosaur with specified id exists
+          description: No resource with specified id exists
         "500":
           content:
             application/json:
@@ -213,7 +213,7 @@ paths:
           description: Unexpected error occurred
       security:
       - Bearer: []
-      summary: Get an dinosaur by id
+      summary: Get an resource by id
     patch:
       parameters:
       - description: The id of record
@@ -228,16 +228,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DinosaurPatchRequest'
-        description: Updated dinosaur data
+              $ref: '#/components/schemas/ResourcePatchRequest'
+        description: Updated resource data
         required: true
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Dinosaur'
-          description: Dinosaur updated successfully
+                $ref: '#/components/schemas/Resource'
+          description: Resource updated successfully
         "400":
           content:
             application/json:
@@ -261,22 +261,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: No dinosaur with specified id exists
+          description: No resource with specified id exists
         "409":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Dinosaur already exists
+          description: Resource already exists
         "500":
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: Unexpected error updating dinosaur
+          description: Unexpected error updating resource
       security:
       - Bearer: []
-      summary: Update an dinosaur
+      summary: Update an resource
 components:
   parameters:
     id:
@@ -406,20 +406,20 @@ components:
       allOf:
       - $ref: '#/components/schemas/List'
       - $ref: '#/components/schemas/ErrorList_allOf'
-    Dinosaur:
+    Resource:
       allOf:
       - $ref: '#/components/schemas/ObjectReference'
-      - $ref: '#/components/schemas/Dinosaur_allOf'
-    DinosaurList:
+      - $ref: '#/components/schemas/Resource_allOf'
+    ResourceList:
       allOf:
       - $ref: '#/components/schemas/List'
-      - $ref: '#/components/schemas/DinosaurList_allOf'
-    DinosaurPatchRequest:
+      - $ref: '#/components/schemas/ResourceList_allOf'
+    ResourcePatchRequest:
       example:
-        species: species
+        manifest: "{}"
       properties:
-        species:
-          type: string
+        manifest:
+          type: object
       type: object
     Error_allOf:
       properties:
@@ -439,23 +439,27 @@ components:
           type: array
       type: object
       example: null
-    Dinosaur_allOf:
+    Resource_allOf:
       properties:
-        species:
+        consumer_id:
           type: string
+        version:
+          type: integer
         created_at:
           format: date-time
           type: string
         updated_at:
           format: date-time
           type: string
+        manifest:
+          type: object
       type: object
       example: null
-    DinosaurList_allOf:
+    ResourceList_allOf:
       properties:
         items:
           items:
-            $ref: '#/components/schemas/Dinosaur'
+            $ref: '#/components/schemas/Resource'
           type: array
       type: object
       example: null

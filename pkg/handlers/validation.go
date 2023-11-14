@@ -55,14 +55,8 @@ func validateInclusionIn(value *string, list []string, category *string) validat
 	}
 }
 
-func validateDinosaurPatch(patch *openapi.DinosaurPatchRequest) validate {
+func validateResourcePatch(patch *openapi.Resource) validate {
 	return func() *errors.ServiceError {
-		if patch.Species == nil {
-			return errors.Validation("species cannot be nil")
-		}
-		if len(*patch.Species) == 0 {
-			return errors.Validation("species cannot be empty")
-		}
 		return nil
 	}
 }

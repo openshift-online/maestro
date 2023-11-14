@@ -19,8 +19,8 @@ func ObjectPath(id string, obj interface{}) *string {
 
 func path(i interface{}) string {
 	switch i.(type) {
-	case api.Dinosaur, *api.Dinosaur:
-		return "dinosaurs"
+	case api.Resource, *api.Resource:
+		return "resources"
 	case errors.ServiceError, *errors.ServiceError:
 		return "errors"
 	default:

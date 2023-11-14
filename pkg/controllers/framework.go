@@ -20,7 +20,7 @@ The implementation is specific to the Event table in this service and leverages 
 	1. pg_notify(channel, msg) is used for real time notification to listeners
 	2. advisory locks are used for concurrency when doing background work
 
-DAOs decorated similarly to the DinosaurDAO will persist Events to the database and listeners are notified of the changed.
+DAOs decorated similarly to the ResourceDAO will persist Events to the database and listeners are notified of the changed.
 A worker attemping to process the Event will first obtain a fail-fast adivosry lock. Of many competing workers, only
 one would first successfully obtain the lock. All other workers will *not* wait to obtain the lock.
 
@@ -92,7 +92,7 @@ func (km *KindControllerManager) Handle(id string) {
 		return
 	}
 	threadContext := context.WithValue(ctx, "event", id)
-	
+
 	km.handle(threadContext, id)
 }
 

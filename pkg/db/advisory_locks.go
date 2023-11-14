@@ -19,7 +19,7 @@ type (
 
 const (
 	Migrations LockType = "migrations"
-	Dinosaurs  LockType = "dinosaurs"
+	Resources  LockType = "Resources"
 	Events     LockType = "events"
 )
 

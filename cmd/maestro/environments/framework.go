@@ -130,7 +130,7 @@ func (e *Env) Seed() *errors.ServiceError {
 
 func (e *Env) LoadServices() {
 	e.Services.Generic = NewGenericServiceLocator(e)
-	e.Services.Dinosaurs = NewDinosaurServiceLocator(e)
+	e.Services.Resources = NewResourceServiceLocator(e)
 	e.Services.Events = NewEventServiceLocator(e)
 }
 

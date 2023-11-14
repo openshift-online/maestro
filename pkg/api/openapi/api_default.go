@@ -1,7 +1,7 @@
 /*
-maestro API
+maestro Service API
 
-maestro API
+maestro Service API
 
 API version: 0.0.1
 */
@@ -22,7 +22,7 @@ import (
 // DefaultApiService DefaultApi service
 type DefaultApiService service
 
-type ApiApiMaestroV1DinosaursGetRequest struct {
+type ApiApiMaestroV1ResourcesGetRequest struct {
 	ctx        context.Context
 	ApiService *DefaultApiService
 	page       *int32
@@ -33,47 +33,47 @@ type ApiApiMaestroV1DinosaursGetRequest struct {
 }
 
 // Page number of record list when record list exceeds specified page size
-func (r ApiApiMaestroV1DinosaursGetRequest) Page(page int32) ApiApiMaestroV1DinosaursGetRequest {
+func (r ApiApiMaestroV1ResourcesGetRequest) Page(page int32) ApiApiMaestroV1ResourcesGetRequest {
 	r.page = &page
 	return r
 }
 
 // Maximum number of records to return
-func (r ApiApiMaestroV1DinosaursGetRequest) Size(size int32) ApiApiMaestroV1DinosaursGetRequest {
+func (r ApiApiMaestroV1ResourcesGetRequest) Size(size int32) ApiApiMaestroV1ResourcesGetRequest {
 	r.size = &size
 	return r
 }
 
 // Specifies the search criteria. The syntax of this parameter is similar to the syntax of the _where_ clause of an SQL statement, using the names of the json attributes / column names of the account.  For example, in order to retrieve all the accounts with a username starting with &#x60;my&#x60;:  &#x60;&#x60;&#x60;sql username like &#39;my%&#39; &#x60;&#x60;&#x60;  The search criteria can also be applied on related resource. For example, in order to retrieve all the subscriptions labeled by &#x60;foo&#x3D;bar&#x60;,  &#x60;&#x60;&#x60;sql subscription_labels.key &#x3D; &#39;foo&#39; and subscription_labels.value &#x3D; &#39;bar&#39; &#x60;&#x60;&#x60;  If the parameter isn&#39;t provided, or if the value is empty, then all the accounts that the user has permission to see will be returned.
-func (r ApiApiMaestroV1DinosaursGetRequest) Search(search string) ApiApiMaestroV1DinosaursGetRequest {
+func (r ApiApiMaestroV1ResourcesGetRequest) Search(search string) ApiApiMaestroV1ResourcesGetRequest {
 	r.search = &search
 	return r
 }
 
 // Specifies the order by criteria. The syntax of this parameter is similar to the syntax of the _order by_ clause of an SQL statement, but using the names of the json attributes / column of the account. For example, in order to retrieve all accounts ordered by username:  &#x60;&#x60;&#x60;sql username asc &#x60;&#x60;&#x60;  Or in order to retrieve all accounts ordered by username _and_ first name:  &#x60;&#x60;&#x60;sql username asc, firstName asc &#x60;&#x60;&#x60;  If the parameter isn&#39;t provided, or if the value is empty, then no explicit ordering will be applied.
-func (r ApiApiMaestroV1DinosaursGetRequest) OrderBy(orderBy string) ApiApiMaestroV1DinosaursGetRequest {
+func (r ApiApiMaestroV1ResourcesGetRequest) OrderBy(orderBy string) ApiApiMaestroV1ResourcesGetRequest {
 	r.orderBy = &orderBy
 	return r
 }
 
 // Supplies a comma-separated list of fields to be returned. Fields of sub-structures and of arrays use &lt;structure&gt;.&lt;field&gt; notation. &lt;stucture&gt;.* means all field of a structure Example: For each Subscription to get id, href, plan(id and kind) and labels (all fields)  &#x60;&#x60;&#x60; ocm get subscriptions --parameter fields&#x3D;id,href,plan.id,plan.kind,labels.* --parameter fetchLabels&#x3D;true &#x60;&#x60;&#x60;
-func (r ApiApiMaestroV1DinosaursGetRequest) Fields(fields string) ApiApiMaestroV1DinosaursGetRequest {
+func (r ApiApiMaestroV1ResourcesGetRequest) Fields(fields string) ApiApiMaestroV1ResourcesGetRequest {
 	r.fields = &fields
 	return r
 }
 
-func (r ApiApiMaestroV1DinosaursGetRequest) Execute() (*DinosaurList, *http.Response, error) {
-	return r.ApiService.ApiMaestroV1DinosaursGetExecute(r)
+func (r ApiApiMaestroV1ResourcesGetRequest) Execute() (*ResourceList, *http.Response, error) {
+	return r.ApiService.ApiMaestroV1ResourcesGetExecute(r)
 }
 
 /*
-ApiMaestroV1DinosaursGet Returns a list of dinosaurs
+ApiMaestroV1ResourcesGet Returns a list of resources
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@return ApiApiMaestroV1DinosaursGetRequest
+	@return ApiApiMaestroV1ResourcesGetRequest
 */
-func (a *DefaultApiService) ApiMaestroV1DinosaursGet(ctx context.Context) ApiApiMaestroV1DinosaursGetRequest {
-	return ApiApiMaestroV1DinosaursGetRequest{
+func (a *DefaultApiService) ApiMaestroV1ResourcesGet(ctx context.Context) ApiApiMaestroV1ResourcesGetRequest {
+	return ApiApiMaestroV1ResourcesGetRequest{
 		ApiService: a,
 		ctx:        ctx,
 	}
@@ -81,21 +81,21 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursGet(ctx context.Context) ApiApi
 
 // Execute executes the request
 //
-//	@return DinosaurList
-func (a *DefaultApiService) ApiMaestroV1DinosaursGetExecute(r ApiApiMaestroV1DinosaursGetRequest) (*DinosaurList, *http.Response, error) {
+//	@return ResourceList
+func (a *DefaultApiService) ApiMaestroV1ResourcesGetExecute(r ApiApiMaestroV1ResourcesGetRequest) (*ResourceList, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *DinosaurList
+		localVarReturnValue *ResourceList
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1DinosaursGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ResourcesGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/maestro/v1/dinosaurs"
+	localVarPath := localBasePath + "/api/maestro/v1/resources"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
@@ -202,25 +202,25 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursGetExecute(r ApiApiMaestroV1Din
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiApiMaestroV1DinosaursIdGetRequest struct {
+type ApiApiMaestroV1ResourcesIdGetRequest struct {
 	ctx        context.Context
 	ApiService *DefaultApiService
 	id         string
 }
 
-func (r ApiApiMaestroV1DinosaursIdGetRequest) Execute() (*Dinosaur, *http.Response, error) {
-	return r.ApiService.ApiMaestroV1DinosaursIdGetExecute(r)
+func (r ApiApiMaestroV1ResourcesIdGetRequest) Execute() (*Resource, *http.Response, error) {
+	return r.ApiService.ApiMaestroV1ResourcesIdGetExecute(r)
 }
 
 /*
-ApiMaestroV1DinosaursIdGet Get an dinosaur by id
+ApiMaestroV1ResourcesIdGet Get an resource by id
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
-	@return ApiApiMaestroV1DinosaursIdGetRequest
+	@return ApiApiMaestroV1ResourcesIdGetRequest
 */
-func (a *DefaultApiService) ApiMaestroV1DinosaursIdGet(ctx context.Context, id string) ApiApiMaestroV1DinosaursIdGetRequest {
-	return ApiApiMaestroV1DinosaursIdGetRequest{
+func (a *DefaultApiService) ApiMaestroV1ResourcesIdGet(ctx context.Context, id string) ApiApiMaestroV1ResourcesIdGetRequest {
+	return ApiApiMaestroV1ResourcesIdGetRequest{
 		ApiService: a,
 		ctx:        ctx,
 		id:         id,
@@ -229,21 +229,21 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursIdGet(ctx context.Context, id s
 
 // Execute executes the request
 //
-//	@return Dinosaur
-func (a *DefaultApiService) ApiMaestroV1DinosaursIdGetExecute(r ApiApiMaestroV1DinosaursIdGetRequest) (*Dinosaur, *http.Response, error) {
+//	@return Resource
+func (a *DefaultApiService) ApiMaestroV1ResourcesIdGetExecute(r ApiApiMaestroV1ResourcesIdGetRequest) (*Resource, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *Dinosaur
+		localVarReturnValue *Resource
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1DinosaursIdGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ResourcesIdGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/maestro/v1/dinosaurs/{id}"
+	localVarPath := localBasePath + "/api/maestro/v1/resources/{id}"
 	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
 
 	localVarHeaderParams := make(map[string]string)
@@ -347,32 +347,32 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursIdGetExecute(r ApiApiMaestroV1D
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiApiMaestroV1DinosaursIdPatchRequest struct {
+type ApiApiMaestroV1ResourcesIdPatchRequest struct {
 	ctx                  context.Context
 	ApiService           *DefaultApiService
 	id                   string
-	dinosaurPatchRequest *DinosaurPatchRequest
+	resourcePatchRequest *ResourcePatchRequest
 }
 
-// Updated dinosaur data
-func (r ApiApiMaestroV1DinosaursIdPatchRequest) DinosaurPatchRequest(dinosaurPatchRequest DinosaurPatchRequest) ApiApiMaestroV1DinosaursIdPatchRequest {
-	r.dinosaurPatchRequest = &dinosaurPatchRequest
+// Updated resource data
+func (r ApiApiMaestroV1ResourcesIdPatchRequest) ResourcePatchRequest(resourcePatchRequest ResourcePatchRequest) ApiApiMaestroV1ResourcesIdPatchRequest {
+	r.resourcePatchRequest = &resourcePatchRequest
 	return r
 }
 
-func (r ApiApiMaestroV1DinosaursIdPatchRequest) Execute() (*Dinosaur, *http.Response, error) {
-	return r.ApiService.ApiMaestroV1DinosaursIdPatchExecute(r)
+func (r ApiApiMaestroV1ResourcesIdPatchRequest) Execute() (*Resource, *http.Response, error) {
+	return r.ApiService.ApiMaestroV1ResourcesIdPatchExecute(r)
 }
 
 /*
-ApiMaestroV1DinosaursIdPatch Update an dinosaur
+ApiMaestroV1ResourcesIdPatch Update an resource
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@param id The id of record
-	@return ApiApiMaestroV1DinosaursIdPatchRequest
+	@return ApiApiMaestroV1ResourcesIdPatchRequest
 */
-func (a *DefaultApiService) ApiMaestroV1DinosaursIdPatch(ctx context.Context, id string) ApiApiMaestroV1DinosaursIdPatchRequest {
-	return ApiApiMaestroV1DinosaursIdPatchRequest{
+func (a *DefaultApiService) ApiMaestroV1ResourcesIdPatch(ctx context.Context, id string) ApiApiMaestroV1ResourcesIdPatchRequest {
+	return ApiApiMaestroV1ResourcesIdPatchRequest{
 		ApiService: a,
 		ctx:        ctx,
 		id:         id,
@@ -381,28 +381,28 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursIdPatch(ctx context.Context, id
 
 // Execute executes the request
 //
-//	@return Dinosaur
-func (a *DefaultApiService) ApiMaestroV1DinosaursIdPatchExecute(r ApiApiMaestroV1DinosaursIdPatchRequest) (*Dinosaur, *http.Response, error) {
+//	@return Resource
+func (a *DefaultApiService) ApiMaestroV1ResourcesIdPatchExecute(r ApiApiMaestroV1ResourcesIdPatchRequest) (*Resource, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPatch
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *Dinosaur
+		localVarReturnValue *Resource
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1DinosaursIdPatch")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ResourcesIdPatch")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/maestro/v1/dinosaurs/{id}"
+	localVarPath := localBasePath + "/api/maestro/v1/resources/{id}"
 	localVarPath = strings.Replace(localVarPath, "{"+"id"+"}", url.PathEscape(parameterValueToString(r.id, "id")), -1)
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.dinosaurPatchRequest == nil {
-		return localVarReturnValue, nil, reportError("dinosaurPatchRequest is required and must be specified")
+	if r.resourcePatchRequest == nil {
+		return localVarReturnValue, nil, reportError("resourcePatchRequest is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -423,7 +423,7 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursIdPatchExecute(r ApiApiMaestroV
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.dinosaurPatchRequest
+	localVarPostBody = r.resourcePatchRequest
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err
@@ -526,30 +526,30 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursIdPatchExecute(r ApiApiMaestroV
 	return localVarReturnValue, localVarHTTPResponse, nil
 }
 
-type ApiApiMaestroV1DinosaursPostRequest struct {
+type ApiApiMaestroV1ResourcesPostRequest struct {
 	ctx        context.Context
 	ApiService *DefaultApiService
-	dinosaur   *Dinosaur
+	resource   *Resource
 }
 
-// Dinosaur data
-func (r ApiApiMaestroV1DinosaursPostRequest) Dinosaur(dinosaur Dinosaur) ApiApiMaestroV1DinosaursPostRequest {
-	r.dinosaur = &dinosaur
+// Resource data
+func (r ApiApiMaestroV1ResourcesPostRequest) Resource(resource Resource) ApiApiMaestroV1ResourcesPostRequest {
+	r.resource = &resource
 	return r
 }
 
-func (r ApiApiMaestroV1DinosaursPostRequest) Execute() (*Dinosaur, *http.Response, error) {
-	return r.ApiService.ApiMaestroV1DinosaursPostExecute(r)
+func (r ApiApiMaestroV1ResourcesPostRequest) Execute() (*Resource, *http.Response, error) {
+	return r.ApiService.ApiMaestroV1ResourcesPostExecute(r)
 }
 
 /*
-ApiMaestroV1DinosaursPost Create a new dinosaur
+ApiMaestroV1ResourcesPost Create a new resource
 
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
-	@return ApiApiMaestroV1DinosaursPostRequest
+	@return ApiApiMaestroV1ResourcesPostRequest
 */
-func (a *DefaultApiService) ApiMaestroV1DinosaursPost(ctx context.Context) ApiApiMaestroV1DinosaursPostRequest {
-	return ApiApiMaestroV1DinosaursPostRequest{
+func (a *DefaultApiService) ApiMaestroV1ResourcesPost(ctx context.Context) ApiApiMaestroV1ResourcesPostRequest {
+	return ApiApiMaestroV1ResourcesPostRequest{
 		ApiService: a,
 		ctx:        ctx,
 	}
@@ -557,27 +557,27 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursPost(ctx context.Context) ApiAp
 
 // Execute executes the request
 //
-//	@return Dinosaur
-func (a *DefaultApiService) ApiMaestroV1DinosaursPostExecute(r ApiApiMaestroV1DinosaursPostRequest) (*Dinosaur, *http.Response, error) {
+//	@return Resource
+func (a *DefaultApiService) ApiMaestroV1ResourcesPostExecute(r ApiApiMaestroV1ResourcesPostRequest) (*Resource, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
 		formFiles           []formFile
-		localVarReturnValue *Dinosaur
+		localVarReturnValue *Resource
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1DinosaursPost")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ResourcesPost")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
 
-	localVarPath := localBasePath + "/api/maestro/v1/dinosaurs"
+	localVarPath := localBasePath + "/api/maestro/v1/resources"
 
 	localVarHeaderParams := make(map[string]string)
 	localVarQueryParams := url.Values{}
 	localVarFormParams := url.Values{}
-	if r.dinosaur == nil {
-		return localVarReturnValue, nil, reportError("dinosaur is required and must be specified")
+	if r.resource == nil {
+		return localVarReturnValue, nil, reportError("resource is required and must be specified")
 	}
 
 	// to determine the Content-Type header
@@ -598,7 +598,7 @@ func (a *DefaultApiService) ApiMaestroV1DinosaursPostExecute(r ApiApiMaestroV1Di
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
 	}
 	// body params
-	localVarPostBody = r.dinosaur
+	localVarPostBody = r.resource
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
 		return localVarReturnValue, nil, err

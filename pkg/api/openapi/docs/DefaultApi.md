@@ -4,18 +4,18 @@ All URIs are relative to *http://localhost:8000*
 
 Method | HTTP request | Description
 ------------- | ------------- | -------------
-[**ApiMaestroV1DinosaursGet**](DefaultApi.md#ApiMaestroV1DinosaursGet) | **Get** /api/maestro/v1/dinosaurs | Returns a list of dinosaurs
-[**ApiMaestroV1DinosaursIdGet**](DefaultApi.md#ApiMaestroV1DinosaursIdGet) | **Get** /api/maestro/v1/dinosaurs/{id} | Get an dinosaur by id
-[**ApiMaestroV1DinosaursIdPatch**](DefaultApi.md#ApiMaestroV1DinosaursIdPatch) | **Patch** /api/maestro/v1/dinosaurs/{id} | Update an dinosaur
-[**ApiMaestroV1DinosaursPost**](DefaultApi.md#ApiMaestroV1DinosaursPost) | **Post** /api/maestro/v1/dinosaurs | Create a new dinosaur
+[**ApiMaestroV1ResourcesGet**](DefaultApi.md#ApiMaestroV1ResourcesGet) | **Get** /api/maestro/v1/resources | Returns a list of resources
+[**ApiMaestroV1ResourcesIdGet**](DefaultApi.md#ApiMaestroV1ResourcesIdGet) | **Get** /api/maestro/v1/resources/{id} | Get an resource by id
+[**ApiMaestroV1ResourcesIdPatch**](DefaultApi.md#ApiMaestroV1ResourcesIdPatch) | **Patch** /api/maestro/v1/resources/{id} | Update an resource
+[**ApiMaestroV1ResourcesPost**](DefaultApi.md#ApiMaestroV1ResourcesPost) | **Post** /api/maestro/v1/resources | Create a new resource
 
 
 
-## ApiMaestroV1DinosaursGet
+## ApiMaestroV1ResourcesGet
 
-> DinosaurList ApiMaestroV1DinosaursGet(ctx).Page(page).Size(size).Search(search).OrderBy(orderBy).Fields(fields).Execute()
+> ResourceList ApiMaestroV1ResourcesGet(ctx).Page(page).Size(size).Search(search).OrderBy(orderBy).Fields(fields).Execute()
 
-Returns a list of dinosaurs
+Returns a list of resources
 
 ### Example
 
@@ -38,13 +38,13 @@ func main() {
 
     configuration := openapiclient.NewConfiguration()
     apiClient := openapiclient.NewAPIClient(configuration)
-    resp, r, err := apiClient.DefaultApi.ApiMaestroV1DinosaursGet(context.Background()).Page(page).Size(size).Search(search).OrderBy(orderBy).Fields(fields).Execute()
+    resp, r, err := apiClient.DefaultApi.ApiMaestroV1ResourcesGet(context.Background()).Page(page).Size(size).Search(search).OrderBy(orderBy).Fields(fields).Execute()
     if err != nil {
-        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1DinosaursGet``: %v\n", err)
+        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1ResourcesGet``: %v\n", err)
         fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
     }
-    // response from `ApiMaestroV1DinosaursGet`: DinosaurList
-    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1DinosaursGet`: %v\n", resp)
+    // response from `ApiMaestroV1ResourcesGet`: ResourceList
+    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1ResourcesGet`: %v\n", resp)
 }
 ```
 
@@ -54,7 +54,7 @@ func main() {
 
 ### Other Parameters
 
-Other parameters are passed through a pointer to a apiApiMaestroV1DinosaursGetRequest struct via the builder pattern
+Other parameters are passed through a pointer to a apiApiMaestroV1ResourcesGetRequest struct via the builder pattern
 
 
 Name | Type | Description  | Notes
@@ -67,7 +67,7 @@ Name | Type | Description  | Notes
 
 ### Return type
 
-[**DinosaurList**](DinosaurList.md)
+[**ResourceList**](ResourceList.md)
 
 ### Authorization
 
@@ -83,11 +83,11 @@ Name | Type | Description  | Notes
 [[Back to README]](../README.md)
 
 
-## ApiMaestroV1DinosaursIdGet
+## ApiMaestroV1ResourcesIdGet
 
-> Dinosaur ApiMaestroV1DinosaursIdGet(ctx, id).Execute()
+> Resource ApiMaestroV1ResourcesIdGet(ctx, id).Execute()
 
-Get an dinosaur by id
+Get an resource by id
 
 ### Example
 
@@ -106,13 +106,13 @@ func main() {
 
     configuration := openapiclient.NewConfiguration()
     apiClient := openapiclient.NewAPIClient(configuration)
-    resp, r, err := apiClient.DefaultApi.ApiMaestroV1DinosaursIdGet(context.Background(), id).Execute()
+    resp, r, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), id).Execute()
     if err != nil {
-        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1DinosaursIdGet``: %v\n", err)
+        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1ResourcesIdGet``: %v\n", err)
         fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
     }
-    // response from `ApiMaestroV1DinosaursIdGet`: Dinosaur
-    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1DinosaursIdGet`: %v\n", resp)
+    // response from `ApiMaestroV1ResourcesIdGet`: Resource
+    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1ResourcesIdGet`: %v\n", resp)
 }
 ```
 
@@ -126,7 +126,7 @@ Name | Type | Description  | Notes
 
 ### Other Parameters
 
-Other parameters are passed through a pointer to a apiApiMaestroV1DinosaursIdGetRequest struct via the builder pattern
+Other parameters are passed through a pointer to a apiApiMaestroV1ResourcesIdGetRequest struct via the builder pattern
 
 
 Name | Type | Description  | Notes
@@ -135,7 +135,7 @@ Name | Type | Description  | Notes
 
 ### Return type
 
-[**Dinosaur**](Dinosaur.md)
+[**Resource**](Resource.md)
 
 ### Authorization
 
@@ -151,11 +151,11 @@ Name | Type | Description  | Notes
 [[Back to README]](../README.md)
 
 
-## ApiMaestroV1DinosaursIdPatch
+## ApiMaestroV1ResourcesIdPatch
 
-> Dinosaur ApiMaestroV1DinosaursIdPatch(ctx, id).DinosaurPatchRequest(dinosaurPatchRequest).Execute()
+> Resource ApiMaestroV1ResourcesIdPatch(ctx, id).ResourcePatchRequest(resourcePatchRequest).Execute()
 
-Update an dinosaur
+Update an resource
 
 ### Example
 
@@ -171,17 +171,17 @@ import (
 
 func main() {
     id := "id_example" // string | The id of record
-    dinosaurPatchRequest := *openapiclient.NewDinosaurPatchRequest() // DinosaurPatchRequest | Updated dinosaur data
+    resourcePatchRequest := *openapiclient.NewResourcePatchRequest() // ResourcePatchRequest | Updated resource data
 
     configuration := openapiclient.NewConfiguration()
     apiClient := openapiclient.NewAPIClient(configuration)
-    resp, r, err := apiClient.DefaultApi.ApiMaestroV1DinosaursIdPatch(context.Background(), id).DinosaurPatchRequest(dinosaurPatchRequest).Execute()
+    resp, r, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(context.Background(), id).ResourcePatchRequest(resourcePatchRequest).Execute()
     if err != nil {
-        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1DinosaursIdPatch``: %v\n", err)
+        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1ResourcesIdPatch``: %v\n", err)
         fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
     }
-    // response from `ApiMaestroV1DinosaursIdPatch`: Dinosaur
-    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1DinosaursIdPatch`: %v\n", resp)
+    // response from `ApiMaestroV1ResourcesIdPatch`: Resource
+    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1ResourcesIdPatch`: %v\n", resp)
 }
 ```
 
@@ -195,17 +195,17 @@ Name | Type | Description  | Notes
 
 ### Other Parameters
 
-Other parameters are passed through a pointer to a apiApiMaestroV1DinosaursIdPatchRequest struct via the builder pattern
+Other parameters are passed through a pointer to a apiApiMaestroV1ResourcesIdPatchRequest struct via the builder pattern
 
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
 
- **dinosaurPatchRequest** | [**DinosaurPatchRequest**](DinosaurPatchRequest.md) | Updated dinosaur data | 
+ **resourcePatchRequest** | [**ResourcePatchRequest**](ResourcePatchRequest.md) | Updated resource data | 
 
 ### Return type
 
-[**Dinosaur**](Dinosaur.md)
+[**Resource**](Resource.md)
 
 ### Authorization
 
@@ -221,11 +221,11 @@ Name | Type | Description  | Notes
 [[Back to README]](../README.md)
 
 
-## ApiMaestroV1DinosaursPost
+## ApiMaestroV1ResourcesPost
 
-> Dinosaur ApiMaestroV1DinosaursPost(ctx).Dinosaur(dinosaur).Execute()
+> Resource ApiMaestroV1ResourcesPost(ctx).Resource(resource).Execute()
 
-Create a new dinosaur
+Create a new resource
 
 ### Example
 
@@ -240,17 +240,17 @@ import (
 )
 
 func main() {
-    dinosaur := *openapiclient.NewDinosaur() // Dinosaur | Dinosaur data
+    resource := *openapiclient.NewResource() // Resource | Resource data
 
     configuration := openapiclient.NewConfiguration()
     apiClient := openapiclient.NewAPIClient(configuration)
-    resp, r, err := apiClient.DefaultApi.ApiMaestroV1DinosaursPost(context.Background()).Dinosaur(dinosaur).Execute()
+    resp, r, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(context.Background()).Resource(resource).Execute()
     if err != nil {
-        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1DinosaursPost``: %v\n", err)
+        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1ResourcesPost``: %v\n", err)
         fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
     }
-    // response from `ApiMaestroV1DinosaursPost`: Dinosaur
-    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1DinosaursPost`: %v\n", resp)
+    // response from `ApiMaestroV1ResourcesPost`: Resource
+    fmt.Fprintf(os.Stdout, "Response from `DefaultApi.ApiMaestroV1ResourcesPost`: %v\n", resp)
 }
 ```
 
@@ -260,16 +260,16 @@ func main() {
 
 ### Other Parameters
 
-Other parameters are passed through a pointer to a apiApiMaestroV1DinosaursPostRequest struct via the builder pattern
+Other parameters are passed through a pointer to a apiApiMaestroV1ResourcesPostRequest struct via the builder pattern
 
 
 Name | Type | Description  | Notes
 ------------- | ------------- | ------------- | -------------
- **dinosaur** | [**Dinosaur**](Dinosaur.md) | Dinosaur data | 
+ **resource** | [**Resource**](Resource.md) | Resource data | 
 
 ### Return type
 
-[**Dinosaur**](Dinosaur.md)
+[**Resource**](Resource.md)
 
 ### Authorization
 

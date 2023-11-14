@@ -1,7 +1,7 @@
 /*
-maestro API
+maestro Service API
 
-maestro API
+maestro Service API
 
 API version: 0.0.1
 */
