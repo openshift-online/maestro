@@ -175,7 +175,7 @@ func TestDinosaurListSearch(t *testing.T) {
 	list, _, err := client.DefaultApi.ApiMaestroV1DinosaursGet(ctx).Search(search).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting dinosaur list: %v", err)
 	Expect(len(list.Items)).To(Equal(1))
-	Expect(list.Total).To(Equal(int32(20)))
+	Expect(list.Total).To(Equal(int32(1)))
 	Expect(*list.Items[0].Id).To(Equal(dinosaurs[0].ID))
 }
 

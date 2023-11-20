@@ -329,6 +329,8 @@ func (helper *Helper) CleanDB() error {
 	for _, table := range []string{
 		"dinosaurs",
 		"events",
+		"resources",
+		"consumers",
 		"migrations",
 	} {
 		if g2.Migrator().HasTable(table) {
