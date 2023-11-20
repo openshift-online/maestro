@@ -42,6 +42,7 @@ type EnvironmentImpl interface {
 	Flags() map[string]string
 	VisitConfig(c *ApplicationConfig) error
 	VisitDatabase(s *Database) error
+	VisitMessageBroker(s *MessageBroker) error
 	VisitServices(s *Services) error
 	VisitHandlers(c *Handlers) error
 	VisitClients(c *Clients) error
@@ -90,6 +91,10 @@ func (e *Env) Initialize() error {
 	// each env will set db explicitly because the DB impl has a `once` init section
 	if err := envImpl.VisitDatabase(&e.Database); err != nil {
 		glog.Fatalf("Failed to visit Database: %s", err)
+	}
+
+	if err := envImpl.VisitMessageBroker(&e.MessageBroker); err != nil {
+		glog.Fatalf("Failed to visit MessageBroker: %s", err)
 	}
 
 	err := e.LoadClients()
