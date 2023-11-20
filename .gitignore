@@ -34,6 +34,7 @@
 
 # Ignore generated templates
 /templates/*-template.json
+/templates/generate-*.txt
 
 # Ignore editor config
 .vscode
