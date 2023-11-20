@@ -7,6 +7,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
+	"open-cluster-management.io/api/cloudevents/generic/options"
 )
 
 const (
@@ -19,11 +20,12 @@ const (
 )
 
 type Env struct {
-	Name     string
-	Services Services
-	Handlers Handlers
-	Clients  Clients
-	Database Database
+	Name          string
+	Services      Services
+	Handlers      Handlers
+	Clients       Clients
+	Database      Database
+	MessageBroker MessageBroker
 	// packaging requires this construct for visiting
 	ApplicationConfig ApplicationConfig
 	// most code relies on env.Config
@@ -36,6 +38,10 @@ type ApplicationConfig struct {
 
 type Database struct {
 	SessionFactory db.SessionFactory
+}
+
+type MessageBroker struct {
+	*options.CloudEventsSourceOptions
 }
 
 type Handlers struct {
@@ -93,6 +99,21 @@ type DatabaseVisitor interface {
 
 func (d *Database) Accept(v DatabaseVisitor) error {
 	return v.VisitDatabase(d)
+}
+
+// Message Broker visitor
+var _ MessageBrokerVisitable = &MessageBroker{}
+
+type MessageBrokerVisitable interface {
+	Accept(v MessageBrokerVisitor) error
+}
+
+type MessageBrokerVisitor interface {
+	VisitMessageBroker(s *MessageBroker) error
+}
+
+func (m *MessageBroker) Accept(v MessageBrokerVisitor) error {
+	return v.VisitMessageBroker(m)
 }
 
 // Services visitor

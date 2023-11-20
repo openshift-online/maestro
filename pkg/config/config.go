@@ -13,22 +13,24 @@ import (
 )
 
 type ApplicationConfig struct {
-	Server      *ServerConfig      `json:"server"`
-	Metrics     *MetricsConfig     `json:"metrics"`
-	HealthCheck *HealthCheckConfig `json:"health_check"`
-	Database    *DatabaseConfig    `json:"database"`
-	OCM         *OCMConfig         `json:"ocm"`
-	Sentry      *SentryConfig      `json:"sentry"`
+	Server        *ServerConfig        `json:"server"`
+	Metrics       *MetricsConfig       `json:"metrics"`
+	HealthCheck   *HealthCheckConfig   `json:"health_check"`
+	Database      *DatabaseConfig      `json:"database"`
+	MessageBroker *MessageBrokerConfig `json:"message_broker"`
+	OCM           *OCMConfig           `json:"ocm"`
+	Sentry        *SentryConfig        `json:"sentry"`
 }
 
 func NewApplicationConfig() *ApplicationConfig {
 	return &ApplicationConfig{
-		Server:      NewServerConfig(),
-		Metrics:     NewMetricsConfig(),
-		HealthCheck: NewHealthCheckConfig(),
-		Database:    NewDatabaseConfig(),
-		OCM:         NewOCMConfig(),
-		Sentry:      NewSentryConfig(),
+		Server:        NewServerConfig(),
+		Metrics:       NewMetricsConfig(),
+		HealthCheck:   NewHealthCheckConfig(),
+		Database:      NewDatabaseConfig(),
+		MessageBroker: NewMessageBrokerConfig(),
+		OCM:           NewOCMConfig(),
+		Sentry:        NewSentryConfig(),
 	}
 }
 
@@ -38,6 +40,7 @@ func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	c.Metrics.AddFlags(flagset)
 	c.HealthCheck.AddFlags(flagset)
 	c.Database.AddFlags(flagset)
+	c.MessageBroker.AddFlags(flagset)
 	c.OCM.AddFlags(flagset)
 	c.Sentry.AddFlags(flagset)
 }
@@ -49,6 +52,7 @@ func (c *ApplicationConfig) ReadFiles() []string {
 	}{
 		{c.Server.ReadFiles, "Server"},
 		{c.Database.ReadFiles, "Database"},
+		{c.MessageBroker.ReadFiles, "MessageBroker"},
 		{c.OCM.ReadFiles, "OCM"},
 		{c.Metrics.ReadFiles, "Metrics"},
 		{c.HealthCheck.ReadFiles, "HealthCheck"},
