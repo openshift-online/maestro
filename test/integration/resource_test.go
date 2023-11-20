@@ -33,7 +33,7 @@ func TestResourceGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	res := h.NewResource()
+	res := h.NewResource("cluster1")
 
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, res.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -83,10 +83,11 @@ func TestResourcePatch(t *testing.T) {
 
 	// POST responses per openapi spec: 201, 409, 500
 
-	res := h.NewResource()
+	res := h.NewResource("cluster1")
 
 	// 200 OK
-	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: map[string]interface{}{}}).Execute()
+	manifest := map[string]interface{}{"data": 1}
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: manifest}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	Expect(*resource.Id).To(Equal(res.ID))
@@ -104,16 +105,6 @@ func TestResourcePatch(t *testing.T) {
 
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
-
-	// species can not be empty in request body
-	restyResp, err = resty.R().
-		SetHeader("Content-Type", "application/json").
-		SetHeader("Authorization", fmt.Sprintf("Bearer %s", jwtToken)).
-		SetBody(`{"species":""}`).
-		Patch(h.RestURL(fmt.Sprintf("/resources/%s", *resource.Id)))
-	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
-	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
-	Expect(restyResp.String()).To(ContainSubstring("species cannot be empty"))
 
 	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	events, err := dao.All(ctx)
@@ -139,7 +130,7 @@ func TestResourcePaging(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// Paging
-	_ = h.NewResourceList(20)
+	_ = h.NewResourceList("cluster1", 20)
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
@@ -162,7 +153,7 @@ func TestResourceListSearch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	resources := h.NewResourceList(20)
+	resources := h.NewResourceList("cluster1", 20)
 
 	search := fmt.Sprintf("id in ('%s')", resources[0].ID)
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Search(search).Execute()
@@ -178,7 +169,7 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	res := h.NewResource()
+	res := h.NewResource("cluster1")
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20
@@ -188,7 +179,8 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	for i := 0; i < threads; i++ {
 		go func() {
 			defer wg.Done()
-			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{}).Execute()
+			manifests := map[string]interface{}{"data": 1}
+			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: manifests}).Execute()
 			Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 		}()
@@ -225,7 +217,7 @@ func TestUpdateResourceWithRacingRequests_WithoutLock(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	res := h.NewResource()
+	res := h.NewResource("cluster1")
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20
@@ -235,7 +227,8 @@ func TestUpdateResourceWithRacingRequests_WithoutLock(t *testing.T) {
 	for i := 0; i < threads; i++ {
 		go func() {
 			defer wg.Done()
-			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{}).Execute()
+			manifests := map[string]interface{}{"data": 1}
+			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: manifests}).Execute()
 			Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 		}()

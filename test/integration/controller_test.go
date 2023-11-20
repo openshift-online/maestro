@@ -72,7 +72,7 @@ func TestControllerRacing(t *testing.T) {
 		}()
 	}
 
-	_ = h.NewResourceList(50)
+	_ = h.NewResourceList("cluster1", 50)
 
 	// This is to check only 50 create events is processed. It waits for 5 seconds to ensure all events have been
 	// processed by the controllers.

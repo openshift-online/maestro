@@ -37,7 +37,7 @@ func TestSQLTranslation(t *testing.T) {
 		},
 		{
 			"search": "id in ('123')",
-			"error":  "maestro-21: dinosaurs.id is not a valid field name",
+			"error":  "maestro-21: resources.id is not a valid field name",
 		},
 	}
 	for _, test := range tests {

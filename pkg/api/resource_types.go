@@ -1,11 +1,15 @@
 package api
 
-import "gorm.io/gorm"
+import (
+	"gorm.io/datatypes"
+	"gorm.io/gorm"
+)
 
 type Resource struct {
 	Meta
 	Version    int32
 	ConsumerID string
+	Manifest   datatypes.JSONMap
 }
 
 type ResourceList []*Resource

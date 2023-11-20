@@ -11,8 +11,8 @@ import (
 
 type ResourceDao interface {
 	Get(ctx context.Context, id string) (*api.Resource, error)
-	Create(ctx context.Context, dinosaur *api.Resource) (*api.Resource, error)
-	Replace(ctx context.Context, dinosaur *api.Resource) (*api.Resource, error)
+	Create(ctx context.Context, resource *api.Resource) (*api.Resource, error)
+	Replace(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Delete(ctx context.Context, id string) error
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error)
@@ -31,29 +31,29 @@ func NewResourceDao(sessionFactory *db.SessionFactory) ResourceDao {
 
 func (d *sqlResourceDao) Get(ctx context.Context, id string) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	var dinosaur api.Resource
-	if err := g2.Take(&dinosaur, "id = ?", id).Error; err != nil {
+	var resource api.Resource
+	if err := g2.Take(&resource, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
-	return &dinosaur, nil
+	return &resource, nil
 }
 
-func (d *sqlResourceDao) Create(ctx context.Context, dinosaur *api.Resource) (*api.Resource, error) {
+func (d *sqlResourceDao) Create(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Omit(clause.Associations).Create(dinosaur).Error; err != nil {
+	if err := g2.Omit(clause.Associations).Create(resource).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}
-	return dinosaur, nil
+	return resource, nil
 }
 
-func (d *sqlResourceDao) Replace(ctx context.Context, dinosaur *api.Resource) (*api.Resource, error) {
+func (d *sqlResourceDao) Replace(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Omit(clause.Associations).Save(dinosaur).Error; err != nil {
+	if err := g2.Omit(clause.Associations).Save(resource).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}
-	return dinosaur, nil
+	return resource, nil
 }
 
 func (d *sqlResourceDao) Delete(ctx context.Context, id string) error {
@@ -67,27 +67,27 @@ func (d *sqlResourceDao) Delete(ctx context.Context, id string) error {
 
 func (d *sqlResourceDao) FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	dinosaurs := api.ResourceList{}
-	if err := g2.Where("id in (?)", ids).Find(&dinosaurs).Error; err != nil {
+	resources := api.ResourceList{}
+	if err := g2.Where("id in (?)", ids).Find(&resources).Error; err != nil {
 		return nil, err
 	}
-	return dinosaurs, nil
+	return resources, nil
 }
 
 func (d *sqlResourceDao) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	dinosaurs := api.ResourceList{}
-	if err := g2.Where("consumerID = ?", consumerID).Find(&dinosaurs).Error; err != nil {
+	resources := api.ResourceList{}
+	if err := g2.Where("consumerID = ?", consumerID).Find(&resources).Error; err != nil {
 		return nil, err
 	}
-	return dinosaurs, nil
+	return resources, nil
 }
 
 func (d *sqlResourceDao) All(ctx context.Context) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	dinosaurs := api.ResourceList{}
-	if err := g2.Find(&dinosaurs).Error; err != nil {
+	resources := api.ResourceList{}
+	if err := g2.Find(&resources).Error; err != nil {
 		return nil, err
 	}
-	return dinosaurs, nil
+	return resources, nil
 }

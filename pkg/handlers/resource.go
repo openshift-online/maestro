@@ -19,9 +19,9 @@ type resourceHandler struct {
 	generic  services.GenericService
 }
 
-func NewResourceHandler(dinosaur services.ResourceService, generic services.GenericService) *resourceHandler {
+func NewResourceHandler(resource services.ResourceService, generic services.GenericService) *resourceHandler {
 	return &resourceHandler{
-		resource: dinosaur,
+		resource: resource,
 		generic:  generic,
 	}
 }
@@ -80,30 +80,30 @@ func (h resourceHandler) List(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var dinosaurs = []api.Resource{}
-			paging, err := h.generic.List(ctx, "username", listArgs, &dinosaurs)
+			var resources []api.Resource
+			paging, err := h.generic.List(ctx, "username", listArgs, &resources)
 			if err != nil {
 				return nil, err
 			}
-			dinoList := openapi.ResourceList{
+			resourceList := openapi.ResourceList{
 				Page:  int32(paging.Page),
 				Size:  int32(paging.Size),
 				Total: int32(paging.Total),
 				Items: []openapi.Resource{},
 			}
 
-			for _, dino := range dinosaurs {
-				converted := presenters.PresentResource(&dino)
-				dinoList.Items = append(dinoList.Items, converted)
+			for _, resource := range resources {
+				converted := presenters.PresentResource(&resource)
+				resourceList.Items = append(resourceList.Items, converted)
 			}
 			if listArgs.Fields != nil {
-				filteredItems, err := presenters.SliceFilter(listArgs.Fields, dinoList.Items)
+				filteredItems, err := presenters.SliceFilter(listArgs.Fields, resourceList.Items)
 				if err != nil {
 					return nil, err
 				}
 				return filteredItems, nil
 			}
-			return dinoList, nil
+			return resourceList, nil
 		},
 	}
 
@@ -115,12 +115,12 @@ func (h resourceHandler) Get(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			dinosaur, err := h.resource.Get(ctx, id)
+			resource, err := h.resource.Get(ctx, id)
 			if err != nil {
 				return nil, err
 			}
 
-			return presenters.PresentResource(dinosaur), nil
+			return presenters.PresentResource(resource), nil
 		},
 	}
 

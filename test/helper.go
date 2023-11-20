@@ -327,7 +327,6 @@ func (helper *Helper) CleanDB() error {
 
 	// TODO: this list should not be static or otherwise not hard-coded here.
 	for _, table := range []string{
-		"dinosaurs",
 		"events",
 		"resources",
 		"consumers",
