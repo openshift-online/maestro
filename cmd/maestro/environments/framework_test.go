@@ -8,10 +8,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func BenchmarkGetDynos(b *testing.B) {
+func BenchmarkGetResources(b *testing.B) {
 	b.ReportAllocs()
 	fn := func(b *testing.B) {
-		cmd := exec.Command("ocm", "get", "/api/maestro/v1/dinosaurs", "params='size=2'")
+		cmd := exec.Command("ocm", "get", "/api/maestro/v1/resources", "params='size=2'")
 		_, err := cmd.CombinedOutput()
 		if err != nil {
 			b.Errorf("ERROR %+v", err)

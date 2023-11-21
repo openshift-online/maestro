@@ -19,14 +19,14 @@ func NewControllersServer() *ControllersServer {
 		),
 	}
 
-	dinoServices := env().Services.Dinosaurs()
+	resourceServices := env().Services.Resources()
 
 	s.KindControllerManager.Add(&controllers.ControllerConfig{
-		Source: "Dinosaurs",
+		Source: "Resources",
 		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-			api.CreateEventType: {dinoServices.OnUpsert},
-			api.UpdateEventType: {dinoServices.OnUpsert},
-			api.DeleteEventType: {dinoServices.OnDelete},
+			api.CreateEventType: {resourceServices.OnUpsert},
+			api.UpdateEventType: {resourceServices.OnUpsert},
+			api.DeleteEventType: {resourceServices.OnDelete},
 		},
 	})
 

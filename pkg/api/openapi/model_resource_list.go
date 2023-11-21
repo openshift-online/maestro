@@ -1,7 +1,7 @@
 /*
-maestro API
+maestro Service API
 
-maestro API
+maestro Service API
 
 API version: 0.0.1
 */
@@ -14,24 +14,24 @@ import (
 	"encoding/json"
 )
 
-// checks if the DinosaurList type satisfies the MappedNullable interface at compile time
-var _ MappedNullable = &DinosaurList{}
+// checks if the ResourceList type satisfies the MappedNullable interface at compile time
+var _ MappedNullable = &ResourceList{}
 
-// DinosaurList struct for DinosaurList
-type DinosaurList struct {
+// ResourceList struct for ResourceList
+type ResourceList struct {
 	Kind  string     `json:"kind"`
 	Page  int32      `json:"page"`
 	Size  int32      `json:"size"`
 	Total int32      `json:"total"`
-	Items []Dinosaur `json:"items"`
+	Items []Resource `json:"items"`
 }
 
-// NewDinosaurList instantiates a new DinosaurList object
+// NewResourceList instantiates a new ResourceList object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewDinosaurList(kind string, page int32, size int32, total int32, items []Dinosaur) *DinosaurList {
-	this := DinosaurList{}
+func NewResourceList(kind string, page int32, size int32, total int32, items []Resource) *ResourceList {
+	this := ResourceList{}
 	this.Kind = kind
 	this.Page = page
 	this.Size = size
@@ -40,16 +40,16 @@ func NewDinosaurList(kind string, page int32, size int32, total int32, items []D
 	return &this
 }
 
-// NewDinosaurListWithDefaults instantiates a new DinosaurList object
+// NewResourceListWithDefaults instantiates a new ResourceList object
 // This constructor will only assign default values to properties that have it defined,
 // but it doesn't guarantee that properties required by API are set
-func NewDinosaurListWithDefaults() *DinosaurList {
-	this := DinosaurList{}
+func NewResourceListWithDefaults() *ResourceList {
+	this := ResourceList{}
 	return &this
 }
 
 // GetKind returns the Kind field value
-func (o *DinosaurList) GetKind() string {
+func (o *ResourceList) GetKind() string {
 	if o == nil {
 		var ret string
 		return ret
@@ -60,7 +60,7 @@ func (o *DinosaurList) GetKind() string {
 
 // GetKindOk returns a tuple with the Kind field value
 // and a boolean to check if the value has been set.
-func (o *DinosaurList) GetKindOk() (*string, bool) {
+func (o *ResourceList) GetKindOk() (*string, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -68,12 +68,12 @@ func (o *DinosaurList) GetKindOk() (*string, bool) {
 }
 
 // SetKind sets field value
-func (o *DinosaurList) SetKind(v string) {
+func (o *ResourceList) SetKind(v string) {
 	o.Kind = v
 }
 
 // GetPage returns the Page field value
-func (o *DinosaurList) GetPage() int32 {
+func (o *ResourceList) GetPage() int32 {
 	if o == nil {
 		var ret int32
 		return ret
@@ -84,7 +84,7 @@ func (o *DinosaurList) GetPage() int32 {
 
 // GetPageOk returns a tuple with the Page field value
 // and a boolean to check if the value has been set.
-func (o *DinosaurList) GetPageOk() (*int32, bool) {
+func (o *ResourceList) GetPageOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -92,12 +92,12 @@ func (o *DinosaurList) GetPageOk() (*int32, bool) {
 }
 
 // SetPage sets field value
-func (o *DinosaurList) SetPage(v int32) {
+func (o *ResourceList) SetPage(v int32) {
 	o.Page = v
 }
 
 // GetSize returns the Size field value
-func (o *DinosaurList) GetSize() int32 {
+func (o *ResourceList) GetSize() int32 {
 	if o == nil {
 		var ret int32
 		return ret
@@ -108,7 +108,7 @@ func (o *DinosaurList) GetSize() int32 {
 
 // GetSizeOk returns a tuple with the Size field value
 // and a boolean to check if the value has been set.
-func (o *DinosaurList) GetSizeOk() (*int32, bool) {
+func (o *ResourceList) GetSizeOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -116,12 +116,12 @@ func (o *DinosaurList) GetSizeOk() (*int32, bool) {
 }
 
 // SetSize sets field value
-func (o *DinosaurList) SetSize(v int32) {
+func (o *ResourceList) SetSize(v int32) {
 	o.Size = v
 }
 
 // GetTotal returns the Total field value
-func (o *DinosaurList) GetTotal() int32 {
+func (o *ResourceList) GetTotal() int32 {
 	if o == nil {
 		var ret int32
 		return ret
@@ -132,7 +132,7 @@ func (o *DinosaurList) GetTotal() int32 {
 
 // GetTotalOk returns a tuple with the Total field value
 // and a boolean to check if the value has been set.
-func (o *DinosaurList) GetTotalOk() (*int32, bool) {
+func (o *ResourceList) GetTotalOk() (*int32, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -140,14 +140,14 @@ func (o *DinosaurList) GetTotalOk() (*int32, bool) {
 }
 
 // SetTotal sets field value
-func (o *DinosaurList) SetTotal(v int32) {
+func (o *ResourceList) SetTotal(v int32) {
 	o.Total = v
 }
 
 // GetItems returns the Items field value
-func (o *DinosaurList) GetItems() []Dinosaur {
+func (o *ResourceList) GetItems() []Resource {
 	if o == nil {
-		var ret []Dinosaur
+		var ret []Resource
 		return ret
 	}
 
@@ -156,7 +156,7 @@ func (o *DinosaurList) GetItems() []Dinosaur {
 
 // GetItemsOk returns a tuple with the Items field value
 // and a boolean to check if the value has been set.
-func (o *DinosaurList) GetItemsOk() ([]Dinosaur, bool) {
+func (o *ResourceList) GetItemsOk() ([]Resource, bool) {
 	if o == nil {
 		return nil, false
 	}
@@ -164,11 +164,11 @@ func (o *DinosaurList) GetItemsOk() ([]Dinosaur, bool) {
 }
 
 // SetItems sets field value
-func (o *DinosaurList) SetItems(v []Dinosaur) {
+func (o *ResourceList) SetItems(v []Resource) {
 	o.Items = v
 }
 
-func (o DinosaurList) MarshalJSON() ([]byte, error) {
+func (o ResourceList) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
 		return []byte{}, err
@@ -176,7 +176,7 @@ func (o DinosaurList) MarshalJSON() ([]byte, error) {
 	return json.Marshal(toSerialize)
 }
 
-func (o DinosaurList) ToMap() (map[string]interface{}, error) {
+func (o ResourceList) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	toSerialize["kind"] = o.Kind
 	toSerialize["page"] = o.Page
@@ -186,38 +186,38 @@ func (o DinosaurList) ToMap() (map[string]interface{}, error) {
 	return toSerialize, nil
 }
 
-type NullableDinosaurList struct {
-	value *DinosaurList
+type NullableResourceList struct {
+	value *ResourceList
 	isSet bool
 }
 
-func (v NullableDinosaurList) Get() *DinosaurList {
+func (v NullableResourceList) Get() *ResourceList {
 	return v.value
 }
 
-func (v *NullableDinosaurList) Set(val *DinosaurList) {
+func (v *NullableResourceList) Set(val *ResourceList) {
 	v.value = val
 	v.isSet = true
 }
 
-func (v NullableDinosaurList) IsSet() bool {
+func (v NullableResourceList) IsSet() bool {
 	return v.isSet
 }
 
-func (v *NullableDinosaurList) Unset() {
+func (v *NullableResourceList) Unset() {
 	v.value = nil
 	v.isSet = false
 }
 
-func NewNullableDinosaurList(val *DinosaurList) *NullableDinosaurList {
-	return &NullableDinosaurList{value: val, isSet: true}
+func NewNullableResourceList(val *ResourceList) *NullableResourceList {
+	return &NullableResourceList{value: val, isSet: true}
 }
 
-func (v NullableDinosaurList) MarshalJSON() ([]byte, error) {
+func (v NullableResourceList) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.value)
 }
 
-func (v *NullableDinosaurList) UnmarshalJSON(src []byte) error {
+func (v *NullableResourceList) UnmarshalJSON(src []byte) error {
 	v.isSet = true
 	return json.Unmarshal(src, &v.value)
 }

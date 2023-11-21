@@ -6,13 +6,13 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
-type DinosaurServiceLocator func() services.DinosaurService
+type ResourceServiceLocator func() services.ResourceService
 
-func NewDinosaurServiceLocator(env *Env) DinosaurServiceLocator {
-	return func() services.DinosaurService {
-		return services.NewDinosaurService(
+func NewResourceServiceLocator(env *Env) ResourceServiceLocator {
+	return func() services.ResourceService {
+		return services.NewResourceService(
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
-			dao.NewDinosaurDao(&env.Database.SessionFactory),
+			dao.NewResourceDao(&env.Database.SessionFactory),
 			env.Services.Events(),
 		)
 	}

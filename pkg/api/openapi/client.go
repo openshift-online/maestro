@@ -1,7 +1,7 @@
 /*
-maestro API
+maestro Service API
 
-maestro API
+maestro Service API
 
 API version: 0.0.1
 */
@@ -40,7 +40,7 @@ var (
 	queryDescape    = strings.NewReplacer("%5B", "[", "%5D", "]")
 )
 
-// APIClient manages communication with the maestro API API v0.0.1
+// APIClient manages communication with the maestro Service API API v0.0.1
 // In most cases there should be only one, shared, APIClient.
 type APIClient struct {
 	cfg    *Configuration

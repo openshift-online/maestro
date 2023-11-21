@@ -9,8 +9,8 @@ import (
 func ObjectKind(i interface{}) *string {
 	result := ""
 	switch i.(type) {
-	case api.Dinosaur, *api.Dinosaur:
-		result = "Dinosaur"
+	case api.Resource, *api.Resource:
+		result = "Resource"
 	case errors.ServiceError, *errors.ServiceError:
 		result = "Error"
 	}

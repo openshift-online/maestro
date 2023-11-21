@@ -22,7 +22,7 @@ func (s *apiServer) routes() *mux.Router {
 		check(err, "Can't load OpenAPI specification")
 	}
 
-	dinosaurHandler := handlers.NewDinosaurHandler(services.Dinosaurs(), services.Generic())
+	resourceHandler := handlers.NewResourceHandler(services.Resources(), services.Generic())
 	errorsHandler := handlers.NewErrorsHandler()
 
 	authMiddleware, err := auth.NewAuthMiddleware()
@@ -64,16 +64,16 @@ func (s *apiServer) routes() *mux.Router {
 	apiV1ErrorsRouter.HandleFunc("", errorsHandler.List).Methods(http.MethodGet)
 	apiV1ErrorsRouter.HandleFunc("/{id}", errorsHandler.Get).Methods(http.MethodGet)
 
-	//  /api/maestro/v1/dinosaurs
-	apiV1DinosaursRouter := apiV1Router.PathPrefix("/dinosaurs").Subrouter()
-	apiV1DinosaursRouter.HandleFunc("", dinosaurHandler.List).Methods(http.MethodGet)
-	apiV1DinosaursRouter.HandleFunc("/{id}", dinosaurHandler.Get).Methods(http.MethodGet)
-	apiV1DinosaursRouter.HandleFunc("", dinosaurHandler.Create).Methods(http.MethodPost)
-	apiV1DinosaursRouter.HandleFunc("/{id}", dinosaurHandler.Patch).Methods(http.MethodPatch)
-	apiV1DinosaursRouter.HandleFunc("/{id}", dinosaurHandler.Delete).Methods(http.MethodDelete)
-	apiV1DinosaursRouter.Use(authMiddleware.AuthenticateAccountJWT)
+	//  /api/maestro/v1/resources
+	apiV1ResourceRouter := apiV1Router.PathPrefix("/resources").Subrouter()
+	apiV1ResourceRouter.HandleFunc("", resourceHandler.List).Methods(http.MethodGet)
+	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Get).Methods(http.MethodGet)
+	apiV1ResourceRouter.HandleFunc("", resourceHandler.Create).Methods(http.MethodPost)
+	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Patch).Methods(http.MethodPatch)
+	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Delete).Methods(http.MethodDelete)
+	apiV1ResourceRouter.Use(authMiddleware.AuthenticateAccountJWT)
 
-	apiV1DinosaursRouter.Use(authzMiddleware.AuthorizeApi)
+	apiV1ResourceRouter.Use(authzMiddleware.AuthorizeApi)
 
 	return mainRouter
 }

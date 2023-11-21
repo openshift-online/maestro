@@ -12,36 +12,36 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
-var _ RestHandler = dinosaurHandler{}
+var _ RestHandler = resourceHandler{}
 
-type dinosaurHandler struct {
-	dinosaur services.DinosaurService
+type resourceHandler struct {
+	resource services.ResourceService
 	generic  services.GenericService
 }
 
-func NewDinosaurHandler(dinosaur services.DinosaurService, generic services.GenericService) *dinosaurHandler {
-	return &dinosaurHandler{
-		dinosaur: dinosaur,
+func NewResourceHandler(resource services.ResourceService, generic services.GenericService) *resourceHandler {
+	return &resourceHandler{
+		resource: resource,
 		generic:  generic,
 	}
 }
 
-func (h dinosaurHandler) Create(w http.ResponseWriter, r *http.Request) {
-	var dinosaur openapi.Dinosaur
+func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
+	var rs openapi.Resource
 	cfg := &handlerConfig{
-		&dinosaur,
+		&rs,
 		[]validate{
-			validateEmpty(&dinosaur, "Id", "id"),
-			validateNotEmpty(&dinosaur, "Species", "species"),
+			validateEmpty(&rs, "Id", "id"),
+			validateNotEmpty(&rs, "Species", "species"),
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
-			dino := presenters.ConvertDinosaur(dinosaur)
-			dino, err := h.dinosaur.Create(ctx, dino)
+			resource := presenters.ConvertResource(rs)
+			resource, err := h.resource.Create(ctx, resource)
 			if err != nil {
 				return nil, err
 			}
-			return presenters.PresentDinosaur(dino), nil
+			return presenters.PresentResource(resource), nil
 		},
 		handleError,
 	}
@@ -49,25 +49,24 @@ func (h dinosaurHandler) Create(w http.ResponseWriter, r *http.Request) {
 	handle(w, r, cfg, http.StatusCreated)
 }
 
-func (h dinosaurHandler) Patch(w http.ResponseWriter, r *http.Request) {
-	var patch openapi.DinosaurPatchRequest
+func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
+	var patch openapi.Resource
 
 	cfg := &handlerConfig{
 		&patch,
 		[]validate{
-			validateDinosaurPatch(&patch),
+			validateResourcePatch(&patch),
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			dino, err := h.dinosaur.Replace(ctx, &api.Dinosaur{
-				Meta:    api.Meta{ID: id},
-				Species: *patch.Species,
+			resource, err := h.resource.Replace(ctx, &api.Resource{
+				Meta: api.Meta{ID: id},
 			})
 			if err != nil {
 				return nil, err
 			}
-			return presenters.PresentDinosaur(dino), nil
+			return presenters.PresentResource(resource), nil
 		},
 		handleError,
 	}
@@ -75,66 +74,65 @@ func (h dinosaurHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	handle(w, r, cfg, http.StatusOK)
 }
 
-func (h dinosaurHandler) List(w http.ResponseWriter, r *http.Request) {
+func (h resourceHandler) List(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var dinosaurs = []api.Dinosaur{}
-			paging, err := h.generic.List(ctx, "username", listArgs, &dinosaurs)
+			var resources []api.Resource
+			paging, err := h.generic.List(ctx, "username", listArgs, &resources)
 			if err != nil {
 				return nil, err
 			}
-			dinoList := openapi.DinosaurList{
-				Kind:  "DinosaurList",
+			resourceList := openapi.ResourceList{
 				Page:  int32(paging.Page),
 				Size:  int32(paging.Size),
 				Total: int32(paging.Total),
-				Items: []openapi.Dinosaur{},
+				Items: []openapi.Resource{},
 			}
 
-			for _, dino := range dinosaurs {
-				converted := presenters.PresentDinosaur(&dino)
-				dinoList.Items = append(dinoList.Items, converted)
+			for _, resource := range resources {
+				converted := presenters.PresentResource(&resource)
+				resourceList.Items = append(resourceList.Items, converted)
 			}
 			if listArgs.Fields != nil {
-				filteredItems, err := presenters.SliceFilter(listArgs.Fields, dinoList.Items)
+				filteredItems, err := presenters.SliceFilter(listArgs.Fields, resourceList.Items)
 				if err != nil {
 					return nil, err
 				}
 				return filteredItems, nil
 			}
-			return dinoList, nil
+			return resourceList, nil
 		},
 	}
 
 	handleList(w, r, cfg)
 }
 
-func (h dinosaurHandler) Get(w http.ResponseWriter, r *http.Request) {
+func (h resourceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			dinosaur, err := h.dinosaur.Get(ctx, id)
+			resource, err := h.resource.Get(ctx, id)
 			if err != nil {
 				return nil, err
 			}
 
-			return presenters.PresentDinosaur(dinosaur), nil
+			return presenters.PresentResource(resource), nil
 		},
 	}
 
 	handleGet(w, r, cfg)
 }
 
-func (h dinosaurHandler) Delete(w http.ResponseWriter, r *http.Request) {
+func (h resourceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			err := h.dinosaur.Delete(ctx, id)
+			err := h.resource.Delete(ctx, id)
 			if err != nil {
 				return nil, err
 			}

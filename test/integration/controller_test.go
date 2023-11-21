@@ -61,7 +61,7 @@ func TestControllerRacing(t *testing.T) {
 			}
 
 			s.KindControllerManager.Add(&controllers.ControllerConfig{
-				Source: "Dinosaurs",
+				Source: "Resources",
 				Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
 					api.CreateEventType: {onUpsert},
 					api.UpdateEventType: {onUpsert},
@@ -72,13 +72,13 @@ func TestControllerRacing(t *testing.T) {
 		}()
 	}
 
-	_ = h.NewDinosaurList("bronto", 50)
+	_ = h.NewResourceList("cluster1", 50)
 
-	// This is to check only two create events is processed. It waits for 5 seconds to ensure all events have been
+	// This is to check only 50 create events is processed. It waits for 5 seconds to ensure all events have been
 	// processed by the controllers.
 	Eventually(func() error {
 		if len(proccessedEvent) != 50 {
-			return fmt.Errorf("should have only 2 create events but got %d", len(proccessedEvent))
+			return fmt.Errorf("should have only 50 create events but got %d", len(proccessedEvent))
 		}
 		return nil
 	}, 5*time.Second, 1*time.Second).Should(Succeed())

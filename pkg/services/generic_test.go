@@ -37,11 +37,11 @@ func TestSQLTranslation(t *testing.T) {
 		},
 		{
 			"search": "id in ('123')",
-			"error":  "maestro-21: dinosaurs.id is not a valid field name",
+			"error":  "maestro-21: resources.id is not a valid field name",
 		},
 	}
 	for _, test := range tests {
-		list := []api.Dinosaur{}
+		list := []api.Resource{}
 		search := test["search"].(string)
 		errorMsg := test["error"].(string)
 		listCtx, model, serviceErr := genericService.newListContext(context.Background(), "", &ListArguments{Search: search}, &list)
@@ -63,7 +63,7 @@ func TestSQLTranslation(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		list := []api.Dinosaur{}
+		list := []api.Resource{}
 		search := test["search"].(string)
 		sqlReal := test["sql"].(string)
 		valuesReal := test["values"].(types.GomegaMatcher)
