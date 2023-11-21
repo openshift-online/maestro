@@ -50,6 +50,13 @@ db_password_file=${PWD}/secrets/db.password
 db_sslmode:=disable
 db_image?=docker.io/library/postgres:14.2
 
+# Message broker connection details
+mq_user=maestro
+mq_host=maestro-mq.$(namespace)
+mq_password=foobar-bizz-buzz
+mq_password_file=${PWD}/secrets/mqtt.password
+mq_image=docker.io/eclipse-mosquitto:2.0.18
+
 # Log verbosity level
 glog_v:=10
 
@@ -280,6 +287,7 @@ undeploy-%: project %-template
 template: \
 	secrets-template \
 	db-template \
+	mq-template \
 	service-template \
 	route-template \
 	$(NULL)
@@ -292,6 +300,7 @@ deploy: \
 	template \
 	deploy-secrets \
 	deploy-db \
+	deploy-mq \
 	deploy-service \
 	deploy-route \
 	$(NULL)
@@ -301,6 +310,7 @@ undeploy: \
 	template \
 	undeploy-secrets \
 	undeploy-db \
+	undeploy-mq \
 	undeploy-service \
 	undeploy-route \
 	$(NULL)
@@ -318,6 +328,16 @@ db/login:
 db/teardown:
 	$(container_tool) stop psql-maestro
 	$(container_tool) rm psql-maestro
+
+.PHONY: mq/setup
+mq/setup:
+	@echo $(mq_password) > $(mq_password_file)
+	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mq_image)
+
+.PHONY: mq/teardown
+mq/teardown:
+	$(container_tool) stop mqtt-maestro
+	$(container_tool) rm mqtt-maestro
 
 crc/login:
 	@echo "Logging into CRC"

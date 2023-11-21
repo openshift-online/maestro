@@ -1,0 +1,132 @@
+---
+apiVersion: v1
+kind: Template
+metadata:
+  annotations:
+    description: Mosquitto mqtt broker for use with the maestro
+    iconClass: icon-mosquitto
+    openshift.io/display-name: Example Mosquitto MQTT Broker
+    tags: mqtt,mosquitto
+  name: maestro-mqtt-broker
+parameters:
+  - name: MQTT_BROKER_NAME
+    description: The name of the OpenShift Service exposed for the database.
+    displayName: Database Service Name
+    required: true
+    value: maestro-mqtt-broker
+
+  - name: MOSQUITTO_IMAGESTREAM_NAMESPACE
+    description: The OpenShift Namespace where the ImageStream resides.
+    displayName: Namespace
+    value: openshift
+
+  # - name: MQTT_USER
+  #   description: Username for Mosquitto user that will be used for accessing the mqtt broker.
+  #   displayName: Mosquitto Username
+  #   required: false
+  #   value: ocm
+
+  # - name: MQTT_PASSWORD
+  #   description: Password for the Mosquitto connection user.
+  #   displayName: Mosquitto Password
+  #   required: false
+  #   value: TheBlurstOfTimes
+
+  - name: MOSQUITTO_VERSION
+    description: Version of Mosquitto image to be used (2.0.18 or latest).
+    displayName: Version of Mosquitto Image
+    required: true
+    value: "2.0.18"
+
+objects:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        template.openshift.io/expose-uri: tcp://{.spec.clusterIP}:{.spec.ports[?(.name==\mosquitto\)].port}
+      name: ${MQTT_BROKER_NAME}
+    spec:
+      ports:
+      - name: mosquitto
+        nodePort: 0
+        protocol: TCP
+        port: 1883
+        targetPort: 1883
+      selector:
+        name: ${MQTT_BROKER_NAME}
+      sessionAffinity: None
+      type: ClusterIP
+    status:
+      loadBalancer: {}
+
+  - apiVersion: apps/v1
+    kind: DeploymentConfig
+    metadata:
+      name: ${MQTT_BROKER_NAME}
+      annotations:
+        template.alpha.openshift.io/wait-for-ready: true
+    spec:
+      replicas: 1
+      selector:
+        name: ${MQTT_BROKER_NAME}
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: ${MQTT_BROKER_NAME}
+        spec:
+          containers:
+          - image: ""
+            imagePullPolicy: IfNotPresent
+            name: mosquitto
+            ports:
+            - containerPort: 1883
+              name: mosquitto
+            volumeMounts:
+            - name: mosquitto-persistent-storage
+              mountPath: /mosquitto/data
+            - name: mosquitto-config
+              mountPath: /mosquitto/config/mosquitto.conf
+              subPath: mosquitto.conf
+            - name: mosquitto-password
+              mountPath: /mosquitto/config/password.txt
+              subPath: password.txt
+          volumes:
+          - name: mosquitto-persistent-storage
+            emptyDir: {}
+          - name: mosquitto-config
+            configMap:
+              name: ${MQTT_BROKER_NAME}
+          - name: mosquitto-password
+            configMap:
+              name: ${MQTT_BROKER_NAME}-auth
+      triggers:
+        - type: ImageChange
+          imageChangeParams:
+            automatic: true
+            containerNames:
+              - mosquitto
+            from:
+              kind: ImageStreamTag
+              name: eclipse-mosquitto:${MOSQUITTO_VERSION}
+              namespace: ${MOSQUITTO_IMAGESTREAM_NAMESPACE}
+        - type: ConfigChange
+    status: {}
+
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${MQTT_BROKER_NAME}
+    data:
+      mosquitto.conf: |
+        listener 1883 0.0.0.0
+        password_file /mosquitto/config/password.txt
+
+  - apiVersion: v1
+    kind: ConfigMap
+    metadata:
+      name: ${MQTT_BROKER_NAME}-auth
+    data:
+      password.txt: |
+        maestro:$7$101$RI3O9mptIyQG7gQA$NTzK5AXPUDQcaOaqa/Y7yzvofjUt/t47N8TIdEVyjWZu/dKbKxbhjiNdZWvM2t6kLOljC644cItZpX8j0NcDGQ==
