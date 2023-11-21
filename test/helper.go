@@ -39,7 +39,7 @@ import (
 
 const (
 	apiPort    = ":8777"
-	mqttPort   = ":1883"
+	mqttPort   = ":11883"
 	jwtKeyFile = "test/support/jwt_private_key.pem"
 	jwtCAFile  = "test/support/jwt_ca.pem"
 	jwkKID     = "uhctestkey"
