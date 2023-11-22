@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -186,7 +185,7 @@ func (helper *Helper) startMQTTBroker() {
 	tcp := listeners.NewTCP("tcp1", mqttPort, nil)
 	err := helper.MQTTBroker.AddListener(tcp)
 	if err != nil {
-		log.Fatalf("Unable to add listener: %s", err)
+		glog.Fatalf("Unable to add listener: %s", err)
 	}
 
 	go func() {
