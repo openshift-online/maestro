@@ -32,6 +32,7 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		&rs,
 		[]validate{
 			validateEmpty(&rs, "Id", "id"),
+			validateNotEmpty(&rs, "ConsumerId", "consumer_id"),
 			validateNotEmpty(&rs, "Manifest", "manifest"),
 		},
 		func() (interface{}, *errors.ServiceError) {
@@ -55,13 +56,16 @@ func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		&patch,
 		[]validate{
-			validateResourcePatch(&patch),
+			validateNotEmpty(&patch, "Version", "version"),
+			validateNotEmpty(&patch, "Manifest", "manifest"),
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
 			resource, err := h.resource.Replace(ctx, &api.Resource{
-				Meta: api.Meta{ID: id},
+				Meta:     api.Meta{ID: id},
+				Version:  *patch.Version,
+				Manifest: patch.Manifest,
 			})
 			if err != nil {
 				return nil, err

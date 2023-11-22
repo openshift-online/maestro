@@ -12,9 +12,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 
-// This flag will only be used in integration test to prove that the advisory lock works
-var DisableAdvisoryLock = false
-
 type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
@@ -92,20 +89,23 @@ func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource)
 }
 
 func (s *sqlResourceService) Replace(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
-	if !DisableAdvisoryLock {
-		// Updates the resource manifest only when its manifest changes.
-		// If there are multiple requests at the same time, it will cause the race conditions among these
-		// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
-		lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.Resources)
-		if err != nil {
-			return nil, errors.DatabaseAdvisoryLock(err)
-		}
-		defer s.lockFactory.Unlock(ctx, lockOwnerID)
+	// Updates the resource manifest only when its manifest changes.
+	// If there are multiple requests at the same time, it will cause the race conditions among these
+	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.Resources)
+	if err != nil {
+		return nil, errors.DatabaseAdvisoryLock(err)
 	}
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
 
 	found, err := s.resourceDao.Get(ctx, resource.ID)
 	if err != nil {
 		return nil, handleGetError("Resource", "id", resource.ID, err)
+	}
+
+	// Make sure the requested resource version is consistent with its database version.
+	if found.Version != resource.Version {
+		return nil, errors.Conflict("the resource version is not the latest, the latest version: %d", found.Version)
 	}
 
 	// New manifest is not changed, the update action is not needed.
@@ -113,18 +113,20 @@ func (s *sqlResourceService) Replace(ctx context.Context, resource *api.Resource
 		return found, nil
 	}
 
+	// Increase the current resource version and update its manifest.
+	found.Version = found.Version + 1
 	found.Manifest = resource.Manifest
+
 	updated, err := s.resourceDao.Replace(ctx, found)
 	if err != nil {
 		return nil, handleUpdateError("Resource", err)
 	}
 
-	_, eErr := s.events.Create(ctx, &api.Event{
+	if _, err := s.events.Create(ctx, &api.Event{
 		Source:    "Resources",
 		SourceID:  updated.ID,
 		EventType: api.UpdateEventType,
-	})
-	if eErr != nil {
+	}); err != nil {
 		return nil, handleUpdateError("Resource", err)
 	}
 	return updated, nil
