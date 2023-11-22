@@ -24,6 +24,12 @@ TLS is used by default for the route. No port is specified, all ports are allowe
 
 This template deploys a simple postgresl-9.4 database deployment with a TLS-enabled service.
 
+## MQTT template
+
+`templates/mq-template.yml`
+
+This template deploys a simple mosquitto-2.0.18 mqtt broker deployment.
+
 ## Secrets template
 
 `templates/secrets-template.yml`

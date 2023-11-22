@@ -51,8 +51,9 @@ db_sslmode:=disable
 db_image?=docker.io/library/postgres:14.2
 
 # Message broker connection details
+mq_host=maestro-mqtt.$(namespace)
+mq_port=1883
 mq_user=maestro
-mq_host=maestro-mq.$(namespace)
 mq_password=foobar-bizz-buzz
 mq_password_file=${PWD}/secrets/mqtt.password
 mq_image=docker.io/eclipse-mosquitto:2.0.18
@@ -247,6 +248,13 @@ cmds:
 		--param="DATABASE_PORT=$(db_port)" \
 		--param="DATABASE_USER=$(db_user)" \
 		--param="DATABASE_SSLMODE=$(db_sslmode)" \
+		--param="MQTT_HOST=$(mq_host)" \
+		--param="MQTT_PORT=$(mq_port)" \
+		--param="MQTT_USER=$(mq_user)" \
+		--param="MQTT_PASSWORD=$(mq_password)" \
+		--param="MQTT_ROOT_CERT=" \
+		--param="MQTT_CLIENT_CERT=" \
+		--param="MQTT_CLIENT_KEY=" \
 		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \

@@ -7,13 +7,13 @@ metadata:
     iconClass: icon-mosquitto
     openshift.io/display-name: Example Mosquitto MQTT Broker
     tags: mqtt,mosquitto
-  name: maestro-mqtt-broker
+  name: maestro-mqtt
 parameters:
   - name: MQTT_BROKER_NAME
     description: The name of the OpenShift Service exposed for the database.
     displayName: Database Service Name
     required: true
-    value: maestro-mqtt-broker
+    value: maestro-mqtt
 
   - name: MOSQUITTO_IMAGESTREAM_NAMESPACE
     description: The OpenShift Namespace where the ImageStream resides.
