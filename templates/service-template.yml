@@ -221,6 +221,9 @@ objects:
           - name: rds
             secret:
               secretName: maestro-rds
+          - name: mqtt
+            secret:
+              secretName: maestro-mqtt
           - name: authentication
             configMap:
               name: authentication
@@ -254,6 +257,8 @@ objects:
               mountPath: /secrets/service
             - name: rds
               mountPath: /secrets/rds
+            - name: mqtt
+              mountPath: /secrets/mqtt
             - name: authentication
               mountPath: /configs/authentication
             env:
@@ -267,6 +272,12 @@ objects:
             - --db-user-file=/secrets/rds/db.user
             - --db-password-file=/secrets/rds/db.password
             - --db-name-file=/secrets/rds/db.name
+            - --mqtt-broker-host-file=/secrets/mqtt/mq.host
+            - --mqtt-username-file=/secrets/mqtt/mq.user
+            - --mqtt-password-file=/secrets/mqtt/mq.password
+            - --mqtt-broke-ca=/secrets/mqtt/mq.rootcert
+            - --mqtt-client-certificate=/secrets/mqtt/mq.clientcert
+            - --mqtt-client-key=/secrets/mqtt/mq.clientkey
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
             - --ocm-client-id-file=/secrets/service/ocm-service.clientId
             - --ocm-client-secret-file=/secrets/service/ocm-service.clientSecret

@@ -7,13 +7,13 @@ metadata:
     iconClass: icon-mosquitto
     openshift.io/display-name: Example Mosquitto MQTT Broker
     tags: mqtt,mosquitto
-  name: maestro-mqtt-broker
+  name: maestro-mqtt
 parameters:
   - name: MQTT_BROKER_NAME
     description: The name of the OpenShift Service exposed for the database.
     displayName: Database Service Name
     required: true
-    value: maestro-mqtt-broker
+    value: maestro-mqtt
 
   - name: MOSQUITTO_IMAGESTREAM_NAMESPACE
     description: The OpenShift Namespace where the ImageStream resides.
@@ -88,18 +88,12 @@ objects:
             - name: mosquitto-config
               mountPath: /mosquitto/config/mosquitto.conf
               subPath: mosquitto.conf
-            - name: mosquitto-password
-              mountPath: /mosquitto/config/password.txt
-              subPath: password.txt
           volumes:
           - name: mosquitto-persistent-storage
             emptyDir: {}
           - name: mosquitto-config
             configMap:
               name: ${MQTT_BROKER_NAME}
-          - name: mosquitto-password
-            configMap:
-              name: ${MQTT_BROKER_NAME}-auth
     status: {}
 
   - apiVersion: v1
@@ -109,12 +103,4 @@ objects:
     data:
       mosquitto.conf: |
         listener 1883 0.0.0.0
-        password_file /mosquitto/config/password.txt
-
-  - apiVersion: v1
-    kind: ConfigMap
-    metadata:
-      name: ${MQTT_BROKER_NAME}-auth
-    data:
-      password.txt: |
-        maestro:$7$101$RI3O9mptIyQG7gQA$NTzK5AXPUDQcaOaqa/Y7yzvofjUt/t47N8TIdEVyjWZu/dKbKxbhjiNdZWvM2t6kLOljC644cItZpX8j0NcDGQ==
+        allow_anonymous true
