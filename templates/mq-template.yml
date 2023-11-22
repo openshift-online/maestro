@@ -59,16 +59,15 @@ objects:
     status:
       loadBalancer: {}
 
-  - apiVersion: apps/v1
-    kind: DeploymentConfig
+  - kind: Deployment
+    apiVersion: apps/v1
     metadata:
       name: ${MQTT_BROKER_NAME}
-      annotations:
-        template.alpha.openshift.io/wait-for-ready: true
     spec:
       replicas: 1
       selector:
-        name: ${MQTT_BROKER_NAME}
+        matchLabels:
+          name: ${MQTT_BROKER_NAME}
       strategy:
         type: Recreate
       template:
@@ -77,7 +76,7 @@ objects:
             name: ${MQTT_BROKER_NAME}
         spec:
           containers:
-          - image: ""
+          - image: eclipse-mosquitto:${MOSQUITTO_VERSION}
             imagePullPolicy: IfNotPresent
             name: mosquitto
             ports:
@@ -101,17 +100,6 @@ objects:
           - name: mosquitto-password
             configMap:
               name: ${MQTT_BROKER_NAME}-auth
-      triggers:
-        - type: ImageChange
-          imageChangeParams:
-            automatic: true
-            containerNames:
-              - mosquitto
-            from:
-              kind: ImageStreamTag
-              name: eclipse-mosquitto:${MOSQUITTO_VERSION}
-              namespace: ${MOSQUITTO_IMAGESTREAM_NAMESPACE}
-        - type: ConfigChange
     status: {}
 
   - apiVersion: v1
