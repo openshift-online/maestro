@@ -164,52 +164,106 @@ EOF
 ```shell
 ocm get /api/maestro/v1/resources
 {
-    "items": [
-        {
-            "consumer_id": "cluster1",
-            "created_at": "2023-11-23T07:58:57.145623561Z",
-            "href": "/api/maestro/v1/resources/2YWSeUkhxMXsWMQPl2pRxiL3Ejb",
-            "id": "2YWSeUkhxMXsWMQPl2pRxiL3Ejb",
-            "kind": "Resource",
-            "manifest": {
-                "apiVersion": "apps/v1",
-                "kind": "Deployment",
-                "metadata": {
-                    "name": "nginx",
-                    "namespace": "default"
-                },
-                "spec": {
-                    "replicas": 1,
-                    "selector": {
-                        "matchLabels": {
-                            "app": "nginx"
-                        }
-                    },
-                    "template": {
-                        "metadata": {
-                            "labels": {
-                                "app": "nginx"
-                            }
-                        },
-                        "spec": {
-                            "containers": [
-                                {
-                                    "image": "nginxinc/nginx-unprivileged",
-                                    "name": "nginx"
-                                }
-                            ]
-                        }
-                    }
-                }
+  "items": [
+    {
+      "consumer_id": "cluster1",
+      "created_at": "2023-11-23T09:26:13.43061Z",
+      "href": "/api/maestro/v1/resources/f428e21d-71cb-47a4-8d7f-82a65d9a4048",
+      "id": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
+      "kind": "Resource",
+      "manifest": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+          "name": "nginx",
+          "namespace": "default"
+        },
+        "spec": {
+          "replicas": 1,
+          "selector": {
+            "matchLabels": {
+              "app": "nginx"
+            }
+          },
+          "template": {
+            "metadata": {
+              "labels": {
+                "app": "nginx"
+              }
             },
-            "updated_at": "2023-11-23T07:58:57.145623561Z",
-            "version": 1
+            "spec": {
+              "containers": [
+                {
+                  "image": "nginxinc/nginx-unprivileged",
+                  "name": "nginx"
+                }
+              ]
+            }
+          }
         }
-    ],
-    "kind": "ResourceList",
-    "page": 1,
-    "size": 1,
-    "total": 1
+      },
+      "status": {
+        "ContentStatus": {
+          "availableReplicas": 1,
+          "conditions": [
+            {
+              "lastTransitionTime": "2023-11-23T07:05:50Z",
+              "lastUpdateTime": "2023-11-23T07:05:50Z",
+              "message": "Deployment has minimum availability.",
+              "reason": "MinimumReplicasAvailable",
+              "status": "True",
+              "type": "Available"
+            },
+            {
+              "lastTransitionTime": "2023-11-23T07:05:47Z",
+              "lastUpdateTime": "2023-11-23T07:05:50Z",
+              "message": "ReplicaSet \"nginx-5d6b548959\" has successfully progressed.",
+              "reason": "NewReplicaSetAvailable",
+              "status": "True",
+              "type": "Progressing"
+            }
+          ],
+          "observedGeneration": 1,
+          "readyReplicas": 1,
+          "replicas": 1,
+          "updatedReplicas": 1
+        },
+        "ReconcileStatus": {
+          "Conditions": [
+            {
+              "lastTransitionTime": "2023-11-23T09:26:13Z",
+              "message": "Apply manifest complete",
+              "reason": "AppliedManifestComplete",
+              "status": "True",
+              "type": "Applied"
+            },
+            {
+              "lastTransitionTime": "2023-11-23T09:26:13Z",
+              "message": "Resource is available",
+              "reason": "ResourceAvailable",
+              "status": "True",
+              "type": "Available"
+            },
+            {
+              "lastTransitionTime": "2023-11-23T09:26:13Z",
+              "message": "",
+              "reason": "StatusFeedbackSynced",
+              "status": "True",
+              "type": "StatusFeedbackSynced"
+            }
+          ],
+          "CreationTimestamp": "0001-01-01T00:00:00Z",
+          "ObservedGeneration": 1
+        }
+      },
+      "updated_at": "2023-11-23T09:26:13.457419Z",
+      "version": 1
+    }
+  ],
+  "kind": "",
+  "page": 1,
+  "size": 1,
+  "total": 1
 }
 ```
 
