@@ -1,44 +1,45 @@
 package integration
 
 import (
+	"context"
 	"fmt"
-	. "github.com/onsi/gomega"
-	"gopkg.in/resty.v1"
 	"net/http"
 	"testing"
+
+	. "github.com/onsi/gomega"
+	"gopkg.in/resty.v1"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/test"
 )
 
-//
-//func TestConsumerGet(t *testing.T) {
-//	h, client := test.RegisterIntegration(t)
-//
-//	account := h.NewRandAccount()
-//	ctx := h.NewAuthenticatedContext(account)
-//
-//	// 401 using no JWT token
-//	_, _, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(context.Background(), "foo").Execute()
-//	Expect(err).To(HaveOccurred(), "Expected 401 but got nil error")
-//
-//	// GET responses per openapi spec: 200 and 404,
-//	_, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, "foo").Execute()
-//	Expect(err).To(HaveOccurred(), "Expected 404")
-//	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
-//
-//	dino := h.NewConsumer(h.NewID())
-//
-//	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, dino.ID).Execute()
-//	Expect(err).NotTo(HaveOccurred())
-//	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-//
-//	Expect(*consumer.Id).To(Equal(dino.ID), "found object does not match test object")
-//	Expect(*consumer.Kind).To(Equal("Consumer"))
-//	Expect(*consumer.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", dino.ID)))
-//	Expect(*consumer.CreatedAt).To(BeTemporally("~", dino.CreatedAt))
-//	Expect(*consumer.UpdatedAt).To(BeTemporally("~", dino.UpdatedAt))
-//}
+func TestConsumerGet(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// 401 using no JWT token
+	_, _, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(context.Background(), "foo").Execute()
+	Expect(err).To(HaveOccurred(), "Expected 401 but got nil error")
+
+	// GET responses per openapi spec: 200 and 404,
+	_, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, "foo").Execute()
+	Expect(err).To(HaveOccurred(), "Expected 404")
+	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+
+	consumer := h.NewConsumer("cluster1")
+
+	found, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, consumer.ID).Execute()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+	Expect(*found.Id).To(Equal(consumer.ID), "found object does not match test object")
+	Expect(*found.Kind).To(Equal("Consumer"))
+	Expect(*found.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", consumer.ID)))
+	Expect(*found.CreatedAt).To(BeTemporally("~", consumer.CreatedAt))
+	Expect(*found.UpdatedAt).To(BeTemporally("~", consumer.UpdatedAt))
+}
 
 func TestConsumerPost(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
@@ -66,10 +67,10 @@ func TestConsumerPost(t *testing.T) {
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", jwtToken)).
 		SetBody(`{ this is invalid }`).
 		Post(h.RestURL("/consumers"))
-
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
 
-	consumer, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+	_, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 }
@@ -144,3 +145,27 @@ func TestConsumerPost(t *testing.T) {
 //	Expect(list.Total).To(Equal(int32(20)))
 //	Expect(*list.Items[0].Id).To(Equal(consumers[0].ID))
 //}
+
+func TestConsumerPaging(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// Paging
+	_ = h.NewConsumerList(20)
+
+	list, _, err := client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
+	Expect(len(list.Items)).To(Equal(20))
+	Expect(list.Size).To(Equal(int32(20)))
+	Expect(list.Total).To(Equal(int32(20)))
+	Expect(list.Page).To(Equal(int32(1)))
+
+	list, _, err = client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Page(2).Size(5).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
+	Expect(len(list.Items)).To(Equal(5))
+	Expect(list.Size).To(Equal(int32(5)))
+	Expect(list.Total).To(Equal(int32(20)))
+	Expect(list.Page).To(Equal(int32(2)))
+}

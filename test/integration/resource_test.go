@@ -32,7 +32,8 @@ func TestResourceGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	res := h.NewResource("cluster1")
+	consumer := h.NewConsumer("cluster1")
+	res := h.NewResource(consumer.ID)
 
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, res.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -52,9 +53,9 @@ func TestResourcePost(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// POST responses per openapi spec: 201, 409, 500
-	consumerID := "cluster1"
+	consumer := h.NewConsumer("cluster1")
 	res := openapi.Resource{
-		ConsumerId: &consumerID,
+		ConsumerId: &consumer.ID,
 		Manifest:   map[string]interface{}{"data": 0},
 	}
 
@@ -85,8 +86,8 @@ func TestResourcePatch(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// POST responses per openapi spec: 201, 409, 500
-
-	res := h.NewResource("cluster1")
+	consumer := h.NewConsumer("cluster1")
+	res := h.NewResource(consumer.ID)
 
 	// 200 OK
 	manifest := map[string]interface{}{"data": 1}
@@ -141,7 +142,8 @@ func TestResourcePaging(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// Paging
-	_ = h.NewResourceList("cluster1", 20)
+	consumer := h.NewConsumer("cluster1")
+	_ = h.NewResourceList(consumer.ID, 20)
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
@@ -164,7 +166,8 @@ func TestResourceListSearch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	resources := h.NewResourceList("cluster1", 20)
+	consumer := h.NewConsumer("cluster1")
+	resources := h.NewResourceList(consumer.ID, 20)
 
 	search := fmt.Sprintf("id in ('%s')", resources[0].ID)
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Search(search).Execute()
@@ -180,7 +183,8 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	res := h.NewResource("cluster1")
+	consumer := h.NewConsumer("cluster1")
+	res := h.NewResource(consumer.ID)
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20

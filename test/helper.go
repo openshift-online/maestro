@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -150,7 +149,7 @@ func (helper *Helper) startAPIServer() {
 
 func (helper *Helper) stopAPIServer() error {
 	if err := helper.APIServer.Stop(); err != nil {
-		return fmt.Errorf("Unable to stop api server: %s", err.Error())
+		return fmt.Errorf("unable to stop api server: %s", err.Error())
 	}
 	return nil
 }
@@ -200,7 +199,7 @@ func (helper *Helper) startMQTTBroker() {
 
 func (helper *Helper) stopMQTTBroker() error {
 	if err := helper.MQTTBroker.Close(); err != nil {
-		return fmt.Errorf("Unable to close MQTT broker: %s", err.Error())
+		return fmt.Errorf("unable to close MQTT broker: %s", err.Error())
 	}
 	return nil
 }
@@ -459,24 +458,24 @@ func parseJWTKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 	projectRootDir := getProjectRootDir()
 	privateBytes, err := os.ReadFile(filepath.Join(projectRootDir, jwtKeyFile))
 	if err != nil {
-		err = fmt.Errorf("Unable to read JWT key file %s: %s", jwtKeyFile, err)
+		err = fmt.Errorf("unable to read JWT key file %s: %s", jwtKeyFile, err)
 		return nil, nil, err
 	}
-	pubBytes, err := ioutil.ReadFile(filepath.Join(projectRootDir, jwtCAFile))
+	pubBytes, err := os.ReadFile(filepath.Join(projectRootDir, jwtCAFile))
 	if err != nil {
-		err = fmt.Errorf("Unable to read JWT ca file %s: %s", jwtKeyFile, err)
+		err = fmt.Errorf("unable to read JWT ca file %s: %s", jwtKeyFile, err)
 		return nil, nil, err
 	}
 
 	// Parse keys
 	privateKey, err := jwt.ParseRSAPrivateKeyFromPEMWithPassword(privateBytes, "passwd")
 	if err != nil {
-		err = fmt.Errorf("Unable to parse JWT private key: %s", err)
+		err = fmt.Errorf("unable to parse JWT private key: %s", err)
 		return nil, nil, err
 	}
 	pubKey, err := jwt.ParseRSAPublicKeyFromPEM(pubBytes)
 	if err != nil {
-		err = fmt.Errorf("Unable to parse JWT ca: %s", err)
+		err = fmt.Errorf("unable to parse JWT ca: %s", err)
 		return nil, nil, err
 	}
 
