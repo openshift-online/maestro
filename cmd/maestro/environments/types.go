@@ -46,6 +46,7 @@ type Services struct {
 	Resources ResourceServiceLocator
 	Generic   GenericServiceLocator
 	Events    EventServiceLocator
+	Consumers ConsumerServiceLocator
 }
 
 type Clients struct {

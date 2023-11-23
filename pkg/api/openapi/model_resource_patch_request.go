@@ -20,6 +20,7 @@ var _ MappedNullable = &ResourcePatchRequest{}
 // ResourcePatchRequest struct for ResourcePatchRequest
 type ResourcePatchRequest struct {
 	Manifest map[string]interface{} `json:"manifest,omitempty"`
+	Species  *string                `json:"species,omitempty"`
 }
 
 // NewResourcePatchRequest instantiates a new ResourcePatchRequest object
@@ -71,6 +72,38 @@ func (o *ResourcePatchRequest) SetManifest(v map[string]interface{}) {
 	o.Manifest = v
 }
 
+// GetSpecies returns the Species field value if set, zero value otherwise.
+func (o *ResourcePatchRequest) GetSpecies() string {
+	if o == nil || IsNil(o.Species) {
+		var ret string
+		return ret
+	}
+	return *o.Species
+}
+
+// GetSpeciesOk returns a tuple with the Species field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourcePatchRequest) GetSpeciesOk() (*string, bool) {
+	if o == nil || IsNil(o.Species) {
+		return nil, false
+	}
+	return o.Species, true
+}
+
+// HasSpecies returns a boolean if a field has been set.
+func (o *ResourcePatchRequest) HasSpecies() bool {
+	if o != nil && !IsNil(o.Species) {
+		return true
+	}
+
+	return false
+}
+
+// SetSpecies gets a reference to the given string and assigns it to the Species field.
+func (o *ResourcePatchRequest) SetSpecies(v string) {
+	o.Species = &v
+}
+
 func (o ResourcePatchRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -83,6 +116,9 @@ func (o ResourcePatchRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.Manifest) {
 		toSerialize["manifest"] = o.Manifest
+	}
+	if !IsNil(o.Species) {
+		toSerialize["species"] = o.Species
 	}
 	return toSerialize, nil
 }
