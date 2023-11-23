@@ -8,6 +8,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 	logger "github.com/openshift-online/maestro/pkg/logger"
 
+	cegeneric "open-cluster-management.io/api/cloudevents/generic"
+	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
+
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
@@ -18,12 +21,14 @@ var DisableAdvisoryLock = false
 type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
-	Replace(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
+	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
+	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
 	FindByConsumerIDs(ctx context.Context, species string) (api.ResourceList, *errors.ServiceError)
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
+	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
 
 	// idempotent functions for the control plane, but can also be called synchronously by any actor
 	OnUpsert(ctx context.Context, id string) error
@@ -91,7 +96,38 @@ func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource)
 	return resource, nil
 }
 
-func (s *sqlResourceService) Replace(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
+func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
+	if !DisableAdvisoryLock {
+		// Updates the resource species only when its species changes.
+		// If there are multiple requests at the same time, it will cause the race conditions among these
+		// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
+		lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.Resources)
+		if err != nil {
+			return nil, errors.DatabaseAdvisoryLock(err)
+		}
+		defer s.lockFactory.Unlock(ctx, lockOwnerID)
+	}
+
+	found, err := s.resourceDao.Get(ctx, resource.ID)
+	if err != nil {
+		return nil, handleGetError("Resource", "id", resource.ID, err)
+	}
+
+	// New status is not changed, the update status action is not needed.
+	if reflect.DeepEqual(resource.Status, found.Status) {
+		return found, nil
+	}
+
+	found.Status = resource.Status
+	updated, err := s.resourceDao.Update(ctx, resource)
+	if err != nil {
+		return nil, handleUpdateError("Resource", err)
+	}
+
+	return updated, nil
+}
+
+func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
 	if !DisableAdvisoryLock {
 		// Updates the resource species only when its species changes.
 		// If there are multiple requests at the same time, it will cause the race conditions among these
@@ -114,7 +150,12 @@ func (s *sqlResourceService) Replace(ctx context.Context, resource *api.Resource
 	}
 
 	found.Manifest = resource.Manifest
-	updated, err := s.resourceDao.Replace(ctx, found)
+	if resource.Version > found.Version {
+		found.Version = resource.Version
+	} else {
+		found.Version += 1 // update version
+	}
+	updated, err := s.resourceDao.Update(ctx, found)
 	if err != nil {
 		return nil, handleUpdateError("Resource", err)
 	}
@@ -127,6 +168,7 @@ func (s *sqlResourceService) Replace(ctx context.Context, resource *api.Resource
 	if eErr != nil {
 		return nil, handleUpdateError("Resource", err)
 	}
+
 	return updated, nil
 }
 
@@ -169,4 +211,14 @@ func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors
 		return nil, errors.GeneralError("Unable to get all resources: %s", err)
 	}
 	return resources, nil
+}
+
+var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
+
+func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
+	resourceList, err := s.FindByConsumerIDs(context.TODO(), listOpts.ClusterName)
+	if err != nil {
+		return nil, err
+	}
+	return resourceList, nil
 }

@@ -50,7 +50,7 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
-	var patch openapi.Resource
+	var patch openapi.ResourcePatchRequest
 
 	cfg := &handlerConfig{
 		&patch,
@@ -60,13 +60,17 @@ func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			resource, err := h.resource.Replace(ctx, &api.Resource{
-				Meta: api.Meta{ID: id},
-			})
+			resource := &api.Resource{
+				Meta: api.Meta{
+					ID: id,
+				},
+				Manifest: patch.Manifest,
+			}
+			res, err := h.resource.Update(ctx, resource)
 			if err != nil {
 				return nil, err
 			}
-			return presenters.PresentResource(resource), nil
+			return presenters.PresentResource(res), nil
 		},
 		handleError,
 	}

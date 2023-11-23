@@ -737,6 +737,8 @@ components:
           type: string
         manifest:
           type: object
+        status:
+          type: object
       type: object
       example: null
     ResourceList_allOf:

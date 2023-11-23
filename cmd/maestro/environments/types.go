@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/openshift-online/maestro/pkg/auth"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
@@ -56,7 +57,8 @@ type Services struct {
 }
 
 type Clients struct {
-	OCM *ocm.Client
+	OCM          *ocm.Client
+	SourceClient cloudevents.SourceClient
 }
 
 type ConfigDefaults struct {

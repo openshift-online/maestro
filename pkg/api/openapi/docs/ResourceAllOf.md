@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
+**Status** | Pointer to **map[string]interface{}** |  | [optional] 
 
 ## Methods
 
@@ -153,6 +154,31 @@ SetManifest sets Manifest field to given value.
 `func (o *ResourceAllOf) HasManifest() bool`
 
 HasManifest returns a boolean if a field has been set.
+
+### GetStatus
+
+`func (o *ResourceAllOf) GetStatus() map[string]interface{}`
+
+GetStatus returns the Status field if non-nil, zero value otherwise.
+
+### GetStatusOk
+
+`func (o *ResourceAllOf) GetStatusOk() (*map[string]interface{}, bool)`
+
+GetStatusOk returns a tuple with the Status field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetStatus
+
+`func (o *ResourceAllOf) SetStatus(v map[string]interface{})`
+
+SetStatus sets Status field to given value.
+
+### HasStatus
+
+`func (o *ResourceAllOf) HasStatus() bool`
+
+HasStatus returns a boolean if a field has been set.
 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

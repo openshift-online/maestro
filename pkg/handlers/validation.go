@@ -55,7 +55,7 @@ func validateInclusionIn(value *string, list []string, category *string) validat
 	}
 }
 
-func validateResourcePatch(patch *openapi.Resource) validate {
+func validateResourcePatch(patch *openapi.ResourcePatchRequest) validate {
 	return func() *errors.ServiceError {
 		return nil
 	}

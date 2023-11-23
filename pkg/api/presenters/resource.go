@@ -12,8 +12,9 @@ func ConvertResource(resource openapi.Resource) *api.Resource {
 			ID: util.NilToEmptyString(resource.Id),
 		},
 		ConsumerID: util.NilToEmptyString(resource.ConsumerId),
-		Version:    0,
+		Version:    util.NilToEmptyInt32(resource.Version),
 		Manifest:   resource.Manifest,
+		Status:     resource.Status,
 	}
 }
 
@@ -28,5 +29,6 @@ func PresentResource(resource *api.Resource) openapi.Resource {
 		CreatedAt:  openapi.PtrTime(resource.CreatedAt),
 		UpdatedAt:  openapi.PtrTime(resource.UpdatedAt),
 		Manifest:   resource.Manifest,
+		Status:     resource.Status,
 	}
 }
