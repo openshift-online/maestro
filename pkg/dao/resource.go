@@ -77,7 +77,7 @@ func (d *sqlResourceDao) FindByIDs(ctx context.Context, ids []string) (api.Resou
 func (d *sqlResourceDao) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
-	if err := g2.Where("consumerID = ?", consumerID).Find(&resources).Error; err != nil {
+	if err := g2.Where("consumer_id = ?", consumerID).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil

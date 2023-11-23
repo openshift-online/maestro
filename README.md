@@ -101,51 +101,115 @@ ocm login --token=${OCM_ACCESS_TOKEN} --url=http://localhost:8000
 
 ```
 
-#### Get a new Dinosaur
-This will be empty if no Dinosaur is ever created
+#### Get a new Resource
+This will be empty if no Resource is ever created
 
 ```
 ocm get /api/maestro/v1/resources
 {
   "items": [],
-  "kind": "DinosaurList",
+  "kind": "ResourceList",
   "page": 1,
   "size": 0,
   "total": 0
 }
 ```
 
-#### Post a new Dinosaur
+#### Post a new Resource
 
 ```shell
 
 ocm post /api/maestro/v1/resources << EOF
 {
-    "species": "foo"
+  "consumer_id": "cluster1",
+  "version": 1,
+  "manifest": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "nginx",
+      "namespace": "default"
+    },
+    "spec": {
+      "replicas": 1,
+      "selector": {
+        "matchLabels": {
+          "app": "nginx"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app": "nginx"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "nginxinc/nginx-unprivileged",
+              "name": "nginx"
+            }
+          ]
+        }
+      }
+    }
+  }
 }
 EOF
 
 ```
 
-#### Get your Dinosaur
+#### Get your Resource
 
 ```shell
 ocm get /api/maestro/v1/resources
 {
-  "items": [
-    {
-      "created_at":"2023-10-26T08:15:54.509653Z",
-      "href":"/api/maestro/v1/resources/2XIENcJIi9t2eBblhWVCtWLdbDZ",
-      "id":"2XIENcJIi9t2eBblhWVCtWLdbDZ",
-      "kind":"Resource",
-      "species":"foo",
-      "updated_at":"2023-10-26T08:15:54.509653Z"
-    }
-  ],
-  "kind":"ResourceList",
-  "page":1,
-  "size":1,
-  "total":1
+    "items": [
+        {
+            "consumer_id": "cluster1",
+            "created_at": "2023-11-23T07:58:57.145623561Z",
+            "href": "/api/maestro/v1/resources/2YWSeUkhxMXsWMQPl2pRxiL3Ejb",
+            "id": "2YWSeUkhxMXsWMQPl2pRxiL3Ejb",
+            "kind": "Resource",
+            "manifest": {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {
+                    "name": "nginx",
+                    "namespace": "default"
+                },
+                "spec": {
+                    "replicas": 1,
+                    "selector": {
+                        "matchLabels": {
+                            "app": "nginx"
+                        }
+                    },
+                    "template": {
+                        "metadata": {
+                            "labels": {
+                                "app": "nginx"
+                            }
+                        },
+                        "spec": {
+                            "containers": [
+                                {
+                                    "image": "nginxinc/nginx-unprivileged",
+                                    "name": "nginx"
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            "updated_at": "2023-11-23T07:58:57.145623561Z",
+            "version": 1
+        }
+    ],
+    "kind": "ResourceList",
+    "page": 1,
+    "size": 1,
+    "total": 1
 }
 ```
 
@@ -182,12 +246,42 @@ $ ocm login --token=${OCM_ACCESS_TOKEN} --url=https://maestro.apps-crc.testing -
 
 $ ocm post /api/maestro/v1/resources << EOF
 {
-    "species": "foo"
+  "consumer_id": "cluster1",
+  "version": 1,
+  "manifest": {
+    "apiVersion": "apps/v1",
+    "kind": "Deployment",
+    "metadata": {
+      "name": "nginx",
+      "namespace": "default"
+    },
+    "spec": {
+      "replicas": 1,
+      "selector": {
+        "matchLabels": {
+          "app": "nginx"
+        }
+      },
+      "template": {
+        "metadata": {
+          "labels": {
+            "app": "nginx"
+          }
+        },
+        "spec": {
+          "containers": [
+            {
+              "image": "nginxinc/nginx-unprivileged",
+              "name": "nginx"
+            }
+          ]
+        }
+      }
+    }
+  }
 }
 EOF
 ```
-
-
 
 ### Make a new Kind
 

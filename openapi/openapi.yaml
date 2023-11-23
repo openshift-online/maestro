@@ -433,6 +433,8 @@ components:
             format: date-time
           manifest:
             type: object
+          status:
+            type: object
     ResourceList:
       allOf:
       - $ref: '#/components/schemas/List'
@@ -447,8 +449,6 @@ components:
       properties:
         manifest:
           type: object
-        species:
-          type: string
     Consumer:
       allOf:
         - $ref: '#/components/schemas/ObjectReference'

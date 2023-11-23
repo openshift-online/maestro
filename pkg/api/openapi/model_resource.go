@@ -28,6 +28,7 @@ type Resource struct {
 	CreatedAt  *time.Time             `json:"created_at,omitempty"`
 	UpdatedAt  *time.Time             `json:"updated_at,omitempty"`
 	Manifest   map[string]interface{} `json:"manifest,omitempty"`
+	Status     map[string]interface{} `json:"status,omitempty"`
 }
 
 // NewResource instantiates a new Resource object
@@ -303,6 +304,38 @@ func (o *Resource) SetManifest(v map[string]interface{}) {
 	o.Manifest = v
 }
 
+// GetStatus returns the Status field value if set, zero value otherwise.
+func (o *Resource) GetStatus() map[string]interface{} {
+	if o == nil || IsNil(o.Status) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.Status
+}
+
+// GetStatusOk returns a tuple with the Status field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Resource) GetStatusOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.Status) {
+		return map[string]interface{}{}, false
+	}
+	return o.Status, true
+}
+
+// HasStatus returns a boolean if a field has been set.
+func (o *Resource) HasStatus() bool {
+	if o != nil && !IsNil(o.Status) {
+		return true
+	}
+
+	return false
+}
+
+// SetStatus gets a reference to the given map[string]interface{} and assigns it to the Status field.
+func (o *Resource) SetStatus(v map[string]interface{}) {
+	o.Status = v
+}
+
 func (o Resource) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -336,6 +369,9 @@ func (o Resource) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Manifest) {
 		toSerialize["manifest"] = o.Manifest
+	}
+	if !IsNil(o.Status) {
+		toSerialize["status"] = o.Status
 	}
 	return toSerialize, nil
 }
