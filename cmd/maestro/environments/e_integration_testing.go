@@ -20,7 +20,7 @@ func (e *testingEnvImpl) VisitDatabase(c *Database) error {
 }
 
 func (e *testingEnvImpl) VisitMessageBroker(c *MessageBroker) error {
-	c.CloudEventsSourceOptions = mqttoptions.NewSourceOptions(e.env.Config.MessageBroker.MQTTOptions, "maestro-integration-testing")
+	c.CloudEventsSourceOptions = mqttoptions.NewSourceOptions(e.env.Config.MessageBroker.MQTTOptions, e.env.Config.MessageBroker.SourceID)
 	return nil
 }
 
@@ -55,5 +55,6 @@ func (e *testingEnvImpl) Flags() map[string]string {
 		"ocm-debug":            "false",
 		"enable-ocm-mock":      "true",
 		"enable-sentry":        "false",
+		"source-id":            "maestro-integration",
 	}
 }

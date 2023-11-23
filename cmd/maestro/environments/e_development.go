@@ -19,7 +19,7 @@ func (e *devEnvImpl) VisitDatabase(c *Database) error {
 }
 
 func (e *devEnvImpl) VisitMessageBroker(c *MessageBroker) error {
-	c.CloudEventsSourceOptions = mqttoptions.NewSourceOptions(e.env.Config.MessageBroker.MQTTOptions, "maestro-development")
+	c.CloudEventsSourceOptions = mqttoptions.NewSourceOptions(e.env.Config.MessageBroker.MQTTOptions, e.env.Config.MessageBroker.SourceID)
 	return nil
 }
 
@@ -52,5 +52,6 @@ func (e *devEnvImpl) Flags() map[string]string {
 		"api-server-hostname":    "localhost",
 		"api-server-bindaddress": "localhost:8000",
 		"enable-sentry":          "false",
+		"source-id":              "maestro-development",
 	}
 }
