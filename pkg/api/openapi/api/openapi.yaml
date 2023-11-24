@@ -682,13 +682,10 @@ components:
       - $ref: '#/components/schemas/ResourceList_allOf'
     ResourcePatchRequest:
       example:
-        species: species
         manifest: "{}"
       properties:
         manifest:
           type: object
-        species:
-          type: string
       type: object
     Consumer:
       allOf:
@@ -736,6 +733,8 @@ components:
           format: date-time
           type: string
         manifest:
+          type: object
+        status:
           type: object
       type: object
       example: null

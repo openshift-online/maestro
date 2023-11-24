@@ -5,7 +5,6 @@
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
-**Species** | Pointer to **string** |  | [optional] 
 
 ## Methods
 
@@ -50,31 +49,6 @@ SetManifest sets Manifest field to given value.
 `func (o *ResourcePatchRequest) HasManifest() bool`
 
 HasManifest returns a boolean if a field has been set.
-
-### GetSpecies
-
-`func (o *ResourcePatchRequest) GetSpecies() string`
-
-GetSpecies returns the Species field if non-nil, zero value otherwise.
-
-### GetSpeciesOk
-
-`func (o *ResourcePatchRequest) GetSpeciesOk() (*string, bool)`
-
-GetSpeciesOk returns a tuple with the Species field if it's non-nil, zero value otherwise
-and a boolean to check if the value has been set.
-
-### SetSpecies
-
-`func (o *ResourcePatchRequest) SetSpecies(v string)`
-
-SetSpecies sets Species field to given value.
-
-### HasSpecies
-
-`func (o *ResourcePatchRequest) HasSpecies() bool`
-
-HasSpecies returns a boolean if a field has been set.
 
 
 [[Back to Model list]](../README.md#documentation-for-models) [[Back to API list]](../README.md#documentation-for-api-endpoints) [[Back to README]](../README.md)

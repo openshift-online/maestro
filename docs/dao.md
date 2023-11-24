@@ -4,4 +4,4 @@ DAO pattern emphasises the low coupling between different components of an appli
 
 As the persistence logic is completely separate, it is much easier to write Unit tests for individual components. It is quite easy to mock data for an individual component of the application.
 
-The DAO layer implementation resides in package `dao`, and correspondent mocks in package `mocks`. An example of a Unit test may be found in `pkg/services/dinosaurs_test.go`.
+The DAO layer implementation resides in package `dao`, and correspondent mocks in package `mocks`. An example of a Unit test may be found in `pkg/services/resource_test.go`.

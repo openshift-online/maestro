@@ -10,6 +10,7 @@ type Resource struct {
 	Version    int32
 	ConsumerID string
 	Manifest   datatypes.JSONMap
+	Status     datatypes.JSONMap
 }
 
 type ResourceList []*Resource

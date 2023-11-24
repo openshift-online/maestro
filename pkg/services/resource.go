@@ -22,7 +22,7 @@ type ResourceService interface {
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
-	FindByConsumerIDs(ctx context.Context, species string) (api.ResourceList, *errors.ServiceError)
+	FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 
 	// idempotent functions for the control plane, but can also be called synchronously by any actor
@@ -93,7 +93,7 @@ func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource)
 
 func (s *sqlResourceService) Replace(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
 	if !DisableAdvisoryLock {
-		// Updates the resource species only when its species changes.
+		// Updates the resource manifest only when its manifest changes.
 		// If there are multiple requests at the same time, it will cause the race conditions among these
 		// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
 		lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.Resources)
