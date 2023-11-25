@@ -2,8 +2,6 @@ package environments
 
 import (
 	"github.com/openshift-online/maestro/pkg/db/db_session"
-
-	mqttoptions "open-cluster-management.io/api/cloudevents/generic/options/mqtt"
 )
 
 // devEnvImpl environment is intended for local use while developing features
@@ -19,7 +17,6 @@ func (e *devEnvImpl) VisitDatabase(c *Database) error {
 }
 
 func (e *devEnvImpl) VisitMessageBroker(c *MessageBroker) error {
-	c.CloudEventsSourceOptions = mqttoptions.NewSourceOptions(e.env.Config.MessageBroker.MQTTOptions, e.env.Config.MessageBroker.SourceID)
 	return nil
 }
 

@@ -7,7 +7,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
-	"open-cluster-management.io/api/cloudevents/generic/options"
 )
 
 const (
@@ -41,7 +40,6 @@ type Database struct {
 }
 
 type MessageBroker struct {
-	*options.CloudEventsSourceOptions
 }
 
 type Handlers struct {

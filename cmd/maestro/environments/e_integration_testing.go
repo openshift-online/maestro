@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/openshift-online/maestro/pkg/db/db_session"
-	mqttoptions "open-cluster-management.io/api/cloudevents/generic/options/mqtt"
 )
 
 var _ EnvironmentImpl = &testingEnvImpl{}
@@ -20,7 +19,6 @@ func (e *testingEnvImpl) VisitDatabase(c *Database) error {
 }
 
 func (e *testingEnvImpl) VisitMessageBroker(c *MessageBroker) error {
-	c.CloudEventsSourceOptions = mqttoptions.NewSourceOptions(e.env.Config.MessageBroker.MQTTOptions, e.env.Config.MessageBroker.SourceID)
 	return nil
 }
 
