@@ -9,9 +9,12 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/pflag"
 
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
+
+	mqttoptions "open-cluster-management.io/api/cloudevents/generic/options/mqtt"
 )
 
 func init() {
@@ -97,17 +100,18 @@ func (e *Env) Initialize() error {
 		glog.Fatalf("Failed to visit MessageBroker: %s", err)
 	}
 
+	e.LoadServices()
+	if err := envImpl.VisitServices(&e.Services); err != nil {
+		glog.Fatalf("Failed to visit Services: %s", err)
+	}
+
+	// Load clients after services so that clients can use services
 	err := e.LoadClients()
 	if err != nil {
 		return err
 	}
 	if err := envImpl.VisitClients(&e.Clients); err != nil {
 		glog.Fatalf("Failed to visit Clients: %s", err)
-	}
-
-	e.LoadServices()
-	if err := envImpl.VisitServices(&e.Services); err != nil {
-		glog.Fatalf("Failed to visit Services: %s", err)
 	}
 
 	err = e.InitializeSentry()
@@ -161,6 +165,13 @@ func (e *Env) LoadClients() error {
 	}
 	if err != nil {
 		glog.Errorf("Unable to create OCM Authz client: %s", err.Error())
+		return err
+	}
+
+	cloudEventsSourceOptions := mqttoptions.NewSourceOptions(e.Config.MessageBroker.MQTTOptions, e.Config.MessageBroker.SourceID)
+	e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+	if err != nil {
+		glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
 		return err
 	}
 

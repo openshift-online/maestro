@@ -35,7 +35,7 @@ func (d *resourceDaoMock) Create(ctx context.Context, resource *api.Resource) (*
 	return resource, nil
 }
 
-func (d *resourceDaoMock) Replace(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
+func (d *resourceDaoMock) Update(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	return nil, errors.NotImplemented("Resource").AsError()
 }
 
