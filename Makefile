@@ -50,6 +50,14 @@ db_password_file=${PWD}/secrets/db.password
 db_sslmode:=disable
 db_image?=docker.io/library/postgres:14.2
 
+# Message broker connection details
+mq_host=maestro-mqtt.$(namespace)
+mq_port=1883
+mq_user=maestro
+mq_password=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9$%&%' | fold -w 12 | head -n 1)
+mq_password_file=${PWD}/secrets/mqtt.password
+mq_image=docker.io/eclipse-mosquitto:2.0.18
+
 # Log verbosity level
 glog_v:=10
 
@@ -240,6 +248,13 @@ cmds:
 		--param="DATABASE_PORT=$(db_port)" \
 		--param="DATABASE_USER=$(db_user)" \
 		--param="DATABASE_SSLMODE=$(db_sslmode)" \
+		--param="MQTT_HOST=$(mq_host)" \
+		--param="MQTT_PORT=$(mq_port)" \
+		--param="MQTT_USER=$(mq_user)" \
+		--param="MQTT_PASSWORD=$(mq_password)" \
+		--param="MQTT_ROOT_CERT=" \
+		--param="MQTT_CLIENT_CERT=" \
+		--param="MQTT_CLIENT_KEY=" \
 		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \
@@ -280,6 +295,7 @@ undeploy-%: project %-template
 template: \
 	secrets-template \
 	db-template \
+	mq-template \
 	service-template \
 	route-template \
 	$(NULL)
@@ -292,6 +308,7 @@ deploy: \
 	template \
 	deploy-secrets \
 	deploy-db \
+	deploy-mq \
 	deploy-service \
 	deploy-route \
 	$(NULL)
@@ -301,6 +318,7 @@ undeploy: \
 	template \
 	undeploy-secrets \
 	undeploy-db \
+	undeploy-mq \
 	undeploy-service \
 	undeploy-route \
 	$(NULL)
@@ -318,6 +336,17 @@ db/login:
 db/teardown:
 	$(container_tool) stop psql-maestro
 	$(container_tool) rm psql-maestro
+
+.PHONY: mq/setup
+mq/setup:
+	@echo $(mq_password) > $(mq_password_file)
+	$(container_tool) run --rm -v $(shell pwd)/hack:/tmp $(mq_image) -- mosquitto_passwd -c -b /tmp/mosquitto-passwd.txt $(mq_user) $(mq_password)
+	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mq_image)
+
+.PHONY: mq/teardown
+mq/teardown:
+	$(container_tool) stop mqtt-maestro
+	$(container_tool) rm mqtt-maestro
 
 crc/login:
 	@echo "Logging into CRC"

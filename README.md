@@ -3,7 +3,7 @@ Maestro
 
 ## Run for the first time
 
-### Make a build and run postgres
+### Make a build, run postgres and mqtt broker
 
 ```sh
 
@@ -24,6 +24,9 @@ $ make db/login
     maestro=# \dt
     Did not find any relations.
 
+# 3. run a mqtt broker locally in docker
+
+$ make mq/setup
 ```
 
 ### Run database migrations

@@ -18,6 +18,10 @@ func (e *productionEnvImpl) VisitDatabase(c *Database) error {
 	return nil
 }
 
+func (e *productionEnvImpl) VisitMessageBroker(c *MessageBroker) error {
+	return nil
+}
+
 func (e *productionEnvImpl) VisitConfig(c *ApplicationConfig) error {
 	return nil
 }
@@ -40,5 +44,6 @@ func (e *productionEnvImpl) Flags() map[string]string {
 		"ocm-debug":       "false",
 		"enable-ocm-mock": "false",
 		"enable-sentry":   "true",
+		"source-id":       "maestro",
 	}
 }

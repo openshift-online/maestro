@@ -19,6 +19,9 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
+	mqtt "github.com/mochi-mqtt/server/v2"
+	"github.com/mochi-mqtt/server/v2/hooks/auth"
+	"github.com/mochi-mqtt/server/v2/listeners"
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/pflag"
 
@@ -35,6 +38,7 @@ import (
 
 const (
 	apiPort    = ":8777"
+	mqttPort   = ":11883"
 	jwtKeyFile = "test/support/jwt_private_key.pem"
 	jwtCAFile  = "test/support/jwt_ca.pem"
 	jwkKID     = "uhctestkey"
@@ -59,6 +63,7 @@ type Helper struct {
 	APIServer         server.Server
 	MetricsServer     server.Server
 	HealthCheckServer server.Server
+	MQTTBroker        *mqtt.Server
 	TimeFunc          TimeFunc
 	JWTPrivateKey     *rsa.PrivateKey
 	JWTCA             *rsa.PublicKey
@@ -104,10 +109,12 @@ func NewHelper(t *testing.T) *Helper {
 			helper.CleanDB,
 			jwkMockTeardown,
 			helper.stopAPIServer,
+			helper.stopMQTTBroker,
 		}
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
+		helper.startMQTTBroker()
 	})
 	helper.T = t
 	return helper
@@ -170,6 +177,38 @@ func (helper *Helper) startHealthCheckServer() {
 		helper.HealthCheckServer.Start()
 		glog.V(10).Info("Test health check server stopped")
 	}()
+}
+
+func (helper *Helper) startMQTTBroker() {
+	helper.MQTTBroker = mqtt.New(nil)
+	_ = helper.MQTTBroker.AddHook(new(auth.AllowHook), nil)
+	tcp := listeners.NewTCP("tcp1", mqttPort, nil)
+	err := helper.MQTTBroker.AddListener(tcp)
+	if err != nil {
+		glog.Fatalf("Unable to add listener: %s", err)
+	}
+
+	go func() {
+		glog.V(10).Info("Test MQTT broker started")
+		err := helper.MQTTBroker.Serve()
+		if err != nil {
+			glog.Fatalf("Unable to start MQTT broker: %s", err)
+		}
+		glog.V(10).Info("Test MQTT broker stopped")
+	}()
+}
+
+func (helper *Helper) stopMQTTBroker() error {
+	if err := helper.MQTTBroker.Close(); err != nil {
+		return fmt.Errorf("Unable to close MQTT broker: %s", err.Error())
+	}
+	return nil
+}
+
+func (helper *Helper) RestartMQTTBroker() {
+	helper.stopMQTTBroker()
+	helper.startMQTTBroker()
+	glog.V(10).Info("Test MQTT broker restarted")
 }
 
 func (helper *Helper) RestartServer() {

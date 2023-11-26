@@ -16,6 +16,10 @@ func (e *devEnvImpl) VisitDatabase(c *Database) error {
 	return nil
 }
 
+func (e *devEnvImpl) VisitMessageBroker(c *MessageBroker) error {
+	return nil
+}
+
 func (e *devEnvImpl) VisitConfig(c *ApplicationConfig) error {
 	c.ApplicationConfig.Server.EnableJWT = false
 	c.ApplicationConfig.Server.EnableHTTPS = false
@@ -45,5 +49,6 @@ func (e *devEnvImpl) Flags() map[string]string {
 		"api-server-hostname":    "localhost",
 		"api-server-bindaddress": "localhost:8000",
 		"enable-sentry":          "false",
+		"source-id":              "maestro-development",
 	}
 }

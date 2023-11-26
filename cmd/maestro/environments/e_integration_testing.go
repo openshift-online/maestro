@@ -18,6 +18,10 @@ func (e *testingEnvImpl) VisitDatabase(c *Database) error {
 	return nil
 }
 
+func (e *testingEnvImpl) VisitMessageBroker(c *MessageBroker) error {
+	return nil
+}
+
 func (e *testingEnvImpl) VisitConfig(c *ApplicationConfig) error {
 	// Support a one-off env to allow enabling db debug in testing
 	if os.Getenv("DB_DEBUG") == "true" {
@@ -49,5 +53,6 @@ func (e *testingEnvImpl) Flags() map[string]string {
 		"ocm-debug":            "false",
 		"enable-ocm-mock":      "true",
 		"enable-sentry":        "false",
+		"source-id":            "maestro-integration",
 	}
 }
