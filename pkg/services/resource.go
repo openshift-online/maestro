@@ -139,7 +139,7 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 }
 
 func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
-	// Updates the resource species only when its species changes.
+	// Updates the resource status only when its status changes.
 	// If there are multiple requests at the same time, it will cause the race conditions among these
 	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
 	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.Resources)
