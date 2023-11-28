@@ -136,7 +136,7 @@ func (h resourceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			err := h.resource.Delete(ctx, id)
+			err := h.resource.MarkAsDeleting(ctx, id)
 			if err != nil {
 				return nil, err
 			}

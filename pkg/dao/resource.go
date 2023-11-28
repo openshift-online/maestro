@@ -32,7 +32,7 @@ func NewResourceDao(sessionFactory *db.SessionFactory) ResourceDao {
 func (d *sqlResourceDao) Get(ctx context.Context, id string) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	var resource api.Resource
-	if err := g2.Unscoped().Take(&resource, "id = ?", id).Error; err != nil {
+	if err := g2.Take(&resource, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &resource, nil

@@ -20,6 +20,7 @@ type ResourceService interface {
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
+	MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
@@ -167,11 +168,8 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	return updated, nil
 }
 
-func (s *sqlResourceService) Delete(ctx context.Context, id string) *errors.ServiceError {
-	if err := s.resourceDao.Delete(ctx, id); err != nil {
-		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
-	}
-
+// MarkAsDeleting marks the resource as deleting by setting the deleted_at timestamp.
+func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
 	_, err := s.events.Create(ctx, &api.Event{
 		Source:    "Resources",
 		SourceID:  id,
@@ -179,6 +177,14 @@ func (s *sqlResourceService) Delete(ctx context.Context, id string) *errors.Serv
 	})
 	if err != nil {
 		return handleDeleteError("Resource", err)
+	}
+
+	return nil
+}
+
+func (s *sqlResourceService) Delete(ctx context.Context, id string) *errors.ServiceError {
+	if err := s.resourceDao.Delete(ctx, id); err != nil {
+		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
 	}
 
 	return nil

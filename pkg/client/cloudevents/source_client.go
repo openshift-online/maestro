@@ -5,10 +5,12 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
+	"k8s.io/apimachinery/pkg/api/meta"
 	cegeneric "open-cluster-management.io/api/cloudevents/generic"
 	ceoptions "open-cluster-management.io/api/cloudevents/generic/options"
 	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
@@ -39,9 +41,30 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 	go func() {
 		if err := ceSourceClient.Subscribe(ctx, func(action cetypes.ResourceAction, resource *api.Resource) error {
 			logger.Infof("received action %s for resource %s", action, resource.ID)
-			_, err := resourceService.UpdateStatus(ctx, resource)
-			if err != nil {
-				return err
+			switch action {
+			case cetypes.StatusModified:
+				resourceStatusJSON, err := json.Marshal(resource.Status)
+				if err != nil {
+					return err
+				}
+				resourceStatus := &api.ResourceStatus{}
+				if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
+					return err
+				}
+
+				// if the resource has been deleted from agent, delete it from maestro
+				if resourceStatus.ReconcileStatus != nil && meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, "Deleted") {
+					if err := resourceService.Delete(ctx, resource.ID); err != nil {
+						return err
+					}
+				} else {
+					// update the resource status
+					if _, err := resourceService.UpdateStatus(ctx, resource); err != nil {
+						return err
+					}
+				}
+			default:
+				return fmt.Errorf("unsupported action %s", action)
 			}
 			return nil
 		}); err != nil {
@@ -108,11 +131,13 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 		return err
 	}
 
+	// mark the resource as deleting
+	resource.Meta.DeletedAt.Time = time.Now()
 	logger.Infof("Publishing resource %s for db row delete", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
-		Action:              cetypes.EventAction("update_request"),
+		Action:              cetypes.EventAction("delete_request"),
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
 		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
