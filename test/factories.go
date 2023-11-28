@@ -2,17 +2,72 @@ package test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
-func (helper *Helper) NewResource(consumerID string) *api.Resource {
+var testManifestJSON = `
+{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+	  "name": "nginx",
+	  "namespace": "default"
+	},
+	"spec": {
+	  "replicas": %d,
+	  "selector": {
+		"matchLabels": {
+		  "app": "nginx"
+		}
+	  },
+	  "template": {
+		"metadata": {
+		  "labels": {
+			"app": "nginx"
+		  }
+		},
+		"spec": {
+		  "containers": [
+			{
+			  "image": "nginxinc/nginx-unprivileged",
+			  "name": "nginx"
+			}
+		  ]
+		}
+	  }
+	}
+}
+`
+
+func (helper *Helper) NewAPIResource(consumerID string, version int32, replicas int) openapi.Resource {
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
+		helper.T.Errorf("error unmarshalling test manifest: %q", err)
+	}
+
+	return openapi.Resource{
+		Manifest:   testManifest,
+		ConsumerId: &consumerID,
+		Version:    openapi.PtrInt32(1),
+	}
+}
+
+func (helper *Helper) NewResource(consumerID string, version int32, replicas int) *api.Resource {
 	resourceService := helper.Env().Services.Resources()
+
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
+		helper.T.Errorf("error unmarshalling test manifest: %q", err)
+	}
 
 	resource := &api.Resource{
 		ConsumerID: consumerID,
-		Manifest:   map[string]interface{}{"data": 0},
+		Version:    version,
+		Manifest:   testManifest,
 	}
 
 	res, err := resourceService.Create(context.Background(), resource)
@@ -23,11 +78,11 @@ func (helper *Helper) NewResource(consumerID string) *api.Resource {
 	return res
 }
 
-func (helper *Helper) NewResourceList(consumerID string, count int) (resource []*api.Resource) {
+func (helper *Helper) NewResourceList(consumerID string, count int) (resources []*api.Resource) {
 	for i := 1; i <= count; i++ {
-		resource = append(resource, helper.NewResource(consumerID))
+		resources = append(resources, helper.NewResource(consumerID, 1, 1))
 	}
-	return resource
+	return resources
 }
 
 func (helper *Helper) NewConsumer(name string) *api.Consumer {
