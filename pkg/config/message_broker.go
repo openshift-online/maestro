@@ -7,6 +7,7 @@ import (
 )
 
 type MessageBrokerConfig struct {
+	EnableMock         bool                     `json:"enable_message_broker_mock"`
 	SourceID           string                   `json:"source_id"`
 	MessageBrokerType  string                   `json:"message_broker_type"`
 	MQTTOptions        *mqttoptions.MQTTOptions `json:"mqtt"`
@@ -21,6 +22,7 @@ func NewMessageBrokerConfig() *MessageBrokerConfig {
 	mqttOptions.ClientCertFile = "secrets/mqtt.clientcert"
 	mqttOptions.ClientKeyFile = "secrets/mqtt.clientkey"
 	return &MessageBrokerConfig{
+		EnableMock:         false,
 		SourceID:           "maestro",
 		MessageBrokerType:  "mqtt",
 		MQTTOptions:        mqttOptions,
@@ -31,6 +33,7 @@ func NewMessageBrokerConfig() *MessageBrokerConfig {
 }
 
 func (c *MessageBrokerConfig) AddFlags(fs *pflag.FlagSet) {
+	fs.BoolVar(&c.EnableMock, "enable-message-broker-mock", c.EnableMock, "Enable message broker mock")
 	fs.StringVar(&c.SourceID, "source-id", c.SourceID, "Source ID")
 	fs.StringVar(&c.MessageBrokerType, "message-broker-type", c.MessageBrokerType, "Message broker type (default: mqtt)")
 	c.MQTTOptions.AddFlags(fs)

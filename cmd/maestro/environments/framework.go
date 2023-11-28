@@ -168,11 +168,17 @@ func (e *Env) LoadClients() error {
 		return err
 	}
 
-	cloudEventsSourceOptions := mqttoptions.NewSourceOptions(e.Config.MessageBroker.MQTTOptions, e.Config.MessageBroker.SourceID)
-	e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
-	if err != nil {
-		glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
-		return err
+	// Create CloudEvents Source client
+	if e.Config.MessageBroker.EnableMock {
+		glog.Infof("Using Mock CloudEvents Source Client")
+		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
+	} else {
+		cloudEventsSourceOptions := mqttoptions.NewSourceOptions(e.Config.MessageBroker.MQTTOptions, e.Config.MessageBroker.SourceID)
+		e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+		if err != nil {
+			glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
+			return err
+		}
 	}
 
 	return nil
