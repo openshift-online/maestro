@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -152,6 +153,10 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	found, err := s.resourceDao.Get(ctx, resource.ID)
 	if err != nil {
 		return nil, handleGetError("Resource", "id", resource.ID, err)
+	}
+
+	if found.Version > resource.Version {
+		return nil, handleUpdateError("Resource", fmt.Errorf("resource version %d is older than the current version %d", resource.Version, found.Version))
 	}
 
 	// New status is not changed, the update status action is not needed.
