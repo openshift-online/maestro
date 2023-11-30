@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/openshift-online/maestro/pkg/api"
 )
@@ -27,4 +28,21 @@ func (helper *Helper) NewResourceList(consumerID string, count int) (resource []
 		resource = append(resource, helper.NewResource(consumerID))
 	}
 	return resource
+}
+
+func (helper *Helper) NewConsumer(name string) *api.Consumer {
+	consumerService := helper.Env().Services.Consumers()
+
+	consumer, err := consumerService.Create(context.Background(), &api.Consumer{Name: name})
+	if err != nil {
+		helper.T.Errorf("error creating resource: %q", err)
+	}
+	return consumer
+}
+
+func (helper *Helper) NewConsumerList(count int) (consumers []*api.Consumer) {
+	for i := 1; i <= count; i++ {
+		consumers = append(consumers, helper.NewConsumer(fmt.Sprintf("consumer-%d", i)))
+	}
+	return consumers
 }

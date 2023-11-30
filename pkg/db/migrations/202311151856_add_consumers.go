@@ -21,11 +21,11 @@ func addConsumers() *gormigrate.Migration {
 				return err
 			}
 
-			//if err := CreateFK(tx, fkMigration{
-			//	"resources", "consumers", "consumer_id", "consumers(id)",
-			//}); err != nil {
-			//	return err
-			//}
+			if err := CreateFK(tx, fkMigration{
+				"resources", "consumers", "consumer_id", "consumers(id)",
+			}); err != nil {
+				return err
+			}
 
 			return nil
 		},

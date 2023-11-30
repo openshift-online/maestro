@@ -35,12 +35,12 @@ func (h consumerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
-			dino := presenters.ConvertConsumer(consumer)
-			dino, err := h.consumer.Create(ctx, dino)
+			consumer := presenters.ConvertConsumer(consumer)
+			consumer, err := h.consumer.Create(ctx, consumer)
 			if err != nil {
 				return nil, err
 			}
-			return presenters.PresentConsumer(dino), nil
+			return presenters.PresentConsumer(consumer), nil
 		},
 		handleError,
 	}
@@ -64,11 +64,11 @@ func (h consumerHandler) Patch(w http.ResponseWriter, r *http.Request) {
 
 			//patch a field
 
-			dino, err := h.consumer.Replace(ctx, found)
+			consumer, err := h.consumer.Replace(ctx, found)
 			if err != nil {
 				return nil, err
 			}
-			return presenters.PresentConsumer(dino), nil
+			return presenters.PresentConsumer(consumer), nil
 		},
 		handleError,
 	}
@@ -87,7 +87,7 @@ func (h consumerHandler) List(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return nil, err
 			}
-			dinoList := openapi.ConsumerList{
+			consumerList := openapi.ConsumerList{
 				Kind:  "ConsumerList",
 				Page:  int32(paging.Page),
 				Size:  int32(paging.Size),
@@ -97,16 +97,16 @@ func (h consumerHandler) List(w http.ResponseWriter, r *http.Request) {
 
 			for _, dino := range consumers {
 				converted := presenters.PresentConsumer(&dino)
-				dinoList.Items = append(dinoList.Items, converted)
+				consumerList.Items = append(consumerList.Items, converted)
 			}
 			if listArgs.Fields != nil {
-				filteredItems, err := presenters.SliceFilter(listArgs.Fields, dinoList.Items)
+				filteredItems, err := presenters.SliceFilter(listArgs.Fields, consumerList.Items)
 				if err != nil {
 					return nil, err
 				}
 				return filteredItems, nil
 			}
-			return dinoList, nil
+			return consumerList, nil
 		},
 	}
 
