@@ -1,8 +1,9 @@
 package api
 
 import (
-	"gorm.io/gorm"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type EventType string

@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**Version** | Pointer to **int32** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
 
 ## Methods
@@ -24,6 +25,31 @@ will change when the set of required properties is changed
 NewResourcePatchRequestWithDefaults instantiates a new ResourcePatchRequest object
 This constructor will only assign default values to properties that have it defined,
 but it doesn't guarantee that properties required by API are set
+
+### GetVersion
+
+`func (o *ResourcePatchRequest) GetVersion() int32`
+
+GetVersion returns the Version field if non-nil, zero value otherwise.
+
+### GetVersionOk
+
+`func (o *ResourcePatchRequest) GetVersionOk() (*int32, bool)`
+
+GetVersionOk returns a tuple with the Version field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetVersion
+
+`func (o *ResourcePatchRequest) SetVersion(v int32)`
+
+SetVersion sets Version field to given value.
+
+### HasVersion
+
+`func (o *ResourcePatchRequest) HasVersion() bool`
+
+HasVersion returns a boolean if a field has been set.
 
 ### GetManifest
 

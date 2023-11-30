@@ -19,6 +19,7 @@ var _ MappedNullable = &ResourcePatchRequest{}
 
 // ResourcePatchRequest struct for ResourcePatchRequest
 type ResourcePatchRequest struct {
+	Version  *int32                 `json:"version,omitempty"`
 	Manifest map[string]interface{} `json:"manifest,omitempty"`
 }
 
@@ -37,6 +38,38 @@ func NewResourcePatchRequest() *ResourcePatchRequest {
 func NewResourcePatchRequestWithDefaults() *ResourcePatchRequest {
 	this := ResourcePatchRequest{}
 	return &this
+}
+
+// GetVersion returns the Version field value if set, zero value otherwise.
+func (o *ResourcePatchRequest) GetVersion() int32 {
+	if o == nil || IsNil(o.Version) {
+		var ret int32
+		return ret
+	}
+	return *o.Version
+}
+
+// GetVersionOk returns a tuple with the Version field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourcePatchRequest) GetVersionOk() (*int32, bool) {
+	if o == nil || IsNil(o.Version) {
+		return nil, false
+	}
+	return o.Version, true
+}
+
+// HasVersion returns a boolean if a field has been set.
+func (o *ResourcePatchRequest) HasVersion() bool {
+	if o != nil && !IsNil(o.Version) {
+		return true
+	}
+
+	return false
+}
+
+// SetVersion gets a reference to the given int32 and assigns it to the Version field.
+func (o *ResourcePatchRequest) SetVersion(v int32) {
+	o.Version = &v
 }
 
 // GetManifest returns the Manifest field value if set, zero value otherwise.
@@ -81,6 +114,9 @@ func (o ResourcePatchRequest) MarshalJSON() ([]byte, error) {
 
 func (o ResourcePatchRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	if !IsNil(o.Version) {
+		toSerialize["version"] = o.Version
+	}
 	if !IsNil(o.Manifest) {
 		toSerialize["manifest"] = o.Manifest
 	}

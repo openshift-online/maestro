@@ -683,7 +683,10 @@ components:
     ResourcePatchRequest:
       example:
         manifest: "{}"
+        version: 0
       properties:
+        version:
+          type: integer
         manifest:
           type: object
       type: object

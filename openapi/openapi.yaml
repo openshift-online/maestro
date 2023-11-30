@@ -447,6 +447,8 @@ components:
     ResourcePatchRequest:
       type: object
       properties:
+        version:
+          type: integer
         manifest:
           type: object
     Consumer:

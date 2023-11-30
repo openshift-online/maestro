@@ -9,7 +9,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/services"
 
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
@@ -53,7 +52,11 @@ func TestResourcePost(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// POST responses per openapi spec: 201, 409, 500
-	res := openapi.Resource{}
+	consumerID := "cluster1"
+	res := openapi.Resource{
+		ConsumerId: &consumerID,
+		Manifest:   map[string]interface{}{"data": 0},
+	}
 
 	// 201 Created
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
@@ -87,13 +90,15 @@ func TestResourcePatch(t *testing.T) {
 
 	// 200 OK
 	manifest := map[string]interface{}{"data": 1}
-	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: manifest}).Execute()
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(
+		openapi.ResourcePatchRequest{Version: &res.Version, Manifest: manifest}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	Expect(*resource.Id).To(Equal(res.ID))
 	Expect(*resource.CreatedAt).To(BeTemporally("~", res.CreatedAt))
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
+	Expect(*resource.Version).To(Equal(res.Version + 1))
 
 	jwtToken := ctx.Value(openapi.ContextAccessToken)
 	// 500 server error. posting junk json is one way to trigger 500.
@@ -112,6 +117,12 @@ func TestResourcePatch(t *testing.T) {
 	Expect(len(events)).To(Equal(2), "expected Create and Update events")
 	Expect(contains(api.CreateEventType, events)).To(BeTrue())
 	Expect(contains(api.UpdateEventType, events)).To(BeTrue())
+
+	// 409 conflict error. using an out of date resource version
+	_, resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(
+		openapi.ResourcePatchRequest{Version: &res.Version, Manifest: manifest}).Execute()
+	Expect(err).To(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
 }
 
 func contains(et api.EventType, events api.EventList) bool {
@@ -173,6 +184,7 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20
+	conflictRequests := 0
 	var wg sync.WaitGroup
 	wg.Add(threads)
 
@@ -180,14 +192,19 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			manifests := map[string]interface{}{"data": 1}
-			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: manifests}).Execute()
-			Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(
+				openapi.ResourcePatchRequest{Version: &res.Version, Manifest: manifests}).Execute()
+			if err != nil && resp.StatusCode == http.StatusConflict {
+				conflictRequests = conflictRequests + 1
+			}
 		}()
 	}
 
 	// waits for all goroutines above to complete
 	wg.Wait()
+
+	// there should only be one thread successful update request
+	Expect(conflictRequests).To(Equal(threads - 1))
 
 	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	events, err := dao.All(ctx)
@@ -202,52 +219,4 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 
 	// the resource patch request is protected by the advisory lock, so there should only be one update
 	Expect(updatedCount).To(Equal(1))
-}
-
-func TestUpdateResourceWithRacingRequests_WithoutLock(t *testing.T) {
-	// we disable the advisory lock and try to update the resources
-	services.DisableAdvisoryLock = true
-
-	defer func() {
-		services.DisableAdvisoryLock = false
-	}()
-
-	h, client := test.RegisterIntegration(t)
-
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
-
-	res := h.NewResource("cluster1")
-
-	// starts 20 threads to update this resource at the same time
-	threads := 20
-	var wg sync.WaitGroup
-	wg.Add(threads)
-
-	for i := 0; i < threads; i++ {
-		go func() {
-			defer wg.Done()
-			manifests := map[string]interface{}{"data": 1}
-			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: manifests}).Execute()
-			Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-		}()
-	}
-
-	// waits for all goroutines above to complete
-	wg.Wait()
-
-	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
-	events, err := dao.All(ctx)
-	Expect(err).NotTo(HaveOccurred(), "Error getting events:  %v", err)
-
-	updatedCount := 0
-	for _, e := range events {
-		if e.SourceID == res.ID && e.EventType == api.UpdateEventType {
-			updatedCount = updatedCount + 1
-		}
-	}
-
-	// the resource patch request is not protected by the advisory lock, so there should be at least one update
-	Expect(updatedCount >= 1).To(BeTrue())
 }
