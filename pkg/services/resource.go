@@ -177,6 +177,12 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 }
 
 // MarkAsDeleting marks the resource as deleting by setting the deleted_at timestamp.
+// The Resource Deletion Flow:
+// 1. User requests deletion
+// 2. Maestro marks resource as deleting, adds delete event to DB
+// 3. Maestro handles delete event and sends CloudEvent to work-agent
+// 4. Work-agent deletes resource, sends CloudEvent back to Maestro
+// 5. Maestro deletes resource from DB
 func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
 	_, err := s.events.Create(ctx, &api.Event{
 		Source:    "Resources",

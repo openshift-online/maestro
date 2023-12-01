@@ -131,6 +131,12 @@ func (h resourceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	handleGet(w, r, cfg)
 }
 
+// Resource Deletion Flow:
+// 1. User requests deletion
+// 2. Maestro marks resource as deleting, adds delete event to DB
+// 3. Maestro handles delete event and sends CloudEvent to work-agent
+// 4. Work-agent deletes resource, sends CloudEvent back to Maestro
+// 5. Maestro deletes resource from DB
 func (h resourceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
