@@ -90,6 +90,7 @@ func (h resourceHandler) List(w http.ResponseWriter, r *http.Request) {
 				return nil, err
 			}
 			resourceList := openapi.ResourceList{
+				Kind:  *presenters.ObjectKind(resources),
 				Page:  int32(paging.Page),
 				Size:  int32(paging.Size),
 				Total: int32(paging.Total),

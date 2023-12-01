@@ -88,7 +88,7 @@ func (h consumerHandler) List(w http.ResponseWriter, r *http.Request) {
 				return nil, err
 			}
 			consumerList := openapi.ConsumerList{
-				Kind:  "ConsumerList",
+				Kind:  *presenters.ObjectKind(consumers),
 				Page:  int32(paging.Page),
 				Size:  int32(paging.Size),
 				Total: int32(paging.Total),
