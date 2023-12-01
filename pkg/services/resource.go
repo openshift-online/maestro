@@ -141,6 +141,7 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 }
 
 func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
+	logger := logger.NewOCMLogger(ctx)
 	// Updates the resource status only when its status changes.
 	// If there are multiple requests at the same time, it will cause the race conditions among these
 	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
@@ -155,8 +156,10 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return nil, handleGetError("Resource", "id", resource.ID, err)
 	}
 
-	if found.Version > resource.Version {
-		return nil, handleUpdateError("Resource", fmt.Errorf("resource version %d is older than the current version %d", resource.Version, found.Version))
+	// Make sure the requested resource version is consistent with its database version.
+	if found.Version != resource.Version {
+		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard as the latest version is: %d", found.Version))
+		return found, nil
 	}
 
 	// New status is not changed, the update status action is not needed.
@@ -165,7 +168,7 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	}
 
 	found.Status = resource.Status
-	updated, err := s.resourceDao.Update(ctx, resource)
+	updated, err := s.resourceDao.Update(ctx, found)
 	if err != nil {
 		return nil, handleUpdateError("Resource", err)
 	}

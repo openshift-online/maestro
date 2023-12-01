@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -38,7 +39,7 @@ func TestResourceGet(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	consumer := h.NewConsumer("cluster1")
-	res := h.NewResource("cluster1", 1, 1)
+	res := h.NewResource(consumer.ID, 1)
 
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, res.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -49,6 +50,8 @@ func TestResourceGet(t *testing.T) {
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", res.ID)))
 	Expect(*resource.CreatedAt).To(BeTemporally("~", res.CreatedAt))
 	Expect(*resource.UpdatedAt).To(BeTemporally("~", res.UpdatedAt))
+	Expect(*resource.Version).To(Equal(res.Version))
+	Expect(resource.Manifest).To(Equal(map[string]interface{}(res.Manifest)))
 }
 
 func TestResourcePost(t *testing.T) {
@@ -57,18 +60,18 @@ func TestResourcePost(t *testing.T) {
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
 	clusterName := "cluster1"
+	consumer := h.NewConsumer(clusterName)
+	res := h.NewAPIResource(consumer.ID, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, clusterName, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
-	lister := informer.Lister().ManifestWorks(clusterName)
-	agentWorkClient := clientHolder.ManifestWorks(clusterName)
+	lister := informer.Lister().ManifestWorks(consumer.ID)
+	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 	resourceService := h.Env().Services.Resources()
 	sourceClient := h.Env().Clients.CloudEventsSource
 
-	// POST responses per openapi spec: 201, 409, 500
-	consumer := h.NewConsumer("cluster1")
-	res := h.NewAPIResource(consumer.ID, 1, 1)
+	// POST responses per openapi spec: 201, 400, 409, 500
 
 	// 201 Created
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
@@ -138,6 +141,7 @@ func TestResourcePost(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	newRes, err := resourceService.Get(ctx, *resource.Id)
+	Expect(newRes.Version).To(Equal(*resource.Version))
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
 	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
 	conditions := newRes.Status["ReconcileStatus"].(map[string]interface{})["Conditions"].([]interface{})
@@ -157,19 +161,20 @@ func TestResourcePatch(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.NewConsumer(clusterName)
+	res := h.NewResource(consumer.ID, 1)
+
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, clusterName, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
-	lister := informer.Lister().ManifestWorks(clusterName)
-	agentWorkClient := clientHolder.ManifestWorks(clusterName)
+	lister := informer.Lister().ManifestWorks(consumer.ID)
+	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
-	// POST responses per openapi spec: 201, 409, 500
-	res := h.NewResource(consumer.ID , 1, 1)
-	newRes := h.NewAPIResource(consumer.ID, 2, 2)
+	// POST responses per openapi spec: 201, 400, 409, 500
 
 	// 200 OK
-	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Manifest: newRes.Manifest}).Execute()
+	newRes := h.NewAPIResource(consumer.ID, 2)
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	Expect(*resource.Id).To(Equal(res.ID))
@@ -177,6 +182,7 @@ func TestResourcePatch(t *testing.T) {
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
 	Expect(*resource.Version).To(Equal(res.Version + 1))
+	Expect(resource.Manifest).To(Equal(map[string]interface{}(newRes.Manifest)))
 
 	jwtToken := ctx.Value(openapi.ContextAccessToken)
 	// 500 server error. posting junk json is one way to trigger 500.
@@ -195,6 +201,12 @@ func TestResourcePatch(t *testing.T) {
 	Expect(len(events)).To(Equal(2), "expected Create and Update events")
 	Expect(contains(api.CreateEventType, events)).To(BeTrue())
 	Expect(contains(api.UpdateEventType, events)).To(BeTrue())
+
+	// 409 conflict error. using an out of date resource version
+	_, resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(
+		openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
+	Expect(err).To(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
 
 	var work *workv1.ManifestWork
 	Eventually(func() error {
@@ -215,7 +227,7 @@ func TestResourcePatch(t *testing.T) {
 		}
 
 		// ensure the work version is updated
-		if work.GetResourceVersion() != "2" {
+		if work.GetResourceVersion() != "1" {
 			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
 		}
 
@@ -282,4 +294,52 @@ func TestResourceListSearch(t *testing.T) {
 	Expect(len(list.Items)).To(Equal(1))
 	Expect(list.Total).To(Equal(int32(1)))
 	Expect(*list.Items[0].Id).To(Equal(resources[0].ID))
+}
+
+func TestUpdateResourceWithRacingRequests(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	consumer := h.NewConsumer("cluster1")
+	res := h.NewResource(consumer.ID, 1)
+	newRes := h.NewAPIResource(consumer.ID, 2)
+
+	// starts 20 threads to update this resource at the same time
+	threads := 20
+	conflictRequests := 0
+	var wg sync.WaitGroup
+	wg.Add(threads)
+
+	for i := 0; i < threads; i++ {
+		go func() {
+			defer wg.Done()
+			_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(
+				openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
+			if err != nil && resp.StatusCode == http.StatusConflict {
+				conflictRequests = conflictRequests + 1
+			}
+		}()
+	}
+
+	// waits for all goroutines above to complete
+	wg.Wait()
+
+	// there should only be one thread successful update request
+	Expect(conflictRequests).To(Equal(threads - 1))
+
+	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	events, err := dao.All(ctx)
+	Expect(err).NotTo(HaveOccurred(), "Error getting events:  %v", err)
+
+	updatedCount := 0
+	for _, e := range events {
+		if e.SourceID == res.ID && e.EventType == api.UpdateEventType {
+			updatedCount = updatedCount + 1
+		}
+	}
+
+	// the resource patch request is protected by the advisory lock, so there should only be one update
+	Expect(updatedCount).To(Equal(1))
 }

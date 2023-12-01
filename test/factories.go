@@ -43,7 +43,7 @@ var testManifestJSON = `
 }
 `
 
-func (helper *Helper) NewAPIResource(consumerID string, version int32, replicas int) openapi.Resource {
+func (helper *Helper) NewAPIResource(consumerID string, replicas int) openapi.Resource {
 	testManifest := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
 		helper.T.Errorf("error unmarshalling test manifest: %q", err)
@@ -52,11 +52,10 @@ func (helper *Helper) NewAPIResource(consumerID string, version int32, replicas 
 	return openapi.Resource{
 		Manifest:   testManifest,
 		ConsumerId: &consumerID,
-		Version:    openapi.PtrInt32(1),
 	}
 }
 
-func (helper *Helper) NewResource(consumerID string, version int32, replicas int) *api.Resource {
+func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource {
 	resourceService := helper.Env().Services.Resources()
 
 	testManifest := map[string]interface{}{}
@@ -66,7 +65,6 @@ func (helper *Helper) NewResource(consumerID string, version int32, replicas int
 
 	resource := &api.Resource{
 		ConsumerID: consumerID,
-		Version:    version,
 		Manifest:   testManifest,
 	}
 
@@ -80,7 +78,7 @@ func (helper *Helper) NewResource(consumerID string, version int32, replicas int
 
 func (helper *Helper) NewResourceList(consumerID string, count int) (resources []*api.Resource) {
 	for i := 1; i <= count; i++ {
-		resources = append(resources, helper.NewResource(consumerID, 1, 1))
+		resources = append(resources, helper.NewResource(consumerID, 1))
 	}
 	return resources
 }

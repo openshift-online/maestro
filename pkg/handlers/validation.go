@@ -37,9 +37,3 @@ func validateEmpty(i interface{}, fieldName string, field string) validate {
 		return nil
 	}
 }
-
-func validateResourcePatch(patch *openapi.ResourcePatchRequest) validate {
-	return func() *errors.ServiceError {
-		return nil
-	}
-}
