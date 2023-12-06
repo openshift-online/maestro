@@ -44,6 +44,8 @@ image_repository:=$(namespace)/maestro
 db_name:=maestro
 db_host=maestro-db.$(namespace)
 db_port=5432
+mq_user:=maestro
+mq_password:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 13)
 db_user:=maestro
 db_password:=foobar-bizz-buzz
 db_password_file=${PWD}/secrets/db.password
@@ -340,7 +342,7 @@ db/teardown:
 .PHONY: mq/setup
 mq/setup:
 	@echo $(mq_password) > $(mq_password_file)
-	$(container_tool) run --rm -v $(shell pwd)/hack:/tmp $(mq_image) -- mosquitto_passwd -c -b /tmp/mosquitto-passwd.txt $(mq_user) $(mq_password)
+	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(mq_image) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mq_user) $(mq_password)
 	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mq_image)
 
 .PHONY: mq/teardown
