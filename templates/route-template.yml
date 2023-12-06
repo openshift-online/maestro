@@ -5,6 +5,11 @@ name: uhc-acct-mangr-routes
 metadata:
   name: route
 
+parameters:
+
+- name: EXTERNAL_APPS_DOMAIN
+  description: external apps domain for exposing route
+
 objects:
 
 - apiVersion: route.openshift.io/v1
@@ -14,7 +19,7 @@ objects:
     labels:
       app: maestro
   spec:
-    host: maestro.apps-crc.testing
+    host: maestro.${EXTERNAL_APPS_DOMAIN}
     to:
       kind: Service
       name: maestro

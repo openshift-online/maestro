@@ -238,7 +238,7 @@ objects:
               mountPath: /secrets/rds
             command:
             - /usr/local/bin/maestro
-            - migrate
+            - migration
             - --db-host-file=/secrets/rds/db.host
             - --db-port-file=/secrets/rds/db.port
             - --db-user-file=/secrets/rds/db.user
@@ -266,7 +266,7 @@ objects:
                 value: "${ENVIRONMENT}"
             command:
             - /usr/local/bin/maestro
-            - serve
+            - server
             - --db-host-file=/secrets/rds/db.host
             - --db-port-file=/secrets/rds/db.port
             - --db-user-file=/secrets/rds/db.user

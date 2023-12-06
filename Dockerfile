@@ -1,21 +1,30 @@
-FROM registry.access.redhat.com/ubi9/ubi-minimal:9.2-750.1697534106
+FROM golang:1.21 AS builder
 
-RUN \
-    microdnf install -y \
-    util-linux \
-    && \
+ENV SOURCE_DIR=/maestro
+WORKDIR $SOURCE_DIR
+COPY . $SOURCE_DIR
+
+ENV GOFLAGS=""
+RUN make binary
+RUN pwd
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+RUN microdnf update -y && \
+    microdnf install -y util-linux && \
     microdnf clean all
 
-COPY \
-    maestro \
-    /usr/local/bin/
+COPY --from=builder maestro/maestro /usr/local/bin/
 
 EXPOSE 8000
 
-ENTRYPOINT ["/usr/local/bin/maestro", "serve"]
+ENTRYPOINT ["/usr/local/bin/maestro", "server"]
 
 LABEL name="maestro" \
-      vendor="Red Hat" \
+      vendor="Red Hat, Inc." \
       version="0.0.1" \
       summary="maestro API" \
-      description="maestro API"
+      description="maestro API" \
+      io.k8s.description="maestro API" \
+      io.k8s.display-name="maestro" \
+      io.openshift.tags="maestro"
