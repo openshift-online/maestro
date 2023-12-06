@@ -84,14 +84,14 @@ func TestConsumerPost(t *testing.T) {
 //
 //	// POST responses per openapi spec: 201, 409, 500
 //
-//	dino := h.NewConsumer("Brontosaurus")
+//	consumer := h.NewConsumer("Brontosaurus")
 //
 //	// 200 OK
-//	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, dino.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
+//	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
 //	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 //	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-//	Expect(*consumer.Id).To(Equal(dino.ID))
-//	Expect(*consumer.CreatedAt).To(BeTemporally("~", dino.CreatedAt))
+//	Expect(*consumer.Id).To(Equal(consumer.ID))
+//	Expect(*consumer.CreatedAt).To(BeTemporally("~", consumer.CreatedAt))
 //	Expect(*consumer.Kind).To(Equal("Consumer"))
 //	Expect(*consumer.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", *consumer.Id)))
 //

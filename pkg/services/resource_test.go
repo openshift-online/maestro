@@ -22,7 +22,7 @@ func TestResourceFindByConsumerID(t *testing.T) {
 	const Seismosaurus = "Seismosaurus"
 	const Breviceratops = "Breviceratops"
 
-	dinos := api.ResourceList{
+	resources := api.ResourceList{
 		&api.Resource{ConsumerID: Fukuisaurus},
 		&api.Resource{ConsumerID: Fukuisaurus},
 		&api.Resource{ConsumerID: Fukuisaurus},
@@ -30,8 +30,8 @@ func TestResourceFindByConsumerID(t *testing.T) {
 		&api.Resource{ConsumerID: Seismosaurus},
 		&api.Resource{ConsumerID: Breviceratops},
 	}
-	for _, dino := range dinos {
-		_, err := resourceService.Create(context.Background(), dino)
+	for _, resource := range resources {
+		_, err := resourceService.Create(context.Background(), resource)
 		gm.Expect(err).To(gm.BeNil())
 	}
 	fukuisaurus, err := resourceService.FindByConsumerIDs(context.Background(), Fukuisaurus)

@@ -22,9 +22,9 @@ func NewResourceDao() *resourceDaoMock {
 }
 
 func (d *resourceDaoMock) Get(ctx context.Context, id string) (*api.Resource, error) {
-	for _, dino := range d.resources {
-		if dino.ID == id {
-			return dino, nil
+	for _, resource := range d.resources {
+		if resource.ID == id {
+			return resource, nil
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
@@ -48,13 +48,13 @@ func (d *resourceDaoMock) FindByIDs(ctx context.Context, ids []string) (api.Reso
 }
 
 func (d *resourceDaoMock) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error) {
-	var dinos api.ResourceList
-	for _, dino := range d.resources {
-		if dino.ConsumerID == consumerID {
-			dinos = append(dinos, dino)
+	var resources api.ResourceList
+	for _, resource := range d.resources {
+		if resource.ConsumerID == consumerID {
+			resources = append(resources, resource)
 		}
 	}
-	return dinos, nil
+	return resources, nil
 }
 
 func (d *resourceDaoMock) All(ctx context.Context) (api.ResourceList, error) {

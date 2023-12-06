@@ -21,9 +21,9 @@ func NewConsumerDao() *consumerDaoMock {
 }
 
 func (d *consumerDaoMock) Get(ctx context.Context, id string) (*api.Consumer, error) {
-	for _, dino := range d.consumers {
-		if dino.ID == id {
-			return dino, nil
+	for _, consumer := range d.consumers {
+		if consumer.ID == id {
+			return consumer, nil
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
