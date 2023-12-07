@@ -44,8 +44,6 @@ image_repository:=$(namespace)/maestro
 db_name:=maestro
 db_host=maestro-db.$(namespace)
 db_port=5432
-mq_user:=maestro
-mq_password:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 13)
 db_user:=maestro
 db_password:=foobar-bizz-buzz
 db_password_file=${PWD}/secrets/db.password
@@ -55,8 +53,8 @@ db_image?=docker.io/library/postgres:14.2
 # Message broker connection details
 mq_host=maestro-mqtt.$(namespace)
 mq_port=1883
-mq_user=maestro
-mq_password=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9$%&%' | fold -w 12 | head -n 1)
+mq_user:=maestro
+mq_password:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 13)
 mq_password_file=${PWD}/secrets/mqtt.password
 mq_image=docker.io/eclipse-mosquitto:2.0.18
 

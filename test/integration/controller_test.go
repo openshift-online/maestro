@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/glog"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/api"
@@ -19,7 +20,8 @@ func TestControllerRacing(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
 	account := h.NewRandAccount()
-	authCtx := h.NewAuthenticatedContext(account)
+	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+
 	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 
 	// The handler filters the events by source id/type/reconciled, and only record
@@ -27,7 +29,7 @@ func TestControllerRacing(t *testing.T) {
 	// should be only processed once.
 	var proccessedEvent []string
 	onUpsert := func(ctx context.Context, id string) error {
-		events, err := dao.All(authCtx)
+		events, err := dao.All(ctx)
 		if err != nil {
 			return err
 		}
@@ -68,7 +70,9 @@ func TestControllerRacing(t *testing.T) {
 				},
 			})
 
-			s.Start()
+			glog.V(10).Info("Test controller manager started")
+			h.DBFactory.NewListener(ctx, "events", s.KindControllerManager.Handle)
+			glog.V(10).Info("Test controller manager stopped")
 		}()
 	}
 
@@ -83,4 +87,7 @@ func TestControllerRacing(t *testing.T) {
 		}
 		return nil
 	}, 5*time.Second, 1*time.Second).Should(Succeed())
+
+	// cancel the context to stop the controller manager
+	cancel()
 }

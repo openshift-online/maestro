@@ -51,7 +51,7 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
-	var patch openapi.Resource
+	var patch openapi.ResourcePatchRequest
 
 	cfg := &handlerConfig{
 		&patch,
@@ -62,7 +62,7 @@ func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			resource, err := h.resource.Replace(ctx, &api.Resource{
+			resource, err := h.resource.Update(ctx, &api.Resource{
 				Meta:     api.Meta{ID: id},
 				Version:  *patch.Version,
 				Manifest: patch.Manifest,
@@ -131,12 +131,18 @@ func (h resourceHandler) Get(w http.ResponseWriter, r *http.Request) {
 	handleGet(w, r, cfg)
 }
 
+// Resource Deletion Flow:
+// 1. User requests deletion
+// 2. Maestro marks resource as deleting, adds delete event to DB
+// 3. Maestro handles delete event and sends CloudEvent to work-agent
+// 4. Work-agent deletes resource, sends CloudEvent back to Maestro
+// 5. Maestro deletes resource from DB
 func (h resourceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			err := h.resource.Delete(ctx, id)
+			err := h.resource.MarkAsDeleting(ctx, id)
 			if err != nil {
 				return nil, err
 			}

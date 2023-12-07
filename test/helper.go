@@ -5,6 +5,7 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,7 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/logger"
+	mqttoptions "open-cluster-management.io/api/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/api/cloudevents/work"
+	"open-cluster-management.io/api/cloudevents/work/agent/codec"
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/golang-jwt/jwt/v4"
@@ -37,13 +42,14 @@ import (
 
 const (
 	apiPort    = ":8777"
-	mqttPort   = ":11883"
+	mqttPort   = ":1883"
 	jwtKeyFile = "test/support/jwt_private_key.pem"
 	jwtCAFile  = "test/support/jwt_ca.pem"
 	jwkKID     = "uhctestkey"
 	jwkAlg     = "RS256"
 )
 
+var mqttBroker *mqtt.Server
 var helper *Helper
 var once sync.Once
 
@@ -56,13 +62,15 @@ var jwkURL string
 type TimeFunc func() time.Time
 
 type Helper struct {
-	Ctx               context.Context
+	Ctx context.Context
+
 	DBFactory         db.SessionFactory
 	AppConfig         *config.ApplicationConfig
 	APIServer         server.Server
 	MetricsServer     server.Server
 	HealthCheckServer server.Server
-	MQTTBroker        *mqtt.Server
+	ControllerManager *server.ControllersServer
+	WorkAgentHolder   *work.ClientHolder
 	TimeFunc          TimeFunc
 	JWTPrivateKey     *rsa.PrivateKey
 	JWTCA             *rsa.PublicKey
@@ -90,14 +98,21 @@ func NewHelper(t *testing.T) *Helper {
 		}
 		pflag.Parse()
 
+		// the mqtt broker needs to be started before initializing the environment
+		startMQTTBroker()
+
 		err = env.Initialize()
 		if err != nil {
 			glog.Fatalf("Unable to initialize testing environment: %s", err.Error())
 		}
 
+		// set the mqtt broker host to the test broker
+		env.Config.MessageBroker.MQTTOptions.BrokerHost = mqttPort
+
 		helper = &Helper{
-			AppConfig:     environments.Environment().Config,
-			DBFactory:     environments.Environment().Database.SessionFactory,
+			Ctx:           context.Background(),
+			AppConfig:     env.Config,
+			DBFactory:     env.Database.SessionFactory,
 			JWTPrivateKey: jwtKey,
 			JWTCA:         jwtCA,
 		}
@@ -108,12 +123,11 @@ func NewHelper(t *testing.T) *Helper {
 			helper.CleanDB,
 			jwkMockTeardown,
 			helper.stopAPIServer,
-			helper.stopMQTTBroker,
+			stopMQTTBroker,
 		}
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
-		helper.startMQTTBroker()
 	})
 	helper.T = t
 	return helper
@@ -178,36 +192,83 @@ func (helper *Helper) startHealthCheckServer() {
 	}()
 }
 
-func (helper *Helper) startMQTTBroker() {
-	helper.MQTTBroker = mqtt.New(nil)
-	_ = helper.MQTTBroker.AddHook(new(auth.AllowHook), nil)
-	tcp := listeners.NewTCP("tcp1", mqttPort, nil)
-	err := helper.MQTTBroker.AddListener(tcp)
+func (helper *Helper) StartControllerManager(ctx context.Context) {
+	sourceClient := helper.Env().Clients.CloudEventsSource
+	helper.ControllerManager = &server.ControllersServer{
+		KindControllerManager: controllers.NewKindControllerManager(
+			// db.NewAdvisoryLockFactory(helper.DBFactory),
+			db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory),
+			helper.Env().Services.Events(),
+		),
+	}
+
+	helper.ControllerManager.KindControllerManager.Add(&controllers.ControllerConfig{
+		Source: "Resources",
+		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
+			api.CreateEventType: {sourceClient.OnCreate},
+			api.UpdateEventType: {sourceClient.OnUpdate},
+			api.DeleteEventType: {sourceClient.OnDelete},
+		},
+	})
+
+	go func() {
+		glog.V(10).Info("Test controller manager started")
+		helper.DBFactory.NewListener(ctx, "events", helper.ControllerManager.KindControllerManager.Handle)
+		glog.V(10).Info("Test controller manager stopped")
+	}()
+}
+
+func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mqttOptions *mqttoptions.MQTTOptions) {
+	clientHolder, err := work.NewClientHolderBuilder(clusterName, mqttOptions).
+		WithClusterName(clusterName).
+		WithCodecs(codec.NewManifestCodec(nil)).
+		NewClientHolder(ctx)
 	if err != nil {
-		glog.Fatalf("Unable to add listener: %s", err)
+		glog.Fatalf("Unable to create work agent holder: %s", err)
+	}
+
+	go clientHolder.ManifestWorkInformer().Informer().Run(ctx.Done())
+	helper.WorkAgentHolder = clientHolder
+}
+
+func startMQTTBroker() {
+	pass := genRandomStr(13)
+	err := os.WriteFile(filepath.Join(getProjectRootDir(), "secrets/mqtt.password"), []byte(pass), 0644)
+	if err != nil {
+		glog.Fatalf("Unable to write mqtt password file: %s", err)
+	}
+
+	authRules := &auth.Ledger{
+		Auth: auth.AuthRules{
+			{Username: "maestro", Password: auth.RString(pass), Allow: true},
+		},
+	}
+
+	mqttBroker = mqtt.New(nil)
+	if err := mqttBroker.AddHook(new(auth.AllowHook), authRules); err != nil {
+		glog.Fatalf("Unable to add auth hook to mqtt broker: %s", err)
+	}
+	if err := mqttBroker.AddListener(listeners.NewTCP("tcp1", mqttPort, nil)); err != nil {
+		glog.Fatalf("Unable to add listener to mqtt broker: %s", err)
 	}
 
 	go func() {
 		glog.V(10).Info("Test MQTT broker started")
-		err := helper.MQTTBroker.Serve()
-		if err != nil {
+		if err := mqttBroker.Serve(); err != nil {
 			glog.Fatalf("Unable to start MQTT broker: %s", err)
 		}
 		glog.V(10).Info("Test MQTT broker stopped")
 	}()
 }
 
-func (helper *Helper) stopMQTTBroker() error {
-	if err := helper.MQTTBroker.Close(); err != nil {
+func stopMQTTBroker() error {
+	if err := os.Remove(filepath.Join(getProjectRootDir(), "secrets/mqtt.password")); err != nil {
+		return fmt.Errorf("unable to remove mqtt password file: %s", err)
+	}
+	if err := mqttBroker.Close(); err != nil {
 		return fmt.Errorf("unable to close MQTT broker: %s", err.Error())
 	}
 	return nil
-}
-
-func (helper *Helper) RestartMQTTBroker() {
-	helper.stopMQTTBroker()
-	helper.startMQTTBroker()
-	glog.V(10).Info("Test MQTT broker restarted")
 }
 
 func (helper *Helper) RestartServer() {
@@ -509,4 +570,15 @@ func getProjectRootDir() string {
 		curr = next
 	}
 	return root
+}
+
+func genRandomStr(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	var seededRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
+
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[seededRand.Intn(len(charset))]
+	}
+	return string(b)
 }

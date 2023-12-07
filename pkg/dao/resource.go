@@ -12,7 +12,7 @@ import (
 type ResourceDao interface {
 	Get(ctx context.Context, id string) (*api.Resource, error)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, error)
-	Replace(ctx context.Context, resource *api.Resource) (*api.Resource, error)
+	Update(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Delete(ctx context.Context, id string) error
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error)
@@ -47,9 +47,9 @@ func (d *sqlResourceDao) Create(ctx context.Context, resource *api.Resource) (*a
 	return resource, nil
 }
 
-func (d *sqlResourceDao) Replace(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
+func (d *sqlResourceDao) Update(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Omit(clause.Associations).Save(resource).Error; err != nil {
+	if err := g2.Omit(clause.Associations).Updates(resource).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}
