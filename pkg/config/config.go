@@ -52,7 +52,7 @@ func (c *ApplicationConfig) ReadFiles() []string {
 	}{
 		{c.Server.ReadFiles, "Server"},
 		{c.Database.ReadFiles, "Database"},
-		{c.MessageBroker.ReadFiles, "MessageBroker"},
+		{c.MessageBroker.ReadFile, "MessageBroker"},
 		{c.OCM.ReadFiles, "OCM"},
 		{c.Metrics.ReadFiles, "Metrics"},
 		{c.HealthCheck.ReadFiles, "HealthCheck"},

@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"os"
 	"path/filepath"
 	"strings"
@@ -23,9 +22,6 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
-	mqtt "github.com/mochi-mqtt/server/v2"
-	"github.com/mochi-mqtt/server/v2/hooks/auth"
-	"github.com/mochi-mqtt/server/v2/listeners"
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/pflag"
 
@@ -42,14 +38,12 @@ import (
 
 const (
 	apiPort    = ":8777"
-	mqttPort   = ":1883"
 	jwtKeyFile = "test/support/jwt_private_key.pem"
 	jwtCAFile  = "test/support/jwt_ca.pem"
 	jwkKID     = "uhctestkey"
 	jwkAlg     = "RS256"
 )
 
-var mqttBroker *mqtt.Server
 var helper *Helper
 var once sync.Once
 
@@ -98,16 +92,10 @@ func NewHelper(t *testing.T) *Helper {
 		}
 		pflag.Parse()
 
-		// the mqtt broker needs to be started before initializing the environment
-		startMQTTBroker()
-
 		err = env.Initialize()
 		if err != nil {
 			glog.Fatalf("Unable to initialize testing environment: %s", err.Error())
 		}
-
-		// set the mqtt broker host to the test broker
-		env.Config.MessageBroker.MQTTOptions.BrokerHost = mqttPort
 
 		helper = &Helper{
 			Ctx:           context.Background(),
@@ -123,7 +111,6 @@ func NewHelper(t *testing.T) *Helper {
 			helper.CleanDB,
 			jwkMockTeardown,
 			helper.stopAPIServer,
-			stopMQTTBroker,
 		}
 		helper.startAPIServer()
 		helper.startMetricsServer()
@@ -229,46 +216,6 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mq
 
 	go clientHolder.ManifestWorkInformer().Informer().Run(ctx.Done())
 	helper.WorkAgentHolder = clientHolder
-}
-
-func startMQTTBroker() {
-	pass := genRandomStr(13)
-	err := os.WriteFile(filepath.Join(getProjectRootDir(), "secrets/mqtt.password"), []byte(pass), 0644)
-	if err != nil {
-		glog.Fatalf("Unable to write mqtt password file: %s", err)
-	}
-
-	authRules := &auth.Ledger{
-		Auth: auth.AuthRules{
-			{Username: "maestro", Password: auth.RString(pass), Allow: true},
-		},
-	}
-
-	mqttBroker = mqtt.New(nil)
-	if err := mqttBroker.AddHook(new(auth.AllowHook), authRules); err != nil {
-		glog.Fatalf("Unable to add auth hook to mqtt broker: %s", err)
-	}
-	if err := mqttBroker.AddListener(listeners.NewTCP("tcp1", mqttPort, nil)); err != nil {
-		glog.Fatalf("Unable to add listener to mqtt broker: %s", err)
-	}
-
-	go func() {
-		glog.V(10).Info("Test MQTT broker started")
-		if err := mqttBroker.Serve(); err != nil {
-			glog.Fatalf("Unable to start MQTT broker: %s", err)
-		}
-		glog.V(10).Info("Test MQTT broker stopped")
-	}()
-}
-
-func stopMQTTBroker() error {
-	if err := os.Remove(filepath.Join(getProjectRootDir(), "secrets/mqtt.password")); err != nil {
-		return fmt.Errorf("unable to remove mqtt password file: %s", err)
-	}
-	if err := mqttBroker.Close(); err != nil {
-		return fmt.Errorf("unable to close MQTT broker: %s", err.Error())
-	}
-	return nil
 }
 
 func (helper *Helper) RestartServer() {
@@ -570,15 +517,4 @@ func getProjectRootDir() string {
 		curr = next
 	}
 	return root
-}
-
-func genRandomStr(length int) string {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	var seededRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
-
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[seededRand.Intn(len(charset))]
-	}
-	return string(b)
 }

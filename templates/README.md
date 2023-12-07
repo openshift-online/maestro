@@ -26,7 +26,7 @@ This template deploys a simple postgresl-9.4 database deployment with a TLS-enab
 
 ## MQTT template
 
-`templates/mq-template.yml`
+`templates/mqtt-template.yml`
 
 This template deploys a simple mosquitto-2.0.18 mqtt broker deployment.
 

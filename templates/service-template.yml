@@ -272,12 +272,7 @@ objects:
             - --db-user-file=/secrets/rds/db.user
             - --db-password-file=/secrets/rds/db.password
             - --db-name-file=/secrets/rds/db.name
-            - --mqtt-broker-host-file=/secrets/mqtt/mq.host
-            - --mqtt-username-file=/secrets/mqtt/mq.user
-            - --mqtt-password-file=/secrets/mqtt/mq.password
-            - --mqtt-broke-ca=/secrets/mqtt/mq.rootcert
-            - --mqtt-client-certificate=/secrets/mqtt/mq.clientcert
-            - --mqtt-client-key=/secrets/mqtt/mq.clientkey
+            - --mqtt-config-file=/secrets/mqtt/config.yaml
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
             - --ocm-client-id-file=/secrets/service/ocm-service.clientId
             - --ocm-client-secret-file=/secrets/service/ocm-service.clientSecret
