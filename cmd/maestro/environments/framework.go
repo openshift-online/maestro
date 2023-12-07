@@ -86,7 +86,7 @@ func (e *Env) Initialize() error {
 
 	messages := environment.Config.ReadFiles()
 	if len(messages) != 0 {
-		err := fmt.Errorf("Unable to read configuration files:\n%s", strings.Join(messages, "\n"))
+		err := fmt.Errorf("unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 		sentry.CaptureException(err)
 		glog.Fatalf("Unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 	}

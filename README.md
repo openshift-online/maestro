@@ -26,7 +26,7 @@ $ make db/login
 
 # 3. run a mqtt broker locally in docker
 
-$ make mq/setup
+$ make mqtt/setup
 ```
 
 ### Run database migrations

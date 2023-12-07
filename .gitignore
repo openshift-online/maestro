@@ -45,4 +45,8 @@
 # Don't push the testing password file
 secrets/db.password
 secrets/mqtt.password
+secrets/mqtt.config
 hack/mosquitto-passwd.txt
+
+# Ignore vendor
+vendor/

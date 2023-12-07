@@ -39,7 +39,7 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 
 	logger := logger.NewOCMLogger(ctx)
 	go func() {
-		if err := ceSourceClient.Subscribe(ctx, func(action cetypes.ResourceAction, resource *api.Resource) error {
+		ceSourceClient.Subscribe(ctx, func(action cetypes.ResourceAction, resource *api.Resource) error {
 			logger.Infof("received action %s for resource %s", action, resource.ID)
 			switch action {
 			case cetypes.StatusModified:
@@ -67,9 +67,7 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 				return fmt.Errorf("unsupported action %s", action)
 			}
 			return nil
-		}); err != nil {
-			logger.Fatal(fmt.Sprintf("Failed to subscribe to resource events: %s", err))
-		}
+		})
 	}()
 
 	return &SourceClientImpl{

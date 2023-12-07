@@ -29,8 +29,8 @@ container_tool ?= podman
 # when it is accessed from outside the cluster and when it is accessed from
 # inside the cluster. We need the external name to push the image, and the
 # internal name to pull it.
-external_image_registry:=default-route-openshift-image-registry.apps-crc.testing
-internal_image_registry:=image-registry.openshift-image-registry.svc:5000
+external_image_registry ?= default-route-openshift-image-registry.apps-crc.testing
+internal_image_registry ?= image-registry.openshift-image-registry.svc:5000
 
 # The name of the image repository needs to start with the name of an existing
 # namespace because when the image is pushed to the internal registry of a
@@ -51,12 +51,12 @@ db_sslmode:=disable
 db_image?=docker.io/library/postgres:14.2
 
 # Message broker connection details
-mq_host=maestro-mqtt.$(namespace)
-mq_port=1883
-mq_user:=maestro
-mq_password:=$(shell cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 13)
-mq_password_file=${PWD}/secrets/mqtt.password
-mq_image=docker.io/eclipse-mosquitto:2.0.18
+mqtt_host=maestro-mqtt.$(namespace)
+mqtt_port=1883
+mqtt_user:=maestro
+mqtt_image=docker.io/eclipse-mosquitto:2.0.18
+mqtt_password_file=${PWD}/secrets/mqtt.password
+mqtt_config_file=${PWD}/secrets/mqtt.config
 
 # Log verbosity level
 glog_v:=10
@@ -248,10 +248,10 @@ cmds:
 		--param="DATABASE_PORT=$(db_port)" \
 		--param="DATABASE_USER=$(db_user)" \
 		--param="DATABASE_SSLMODE=$(db_sslmode)" \
-		--param="MQTT_HOST=$(mq_host)" \
-		--param="MQTT_PORT=$(mq_port)" \
-		--param="MQTT_USER=$(mq_user)" \
-		--param="MQTT_PASSWORD=$(mq_password)" \
+		--param="MQTT_HOST=$(mqtt_host)" \
+		--param="MQTT_PORT=$(mqtt_port)" \
+		--param="MQTT_USER=$(mqtt_user)" \
+		--param="MQTT_PASSWORD=$(shell cat $(mqtt_password_file))" \
 		--param="MQTT_ROOT_CERT=" \
 		--param="MQTT_CLIENT_CERT=" \
 		--param="MQTT_CLIENT_KEY=" \
@@ -295,7 +295,7 @@ undeploy-%: project %-template
 template: \
 	secrets-template \
 	db-template \
-	mq-template \
+	mqtt-template \
 	service-template \
 	route-template \
 	$(NULL)
@@ -308,7 +308,7 @@ deploy: \
 	template \
 	deploy-secrets \
 	deploy-db \
-	deploy-mq \
+	deploy-mqtt \
 	deploy-service \
 	deploy-route \
 	$(NULL)
@@ -318,7 +318,7 @@ undeploy: \
 	template \
 	undeploy-secrets \
 	undeploy-db \
-	undeploy-mq \
+	undeploy-mqtt \
 	undeploy-service \
 	undeploy-route \
 	$(NULL)
@@ -337,14 +337,15 @@ db/teardown:
 	$(container_tool) stop psql-maestro
 	$(container_tool) rm psql-maestro
 
-.PHONY: mq/setup
-mq/setup:
-	@echo $(mq_password) > $(mq_password_file)
-	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(mq_image) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mq_user) $(mq_password)
-	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mq_image)
+.PHONY: mqtt/setup
+mqtt/setup:
+	@echo $(shell LC_CTYPE=C && cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 13) > $(mqtt_password_file)
+	@echo '{"brokerHost": "localhost:1883", "username": "$(mqtt_user)", "password": "$(shell cat $(mqtt_password_file))"}' > $(mqtt_config_file)
+	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(mqtt_image) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mqtt_user) $(shell cat $(mqtt_password_file))
+	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mqtt_image)
 
-.PHONY: mq/teardown
-mq/teardown:
+.PHONY: mqtt/teardown
+mqtt/teardown:
 	$(container_tool) stop mqtt-maestro
 	$(container_tool) rm mqtt-maestro
 
