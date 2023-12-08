@@ -125,11 +125,11 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
 			ObservedGeneration: int32(resourceVersionInt),
-			Conditions:         resourceStatusPayload.Conditions,
 		},
 	}
 
 	if resourceStatusPayload.Status != nil {
+		resourceStatus.ReconcileStatus.Conditions = resourceStatusPayload.Status.Conditions
 		for _, value := range resourceStatusPayload.Status.StatusFeedbacks.Values {
 			if value.Name == "status" {
 				contentStatus := make(map[string]interface{})

@@ -255,7 +255,6 @@ ocm get /api/maestro/v1/resources
               "type": "StatusFeedbackSynced"
             }
           ],
-          "CreationTimestamp": "0001-01-01T00:00:00Z",
           "ObservedGeneration": 1
         }
       },

@@ -2,7 +2,6 @@ package api
 
 import (
 	"strconv"
-	"time"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -26,8 +25,8 @@ type ResourceStatus struct {
 
 type ReconcileStatus struct {
 	ObservedGeneration int32
-	CreationTimestamp  time.Time
-	Conditions         []metav1.Condition
+	// CreationTimestamp  time.Time
+	Conditions []metav1.Condition
 }
 
 type ResourceList []*Resource

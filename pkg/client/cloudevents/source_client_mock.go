@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/services"
@@ -35,7 +34,6 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
 			ObservedGeneration: resource.Version,
-			CreationTimestamp:  time.Now(),
 			Conditions: []metav1.Condition{
 				{
 					Type:               "Applied",
