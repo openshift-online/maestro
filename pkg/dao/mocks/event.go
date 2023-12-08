@@ -59,3 +59,29 @@ func (d *eventDaoMock) FindByIDs(ctx context.Context, ids []string) (api.EventLi
 func (d *eventDaoMock) All(ctx context.Context) (api.EventList, error) {
 	return d.events, nil
 }
+
+func (d *eventDaoMock) DeleteAllReconciledEvents(ctx context.Context) error {
+	newEvents := api.EventList{}
+	for _, e := range d.events {
+		if e.ReconciledDate != nil {
+			// deleting this one
+			// do not include in the new list
+		} else {
+			newEvents = append(newEvents, e)
+		}
+	}
+	d.events = newEvents
+	return nil
+}
+
+func (d *eventDaoMock) FindAllUnreconciledEvents(ctx context.Context) (api.EventList, error) {
+	filteredEvents := api.EventList{}
+	for _, e := range d.events {
+		if e.ReconciledDate != nil {
+			continue
+		}
+		filteredEvents = append(filteredEvents, e)
+	}
+
+	return filteredEvents, nil
+}
