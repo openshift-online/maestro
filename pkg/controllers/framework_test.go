@@ -76,9 +76,9 @@ func TestControllerFramework(t *testing.T) {
 		EventType: api.DeleteEventType,
 	})
 
-	mgr.Handle("1")
-	mgr.Handle("2")
-	mgr.Handle("3")
+	mgr.handleEvent("1")
+	mgr.handleEvent("2")
+	mgr.handleEvent("3")
 
 	Expect(ctrl.addCounter).To(Equal(1))
 	Expect(ctrl.updateCounter).To(Equal(1))

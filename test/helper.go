@@ -183,7 +183,6 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 	sourceClient := helper.Env().Clients.CloudEventsSource
 	helper.ControllerManager = &server.ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
-			// db.NewAdvisoryLockFactory(helper.DBFactory),
 			db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory),
 			helper.Env().Services.Events(),
 		),
@@ -198,11 +197,8 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 		},
 	})
 
-	go func() {
-		glog.V(10).Info("Test controller manager started")
-		helper.DBFactory.NewListener(ctx, "events", helper.ControllerManager.KindControllerManager.Handle)
-		glog.V(10).Info("Test controller manager stopped")
-	}()
+	// start controller manager
+	go helper.ControllerManager.Start(ctx.Done())
 }
 
 func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mqttOptions *mqttoptions.MQTTOptions) {
