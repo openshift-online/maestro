@@ -14,7 +14,7 @@ oc:=oc
 # cluster will not pull the new image from the internal registry:
 version:=$(shell date +%s)
 # Tag for the image:
-image_tag:=$(version)
+image_tag ?= $(version)
 
 # The namespace and the environment are calculated from the name of the user to
 # avoid clashes in shared infrastructure:
@@ -76,6 +76,7 @@ CLIENT_SECRET ?= maestro
 # Enable JWT token verify and authz middleware
 ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
+ENABLE_OCM_MOCK ?= false
 
 # Prints a list of useful targets.
 help:
@@ -268,7 +269,7 @@ cmds:
 		--param="MQTT_ROOT_CERT=" \
 		--param="MQTT_CLIENT_CERT=" \
 		--param="MQTT_CLIENT_KEY=" \
-		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
+		--param="IMAGE_REGISTRY=$(external_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \
 		--param="VERSION=$(version)" \
@@ -287,6 +288,8 @@ cmds:
 		--param="AGENT_NAMESPACE=${agent_namespace}" \
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_ID=$(consumer_id)" \
+		--param="ENABLE_JWT=$(ENABLE_JWT)" \
+		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
 	> "templates/$*-template.json"
 
 
@@ -307,18 +310,18 @@ push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
 deploy-%: project %-template
-	$(oc) apply --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
+	$(oc) apply -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
 
 undeploy-%: project %-template
-	$(oc) delete --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
+	$(oc) delete -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
 
 .PHONY: deploy-agent
 deploy-agent: push agent-project agent-template
-	$(oc) apply --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
+	$(oc) apply -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
 
 .PHONY: undeploy-agent
 undeploy-agent: agent-project agent-template
-	$(oc) delete --filename="templates/agent-template.json" | egrep --color=auto 'deleted|$$'
+	$(oc) delete -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'deleted|$$'
 
 .PHONY: template
 template: \
@@ -386,3 +389,17 @@ crc/login:
 	@crc console --credentials -ojson | jq -r .clusterConfig.adminCredentials.password | oc login --username kubeadmin --insecure-skip-tls-verify=true https://api.crc.testing:6443
 	@oc whoami --show-token | $(container_tool) login --username kubeadmin --password-stdin "$(external_image_registry)"
 .PHONY: crc/login
+
+e2e/setup:
+	./test/e2e/setup/e2e_setup.sh
+.PHONY: e2e/setup
+
+e2e/teardown:
+	./test/e2e/setup/e2e_teardown.sh
+.PHONY: e2e/teardown
+
+e2e: e2e/teardown e2e/setup
+	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
+	${PWD}/test/e2e/pkg -- -consumer_id=$(shell cat ${PWD}/test/e2e/.consumer_id) \
+	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 -kubeconfig=${PWD}/test/e2e/.kubeconfig
+.PHONY: e2e
