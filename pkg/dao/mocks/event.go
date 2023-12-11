@@ -21,9 +21,9 @@ func NewEventDao() *eventDaoMock {
 }
 
 func (d *eventDaoMock) Get(ctx context.Context, id string) (*api.Event, error) {
-	for _, dino := range d.events {
-		if dino.ID == id {
-			return dino, nil
+	for _, event := range d.events {
+		if event.ID == id {
+			return event, nil
 		}
 	}
 	return nil, gorm.ErrRecordNotFound

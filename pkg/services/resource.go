@@ -65,7 +65,7 @@ func (s *sqlResourceService) OnUpsert(ctx context.Context, id string) error {
 
 func (s *sqlResourceService) OnDelete(ctx context.Context, id string) error {
 	logger := logger.NewOCMLogger(ctx)
-	logger.Infof("This dino didn't make it to the asteroid: %s", id)
+	logger.Infof("This resource has been deleted: %s", id)
 	return nil
 }
 

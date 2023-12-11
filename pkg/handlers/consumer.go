@@ -95,8 +95,8 @@ func (h consumerHandler) List(w http.ResponseWriter, r *http.Request) {
 				Items: []openapi.Consumer{},
 			}
 
-			for _, dino := range consumers {
-				converted := presenters.PresentConsumer(&dino)
+			for _, consumer := range consumers {
+				converted := presenters.PresentConsumer(&consumer)
 				consumerList.Items = append(consumerList.Items, converted)
 			}
 			if listArgs.Fields != nil {
