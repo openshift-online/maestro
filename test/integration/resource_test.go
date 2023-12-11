@@ -120,7 +120,33 @@ func TestResourcePost(t *testing.T) {
 	Expect(manifest).To(Equal(res.Manifest))
 
 	newWork := work.DeepCopy()
-	newWork.Status = workv1.ManifestWorkStatus{Conditions: []metav1.Condition{{Type: "Applied", Status: metav1.ConditionTrue}}}
+	statusFeedbackValue := `{"observedGeneration":1,"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
+	newWork.Status = workv1.ManifestWorkStatus{
+		ResourceStatus: workv1.ManifestResourceStatus{
+			Manifests: []workv1.ManifestCondition{
+				{
+					Conditions: []metav1.Condition{
+						{
+							Type:   "Applied",
+							Status: metav1.ConditionTrue,
+						},
+					},
+					StatusFeedbacks: workv1.StatusFeedbackResult{
+						Values: []workv1.FeedbackValue{
+							{
+								Name: "status",
+								Value: workv1.FieldValue{
+									Type:    workv1.JsonRaw,
+									JsonRaw: &statusFeedbackValue,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
 
@@ -149,6 +175,13 @@ func TestResourcePost(t *testing.T) {
 	condition := conditions[0].(map[string]interface{})
 	Expect(condition["type"]).To(Equal("Applied"))
 	Expect(condition["status"]).To(Equal("True"))
+
+	contentStatus := newRes.Status["ContentStatus"].(map[string]interface{})
+	Expect(contentStatus["observedGeneration"]).To(Equal(json.Number("1")))
+	Expect(contentStatus["replicas"]).To(Equal(json.Number("1")))
+	Expect(contentStatus["availableReplicas"]).To(Equal(json.Number("1")))
+	Expect(contentStatus["readyReplicas"]).To(Equal(json.Number("1")))
+	Expect(contentStatus["updatedReplicas"]).To(Equal(json.Number("1")))
 
 	// make sure controller manager and work agent are stopped
 	cancel()
