@@ -170,6 +170,52 @@ paths:
       - Bearer: []
       summary: Create a new resource
   /api/maestro/v1/resources/{id}:
+    delete:
+      parameters:
+      - description: The id of record
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Resource deleted successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation errors occurred
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Auth token is invalid
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized to perform operation
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No resource with specified id exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unexpected error deleting resource
+      security:
+      - Bearer: []
+      summary: Delete a resource
     get:
       parameters:
       - description: The id of record
@@ -436,6 +482,52 @@ paths:
       - Bearer: []
       summary: Create a new consumer
   /api/maestro/v1/consumers/{id}:
+    delete:
+      parameters:
+      - description: The id of record
+        explode: false
+        in: path
+        name: id
+        required: true
+        schema:
+          type: string
+        style: simple
+      responses:
+        "204":
+          description: Consumer deleted successfully
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Validation errors occurred
+        "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Auth token is invalid
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unauthorized to perform operation
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No consumer with specified id exists
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Unexpected error deleting consumer
+      security:
+      - Bearer: []
+      summary: Delete a consumer
     get:
       parameters:
       - description: The id of record
