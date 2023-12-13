@@ -273,7 +273,7 @@ ocm get /api/maestro/v1/resources
 
 Take OpenShift Local as an example to deploy the maestro. If you want to deploy maestro in an OpenShift cluster, you need to set the `external_apps_domain` environment variable to point your cluster.
 ```shell
-$ export external_apps_domain=apps.<company_name>.io
+$ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontroller default -o jsonpath='{.status.domain}'`
 ```
 
 Use OpenShift Local to deploy to a local openshift cluster. Be sure to have CRC running locally:

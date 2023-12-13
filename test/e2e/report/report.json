@@ -1,0 +1,39 @@
+[
+  {
+    "SuitePath": "/Users/chuyang/go/src/github.com/clyang82/maestro/test/e2e/pkg",
+    "SuiteDescription": "",
+    "SuiteLabels": null,
+    "SuiteSucceeded": false,
+    "SuiteHasProgrammaticFocus": false,
+    "SpecialSuiteFailureReasons": [
+      "Failed to compile pkg\nsignal: interrupt"
+    ],
+    "PreRunStats": {
+      "TotalSpecs": 0,
+      "SpecsThatWillRun": 0
+    },
+    "StartTime": "0001-01-01T00:00:00Z",
+    "EndTime": "0001-01-01T00:00:00Z",
+    "RunTime": 0,
+    "SuiteConfig": {
+      "RandomSeed": 1702429748,
+      "RandomizeAllSpecs": false,
+      "FocusStrings": null,
+      "SkipStrings": null,
+      "FocusFiles": null,
+      "SkipFiles": null,
+      "LabelFilter": "",
+      "FailOnPending": false,
+      "FailFast": false,
+      "FlakeAttempts": 0,
+      "EmitSpecProgress": false,
+      "DryRun": false,
+      "Timeout": 3600000000000,
+      "OutputInterceptorMode": "",
+      "ParallelProcess": 1,
+      "ParallelTotal": 1,
+      "ParallelHost": ""
+    },
+    "SpecReports": null
+  }
+]
