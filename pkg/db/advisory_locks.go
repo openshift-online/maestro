@@ -59,8 +59,12 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 	// obtain the advisory lock (blocking)
 	if err := lock.lock(); err != nil {
 		UpdateAdvisoryLockCountMetric(lockType, "lock error")
-		log.Error("Error obtaining the advisory lock")
-		return "", err
+		errMsg := fmt.Sprintf("error obtaining the advisory lock for id %s with (%d, %d), %v",
+			id, hash(*lock.id), hash(string(*lock.lockType)), err)
+		log.Error(errMsg)
+		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
+		// can end this transaction.
+		return *lock.uuid, fmt.Errorf(errMsg)
 	}
 
 	f.locks[fmt.Sprintf("%s-%s", id, lockType)] = lock
@@ -79,8 +83,12 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 	acquired, err := lock.nonBlockingLock()
 	if err != nil {
 		UpdateAdvisoryLockCountMetric(lockType, "lock error")
-		log.Error(fmt.Sprintf("Error obtaining the non blocking advisory lock for id %s", id))
-		return "", false, err
+		errMsg := fmt.Sprintf("error obtaining the non blocking advisory lock for id %s with (%d, %d), %v",
+			id, hash(*lock.id), hash(string(*lock.lockType)), err)
+		log.Error(errMsg)
+		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
+		// can end this transaction.
+		return *lock.uuid, false, fmt.Errorf(errMsg)
 	}
 
 	f.locks[fmt.Sprintf("%s-%s", id, lockType)] = lock
