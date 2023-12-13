@@ -185,6 +185,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete a resource
+      security:
+        - Bearer: []
+      responses:
+        '204':
+          description: Resource deleted successfully
+        '400':
+          description: Validation errors occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No resource with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Unexpected error deleting resource
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
     parameters:
     - $ref: '#/components/parameters/id'
   /api/maestro/v1/consumers:
@@ -357,6 +394,43 @@ paths:
                 $ref: '#/components/schemas/Error'
         '500':
           description: Unexpected error updating consumer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      summary: Delete a consumer
+      security:
+        - Bearer: []
+      responses:
+        '204':
+          description: Consumer deleted successfully
+        '400':
+          description: Validation errors occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No consumer with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Unexpected error deleting consumer
           content:
             application/json:
               schema:

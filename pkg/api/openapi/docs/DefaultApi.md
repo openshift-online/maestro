@@ -5,10 +5,12 @@ All URIs are relative to *http://localhost:8000*
 Method | HTTP request | Description
 ------------- | ------------- | -------------
 [**ApiMaestroV1ConsumersGet**](DefaultApi.md#ApiMaestroV1ConsumersGet) | **Get** /api/maestro/v1/consumers | Returns a list of consumers
+[**ApiMaestroV1ConsumersIdDelete**](DefaultApi.md#ApiMaestroV1ConsumersIdDelete) | **Delete** /api/maestro/v1/consumers/{id} | Delete a consumer
 [**ApiMaestroV1ConsumersIdGet**](DefaultApi.md#ApiMaestroV1ConsumersIdGet) | **Get** /api/maestro/v1/consumers/{id} | Get an consumer by id
 [**ApiMaestroV1ConsumersIdPatch**](DefaultApi.md#ApiMaestroV1ConsumersIdPatch) | **Patch** /api/maestro/v1/consumers/{id} | Update an consumer
 [**ApiMaestroV1ConsumersPost**](DefaultApi.md#ApiMaestroV1ConsumersPost) | **Post** /api/maestro/v1/consumers | Create a new consumer
 [**ApiMaestroV1ResourcesGet**](DefaultApi.md#ApiMaestroV1ResourcesGet) | **Get** /api/maestro/v1/resources | Returns a list of resources
+[**ApiMaestroV1ResourcesIdDelete**](DefaultApi.md#ApiMaestroV1ResourcesIdDelete) | **Delete** /api/maestro/v1/resources/{id} | Delete a resource
 [**ApiMaestroV1ResourcesIdGet**](DefaultApi.md#ApiMaestroV1ResourcesIdGet) | **Get** /api/maestro/v1/resources/{id} | Get an resource by id
 [**ApiMaestroV1ResourcesIdPatch**](DefaultApi.md#ApiMaestroV1ResourcesIdPatch) | **Patch** /api/maestro/v1/resources/{id} | Update an resource
 [**ApiMaestroV1ResourcesPost**](DefaultApi.md#ApiMaestroV1ResourcesPost) | **Post** /api/maestro/v1/resources | Create a new resource
@@ -72,6 +74,72 @@ Name | Type | Description  | Notes
 ### Return type
 
 [**ConsumerList**](ConsumerList.md)
+
+### Authorization
+
+[Bearer](../README.md#Bearer)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints)
+[[Back to Model list]](../README.md#documentation-for-models)
+[[Back to README]](../README.md)
+
+
+## ApiMaestroV1ConsumersIdDelete
+
+> ApiMaestroV1ConsumersIdDelete(ctx, id).Execute()
+
+Delete a consumer
+
+### Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    openapiclient "github.com/GIT_USER_ID/GIT_REPO_ID"
+)
+
+func main() {
+    id := "id_example" // string | The id of record
+
+    configuration := openapiclient.NewConfiguration()
+    apiClient := openapiclient.NewAPIClient(configuration)
+    r, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(context.Background(), id).Execute()
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1ConsumersIdDelete``: %v\n", err)
+        fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
+    }
+}
+```
+
+### Path Parameters
+
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+**ctx** | **context.Context** | context for authentication, logging, cancellation, deadlines, tracing, etc.
+**id** | **string** | The id of record | 
+
+### Other Parameters
+
+Other parameters are passed through a pointer to a apiApiMaestroV1ConsumersIdDeleteRequest struct via the builder pattern
+
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+
+
+### Return type
+
+ (empty response body)
 
 ### Authorization
 
@@ -346,6 +414,72 @@ Name | Type | Description  | Notes
 ### Return type
 
 [**ResourceList**](ResourceList.md)
+
+### Authorization
+
+[Bearer](../README.md#Bearer)
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: application/json
+
+[[Back to top]](#) [[Back to API list]](../README.md#documentation-for-api-endpoints)
+[[Back to Model list]](../README.md#documentation-for-models)
+[[Back to README]](../README.md)
+
+
+## ApiMaestroV1ResourcesIdDelete
+
+> ApiMaestroV1ResourcesIdDelete(ctx, id).Execute()
+
+Delete a resource
+
+### Example
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "os"
+    openapiclient "github.com/GIT_USER_ID/GIT_REPO_ID"
+)
+
+func main() {
+    id := "id_example" // string | The id of record
+
+    configuration := openapiclient.NewConfiguration()
+    apiClient := openapiclient.NewAPIClient(configuration)
+    r, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(context.Background(), id).Execute()
+    if err != nil {
+        fmt.Fprintf(os.Stderr, "Error when calling `DefaultApi.ApiMaestroV1ResourcesIdDelete``: %v\n", err)
+        fmt.Fprintf(os.Stderr, "Full HTTP response: %v\n", r)
+    }
+}
+```
+
+### Path Parameters
+
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+**ctx** | **context.Context** | context for authentication, logging, cancellation, deadlines, tracing, etc.
+**id** | **string** | The id of record | 
+
+### Other Parameters
+
+Other parameters are passed through a pointer to a apiApiMaestroV1ResourcesIdDeleteRequest struct via the builder pattern
+
+
+Name | Type | Description  | Notes
+------------- | ------------- | ------------- | -------------
+
+
+### Return type
+
+ (empty response body)
 
 ### Authorization
 
