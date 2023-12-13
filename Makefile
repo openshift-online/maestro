@@ -288,7 +288,6 @@ cmds:
 		--param="AGENT_NAMESPACE=${agent_namespace}" \
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_ID=$(consumer_id)" \
-		--param="ENABLE_JWT=$(ENABLE_JWT)" \
 		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
 	> "templates/$*-template.json"
 
@@ -390,16 +389,16 @@ crc/login:
 	@oc whoami --show-token | $(container_tool) login --username kubeadmin --password-stdin "$(external_image_registry)"
 .PHONY: crc/login
 
-e2e/setup:
+e2e-test/setup:
 	./test/e2e/setup/e2e_setup.sh
-.PHONY: e2e/setup
+.PHONY: e2e-test/setup
 
-e2e/teardown:
+e2e-test/teardown:
 	./test/e2e/setup/e2e_teardown.sh
-.PHONY: e2e/teardown
+.PHONY: e2e-test/teardown
 
-e2e: e2e/teardown e2e/setup
+e2e-test: e2e-test/teardown e2e-test/setup
 	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- -consumer_id=$(shell cat ${PWD}/test/e2e/.consumer_id) \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 -kubeconfig=${PWD}/test/e2e/.kubeconfig
-.PHONY: e2e
+.PHONY: e2e-test

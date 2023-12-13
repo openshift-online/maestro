@@ -113,7 +113,7 @@ objects:
                     secretKeyRef:
                       key: database-name
                       name: ${DATABASE_SERVICE_NAME}
-              image: quay.io/stolostron/postgresql-13:1-101
+              image: quay.io/clyang82/postgresql-13:1-101
               imagePullPolicy: IfNotPresent
               livenessProbe:
                 exec:

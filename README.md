@@ -63,6 +63,7 @@ maestro=# \dt
 
 make test
 make test-integration
+make e2e-test
 
 ```
 
