@@ -157,6 +157,7 @@ func TestConsumerPaging(t *testing.T) {
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
+	Expect(list.Kind).To(Equal("ConsumerList"))
 	Expect(len(list.Items)).To(Equal(20))
 	Expect(list.Size).To(Equal(int32(20)))
 	Expect(list.Total).To(Equal(int32(20)))
@@ -164,6 +165,7 @@ func TestConsumerPaging(t *testing.T) {
 
 	list, _, err = client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Page(2).Size(5).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
+	Expect(list.Kind).To(Equal("ConsumerList"))
 	Expect(len(list.Items)).To(Equal(5))
 	Expect(list.Size).To(Equal(int32(5)))
 	Expect(list.Total).To(Equal(int32(20)))

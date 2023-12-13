@@ -299,6 +299,7 @@ func TestResourcePaging(t *testing.T) {
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
+	Expect(list.Kind).To(Equal("ResourceList"))
 	Expect(len(list.Items)).To(Equal(20))
 	Expect(list.Size).To(Equal(int32(20)))
 	Expect(list.Total).To(Equal(int32(20)))
@@ -306,6 +307,7 @@ func TestResourcePaging(t *testing.T) {
 
 	list, _, err = client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Page(2).Size(5).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
+	Expect(list.Kind).To(Equal("ResourceList"))
 	Expect(len(list.Items)).To(Equal(5))
 	Expect(list.Size).To(Equal(int32(5)))
 	Expect(list.Total).To(Equal(int32(20)))
@@ -323,6 +325,7 @@ func TestResourceListSearch(t *testing.T) {
 
 	search := fmt.Sprintf("id in ('%s')", resources[0].ID)
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Search(search).Execute()
+	Expect(list.Kind).To(Equal("ResourceList"))
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
 	Expect(len(list.Items)).To(Equal(1))
 	Expect(list.Total).To(Equal(int32(1)))

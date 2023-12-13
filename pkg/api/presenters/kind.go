@@ -11,8 +11,12 @@ func ObjectKind(i interface{}) *string {
 	switch i.(type) {
 	case api.Consumer, *api.Consumer:
 		result = "Consumer"
+	case api.ConsumerList, *api.ConsumerList, []api.Consumer, []*api.Consumer:
+		result = "ConsumerList"
 	case api.Resource, *api.Resource:
 		result = "Resource"
+	case api.ResourceList, *api.ResourceList, []api.Resource, []*api.Resource:
+		result = "ResourceList"
 	case errors.ServiceError, *errors.ServiceError:
 		result = "Error"
 	}
