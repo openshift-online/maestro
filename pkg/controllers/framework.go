@@ -82,6 +82,7 @@ func (km *KindControllerManager) Handle(id string) {
 	// allow the lock to be released by the handler goroutine and allow this function to continue.
 	// subsequent events will be locked by their own distinct IDs.
 	lockOwnerID, acquired, err := km.lockFactory.NewNonBlockingLock(ctx, id, db.Events)
+	// Ensure that the transaction related to this lock always end.
 	defer km.lockFactory.Unlock(ctx, lockOwnerID)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error obtaining the event lock: %v", err))
