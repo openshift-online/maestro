@@ -269,7 +269,12 @@ ocm get /api/maestro/v1/resources
 }
 ```
 
-#### Run in CRC
+#### Run in OpenShift
+
+Take OpenShift Local as an example to deploy the maestro. If you want to deploy maestro in an OpenShift cluster, you need to set the `external_apps_domain` environment variable to point your cluster.
+```shell
+$ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontroller default -o jsonpath='{.status.domain}'`
+```
 
 Use OpenShift Local to deploy to a local openshift cluster. Be sure to have CRC running locally:
 
@@ -283,10 +288,9 @@ Cache Usage:     37.62GB
 Cache Directory: /home/mturansk/.crc/cache
 ```
 
-Log into CRC and try a deployment:
+Log into CRC:
 
 ```shell
-
 $ make crc/login
 Logging into CRC
 Logged into "https://api.crc.testing:6443" as "kubeadmin" using existing credentials.
@@ -295,14 +299,62 @@ You have access to 66 projects, the list has been suppressed. You can list all p
 
 Using project "ocm-mturansk".
 Login Succeeded!
+```
 
+Deploy maestro:
+
+We will push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman.
+
+```shell
 $ make deploy
 
-$ ocm login --token=${OCM_ACCESS_TOKEN} --url=https://maestro.apps-crc.testing --insecure
+$ oc get pod -n maestro-root
+NAME                            READY   STATUS      RESTARTS   AGE
+maestro-85c847764-4xdt6         1/1     Running     0          62s
+maestro-db-1-deploy             0/1     Completed   0          62s
+maestro-db-1-kwv4h              1/1     Running     0          61s
+maestro-mqtt-6cb7bdf46c-kcczm   1/1     Running     0          63s
+```
 
+Create a consumer:
+
+```shell
+$ ocm login --token=${OCM_ACCESS_TOKEN} --url=https://maestro.${external_apps_domain} --insecure
+
+$ ocm post /api/maestro/v1/consumers << EOF
+{
+  "name": "cluster1"
+}
+EOF
+
+{
+  "created_at":"2023-12-08T11:35:08.557450505Z",
+  "href":"/api/maestro/v1/consumers/3f28c601-5028-47f4-9264-5cc43f2f27fb",
+  "id":"3f28c601-5028-47f4-9264-5cc43f2f27fb",
+  "kind":"Consumer",
+  "name":"cluster1",
+  "updated_at":"2023-12-08T11:35:08.557450505Z"
+}
+
+```
+
+Deploy maestro agent:
+
+You need to set `consumer_id` to the consumer id you received in the previous step.
+
+```shell
+$ export consumer_id=3f28c601-5028-47f4-9264-5cc43f2f27fb
+$ make deploy-agent
+$ oc get pod -n maestro-agent-root
+NAME                             READY   STATUS    RESTARTS   AGE
+maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
+```
+
+Create a resource:
+```shell
 $ ocm post /api/maestro/v1/resources << EOF
 {
-  "consumer_id": "cluster1",
+  "consumer_id": "3f28c601-5028-47f4-9264-5cc43f2f27fb",
   "version": 1,
   "manifest": {
     "apiVersion": "apps/v1",
@@ -337,6 +389,12 @@ $ ocm post /api/maestro/v1/resources << EOF
   }
 }
 EOF
+```
+You should be able to see the pod is created in default namespace.
+```shell
+$ oc get pod -n default
+NAME                     READY   STATUS    RESTARTS   AGE
+nginx-5d6b548959-829c7   1/1     Running   0          70s
 ```
 
 ### Make a new Kind

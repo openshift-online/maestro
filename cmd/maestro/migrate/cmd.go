@@ -17,10 +17,10 @@ var dbConfig = config.NewDatabaseConfig()
 // migrate sub-command handles running migrations
 func NewMigrateCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "migrate",
+		Use:   "migration",
 		Short: "Run maestro service data migrations",
 		Long:  "Run maestro service data migrations",
-		Run:   runMigrate,
+		Run:   runMigration,
 	}
 
 	dbConfig.AddFlags(cmd.PersistentFlags())
@@ -28,7 +28,7 @@ func NewMigrateCommand() *cobra.Command {
 	return cmd
 }
 
-func runMigrate(_ *cobra.Command, _ []string) {
+func runMigration(_ *cobra.Command, _ []string) {
 	err := dbConfig.ReadFiles()
 	if err != nil {
 		glog.Fatal(err)

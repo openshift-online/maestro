@@ -19,7 +19,8 @@ image_tag:=$(version)
 # The namespace and the environment are calculated from the name of the user to
 # avoid clashes in shared infrastructure:
 environment:=${USER}
-namespace:=ocm-${USER}
+namespace ?= maestro-${USER}
+agent_namespace ?= maestro-agent-${USER}
 
 # a tool for managing containers and images, etc. You can set it as docker
 container_tool ?= podman
@@ -29,8 +30,9 @@ container_tool ?= podman
 # when it is accessed from outside the cluster and when it is accessed from
 # inside the cluster. We need the external name to push the image, and the
 # internal name to pull it.
-external_image_registry ?= default-route-openshift-image-registry.apps-crc.testing
-internal_image_registry ?= image-registry.openshift-image-registry.svc:5000
+external_apps_domain ?= apps-crc.testing
+external_image_registry=default-route-openshift-image-registry.$(external_apps_domain)
+internal_image_registry=image-registry.openshift-image-registry.svc:5000
 
 # The name of the image repository needs to start with the name of an existing
 # namespace because when the image is pushed to the internal registry of a
@@ -63,6 +65,13 @@ glog_v:=10
 
 # Location of the JSON web key set used to verify tokens:
 jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
+
+# consumer id from the database. it is used by the maestro agent to identify itself
+consumer_id ?= cluster1
+
+# Client id and secret are used to interact with other UHC services
+CLIENT_ID ?= maestro
+CLIENT_SECRET ?= maestro
 
 # Prints a list of useful targets.
 help:
@@ -204,8 +213,8 @@ generate:
 .PHONY: generate
 
 run: install
-	maestro migrate
-	maestro serve
+	maestro migration
+	maestro server
 .PHONY: run
 
 # Run Swagger and host the api docs
@@ -269,6 +278,9 @@ cmds:
 		--param="OCM_BASE_URL=$(OCM_BASE_URL)" \
 		--param="ENVOY_IMAGE=$(envoy_image)" \
 		--param="ENABLE_JQS="false \
+		--param="AGENT_NAMESPACE=${agent_namespace}" \
+		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
+		--param="CONSUMER_ID=$(consumer_id)" \
 	> "templates/$*-template.json"
 
 
@@ -276,12 +288,16 @@ cmds:
 project:
 	$(oc) new-project "$(namespace)" || $(oc) project "$(namespace)" || true
 
+.PHONY: agent-project
+agent-project:
+	$(oc) new-project "$(agent_namespace)" || $(oc) project "$(agent_namespace)" || true
+
 .PHONY: image
 image: cmds
 	$(container_tool) build -t "$(external_image_registry)/$(image_repository):$(image_tag)" .
 
 .PHONY: push
-push: image
+push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
 deploy-%: project %-template
@@ -290,6 +306,13 @@ deploy-%: project %-template
 undeploy-%: project %-template
 	$(oc) delete --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
 
+.PHONY: deploy-agent
+deploy-agent: push agent-project agent-template
+	$(oc) apply --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
+
+.PHONY: undeploy-agent
+undeploy-agent: agent-project agent-template
+	$(oc) delete --filename="templates/agent-template.json" | egrep --color=auto 'deleted|$$'
 
 .PHONY: template
 template: \

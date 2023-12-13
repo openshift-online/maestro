@@ -10,10 +10,10 @@ import (
 
 func NewServeCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "serve",
-		Short: "Serve the maestro",
-		Long:  "Serve the maestro.",
-		Run:   runServe,
+		Use:   "server",
+		Short: "Start the maestro server",
+		Long:  "Start the maestro server.",
+		Run:   runServer,
 	}
 	err := environments.Environment().AddFlags(cmd.PersistentFlags())
 	if err != nil {
@@ -23,7 +23,7 @@ func NewServeCommand() *cobra.Command {
 	return cmd
 }
 
-func runServe(cmd *cobra.Command, args []string) {
+func runServer(cmd *cobra.Command, args []string) {
 	err := environments.Environment().Initialize()
 	if err != nil {
 		glog.Fatalf("Unable to initialize environment: %s", err.Error())

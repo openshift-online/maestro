@@ -6,7 +6,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
-	"github.com/openshift-online/maestro/cmd/maestro/clone"
+	"github.com/openshift-online/maestro/cmd/maestro/agent"
 	"github.com/openshift-online/maestro/cmd/maestro/migrate"
 	"github.com/openshift-online/maestro/cmd/maestro/servecmd"
 )
@@ -30,16 +30,16 @@ func main() {
 
 	rootCmd := &cobra.Command{
 		Use:  "maestro",
-		Long: "maestro serves as a template for new microservices",
+		Long: "maestro is a multi-cluster resources orchestrator for Kubernetes",
 	}
 
 	// All subcommands under root
 	migrateCmd := migrate.NewMigrateCommand()
 	serveCmd := servecmd.NewServeCommand()
-	provisionCmd := clone.NewCloneCommand()
+	agentCmd := agent.NewAgentCommand()
 
 	// Add subcommand(s)
-	rootCmd.AddCommand(migrateCmd, serveCmd, provisionCmd)
+	rootCmd.AddCommand(migrateCmd, serveCmd, agentCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		glog.Fatalf("error running command: %v", err)
