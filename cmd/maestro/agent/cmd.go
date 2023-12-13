@@ -69,9 +69,9 @@ func runAgent(cmd *cobra.Command, args []string) {
 func addFlags(flags *pflag.FlagSet) {
 	// workloadAgentOptions
 	flags.DurationVar(&agentOption.StatusSyncInterval, "status-sync-interval", agentOption.StatusSyncInterval, "Interval to sync resource status to hub")
-	flags.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "appliedmanifestwork-eviction-grace-period",
-		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for appliedmanifestwork eviction")
-	flags.StringVar(&commonOptions.SpokeClusterName, "cluster-name", commonOptions.SpokeClusterName, "Name of the cluster")
+	flags.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "resource-eviction-grace-period",
+		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for resource eviction")
+	flags.StringVar(&commonOptions.SpokeClusterName, "consumer-id", commonOptions.SpokeClusterName, "Id of the consumer")
 	// mqtt config file
 	flags.StringVar(&agentOption.WorkloadSourceDriver.Config, "mqtt-config-file",
 		agentOption.WorkloadSourceDriver.Config, "The config file path of mqtt broker")

@@ -288,7 +288,7 @@ objects:
           command:
             - /usr/local/bin/maestro
             - agent
-            - --cluster-name=${CONSUMER_ID}
+            - --consumer-id=${CONSUMER_ID}
             - --mqtt-config-file=/secrets/mqtt/config.yaml
           volumeMounts:
           - name: mqtt
