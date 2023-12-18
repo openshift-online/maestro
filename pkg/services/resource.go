@@ -28,10 +28,6 @@ type ResourceService interface {
 	FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
-
-	// idempotent functions for the control plane, but can also be called synchronously by any actor
-	OnUpsert(ctx context.Context, id string) error
-	OnDelete(ctx context.Context, id string) error
 }
 
 func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService) ResourceService {
@@ -48,25 +44,6 @@ type sqlResourceService struct {
 	lockFactory db.LockFactory
 	resourceDao dao.ResourceDao
 	events      EventService
-}
-
-func (s *sqlResourceService) OnUpsert(ctx context.Context, id string) error {
-	logger := logger.NewOCMLogger(ctx)
-
-	resource, err := s.resourceDao.Get(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	logger.Infof("Do idempotent somethings with this resource: %s", resource.ID)
-
-	return nil
-}
-
-func (s *sqlResourceService) OnDelete(ctx context.Context, id string) error {
-	logger := logger.NewOCMLogger(ctx)
-	logger.Infof("This resource has been deleted: %s", id)
-	return nil
 }
 
 func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
@@ -146,7 +123,7 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	// Updates the resource status only when its status changes.
 	// If there are multiple requests at the same time, it will cause the race conditions among these
 	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
-	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.Resources)
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.ResourceStatus)
 	// Ensure that the transaction related to this lock always end.
 	defer s.lockFactory.Unlock(ctx, lockOwnerID)
 	if err != nil {

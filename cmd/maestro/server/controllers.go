@@ -19,15 +19,14 @@ func NewControllersServer() *ControllersServer {
 		),
 	}
 
-	resourceServices := env().Services.Resources()
 	sourceClient := env().Clients.CloudEventsSource
 
 	s.KindControllerManager.Add(&controllers.ControllerConfig{
 		Source: "Resources",
 		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-			api.CreateEventType: {resourceServices.OnUpsert, sourceClient.OnCreate},
-			api.UpdateEventType: {resourceServices.OnUpsert, sourceClient.OnUpdate},
-			api.DeleteEventType: {resourceServices.OnDelete, sourceClient.OnDelete},
+			api.CreateEventType: {sourceClient.OnCreate},
+			api.UpdateEventType: {sourceClient.OnUpdate},
+			api.DeleteEventType: {sourceClient.OnDelete},
 		},
 	})
 

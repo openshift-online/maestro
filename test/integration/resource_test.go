@@ -378,4 +378,18 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 
 	// the resource patch request is protected by the advisory lock, so there should only be one update
 	Expect(updatedCount).To(Equal(1))
+
+	// all the locks should be released finally
+	Eventually(func() error {
+		var count int
+		err := h.DBFactory.DirectDB().
+			QueryRow("select count(*) from pg_locks where locktype='advisory';").
+			Scan(&count)
+		Expect(err).NotTo(HaveOccurred(), "Error querying pg_locks:  %v", err)
+
+		if count != 0 {
+			return fmt.Errorf("there are %d unreleased advisory lock", count)
+		}
+		return nil
+	}, 5*time.Second, 1*time.Second).Should(Succeed())
 }
