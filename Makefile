@@ -73,6 +73,10 @@ consumer_id ?= cluster1
 CLIENT_ID ?= maestro
 CLIENT_SECRET ?= maestro
 
+# Enable JWT token verify and authz middleware
+ENABLE_JWT ?= true
+ENABLE_AUTHZ ?= true
+
 # Prints a list of useful targets.
 help:
 	@echo ""
@@ -268,6 +272,8 @@ cmds:
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \
 		--param="VERSION=$(version)" \
+		--param="ENABLE_JWT=$(ENABLE_JWT)" \
+		--param="ENABLE_AUTHZ=$(ENABLE_AUTHZ)" \
 		--param="AUTHZ_RULES=$$AUTHZ_RULES" \
 		--param="ENABLE_SENTRY"=false \
 		--param="SENTRY_KEY"=TODO \
