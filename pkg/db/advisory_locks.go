@@ -18,9 +18,10 @@ type (
 )
 
 const (
-	Migrations LockType = "migrations"
-	Resources  LockType = "Resources"
-	Events     LockType = "events"
+	Migrations     LockType = "migrations"
+	Resources      LockType = "Resources"
+	ResourceStatus LockType = "ResourceStatus"
+	Events         LockType = "events"
 )
 
 // LockFactory provides the blocking/unblocking locks based on PostgreSQL advisory lock.
@@ -59,15 +60,15 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 	// obtain the advisory lock (blocking)
 	if err := lock.lock(); err != nil {
 		UpdateAdvisoryLockCountMetric(lockType, "lock error")
-		errMsg := fmt.Sprintf("error obtaining the advisory lock for id %s with (%d, %d), %v",
-			id, hash(*lock.id), hash(string(*lock.lockType)), err)
+		errMsg := fmt.Sprintf("error obtaining the advisory lock for id %s type %s, %v", id, lockType, err)
 		log.Error(errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
 		// can end this transaction.
 		return *lock.uuid, fmt.Errorf(errMsg)
 	}
 
-	f.locks[fmt.Sprintf("%s-%s", id, lockType)] = lock
+	log.V(4).Info(fmt.Sprintf("Locked advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid))
+	f.locks[*lock.uuid] = lock
 	return *lock.uuid, nil
 }
 
@@ -83,15 +84,15 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 	acquired, err := lock.nonBlockingLock()
 	if err != nil {
 		UpdateAdvisoryLockCountMetric(lockType, "lock error")
-		errMsg := fmt.Sprintf("error obtaining the non blocking advisory lock for id %s with (%d, %d), %v",
-			id, hash(*lock.id), hash(string(*lock.lockType)), err)
+		errMsg := fmt.Sprintf("error obtaining the non blocking advisory lock for id %s type %s, %v", id, lockType, err)
 		log.Error(errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
 		// can end this transaction.
 		return *lock.uuid, false, fmt.Errorf(errMsg)
 	}
 
-	f.locks[fmt.Sprintf("%s-%s", id, lockType)] = lock
+	log.V(4).Info(fmt.Sprintf("Locked non blocking advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid))
+	f.locks[*lock.uuid] = lock
 	return *lock.uuid, acquired, nil
 }
 
@@ -116,41 +117,36 @@ func (f *AdvisoryLockFactory) newLock(ctx context.Context, id string, lockType L
 func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 	log := logger.NewOCMLogger(ctx)
 
-	for k, lock := range f.locks {
-		if lock.uuid == nil {
-			log.Error("lockOwnerID could not be found in AdvisoryLock")
-			continue
-		}
-
-		if *lock.uuid != uuid {
-			continue
-		}
-
-		lockType := *lock.lockType
-		lockID := "<missing>"
-		if lock.id != nil {
-			lockID = *lock.id
-		}
-
-		if err := lock.unlock(); err != nil {
-			UpdateAdvisoryLockCountMetric(lockType, "unlock error")
-			log.Extra("lockID", lockID).Extra("owner", uuid).Error(fmt.Sprintf("Could not unlock, %v", err))
-		}
-
-		UpdateAdvisoryLockCountMetric(lockType, "OK")
-		UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
-
-		log.Info(fmt.Sprintf("Unlocked lock id=%s - owner=%s", lockID, uuid))
-
-		delete(f.locks, k)
+	if uuid == "" {
 		return
 	}
 
-	// the resolving UUID belongs to a service call that did *not* initiate the lock.
-	// we can safely ignore this, knowing the top-most func in the call stack
-	// will provide the correct UUID.
-	// This will happen frequently as many pkg/service functions participate in locks.
-	log.Info(fmt.Sprintf("Caller not lock owner. Owner %s", uuid))
+	lock, ok := f.locks[uuid]
+	if !ok {
+		// the resolving UUID belongs to a service call that did *not* initiate the lock.
+		// we can safely ignore this, knowing the top-most func in the call stack
+		// will provide the correct UUID.
+		log.V(4).Info(fmt.Sprintf("Caller not lock owner. Owner %s", uuid))
+		return
+	}
+
+	lockType := *lock.lockType
+	lockID := "<missing>"
+	if lock.id != nil {
+		lockID = *lock.id
+	}
+
+	if err := lock.unlock(); err != nil {
+		UpdateAdvisoryLockCountMetric(lockType, "unlock error")
+		log.Extra("lockID", lockID).Extra("owner", uuid).Error(fmt.Sprintf("Could not unlock, %v", err))
+	}
+
+	UpdateAdvisoryLockCountMetric(lockType, "OK")
+	UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
+
+	log.V(4).Info(fmt.Sprintf("Unlocked lock id=%s type=%s - owner=%s", lockID, lockType, uuid))
+
+	delete(f.locks, uuid)
 }
 
 // AdvisoryLock represents a postgres advisory lock
