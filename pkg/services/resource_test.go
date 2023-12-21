@@ -23,12 +23,12 @@ func TestResourceFindByConsumerID(t *testing.T) {
 	const Breviceratops = "Breviceratops"
 
 	resources := api.ResourceList{
-		&api.Resource{ConsumerID: Fukuisaurus},
-		&api.Resource{ConsumerID: Fukuisaurus},
-		&api.Resource{ConsumerID: Fukuisaurus},
-		&api.Resource{ConsumerID: Seismosaurus},
-		&api.Resource{ConsumerID: Seismosaurus},
-		&api.Resource{ConsumerID: Breviceratops},
+		&api.Resource{ConsumerID: Fukuisaurus, Manifest: newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}")},
+		&api.Resource{ConsumerID: Fukuisaurus, Manifest: newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}")},
+		&api.Resource{ConsumerID: Fukuisaurus, Manifest: newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}")},
+		&api.Resource{ConsumerID: Seismosaurus, Manifest: newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}")},
+		&api.Resource{ConsumerID: Seismosaurus, Manifest: newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}")},
+		&api.Resource{ConsumerID: Breviceratops, Manifest: newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}")},
 	}
 	for _, resource := range resources {
 		_, err := resourceService.Create(context.Background(), resource)
