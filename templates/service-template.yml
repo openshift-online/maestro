@@ -264,9 +264,14 @@ objects:
             env:
               - name: "AMS_ENV"
                 value: "${ENVIRONMENT}"
+              - name: POD_NAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.name
             command:
             - /usr/local/bin/maestro
             - server
+            - --client-id=$(POD_NAME)
             - --db-host-file=/secrets/rds/db.host
             - --db-port-file=/secrets/rds/db.port
             - --db-user-file=/secrets/rds/db.user
