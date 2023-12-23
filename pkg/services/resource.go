@@ -60,6 +60,10 @@ func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource)
 		return nil, handleCreateError("Resource", err)
 	}
 
+	if err := ValidateManifest(resource.Manifest); err != nil {
+		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
+	}
+
 	_, eErr := s.events.Create(ctx, &api.Event{
 		Source:    "Resources",
 		SourceID:  resource.ID,
@@ -96,6 +100,10 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 	// New manifest is not changed, the update action is not needed.
 	if reflect.DeepEqual(resource.Manifest, found.Manifest) {
 		return found, nil
+	}
+
+	if err := ValidateManifestUpdate(resource.Manifest, found.Manifest); err != nil {
+		return nil, errors.Validation("the new manifest in the resource is invalid, %v", err)
 	}
 
 	// Increase the current resource version and update its manifest.
