@@ -12,14 +12,14 @@ require (
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.0
 	github.com/golang-jwt/jwt/v4 v4.5.0
-	github.com/golang/glog v1.0.0
+	github.com/golang/glog v1.1.0
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/mux v1.8.0
 	github.com/jinzhu/inflection v1.0.0
 	github.com/lib/pq v1.10.7
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
-	github.com/onsi/gomega v1.27.7
+	github.com/onsi/gomega v1.27.10
 	github.com/openshift-online/ocm-sdk-go v0.1.334
 	github.com/prometheus/client_golang v1.16.0
 	github.com/segmentio/ksuid v1.0.2
@@ -30,9 +30,9 @@ require (
 	gorm.io/datatypes v1.2.0
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
-	k8s.io/apimachinery v0.28.1
-	k8s.io/component-base v0.28.1
-	open-cluster-management.io/api v0.12.1-0.20231130134655-97a8a92a7f30
+	k8s.io/apimachinery v0.28.2
+	k8s.io/component-base v0.28.2
+	open-cluster-management.io/api v0.12.1-0.20231222015746-04e951f8f3ae
 	open-cluster-management.io/ocm v0.12.1-0.20231208025610-2e07fda72f59
 )
 
@@ -130,24 +130,24 @@ require (
 	google.golang.org/genproto v0.0.0-20230526161137-0005af68ea54 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230525234035-dd9d682886f9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230525234030-28d5490b6b19 // indirect
-	google.golang.org/grpc v1.54.0 // indirect
+	google.golang.org/grpc v1.56.3 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.4.7 // indirect
-	k8s.io/api v0.28.1 // indirect
+	k8s.io/api v0.28.2 // indirect
 	k8s.io/apiextensions-apiserver v0.28.1 // indirect
 	k8s.io/apiserver v0.28.1 // indirect
-	k8s.io/client-go v0.28.1 // indirect
+	k8s.io/client-go v0.28.2 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kms v0.28.1 // indirect
 	k8s.io/kube-aggregator v0.28.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.1.2 // indirect
-	sigs.k8s.io/controller-runtime v0.15.0 // indirect
+	sigs.k8s.io/controller-runtime v0.16.2 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
