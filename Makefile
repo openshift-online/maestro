@@ -31,8 +31,8 @@ container_tool ?= podman
 # inside the cluster. We need the external name to push the image, and the
 # internal name to pull it.
 external_apps_domain ?= apps-crc.testing
-external_image_registry=default-route-openshift-image-registry.$(external_apps_domain)
-internal_image_registry=image-registry.openshift-image-registry.svc:5000
+external_image_registry ?= default-route-openshift-image-registry.$(external_apps_domain)
+internal_image_registry ?= image-registry.openshift-image-registry.svc:5000
 
 # The name of the image repository needs to start with the name of an existing
 # namespace because when the image is pushed to the internal registry of a
@@ -40,7 +40,7 @@ internal_image_registry=image-registry.openshift-image-registry.svc:5000
 # corresponding image stream inside that namespace. If the namespace doesn't
 # exist the push fails. This doesn't apply when the image is pushed to a public
 # repository, like `docker.io` or `quay.io`.
-image_repository:=$(namespace)/maestro
+image_repository ?= $(namespace)/maestro
 
 # Database connection details
 db_name:=maestro
@@ -269,7 +269,7 @@ cmds:
 		--param="MQTT_ROOT_CERT=" \
 		--param="MQTT_CLIENT_CERT=" \
 		--param="MQTT_CLIENT_KEY=" \
-		--param="IMAGE_REGISTRY=$(external_image_registry)" \
+		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \
 		--param="VERSION=$(version)" \

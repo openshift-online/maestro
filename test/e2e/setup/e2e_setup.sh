@@ -28,8 +28,10 @@ export KUBECONFIG=${PWD}/test/e2e/.kubeconfig
 # 2. build maestro image and load to KinD cluster
 export namespace=maestro
 export image_tag=latest
+export external_image_registry=image-registry.testing
+export internal_image_registry=image-registry.testing
 make image
-kind load docker-image default-route-openshift-image-registry.apps-crc.testing/maestro/maestro:$image_tag --name maestro
+kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
 
 # 3. deploy service-ca
 kubectl label node maestro-control-plane node-role.kubernetes.io/master=
