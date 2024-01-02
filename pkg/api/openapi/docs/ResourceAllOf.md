@@ -6,6 +6,7 @@ Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
 **ConsumerId** | Pointer to **string** |  | [optional] 
 **Version** | Pointer to **int32** |  | [optional] 
+**ObservedVersion** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
@@ -79,6 +80,31 @@ SetVersion sets Version field to given value.
 `func (o *ResourceAllOf) HasVersion() bool`
 
 HasVersion returns a boolean if a field has been set.
+
+### GetObservedVersion
+
+`func (o *ResourceAllOf) GetObservedVersion() int32`
+
+GetObservedVersion returns the ObservedVersion field if non-nil, zero value otherwise.
+
+### GetObservedVersionOk
+
+`func (o *ResourceAllOf) GetObservedVersionOk() (*int32, bool)`
+
+GetObservedVersionOk returns a tuple with the ObservedVersion field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetObservedVersion
+
+`func (o *ResourceAllOf) SetObservedVersion(v int32)`
+
+SetObservedVersion sets ObservedVersion field to given value.
+
+### HasObservedVersion
+
+`func (o *ResourceAllOf) HasObservedVersion() bool`
+
+HasObservedVersion returns a boolean if a field has been set.
 
 ### GetCreatedAt
 

@@ -120,13 +120,13 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Meta: api.Meta{
 			ID: resourceID,
 		},
-		Version:    int32(resourceVersionInt),
-		ConsumerID: clusterName,
+		ObservedVersion: int32(resourceVersionInt),
+		ConsumerID:      clusterName,
 	}
 
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
-			ObservedGeneration: int32(resourceVersionInt),
+			ObservedVersion: int32(resourceVersionInt),
 		},
 	}
 

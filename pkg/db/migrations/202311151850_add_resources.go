@@ -10,10 +10,11 @@ import (
 func addResources() *gormigrate.Migration {
 	type Resource struct {
 		Model
-		ConsumerID string         `gorm:"index"`
-		Version    int            `gorm:"not null"`
-		Manifest   datatypes.JSON `gorm:"type:json"`
-		Status     datatypes.JSON `gorm:"type:json"`
+		ConsumerID      string         `gorm:"index"`
+		Version         int            `gorm:"not null"`
+		ObservedVersion int            `gorm:"not null"`
+		Manifest        datatypes.JSON `gorm:"type:json"`
+		Status          datatypes.JSON `gorm:"type:json"`
 	}
 
 	return &gormigrate.Migration{
