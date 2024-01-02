@@ -76,7 +76,7 @@ objects:
             name: ${MQTT_BROKER_NAME}
         spec:
           containers:
-          - image: eclipse-mosquitto:${MOSQUITTO_VERSION}
+          - image: quay.io/clyang82/eclipse-mosquitto:${MOSQUITTO_VERSION}
             imagePullPolicy: IfNotPresent
             name: mosquitto
             ports:
