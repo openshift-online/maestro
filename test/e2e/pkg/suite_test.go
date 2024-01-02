@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -14,6 +13,9 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/maestro/test"
 )
 
 var (
@@ -21,27 +23,53 @@ var (
 	kubeconfig       string
 	consumer_id      string
 	kubeClient       *kubernetes.Clientset
+	apiClient        *openapi.APIClient
+	helper           *test.Helper
+	T                *testing.T
 )
 
 func TestE2E(t *testing.T) {
 	RegisterFailHandler(Fail)
+	T = t
 	RunSpecs(t, "End-to-End Test Suite")
 }
 
 func init() {
 	klog.SetOutput(GinkgoWriter)
-	klog.InitFlags(nil)
 	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro API server address")
 	flag.StringVar(&consumer_id, "consumer_id", "", "Connsumer ID is used to identify the consumer")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig file")
 }
 
 var _ = BeforeSuite(func() {
-	// validate the maestro api server is running
-	_, err := sendHTTPRequest(http.MethodGet, apiServerAddress+"/api/maestro", nil)
-	if err != nil {
-		panic(fmt.Sprintf("failed to connect to maestro api server: %v", err))
+	// initialize the help
+	helper = &test.Helper{
+		T: T,
 	}
+	// initialize the api client
+	tlsConfig := &tls.Config{
+		//nolint:gosec
+		InsecureSkipVerify: true,
+	}
+	tr := &http.Transport{TLSClientConfig: tlsConfig}
+
+	cfg := &openapi.Configuration{
+		DefaultHeader: make(map[string]string),
+		UserAgent:     "OpenAPI-Generator/1.0.0/go",
+		Debug:         false,
+		Servers: openapi.ServerConfigurations{
+			{
+				URL:         apiServerAddress,
+				Description: "current domain",
+			},
+		},
+		OperationServers: map[string]openapi.ServerConfigurations{},
+		HTTPClient: &http.Client{
+			Transport: tr,
+			Timeout:   10 * time.Second,
+		},
+	}
+	apiClient = openapi.NewAPIClient(cfg)
 
 	// validate the kubeconfig file
 	restConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
@@ -62,42 +90,3 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	// later...
 })
-
-func buildHTTPClient(apiServerAddress string) *http.Client {
-	tlsConfig := &tls.Config{
-		//nolint:gosec
-		InsecureSkipVerify: true,
-	}
-	tr := &http.Transport{TLSClientConfig: tlsConfig}
-
-	return &http.Client{
-		Transport: tr,
-		Timeout:   10 * time.Second,
-	}
-}
-
-func sendHTTPRequest(method, url string, body io.Reader) ([]byte, error) {
-	req, err := http.NewRequest(method, url, body)
-	if err != nil {
-		return nil, err
-	}
-
-	client := buildHTTPClient(url)
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		err = resp.Body.Close()
-		if err != nil {
-			klog.Errorf("unable to close response body: %v", err)
-		}
-	}()
-
-	responseBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	return responseBody, nil
-}
