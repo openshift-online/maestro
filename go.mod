@@ -5,8 +5,11 @@ go 1.21
 require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/auth0/go-jwt-middleware v0.0.0-20190805220309-36081240882b
+	github.com/buraksezer/consistent v0.10.0
 	github.com/bxcodec/faker/v3 v3.2.0
+	github.com/cespare/xxhash v1.1.0
 	github.com/cloudevents/sdk-go/v2 v2.14.0
+	github.com/deckarep/golang-set/v2 v2.5.0
 	github.com/docker/go-healthcheck v0.1.0
 	github.com/getsentry/sentry-go v0.20.0
 	github.com/ghodss/yaml v1.0.0
@@ -32,7 +35,7 @@ require (
 	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
 	k8s.io/apimachinery v0.28.2
 	k8s.io/component-base v0.28.2
-	open-cluster-management.io/api v0.12.1-0.20231222015746-04e951f8f3ae
+	open-cluster-management.io/api v0.12.1-0.20240103062208-550ac688bec7
 	open-cluster-management.io/ocm v0.12.1-0.20231208025610-2e07fda72f59
 )
 
@@ -44,6 +47,7 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/bwmarrin/snowflake v0.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20231030012137-0836a524e995 // indirect

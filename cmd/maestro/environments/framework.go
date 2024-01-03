@@ -1,6 +1,7 @@
 package environments
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/errors"
 
 	mqttoptions "open-cluster-management.io/api/cloudevents/generic/options/mqtt"
@@ -105,7 +108,10 @@ func (e *Env) Initialize() error {
 		glog.Fatalf("Failed to visit Services: %s", err)
 	}
 
-	// Load clients after services so that clients can use services
+	// Load dispatcher before clients so that clients can use dispatcher
+	e.LoadDispatcher()
+
+	// Load clients after services and dispatcher so that clients can use services and dispatcher
 	err := e.LoadClients()
 	if err != nil {
 		return err
@@ -144,6 +150,14 @@ func (e *Env) LoadServices() {
 	e.Services.Consumers = NewConsumerServiceLocator(e)
 }
 
+func (e *Env) LoadDispatcher() {
+	instanceDao := dao.NewInstanceDao(&e.Database.SessionFactory)
+	consumerDao := dao.NewConsumerDao(&e.Database.SessionFactory)
+	e.Dispatcher = dispatcher.NewDispatcher(instanceDao, consumerDao, e.Config.MessageBroker.ClientID,
+		e.Config.Dispatcher.PulseInterval, e.Config.Dispatcher.CheckInterval, e.Config.Dispatcher.InstanceExpirationPeriod)
+	go e.Dispatcher.Start(context.Background())
+}
+
 func (e *Env) LoadClients() error {
 	var err error
 
@@ -174,7 +188,7 @@ func (e *Env) LoadClients() error {
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
 		cloudEventsSourceOptions := mqttoptions.NewSourceOptions(e.Config.MessageBroker.MQTTOptions, e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
-		e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+		e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources(), e.Dispatcher)
 		if err != nil {
 			glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
 			return err

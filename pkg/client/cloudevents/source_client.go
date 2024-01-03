@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -28,7 +29,7 @@ type SourceClientImpl struct {
 	ResourceService        services.ResourceService
 }
 
-func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService) (SourceClient, error) {
+func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService, dispatcher dispatcher.Dispatcher) (SourceClient, error) {
 	ctx := context.Background()
 	codec := &Codec{}
 	ceSourceClient, err := cegeneric.NewCloudEventSourceClient[*api.Resource](ctx, sourceOptions,
@@ -43,6 +44,12 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 			logger.Infof("received action %s for resource %s", action, resource.ID)
 			switch action {
 			case cetypes.StatusModified:
+				// if the consumer is not owned by this instance, ignore it
+				if !dispatcher.Dispatch(resource.ConsumerID) {
+					return nil
+				}
+
+				logger.Infof("dispatching resource status update %s for consumer %s", resource.ID, resource.ConsumerID)
 				resourceStatusJSON, err := json.Marshal(resource.Status)
 				if err != nil {
 					return err
@@ -68,6 +75,15 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 			}
 			return nil
 		})
+	}()
+
+	go func() {
+		for consumerID := range dispatcher.Resync() {
+			logger.Infof("received resync request from dispatcher for consumer %s", consumerID)
+			if err := ceSourceClient.Resync(ctx, cetypes.ListOptions{Source: sourceOptions.SourceID, ClusterName: consumerID}); err != nil {
+				logger.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerID, err))
+			}
+		}
 	}()
 
 	return &SourceClientImpl{
