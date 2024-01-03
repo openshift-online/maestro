@@ -144,8 +144,9 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	}
 
 	// Make sure the requested resource version is consistent with its database version.
-	if found.Version != resource.Version {
-		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard as the latest version is: %d", found.Version))
+	if found.Version != resource.ObservedVersion {
+		logger.Warning(fmt.Sprintf("Updating status for stale resource (version=%d); disregard as the latest version is: %d",
+			resource.ObservedVersion, found.Version))
 		return found, nil
 	}
 
@@ -154,6 +155,7 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, nil
 	}
 
+	found.ObservedVersion = resource.ObservedVersion
 	found.Status = resource.Status
 	updated, err := s.resourceDao.Update(ctx, found)
 	if err != nil {

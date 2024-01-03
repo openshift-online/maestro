@@ -12,10 +12,11 @@ import (
 
 type Resource struct {
 	Meta
-	Version    int32
-	ConsumerID string
-	Manifest   datatypes.JSONMap
-	Status     datatypes.JSONMap
+	Version         int32
+	ObservedVersion int32
+	ConsumerID      string
+	Manifest        datatypes.JSONMap
+	Status          datatypes.JSONMap
 }
 
 type ResourceStatus struct {
@@ -24,9 +25,8 @@ type ResourceStatus struct {
 }
 
 type ReconcileStatus struct {
-	ObservedGeneration int32
-	// CreationTimestamp  time.Time
-	Conditions []metav1.Condition
+	ObservedVersion int32
+	Conditions      []metav1.Condition
 }
 
 type ResourceList []*Resource

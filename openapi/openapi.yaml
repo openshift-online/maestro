@@ -499,6 +499,8 @@ components:
             type: string
           version:
             type: integer
+          observed_version:
+            type: integer
           created_at:
             type: string
             format: date-time
@@ -636,7 +638,7 @@ components:
       description: |-
         Supplies a comma-separated list of fields to be returned.
         Fields of sub-structures and of arrays use <structure>.<field> notation.
-        <stucture>.* means all field of a structure
+        <structure>.* means all field of a structure
         Example: For each Subscription to get id, href, plan(id and kind) and labels (all fields)
 
         ```

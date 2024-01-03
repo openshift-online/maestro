@@ -51,6 +51,7 @@ func TestResourceGet(t *testing.T) {
 	Expect(*resource.CreatedAt).To(BeTemporally("~", res.CreatedAt))
 	Expect(*resource.UpdatedAt).To(BeTemporally("~", res.UpdatedAt))
 	Expect(*resource.Version).To(Equal(res.Version))
+	Expect(*resource.ObservedVersion).To(Equal(res.ObservedVersion))
 	Expect(resource.Manifest).To(Equal(map[string]interface{}(res.Manifest)))
 }
 
@@ -80,6 +81,8 @@ func TestResourcePost(t *testing.T) {
 	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
+	Expect(*resource.Version).To(Equal(int32(1)))
+	Expect(*resource.ObservedVersion).To(Equal(int32(0)))
 
 	// 400 bad request. posting junk json is one way to trigger 400.
 	jwtToken := ctx.Value(openapi.ContextAccessToken)
@@ -113,6 +116,7 @@ func TestResourcePost(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	Expect(work).NotTo(BeNil())
+	Expect(work.ResourceVersion).To(Equal("1"))
 	Expect(work.Spec.Workload).NotTo(BeNil())
 	Expect(len(work.Spec.Workload.Manifests)).To(Equal(1))
 	manifest := map[string]interface{}{}
@@ -120,7 +124,7 @@ func TestResourcePost(t *testing.T) {
 	Expect(manifest).To(Equal(res.Manifest))
 
 	newWork := work.DeepCopy()
-	statusFeedbackValue := `{"observedGeneration":1,"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
+	statusFeedbackValue := `{"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
 	newWork.Status = workv1.ManifestWorkStatus{
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
@@ -167,8 +171,9 @@ func TestResourcePost(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	newRes, err := resourceService.Get(ctx, *resource.Id)
-	Expect(newRes.Version).To(Equal(*resource.Version))
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
+	Expect(newRes.Version).To(Equal(*resource.Version))
+	Expect(newRes.ObservedVersion).To(Equal(*resource.Version))
 	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
 	conditions := newRes.Status["ReconcileStatus"].(map[string]interface{})["Conditions"].([]interface{})
 	Expect(len(conditions)).To(Equal(1))
@@ -177,7 +182,6 @@ func TestResourcePost(t *testing.T) {
 	Expect(condition["status"]).To(Equal("True"))
 
 	contentStatus := newRes.Status["ContentStatus"].(map[string]interface{})
-	Expect(contentStatus["observedGeneration"]).To(Equal(json.Number("1")))
 	Expect(contentStatus["replicas"]).To(Equal(json.Number("1")))
 	Expect(contentStatus["availableReplicas"]).To(Equal(json.Number("1")))
 	Expect(contentStatus["readyReplicas"]).To(Equal(json.Number("1")))
@@ -215,6 +219,7 @@ func TestResourcePatch(t *testing.T) {
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
 	Expect(*resource.Version).To(Equal(res.Version + 1))
+	Expect(*resource.ObservedVersion).To(Equal(res.ObservedVersion))
 	Expect(resource.Manifest).To(Equal(map[string]interface{}(newRes.Manifest)))
 
 	jwtToken := ctx.Value(openapi.ContextAccessToken)

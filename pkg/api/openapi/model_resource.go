@@ -20,15 +20,16 @@ var _ MappedNullable = &Resource{}
 
 // Resource struct for Resource
 type Resource struct {
-	Id         *string                `json:"id,omitempty"`
-	Kind       *string                `json:"kind,omitempty"`
-	Href       *string                `json:"href,omitempty"`
-	ConsumerId *string                `json:"consumer_id,omitempty"`
-	Version    *int32                 `json:"version,omitempty"`
-	CreatedAt  *time.Time             `json:"created_at,omitempty"`
-	UpdatedAt  *time.Time             `json:"updated_at,omitempty"`
-	Manifest   map[string]interface{} `json:"manifest,omitempty"`
-	Status     map[string]interface{} `json:"status,omitempty"`
+	Id              *string                `json:"id,omitempty"`
+	Kind            *string                `json:"kind,omitempty"`
+	Href            *string                `json:"href,omitempty"`
+	ConsumerId      *string                `json:"consumer_id,omitempty"`
+	Version         *int32                 `json:"version,omitempty"`
+	ObservedVersion *int32                 `json:"observed_version,omitempty"`
+	CreatedAt       *time.Time             `json:"created_at,omitempty"`
+	UpdatedAt       *time.Time             `json:"updated_at,omitempty"`
+	Manifest        map[string]interface{} `json:"manifest,omitempty"`
+	Status          map[string]interface{} `json:"status,omitempty"`
 }
 
 // NewResource instantiates a new Resource object
@@ -208,6 +209,38 @@ func (o *Resource) SetVersion(v int32) {
 	o.Version = &v
 }
 
+// GetObservedVersion returns the ObservedVersion field value if set, zero value otherwise.
+func (o *Resource) GetObservedVersion() int32 {
+	if o == nil || IsNil(o.ObservedVersion) {
+		var ret int32
+		return ret
+	}
+	return *o.ObservedVersion
+}
+
+// GetObservedVersionOk returns a tuple with the ObservedVersion field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Resource) GetObservedVersionOk() (*int32, bool) {
+	if o == nil || IsNil(o.ObservedVersion) {
+		return nil, false
+	}
+	return o.ObservedVersion, true
+}
+
+// HasObservedVersion returns a boolean if a field has been set.
+func (o *Resource) HasObservedVersion() bool {
+	if o != nil && !IsNil(o.ObservedVersion) {
+		return true
+	}
+
+	return false
+}
+
+// SetObservedVersion gets a reference to the given int32 and assigns it to the ObservedVersion field.
+func (o *Resource) SetObservedVersion(v int32) {
+	o.ObservedVersion = &v
+}
+
 // GetCreatedAt returns the CreatedAt field value if set, zero value otherwise.
 func (o *Resource) GetCreatedAt() time.Time {
 	if o == nil || IsNil(o.CreatedAt) {
@@ -360,6 +393,9 @@ func (o Resource) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Version) {
 		toSerialize["version"] = o.Version
+	}
+	if !IsNil(o.ObservedVersion) {
+		toSerialize["observed_version"] = o.ObservedVersion
 	}
 	if !IsNil(o.CreatedAt) {
 		toSerialize["created_at"] = o.CreatedAt

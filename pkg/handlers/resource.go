@@ -37,8 +37,12 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
-			resource := presenters.ConvertResource(rs)
-			resource, err := h.resource.Create(ctx, resource)
+			resource, err := h.resource.Create(ctx, &api.Resource{
+				ConsumerID:      *rs.ConsumerId,
+				Version:         1,
+				ObservedVersion: 0,
+				Manifest:        rs.Manifest,
+			})
 			if err != nil {
 				return nil, err
 			}
