@@ -108,7 +108,8 @@ func (e *Env) Initialize() error {
 		glog.Fatalf("Failed to visit Services: %s", err)
 	}
 
-	// Load dispatcher before clients so that clients can use dispatcher
+	// LoadDispatcher loads the dispatcher as the CloudEvents client needs it
+	// to determine which Maestro instance should handle the event
 	e.LoadDispatcher()
 
 	// Load clients after services and dispatcher so that clients can use services and dispatcher

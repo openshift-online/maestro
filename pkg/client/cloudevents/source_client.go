@@ -78,6 +78,7 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 	}()
 
 	go func() {
+		// when new consumer is added to this instance, send status resync for that consumer
 		for consumerID := range dispatcher.Resync() {
 			logger.Infof("received resync request from dispatcher for consumer %s", consumerID)
 			if err := ceSourceClient.Resync(ctx, cetypes.ListOptions{Source: sourceOptions.SourceID, ClusterName: consumerID}); err != nil {

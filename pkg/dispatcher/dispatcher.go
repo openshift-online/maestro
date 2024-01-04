@@ -13,18 +13,31 @@ import (
 	logger "github.com/openshift-online/maestro/pkg/logger"
 )
 
+// Dispatcher interface outlines methods for coordinating resource status updates
+// in the context of multiple active Maestro instances. Each instance subscribes
+// to a shared topic for resource status updates.
+//
+// The dispatcher's role is to ensure that only one instance processes specific
+// resource status updates, thereby optimizing efficiency and preventing redundancy.
 type Dispatcher interface {
+	// Start initiates the dispatcher with the provided context
 	Start(ctx context.Context) error
+	// Dispatch sends resource status updates to the appropriate maestro instance based on the provided key
 	Dispatch(key string) bool
+	// Resync returns a channel signaling the need to resync resource status updates for the provided consumer
 	Resync() <-chan string
 }
 
 type hasher struct{}
 
+// Sum64 returns the 64-bit xxHash of data
 func (h hasher) Sum64(data []byte) uint64 {
 	return xxhash.Sum64(data)
 }
 
+// DispatcherImpl is an implementation of the Dispatcher interface.
+// It utilizes a consistent hash ring to distribute resource status updates
+// to the appropriate Maestro instance based on consumer ID.
 type DispatcherImpl struct {
 	instanceDao              dao.InstanceDao
 	consumerDao              dao.ConsumerDao
@@ -37,6 +50,9 @@ type DispatcherImpl struct {
 	consistent               *consistent.Consistent
 }
 
+// NewDispatcher creates a new instance of the Dispatcher interface with the provided parameters.
+// It initializes the DispatcherImpl struct, setting up data access objects, instance identifier,
+// pulse and check intervals, expiration period, consumer set, and a resync channel.
 func NewDispatcher(instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, instanceID string, pulseInterval, checkInterval, instanceExpirationPeriod int64) Dispatcher {
 	return &DispatcherImpl{
 		instanceDao:              instanceDao,
@@ -50,6 +66,11 @@ func NewDispatcher(instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, ins
 	}
 }
 
+// Start initializes and runs the DispatcherImpl instance.
+// It periodically updates the heartbeat for the current Maestro instance,
+// checks Maestro instances and consumers to maintain the consistent hash ring,
+// keeps track of consumers that belong to the current instance, and sends resync signals
+// for consumers that are added to the current instance.
 func (d *DispatcherImpl) Start(ctx context.Context) error {
 	logger := logger.NewOCMLogger(ctx)
 	instance := &api.Instance{
@@ -95,6 +116,7 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 	for _, consumer := range consumers {
 		instanceID := d.consistent.LocateKey([]byte(consumer.ID)).String()
 		if instanceID == d.instanceID {
+			// new consumer added to the current instance, need to resync resource status updates for this consumer
 			d.consumerSet.Add(consumer.ID)
 			logger.Infof("Added new consumer %s to consumer set for instance %s", consumer.ID, d.instanceID)
 			d.resyncChan <- consumer.ID
@@ -142,6 +164,7 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 				instanceID := d.consistent.LocateKey([]byte(consumer.ID)).String()
 				if instanceID == d.instanceID {
 					if added := d.consumerSet.Add(consumer.ID); added {
+						// new consumer added to the current instance, need to resync resource status updates for this consumer
 						logger.Infof("Added new consumer %s to consumer set for instance %s", consumer.ID, d.instanceID)
 						d.resyncChan <- consumer.ID
 					}
@@ -159,14 +182,18 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 	}
 }
 
+// Dispatch checks if the provided consumer ID belongs to the current Maestro instance.
+// It returns true if the consumer is part of the current instance's consumer set; otherwise, it returns false.
 func (d *DispatcherImpl) Dispatch(consumerID string) bool {
 	return d.consumerSet.Contains(consumerID)
 }
 
+// Resync returns the channel used for signaling the need to resync resource status updates for consumers.
 func (d *DispatcherImpl) Resync() <-chan string {
 	return d.resyncChan
 }
 
+// IsInstanceExists checks if the provided instance ID exists in the consistent hash ring.
 func (d *DispatcherImpl) IsInstanceExists(instanceID string) bool {
 	for _, member := range d.consistent.GetMembers() {
 		if member.String() == instanceID {
