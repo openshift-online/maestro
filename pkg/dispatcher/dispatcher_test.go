@@ -101,7 +101,7 @@ func TestDispatcher(t *testing.T) {
 			}
 			t.Logf("2. initializing dispatchers with existing instances: %v", tc.existingInstances)
 			for _, instanceID := range tc.existingInstances {
-				existingDispatcher := NewDispatcher(instanceDao, consumerDao, instanceID, 2, 2, 5)
+				existingDispatcher := NewDispatcher(instanceDao, consumerDao, instanceID, 2, 2)
 				ctx, cancel := context.WithCancel(rootCtx)
 				go existingDispatcher.Start(ctx)
 				dispatcherMap[instanceID] = testDispatcher{
@@ -164,7 +164,7 @@ func TestDispatcher(t *testing.T) {
 			go func() {
 				t.Logf("5. starting dispatchers for new instances: %v", tc.newInstances)
 				for _, newInstance := range tc.newInstances {
-					newDispatcher := NewDispatcher(instanceDao, consumerDao, newInstance, 2, 2, 5)
+					newDispatcher := NewDispatcher(instanceDao, consumerDao, newInstance, 2, 2)
 					ctx, cancel := context.WithCancel(rootCtx)
 					go newDispatcher.Start(ctx)
 					dispatcherMap[newInstance] = testDispatcher{

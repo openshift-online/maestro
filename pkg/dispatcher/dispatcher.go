@@ -17,13 +17,13 @@ import (
 // in the context of multiple active Maestro instances. Each instance subscribes
 // to a shared topic for resource status updates.
 //
-// The dispatcher's role is to ensure that only one instance processes specific
-// resource status updates, thereby optimizing efficiency and preventing redundancy.
+// The dispatcher manages the mapping between maestro instances and consumers (agents),
+// ensuring that only one instance processes specific resource status updates from a consumer.
 type Dispatcher interface {
 	// Start initiates the dispatcher with the provided context
 	Start(ctx context.Context) error
-	// Dispatch sends resource status updates to the appropriate maestro instance based on the provided key
-	Dispatch(key string) bool
+	// Dispatch sends resource status updates to the appropriate maestro instance based on the consumer ID
+	Dispatch(consumerID string) bool
 	// Resync returns a channel signaling the need to resync resource status updates for the provided consumer
 	Resync() <-chan string
 }
@@ -39,30 +39,28 @@ func (h hasher) Sum64(data []byte) uint64 {
 // It utilizes a consistent hash ring to distribute resource status updates
 // to the appropriate Maestro instance based on consumer ID.
 type DispatcherImpl struct {
-	instanceDao              dao.InstanceDao
-	consumerDao              dao.ConsumerDao
-	instanceID               string
-	pulseInterval            int64
-	checkInterval            int64
-	instanceExpirationPeriod int64
-	consumerSet              mapset.Set[string]
-	resyncChan               chan string
-	consistent               *consistent.Consistent
+	instanceDao   dao.InstanceDao
+	consumerDao   dao.ConsumerDao
+	instanceID    string
+	pulseInterval int64
+	checkInterval int64
+	consumerSet   mapset.Set[string]
+	resyncChan    chan string
+	consistent    *consistent.Consistent
 }
 
 // NewDispatcher creates a new instance of the Dispatcher interface with the provided parameters.
 // It initializes the DispatcherImpl struct, setting up data access objects, instance identifier,
 // pulse and check intervals, expiration period, consumer set, and a resync channel.
-func NewDispatcher(instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, instanceID string, pulseInterval, checkInterval, instanceExpirationPeriod int64) Dispatcher {
+func NewDispatcher(instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, instanceID string, pulseInterval, checkInterval int64) Dispatcher {
 	return &DispatcherImpl{
-		instanceDao:              instanceDao,
-		consumerDao:              consumerDao,
-		instanceID:               instanceID,
-		pulseInterval:            pulseInterval,
-		checkInterval:            checkInterval,
-		instanceExpirationPeriod: instanceExpirationPeriod,
-		consumerSet:              mapset.NewSet[string](),
-		resyncChan:               make(chan string, 100),
+		instanceDao:   instanceDao,
+		consumerDao:   consumerDao,
+		instanceID:    instanceID,
+		pulseInterval: pulseInterval,
+		checkInterval: checkInterval,
+		consumerSet:   mapset.NewSet[string](),
+		resyncChan:    make(chan string, 100),
 	}
 }
 
@@ -94,7 +92,8 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 	// initialize the consistent hash ring
 	members := []consistent.Member{}
 	for _, instance := range instances {
-		if instance.UpdatedAt.After(time.Now().Add(time.Duration(-1*d.instanceExpirationPeriod) * time.Second)) {
+		// Instances not pulsing within the last three check intervals are considered as dead.
+		if instance.UpdatedAt.After(time.Now().Add(time.Duration(-3*d.checkInterval) * time.Second)) {
 			members = append(members, instance)
 		}
 	}
@@ -143,19 +142,21 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 			}
 		case <-checkTicker.C:
 			logger.Infof("Checking maestro instances and updating the hash ring")
-			// check for instances that are not updated in the last instanceExpirationPeriod seconds
+			// Instances not pulsing within the last three check intervals are considered as dead.
 			instances, err = d.instanceDao.All(ctx)
 			if err != nil {
 				return fmt.Errorf("unable to list maestro instances: %s", err.Error())
 			}
 			for _, instance := range instances {
-				if instance.UpdatedAt.After(time.Now().Add(time.Duration(-1*d.instanceExpirationPeriod) * time.Second)) {
+				// Instances not pulsing within the last three check intervals are considered as dead.
+				if instance.UpdatedAt.After(time.Now().Add(time.Duration(-3*d.checkInterval) * time.Second)) {
 					d.consistent.Add(instance)
 				} else {
 					d.consistent.Remove(instance.Name)
 				}
 			}
-			logger.Infof("members in consistent hash ring: %v", d.consistent.GetMembers())
+			logger.Infof("Members in consistent hash ring: %v", d.consistent.GetMembers())
+			// TODO: optimize the performance of consumer set update from database.
 			consumers, err = d.consumerDao.All(ctx)
 			if err != nil {
 				return fmt.Errorf("unable to list consumers: %s", err.Error())

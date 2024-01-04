@@ -77,14 +77,26 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 		})
 	}()
 
+	// start a goroutine to listen to status resync requests from dispatcher
 	go func() {
-		// when new consumer is added to this instance, send status resync for that consumer
-		for consumerID := range dispatcher.Resync() {
-			logger.Infof("received resync request from dispatcher for consumer %s", consumerID)
-			if err := ceSourceClient.Resync(ctx, cetypes.ListOptions{Source: sourceOptions.SourceID, ClusterName: consumerID}); err != nil {
-				logger.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerID, err))
+		for {
+			select {
+			case <-ctx.Done():
+				logger.Info("context cancelled, exiting status resync goroutine")
+				return
+			case consumerID, ok := <-dispatcher.Resync():
+				if !ok {
+					logger.Info("dispatcher channel closed, exiting status resync goroutine")
+					return
+				}
+				// when new consumer is added to this instance, send status resync for that consumer
+				logger.Infof("received status resync request from dispatcher for consumer %s", consumerID)
+				if err := ceSourceClient.Resync(ctx, cetypes.ListOptions{Source: sourceOptions.SourceID, ClusterName: consumerID}); err != nil {
+					logger.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerID, err))
+				}
 			}
 		}
+
 	}()
 
 	return &SourceClientImpl{

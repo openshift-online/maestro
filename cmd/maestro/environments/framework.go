@@ -155,7 +155,7 @@ func (e *Env) LoadDispatcher() {
 	instanceDao := dao.NewInstanceDao(&e.Database.SessionFactory)
 	consumerDao := dao.NewConsumerDao(&e.Database.SessionFactory)
 	e.Dispatcher = dispatcher.NewDispatcher(instanceDao, consumerDao, e.Config.MessageBroker.ClientID,
-		e.Config.Dispatcher.PulseInterval, e.Config.Dispatcher.CheckInterval, e.Config.Dispatcher.InstanceExpirationPeriod)
+		e.Config.Dispatcher.PulseInterval, e.Config.Dispatcher.CheckInterval)
 	go e.Dispatcher.Start(context.Background())
 }
 
