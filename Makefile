@@ -14,7 +14,7 @@ oc:=oc
 # cluster will not pull the new image from the internal registry:
 version:=$(shell date +%s)
 # Tag for the image:
-image_tag:=$(version)
+image_tag ?= $(version)
 
 # The namespace and the environment are calculated from the name of the user to
 # avoid clashes in shared infrastructure:
