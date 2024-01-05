@@ -55,8 +55,20 @@ func (helper *Helper) NewAPIResource(consumerID string, replicas int) openapi.Re
 	}
 }
 
-func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource {
+func (helper *Helper) CreateResource(consumerID string, replicas int) *api.Resource {
 	resourceService := helper.Env().Services.Resources()
+
+	resource := helper.NewResource(consumerID, replicas)
+
+	res, err := resourceService.Create(context.Background(), resource)
+	if err != nil {
+		helper.T.Errorf("error creating resource: %q", err)
+	}
+
+	return res
+}
+
+func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource {
 
 	testManifest := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
@@ -68,17 +80,12 @@ func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource
 		Manifest:   testManifest,
 	}
 
-	res, err := resourceService.Create(context.Background(), resource)
-	if err != nil {
-		helper.T.Errorf("error creating resource: %q", err)
-	}
-
-	return res
+	return resource
 }
 
 func (helper *Helper) NewResourceList(consumerID string, count int) (resources []*api.Resource) {
 	for i := 1; i <= count; i++ {
-		resources = append(resources, helper.NewResource(consumerID, 1))
+		resources = append(resources, helper.CreateResource(consumerID, 1))
 	}
 	return resources
 }
