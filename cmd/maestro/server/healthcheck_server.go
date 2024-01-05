@@ -42,7 +42,7 @@ func NewHealthCheckServer() *healthCheckServer {
 func (s healthCheckServer) Start() {
 	var err error
 	if env().Config.HealthCheck.EnableHTTPS {
-		if env().Config.Server.HTTPSCertFile == "" || env().Config.Server.HTTPSKeyFile == "" {
+		if env().Config.HTTPServer.HTTPSCertFile == "" || env().Config.HTTPServer.HTTPSKeyFile == "" {
 			check(
 				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
@@ -51,7 +51,7 @@ func (s healthCheckServer) Start() {
 
 		// Serve with TLS
 		glog.Infof("Serving HealthCheck with TLS at %s", env().Config.HealthCheck.BindAddress)
-		err = s.httpServer.ListenAndServeTLS(env().Config.Server.HTTPSCertFile, env().Config.Server.HTTPSKeyFile)
+		err = s.httpServer.ListenAndServeTLS(env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
 		glog.Infof("Serving HealthCheck without TLS at %s", env().Config.HealthCheck.BindAddress)
 		err = s.httpServer.ListenAndServe()

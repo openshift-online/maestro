@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-type ServerConfig struct {
+type HTTPServerConfig struct {
 	Hostname      string        `json:"hostname"`
 	BindAddress   string        `json:"bind_address"`
 	ReadTimeout   time.Duration `json:"read_timeout"`
@@ -21,8 +21,8 @@ type ServerConfig struct {
 	ACLFile       string        `json:"acl_file"`
 }
 
-func NewServerConfig() *ServerConfig {
-	return &ServerConfig{
+func NewHTTPServerConfig() *HTTPServerConfig {
+	return &HTTPServerConfig{
 		Hostname:      "",
 		BindAddress:   "localhost:8000",
 		ReadTimeout:   5 * time.Second,
@@ -38,9 +38,9 @@ func NewServerConfig() *ServerConfig {
 	}
 }
 
-func (s *ServerConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&s.BindAddress, "api-server-bindaddress", s.BindAddress, "API server bind adddress")
-	fs.StringVar(&s.Hostname, "api-server-hostname", s.Hostname, "Server's public hostname")
+func (s *HTTPServerConfig) AddFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&s.BindAddress, "http-server-bindaddress", s.BindAddress, "HTTP server bind adddress")
+	fs.StringVar(&s.Hostname, "http-server-hostname", s.Hostname, "Server's public hostname")
 	fs.DurationVar(&s.ReadTimeout, "http-read-timeout", s.ReadTimeout, "HTTP server read timeout")
 	fs.DurationVar(&s.WriteTimeout, "http-write-timeout", s.WriteTimeout, "HTTP server write timeout")
 	fs.StringVar(&s.HTTPSCertFile, "https-cert-file", s.HTTPSCertFile, "The path to the tls.crt file.")
@@ -53,6 +53,6 @@ func (s *ServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.ACLFile, "acl-file", s.ACLFile, "Access control list file")
 }
 
-func (s *ServerConfig) ReadFiles() error {
+func (s *HTTPServerConfig) ReadFiles() error {
 	return nil
 }

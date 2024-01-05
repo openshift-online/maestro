@@ -13,7 +13,8 @@ import (
 )
 
 type ApplicationConfig struct {
-	Server        *ServerConfig        `json:"server"`
+	HTTPServer    *HTTPServerConfig    `json:"http_server"`
+	GRPCServer    *GRPCServerConfig    `json:"grpc_server"`
 	Metrics       *MetricsConfig       `json:"metrics"`
 	HealthCheck   *HealthCheckConfig   `json:"health_check"`
 	PulseServer   *PulseServerConfig   `json:"pulse_server"`
@@ -25,7 +26,8 @@ type ApplicationConfig struct {
 
 func NewApplicationConfig() *ApplicationConfig {
 	return &ApplicationConfig{
-		Server:        NewServerConfig(),
+		HTTPServer:    NewHTTPServerConfig(),
+		GRPCServer:    NewGRPCServerConfig(),
 		Metrics:       NewMetricsConfig(),
 		HealthCheck:   NewHealthCheckConfig(),
 		PulseServer:   MewPulseServerConfig(),
@@ -38,7 +40,8 @@ func NewApplicationConfig() *ApplicationConfig {
 
 func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	flagset.AddGoFlagSet(flag.CommandLine)
-	c.Server.AddFlags(flagset)
+	c.HTTPServer.AddFlags(flagset)
+	c.GRPCServer.AddFlags(flagset)
 	c.Metrics.AddFlags(flagset)
 	c.HealthCheck.AddFlags(flagset)
 	c.PulseServer.AddFlags(flagset)
@@ -53,7 +56,7 @@ func (c *ApplicationConfig) ReadFiles() []string {
 		f    func() error
 		name string
 	}{
-		{c.Server.ReadFiles, "Server"},
+		{c.HTTPServer.ReadFiles, "Server"},
 		{c.Database.ReadFiles, "Database"},
 		{c.MessageBroker.ReadFile, "MessageBroker"},
 		{c.OCM.ReadFiles, "OCM"},

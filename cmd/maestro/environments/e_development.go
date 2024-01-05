@@ -21,8 +21,8 @@ func (e *devEnvImpl) VisitMessageBroker(c *MessageBroker) error {
 }
 
 func (e *devEnvImpl) VisitConfig(c *ApplicationConfig) error {
-	c.ApplicationConfig.Server.EnableJWT = false
-	c.ApplicationConfig.Server.EnableHTTPS = false
+	c.ApplicationConfig.HTTPServer.EnableJWT = false
+	c.ApplicationConfig.HTTPServer.EnableHTTPS = false
 	return nil
 }
 
