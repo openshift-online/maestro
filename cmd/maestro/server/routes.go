@@ -28,7 +28,7 @@ func (s *apiServer) routes() *mux.Router {
 
 	var authMiddleware auth.JWTMiddleware
 	authMiddleware = &auth.AuthMiddlewareMock{}
-	if env().Config.Server.EnableJWT {
+	if env().Config.HTTPServer.EnableJWT {
 		var err error
 		authMiddleware, err = auth.NewAuthMiddleware()
 		check(err, "Unable to create auth middleware")
@@ -38,7 +38,7 @@ func (s *apiServer) routes() *mux.Router {
 	}
 
 	authzMiddleware := auth.NewAuthzMiddlewareMock()
-	if env().Config.Server.EnableAuthz {
+	if env().Config.HTTPServer.EnableAuthz {
 		// TODO: authzMiddleware, err = auth.NewAuthzMiddleware()
 		check(err, "Unable to create authz middleware")
 	}

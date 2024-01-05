@@ -36,7 +36,7 @@ The initial migration will create the base data model as well as providing a way
 ```shell
 
 # Run migrations
-./maestro migrate
+./maestro migration
 
 # Verify they ran in the database
 $ make db/login

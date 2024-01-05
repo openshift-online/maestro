@@ -23,6 +23,7 @@ import (
 
 type apiServer struct {
 	httpServer *http.Server
+	grpcServer *GRPCServer
 }
 
 var _ Server = &apiServer{}
@@ -53,7 +54,7 @@ func NewAPIServer() Server {
 	// referring to the router as type http.Handler allows us to add middleware via more handlers
 	var mainHandler http.Handler = mainRouter
 
-	if env().Config.Server.EnableJWT {
+	if env().Config.HTTPServer.EnableJWT {
 		// Create the logger for the authentication handler:
 		authnLogger, err := sdk.NewGlogLoggerBuilder().
 			InfoV(glog.Level(1)).
@@ -64,9 +65,9 @@ func NewAPIServer() Server {
 		// Create the handler that verifies that tokens are valid:
 		mainHandler, err = authentication.NewHandler().
 			Logger(authnLogger).
-			KeysFile(env().Config.Server.JwkCertFile).
-			KeysURL(env().Config.Server.JwkCertURL).
-			ACLFile(env().Config.Server.ACLFile).
+			KeysFile(env().Config.HTTPServer.JwkCertFile).
+			KeysURL(env().Config.HTTPServer.JwkCertURL).
+			ACLFile(env().Config.HTTPServer.ACLFile).
 			Public("^/api/maestro/?$").
 			Public("^/api/maestro/v1/?$").
 			Public("^/api/maestro/v1/openapi/?$").
@@ -118,9 +119,11 @@ func NewAPIServer() Server {
 	mainHandler = removeTrailingSlash(mainHandler)
 
 	s.httpServer = &http.Server{
-		Addr:    env().Config.Server.BindAddress,
+		Addr:    env().Config.HTTPServer.BindAddress,
 		Handler: mainHandler,
 	}
+
+	s.grpcServer = NewGRPCServer(env().Services.Resources(), *env().Config.GRPCServer)
 
 	return s
 }
@@ -129,20 +132,20 @@ func NewAPIServer() Server {
 // Useful for breaking up ListenAndServer (Start) when you require the server to be listening before continuing
 func (s apiServer) Serve(listener net.Listener) {
 	var err error
-	if env().Config.Server.EnableHTTPS {
+	if env().Config.HTTPServer.EnableHTTPS {
 		// Check https cert and key path path
-		if env().Config.Server.HTTPSCertFile == "" || env().Config.Server.HTTPSKeyFile == "" {
+		if env().Config.HTTPServer.HTTPSCertFile == "" || env().Config.HTTPServer.HTTPSKeyFile == "" {
 			check(
-				fmt.Errorf("Unspecified required --https-cert-file, --https-key-file"),
+				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
 			)
 		}
 
 		// Serve with TLS
-		glog.Infof("Serving with TLS at %s", env().Config.Server.BindAddress)
-		err = s.httpServer.ServeTLS(listener, env().Config.Server.HTTPSCertFile, env().Config.Server.HTTPSKeyFile)
+		glog.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindAddress)
+		err = s.httpServer.ServeTLS(listener, env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		glog.Infof("Serving without TLS at %s", env().Config.Server.BindAddress)
+		glog.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindAddress)
 		err = s.httpServer.Serve(listener)
 	}
 
@@ -154,11 +157,16 @@ func (s apiServer) Serve(listener net.Listener) {
 // Listen only start the listener, not the server.
 // Useful for breaking up ListenAndServer (Start) when you require the server to be listening before continuing
 func (s apiServer) Listen() (listener net.Listener, err error) {
-	return net.Listen("tcp", env().Config.Server.BindAddress)
+	return net.Listen("tcp", env().Config.HTTPServer.BindAddress)
 }
 
 // Start listening on the configured port and start the server. This is a convenience wrapper for Listen() and Serve(listener Listener)
 func (s apiServer) Start() {
+
+	// start the grpc server
+	defer s.grpcServer.Stop()
+	go s.grpcServer.Start()
+
 	listener, err := s.Listen()
 	if err != nil {
 		glog.Fatalf("Unable to start API server: %s", err)

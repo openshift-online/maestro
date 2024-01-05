@@ -135,15 +135,11 @@ func (helper *Helper) Teardown() {
 
 func (helper *Helper) startAPIServer() {
 	// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
-	helper.Env().Config.Server.JwkCertURL = jwkURL
+	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
 	helper.APIServer = server.NewAPIServer()
-	listener, err := helper.APIServer.Listen()
-	if err != nil {
-		glog.Fatalf("Unable to start Test API server: %s", err)
-	}
 	go func() {
 		glog.V(10).Info("Test API server started")
-		helper.APIServer.Serve(listener)
+		helper.APIServer.Start()
 		glog.V(10).Info("Test API server stopped")
 	}()
 }
@@ -264,10 +260,10 @@ func (helper *Helper) NewUUID() string {
 
 func (helper *Helper) RestURL(path string) string {
 	protocol := "http"
-	if helper.AppConfig.Server.EnableHTTPS {
+	if helper.AppConfig.HTTPServer.EnableHTTPS {
 		protocol = "https"
 	}
-	return fmt.Sprintf("%s://%s/api/maestro/v1%s", protocol, helper.AppConfig.Server.BindAddress, path)
+	return fmt.Sprintf("%s://%s/api/maestro/v1%s", protocol, helper.AppConfig.HTTPServer.BindAddress, path)
 }
 
 func (helper *Helper) MetricsURL(path string) string {
@@ -320,7 +316,7 @@ func (helper *Helper) NewAuthenticatedContext(account *amv1.Account) context.Con
 
 func (helper *Helper) StartJWKCertServerMock() (teardown func() error) {
 	jwkURL, teardown = mocks.NewJWKCertServerMock(helper.T, helper.JWTCA, jwkKID, jwkAlg)
-	helper.Env().Config.Server.JwkCertURL = jwkURL
+	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
 	return teardown
 }
 

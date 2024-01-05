@@ -48,16 +48,16 @@ func (s metricsServer) Start() {
 	log := logger.NewOCMLogger(context.Background())
 	var err error
 	if env().Config.Metrics.EnableHTTPS {
-		if env().Config.Server.HTTPSCertFile == "" || env().Config.Server.HTTPSKeyFile == "" {
+		if env().Config.HTTPServer.HTTPSCertFile == "" || env().Config.HTTPServer.HTTPSKeyFile == "" {
 			check(
-				fmt.Errorf("Unspecified required --https-cert-file, --https-key-file"),
+				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
 			)
 		}
 
 		// Serve with TLS
-		log.Infof("Serving Metrics with TLS at %s", env().Config.Server.BindAddress)
-		err = s.httpServer.ListenAndServeTLS(env().Config.Server.HTTPSCertFile, env().Config.Server.HTTPSKeyFile)
+		log.Infof("Serving Metrics with TLS at %s", env().Config.HTTPServer.BindAddress)
+		err = s.httpServer.ListenAndServeTLS(env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
 		log.Infof("Serving Metrics without TLS at %s", env().Config.Metrics.BindAddress)
 		err = s.httpServer.ListenAndServe()
