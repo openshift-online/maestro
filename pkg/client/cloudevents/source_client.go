@@ -17,6 +17,10 @@ import (
 	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
 )
 
+const (
+	maxConcurrentResyncHandlers = 10
+)
+
 type SourceClient interface {
 	OnCreate(ctx context.Context, id string) error
 	OnUpdate(ctx context.Context, id string) error
@@ -77,27 +81,15 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 		})
 	}()
 
-	// start a goroutine to listen to status resync requests from dispatcher
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				logger.Info("context cancelled, exiting status resync goroutine")
-				return
-			case consumerID, ok := <-dispatcher.Resync():
-				if !ok {
-					logger.Info("dispatcher channel closed, exiting status resync goroutine")
-					return
-				}
-				// when new consumer is added to this instance, send status resync for that consumer
-				logger.Infof("received status resync request from dispatcher for consumer %s", consumerID)
-				if err := ceSourceClient.Resync(ctx, cetypes.ListOptions{Source: sourceOptions.SourceID, ClusterName: consumerID}); err != nil {
-					logger.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerID, err))
-				}
+	// launch workers to handle status resync from dispatcher
+	logger.Infof("Starting %d workers to handle status resync requests", maxConcurrentResyncHandlers)
+	for i := 0; i < maxConcurrentResyncHandlers; i++ {
+		go func() {
+			// Run a worker thread that just dequeues resync requests, processes them, and marks them done.
+			for dispatcher.ProcessResync(ctx, ceSourceClient, sourceOptions.SourceID) {
 			}
-		}
-
-	}()
+		}()
+	}
 
 	return &SourceClientImpl{
 		Codec:                  codec,

@@ -11,6 +11,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	logger "github.com/openshift-online/maestro/pkg/logger"
+	"k8s.io/client-go/util/workqueue"
+	cegeneric "open-cluster-management.io/api/cloudevents/generic"
+	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
 )
 
 // Dispatcher interface outlines methods for coordinating resource status updates
@@ -22,10 +25,11 @@ import (
 type Dispatcher interface {
 	// Start initiates the dispatcher with the provided context
 	Start(ctx context.Context) error
-	// Dispatch sends resource status updates to the appropriate maestro instance based on the consumer ID
+	// Dispatch determines if the current maestro instance should process the resource status update based on the consumer ID.
 	Dispatch(consumerID string) bool
-	// Resync returns a channel signaling the need to resync resource status updates for the provided consumer
-	Resync() <-chan string
+	// ProcessResync Attempts to resync resource status updates for new consumers added to the current maestro instance
+	// using the cloudevents source client. Return True if the resync is successful.
+	ProcessResync(ctx context.Context, client *cegeneric.CloudEventSourceClient[*api.Resource], sourceID string) bool
 }
 
 type hasher struct{}
@@ -45,8 +49,8 @@ type DispatcherImpl struct {
 	pulseInterval int64
 	checkInterval int64
 	consumerSet   mapset.Set[string]
-	resyncChan    chan string
 	consistent    *consistent.Consistent
+	workQueue     workqueue.RateLimitingInterface
 }
 
 // NewDispatcher creates a new instance of the Dispatcher interface with the provided parameters.
@@ -60,7 +64,7 @@ func NewDispatcher(instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, ins
 		pulseInterval: pulseInterval,
 		checkInterval: checkInterval,
 		consumerSet:   mapset.NewSet[string](),
-		resyncChan:    make(chan string, 100),
+		workQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "dispatcher"),
 	}
 }
 
@@ -111,17 +115,19 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 		return fmt.Errorf("unable to list consumers: %s", err.Error())
 	}
 
+	toAddConsumers := []string{}
 	// initialize the consumer set for current instance
 	for _, consumer := range consumers {
 		instanceID := d.consistent.LocateKey([]byte(consumer.ID)).String()
 		if instanceID == d.instanceID {
 			// new consumer added to the current instance, need to resync resource status updates for this consumer
-			d.consumerSet.Add(consumer.ID)
-			logger.Infof("Added new consumer %s to consumer set for instance %s", consumer.ID, d.instanceID)
-			d.resyncChan <- consumer.ID
+			logger.Infof("Adding new consumer %s to consumer set for instance %s", consumer.ID, d.instanceID)
+			toAddConsumers = append(toAddConsumers, consumer.ID)
+			d.workQueue.Add(consumer.ID)
 		}
 	}
-	logger.Infof("Initialized consumers %s for current instance %s", d.consumerSet.String(), d.instanceID)
+	_ = d.consumerSet.Append(toAddConsumers...)
+	logger.Infof("Initialized consumers %d for current instance %s", d.consumerSet.Cardinality(), d.instanceID)
 
 	pulseTicker := time.NewTicker(time.Duration(d.pulseInterval) * time.Second)
 	checkTicker := time.NewTicker(time.Duration(d.checkInterval) * time.Second)
@@ -130,7 +136,7 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			pulseTicker.Stop()
 			checkTicker.Stop()
-			close(d.resyncChan)
+			d.workQueue.ShutDown()
 			return nil
 		case <-pulseTicker.C:
 			logger.Infof("Updating heartbeat for maestro instance: %s", instance.Name)
@@ -161,24 +167,27 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 			if err != nil {
 				return fmt.Errorf("unable to list consumers: %s", err.Error())
 			}
+			toAddConsumers, toRemoveConsumers := []string{}, []string{}
 			for _, consumer := range consumers {
 				instanceID := d.consistent.LocateKey([]byte(consumer.ID)).String()
 				if instanceID == d.instanceID {
-					if added := d.consumerSet.Add(consumer.ID); added {
+					if !d.consumerSet.Contains(consumer.ID) {
 						// new consumer added to the current instance, need to resync resource status updates for this consumer
-						logger.Infof("Added new consumer %s to consumer set for instance %s", consumer.ID, d.instanceID)
-						d.resyncChan <- consumer.ID
+						logger.Infof("Adding new consumer %s to consumer set for instance %s", consumer.ID, d.instanceID)
+						toAddConsumers = append(toAddConsumers, consumer.ID)
+						d.workQueue.Add(consumer.ID)
 					}
 				} else {
-					// consistent hashing minimize this case but it is still possible
 					// remove the consumer from the set if it is not in the current instance
 					if d.consumerSet.Contains(consumer.ID) {
-						logger.Infof("Removed consumer %s from consumer set for instance %s", consumer.ID, d.instanceID)
-						d.consumerSet.Remove(consumer.ID)
+						logger.Infof("Removing consumer %s from consumer set for instance %s", consumer.ID, d.instanceID)
+						toRemoveConsumers = append(toRemoveConsumers, consumer.ID)
 					}
 				}
 			}
-			logger.Infof("Consumers %s for current instance %s", d.consumerSet.String(), d.instanceID)
+			_ = d.consumerSet.Append(toAddConsumers...)
+			d.consumerSet.RemoveAll(toRemoveConsumers...)
+			logger.Infof("Consumers length %d for current instance %s", d.consumerSet.Cardinality(), d.instanceID)
 		}
 	}
 }
@@ -189,17 +198,37 @@ func (d *DispatcherImpl) Dispatch(consumerID string) bool {
 	return d.consumerSet.Contains(consumerID)
 }
 
-// Resync returns the channel used for signaling the need to resync resource status updates for consumers.
-func (d *DispatcherImpl) Resync() <-chan string {
-	return d.resyncChan
-}
-
-// IsInstanceExists checks if the provided instance ID exists in the consistent hash ring.
-func (d *DispatcherImpl) IsInstanceExists(instanceID string) bool {
-	for _, member := range d.consistent.GetMembers() {
-		if member.String() == instanceID {
-			return true
-		}
+// ProcessResync attempts to resync resource status updates for new consumers added to the current maestro instance
+// using the cloudevents source client. It returns true if the resync is successful.
+func (d *DispatcherImpl) ProcessResync(ctx context.Context, client *cegeneric.CloudEventSourceClient[*api.Resource], sourceID string) bool {
+	consumerID, shutdown := d.workQueue.Get()
+	if shutdown {
+		// workqueue has been shutdown, return false
+		return false
 	}
-	return false
+
+	// We call Done here so the workqueue knows we have finished
+	// processing this item. We also must remember to call Forget if we
+	// do not want this work item being re-queued. For example, we do
+	// not call Forget if a transient error occurs, instead the item is
+	// put back on the workqueue and attempted again after a back-off
+	// period.
+	defer d.workQueue.Done(consumerID)
+
+	consumerIDStr, ok := consumerID.(string)
+	if !ok {
+		d.workQueue.Forget(consumerID)
+		// return true to indicate that we should continue processing the next item
+		return true
+	}
+
+	logger := logger.NewOCMLogger(ctx)
+	logger.Infof("processing status resync request for consumer %s", consumerIDStr)
+	if err := client.Resync(ctx, cetypes.ListOptions{Source: sourceID, ClusterName: consumerIDStr}); err != nil {
+		logger.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerIDStr, err))
+		// Put the item back on the workqueue to handle any transient errors.
+		d.workQueue.AddRateLimited(consumerID)
+	}
+
+	return true
 }

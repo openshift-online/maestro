@@ -244,40 +244,28 @@ func TestDispatcher(t *testing.T) {
 			for instanceID, consumerIDs := range tc.expectedOwnship {
 				dispatcher, ok := dispatcherMap[instanceID]
 				Expect(ok).To(BeTrue())
-				gotConsumers := []string{}
-			RangeLoop:
-				for {
-					select {
-					case <-time.After(2 * time.Second):
-						break RangeLoop
-					case consumerID, ok := <-dispatcher.dispatcher.Resync():
-						if !ok {
-							break RangeLoop
-						}
-						t.Logf("got new consumer %s for instance %s, need resync", consumerID, instanceID)
-						gotConsumers = append(gotConsumers, consumerID)
-					}
+				dispatcherImpl, ok := dispatcher.dispatcher.(*DispatcherImpl)
+				Expect(ok).To(BeTrue())
+				gotConsumerIDs := []string{}
+				queueLen := dispatcherImpl.workQueue.Len()
+				for i := 0; i < queueLen; i++ {
+					consumerID, _ := dispatcherImpl.workQueue.Get()
+					dispatcherImpl.workQueue.Forget(consumerID)
+					dispatcherImpl.workQueue.Done(consumerID)
+					Expect(consumerID).ToNot(BeNil())
+					consumerIDStr, ok := consumerID.(string)
+					Expect(ok).To(BeTrue())
+					gotConsumerIDs = append(gotConsumerIDs, consumerIDStr)
 				}
 
-				for _, expectedConsumer := range consumerIDs {
-					Expect(contains(gotConsumers, expectedConsumer)).To(BeTrue())
-				}
+				Expect(gotConsumerIDs).To(ContainElements(consumerIDs))
 
 				for _, consumerID := range consumerIDs {
-					Expect(dispatcher.dispatcher.Dispatch(consumerID)).To(BeTrue())
+					Expect(dispatcherImpl.consumerSet.Contains(consumerID)).To(BeTrue())
 				}
 			}
 
 			rootCtxCancel()
 		})
 	}
-}
-
-func contains(list []string, item string) bool {
-	for _, i := range list {
-		if i == item {
-			return true
-		}
-	}
-	return false
 }
