@@ -8,12 +8,17 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
 	cegeneric "open-cluster-management.io/api/cloudevents/generic"
 	ceoptions "open-cluster-management.io/api/cloudevents/generic/options"
 	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
+)
+
+const (
+	maxConcurrentResyncHandlers = 10
 )
 
 type SourceClient interface {
@@ -28,7 +33,7 @@ type SourceClientImpl struct {
 	ResourceService        services.ResourceService
 }
 
-func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService) (SourceClient, error) {
+func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService, dispatcher dispatcher.Dispatcher) (SourceClient, error) {
 	ctx := context.Background()
 	codec := &Codec{}
 	ceSourceClient, err := cegeneric.NewCloudEventSourceClient[*api.Resource](ctx, sourceOptions,
@@ -43,6 +48,12 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 			logger.Infof("received action %s for resource %s", action, resource.ID)
 			switch action {
 			case cetypes.StatusModified:
+				// if the consumer is not owned by this instance, ignore it
+				if !dispatcher.Dispatch(resource.ConsumerID) {
+					return nil
+				}
+
+				logger.Infof("dispatching resource status update %s for consumer %s", resource.ID, resource.ConsumerID)
 				resourceStatusJSON, err := json.Marshal(resource.Status)
 				if err != nil {
 					return err
@@ -69,6 +80,16 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 			return nil
 		})
 	}()
+
+	// launch workers to handle status resync from dispatcher
+	logger.Infof("Starting %d workers to handle status resync requests", maxConcurrentResyncHandlers)
+	for i := 0; i < maxConcurrentResyncHandlers; i++ {
+		go func() {
+			// Run a worker thread that just dequeues resync requests, processes them, and marks them done.
+			for dispatcher.ProcessResync(ctx, ceSourceClient, sourceOptions.SourceID) {
+			}
+		}()
+	}
 
 	return &SourceClientImpl{
 		Codec:                  codec,

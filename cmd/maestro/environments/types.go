@@ -8,6 +8,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 type Env struct {
 	Name          string
 	Services      Services
+	Dispatcher    dispatcher.Dispatcher
 	Handlers      Handlers
 	Clients       Clients
 	Database      Database
