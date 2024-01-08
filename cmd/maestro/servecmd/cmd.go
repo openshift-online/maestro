@@ -1,6 +1,11 @@
 package servecmd
 
 import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 
@@ -29,26 +34,38 @@ func runServer(cmd *cobra.Command, args []string) {
 		glog.Fatalf("Unable to initialize environment: %s", err.Error())
 	}
 
+	// Create the servers
+	apiserver := server.NewAPIServer()
+	metricsServer := server.NewMetricsServer()
+	healthcheckServer := server.NewHealthCheckServer()
+	controllersServer := server.NewControllersServer()
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	stopCh := make(chan os.Signal, 1)
+	signal.Notify(stopCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		defer cancel()
+		<-stopCh
+		// Received SIGTERM or SIGINT signal, shutting down servers gracefully.
+		if err := apiserver.Stop(); err != nil {
+			glog.Errorf("Failed to stop api server, %v", err)
+		}
+
+		if err := metricsServer.Stop(); err != nil {
+			glog.Errorf("Failed to stop metrics server, %v", err)
+		}
+
+		if err := healthcheckServer.Stop(); err != nil {
+			glog.Errorf("Failed to stop healthcheck server, %v", err)
+		}
+	}()
+
 	// Run the servers
-	go func() {
-		apiserver := server.NewAPIServer()
-		apiserver.Start()
-	}()
+	go apiserver.Start()
+	go metricsServer.Start()
+	go healthcheckServer.Start()
+	go controllersServer.Start(ctx.Done())
 
-	go func() {
-		metricsServer := server.NewMetricsServer()
-		metricsServer.Start()
-	}()
-
-	go func() {
-		healthcheckServer := server.NewHealthCheckServer()
-		healthcheckServer.Start()
-	}()
-
-	go func() {
-		controllersServer := server.NewControllersServer()
-		controllersServer.Start()
-	}()
-
-	select {}
+	<-ctx.Done()
 }
