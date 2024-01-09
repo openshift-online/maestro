@@ -5,14 +5,16 @@ import (
 )
 
 type DispatcherConfig struct {
-	PulseInterval int64 `json:"pulse_interval"`
-	CheckInterval int64 `json:"check_interval"`
+	EnableDispatcher bool  `json:"enable_dispatcher"`
+	PulseInterval    int64 `json:"pulse_interval"`
+	CheckInterval    int64 `json:"check_interval"`
 }
 
 func MewDispatcherConfig() *DispatcherConfig {
 	return &DispatcherConfig{
-		PulseInterval: 10,
-		CheckInterval: 10,
+		EnableDispatcher: false,
+		PulseInterval:    10,
+		CheckInterval:    10,
 	}
 }
 
@@ -22,6 +24,7 @@ func MewDispatcherConfig() *DispatcherConfig {
 // - "check-interval" determines how often health checks are performed on maestro instances (in seconds) to maintain the instance list (default: 10 seconds).
 // Instances not pulsing within the last three check intervals are considered as dead.
 func (c *DispatcherConfig) AddFlags(fs *pflag.FlagSet) {
+	fs.BoolVar(&c.EnableDispatcher, "enable-dispatcher", c.EnableDispatcher, "Enable the resource status updates dispatcher for coordinating updates across multiple Maestro instances.")
 	fs.Int64Var(&c.PulseInterval, "pulse-interval", c.PulseInterval, "Set the pulse interval for maestro instances (seconds) to indicate liveness (default: 10 seconds)")
 	fs.Int64Var(&c.CheckInterval, "check-interval", c.CheckInterval, "Set the interval for health checks on maestro instances (seconds) to maintain the active instance list (default: 10 seconds)")
 }

@@ -23,6 +23,8 @@ import (
 // The dispatcher manages the mapping between maestro instances and consumers (agents),
 // ensuring that only one instance processes specific resource status updates from a consumer.
 type Dispatcher interface {
+	// IsRunning returns true if the dispatcher is running; otherwise, it returns false.
+	IsRunning() bool
 	// Start initiates the dispatcher with the provided context
 	Start(ctx context.Context) error
 	// Dispatch determines if the current maestro instance should process the resource status update based on the consumer ID.
@@ -46,6 +48,7 @@ type DispatcherImpl struct {
 	instanceDao   dao.InstanceDao
 	consumerDao   dao.ConsumerDao
 	instanceID    string
+	isRunning     bool
 	pulseInterval int64
 	checkInterval int64
 	consumerSet   mapset.Set[string]
@@ -61,11 +64,17 @@ func NewDispatcher(instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, ins
 		instanceDao:   instanceDao,
 		consumerDao:   consumerDao,
 		instanceID:    instanceID,
+		isRunning:     false,
 		pulseInterval: pulseInterval,
 		checkInterval: checkInterval,
 		consumerSet:   mapset.NewSet[string](),
 		workQueue:     workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "dispatcher"),
 	}
+}
+
+// IsRunning returns true if the dispatcher is running; otherwise, it returns false.
+func (d *DispatcherImpl) IsRunning() bool {
+	return d.isRunning
 }
 
 // Start initializes and runs the DispatcherImpl instance.
@@ -128,6 +137,9 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 	}
 	_ = d.consumerSet.Append(toAddConsumers...)
 	logger.Infof("Initialized consumers %d for current instance %s", d.consumerSet.Cardinality(), d.instanceID)
+
+	// the dispatcher has been initialized and is running
+	d.isRunning = true
 
 	pulseTicker := time.NewTicker(time.Duration(d.pulseInterval) * time.Second)
 	checkTicker := time.NewTicker(time.Duration(d.checkInterval) * time.Second)
@@ -195,6 +207,10 @@ func (d *DispatcherImpl) Start(ctx context.Context) error {
 // Dispatch checks if the provided consumer ID belongs to the current Maestro instance.
 // It returns true if the consumer is part of the current instance's consumer set; otherwise, it returns false.
 func (d *DispatcherImpl) Dispatch(consumerID string) bool {
+	// if the dispatcher is not running, dispatch all resource status update to all instances
+	if !d.isRunning {
+		return true
+	}
 	return d.consumerSet.Contains(consumerID)
 }
 

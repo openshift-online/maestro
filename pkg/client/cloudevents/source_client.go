@@ -81,14 +81,16 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 		})
 	}()
 
-	// launch workers to handle status resync from dispatcher
-	logger.Infof("Starting %d workers to handle status resync requests", maxConcurrentResyncHandlers)
-	for i := 0; i < maxConcurrentResyncHandlers; i++ {
-		go func() {
-			// Run a worker thread that just dequeues resync requests, processes them, and marks them done.
-			for dispatcher.ProcessResync(ctx, ceSourceClient, sourceOptions.SourceID) {
-			}
-		}()
+	if dispatcher.IsRunning() {
+		// launch workers to handle status resync from dispatcher
+		logger.Infof("Starting %d workers to handle status resync requests", maxConcurrentResyncHandlers)
+		for i := 0; i < maxConcurrentResyncHandlers; i++ {
+			go func() {
+				// Run a worker thread that just dequeues resync requests, processes them, and marks them done.
+				for dispatcher.ProcessResync(ctx, ceSourceClient, sourceOptions.SourceID) {
+				}
+			}()
+		}
 	}
 
 	return &SourceClientImpl{
