@@ -25,6 +25,7 @@ type GRPCServerConfig struct {
 	ConnectionTimeout     time.Duration `json:"connection_timeout"`
 	WriteBufferSize       int           `json:"write_buffer_size"`
 	ReadBufferSize        int           `json:"read_buffer_size"`
+	MaxConnectionAge      time.Duration `json:"max_connection_age"`
 }
 
 func NewGRPCServerConfig() *GRPCServerConfig {
@@ -38,6 +39,7 @@ func (s *GRPCServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.MaxReceiveMessageSize, "grpc-max-receive-message-size", 1024*1024*4, "gPRC max receive message size")
 	fs.IntVar(&s.MaxSendMessageSize, "grpc-max-send-message-size", math.MaxInt32, "gPRC max send message size")
 	fs.DurationVar(&s.ConnectionTimeout, "grpc-connection-timeout", 120*time.Second, "gPRC connection timeout")
+	fs.DurationVar(&s.MaxConnectionAge, "grpc-max-connection-age", time.Duration(math.MaxInt64), "A duration for the maximum amount of time connection may exist before closing")
 	fs.IntVar(&s.WriteBufferSize, "grpc-write-buffer-size", 32*1024, "gPRC write buffer size")
 	fs.IntVar(&s.ReadBufferSize, "grpc-read-buffer-size", 32*1024, "gPRC read buffer size")
 	fs.StringVar(&s.TLSCertFile, "grpc-tls-cert-file", "", "The path to the tls.crt file")

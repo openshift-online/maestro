@@ -42,7 +42,7 @@ func TestResourceGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.NewConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster1")
 	res := h.CreateResource(consumer.ID, 1)
 
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, res.ID).Execute()
@@ -64,7 +64,7 @@ func TestResourcePost(t *testing.T) {
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
 	clusterName := "cluster1"
-	consumer := h.NewConsumer(clusterName)
+	consumer := h.CreateConsumer(clusterName)
 	res := h.NewAPIResource(consumer.ID, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
@@ -200,7 +200,7 @@ func TestResourcePatch(t *testing.T) {
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
 	clusterName := "cluster1"
-	consumer := h.NewConsumer(clusterName)
+	consumer := h.CreateConsumer(clusterName)
 	res := h.CreateResource(consumer.ID, 1)
 
 	h.StartControllerManager(ctx)
@@ -301,8 +301,8 @@ func TestResourcePaging(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// Paging
-	consumer := h.NewConsumer("cluster1")
-	_ = h.NewResourceList(consumer.ID, 20)
+	consumer := h.CreateConsumer("cluster1")
+	_ = h.CreateResourceList(consumer.ID, 20)
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
@@ -327,8 +327,8 @@ func TestResourceListSearch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.NewConsumer("cluster1")
-	resources := h.NewResourceList(consumer.ID, 20)
+	consumer := h.CreateConsumer("cluster1")
+	resources := h.CreateResourceList(consumer.ID, 20)
 
 	search := fmt.Sprintf("id in ('%s')", resources[0].ID)
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Search(search).Execute()
@@ -345,7 +345,7 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.NewConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster1")
 	res := h.CreateResource(consumer.ID, 1)
 	newRes := h.NewAPIResource(consumer.ID, 2)
 
@@ -408,7 +408,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	defer cancel()
 	// create a mock resource
 	clusterName := "cluster1"
-	consumer := h.NewConsumer(clusterName)
+	consumer := h.CreateConsumer(clusterName)
 	res := h.NewResource(consumer.ID, 1)
 
 	h.StartControllerManager(ctx)
