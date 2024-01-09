@@ -15,28 +15,11 @@ parameters:
     required: true
     value: maestro-mqtt
 
-  - name: MOSQUITTO_IMAGESTREAM_NAMESPACE
-    description: The OpenShift Namespace where the ImageStream resides.
-    displayName: Namespace
-    value: openshift
-
-  # - name: MQTT_USER
-  #   description: Username for Mosquitto user that will be used for accessing the mqtt broker.
-  #   displayName: Mosquitto Username
-  #   required: false
-  #   value: ocm
-
-  # - name: MQTT_PASSWORD
-  #   description: Password for the Mosquitto connection user.
-  #   displayName: Mosquitto Password
-  #   required: false
-  #   value: TheBlurstOfTimes
-
-  - name: MOSQUITTO_VERSION
-    description: Version of Mosquitto image to be used (2.0.18 or latest).
-    displayName: Version of Mosquitto Image
+  - name: MQTT_IMAGE
+    description: Mosquitto image (2.0.18 or latest).
+    displayName: Mosquitto Image
     required: true
-    value: "2.0.18"
+    value: "eclipse-mosquitto:2.0.18"
 
 objects:
   - apiVersion: v1
@@ -76,7 +59,7 @@ objects:
             name: ${MQTT_BROKER_NAME}
         spec:
           containers:
-          - image: quay.io/clyang82/eclipse-mosquitto:${MOSQUITTO_VERSION}
+          - image: ${MOSQUITTO_IMAGE}
             imagePullPolicy: IfNotPresent
             name: mosquitto
             ports:

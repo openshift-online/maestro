@@ -78,6 +78,10 @@ ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
 ENABLE_OCM_MOCK ?= false
 
+# Enable set images
+POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
+MQTT_IMAGE ?= docker.io/library/eclipse-mosquitto:2.0.18
+
 # Prints a list of useful targets.
 help:
 	@echo ""
@@ -262,6 +266,7 @@ cmds:
 		--param="DATABASE_PORT=$(db_port)" \
 		--param="DATABASE_USER=$(db_user)" \
 		--param="DATABASE_SSLMODE=$(db_sslmode)" \
+		--param="POSTGRES_IMAGE=$(POSTGRES_IMAGE)" \
 		--param="MQTT_HOST=$(mqtt_host)" \
 		--param="MQTT_PORT=$(mqtt_port)" \
 		--param="MQTT_USER=$(mqtt_user)" \
@@ -269,6 +274,7 @@ cmds:
 		--param="MQTT_ROOT_CERT=" \
 		--param="MQTT_CLIENT_CERT=" \
 		--param="MQTT_CLIENT_KEY=" \
+		--param="MQTT_IMAGE=$(MQTT_IMAGE)" \
 		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \

@@ -40,11 +40,11 @@ parameters:
     required: true
     value: 512Mi
 
-  - name: POSTGRESQL_VERSION
-    description: Version of PostgreSQL image to be used (14 or latest).
-    displayName: Version of PostgreSQL Image
+  - name: POSTGRES_IMAGE
+    description: Postgres image (14 or latest).
+    displayName: Postgres Image
     required: true
-    value: "14.2"
+    value: "postgres:14.2"
 
 objects:
 
@@ -98,28 +98,26 @@ objects:
           containers:
             - capabilities: {}
               env:
-                - name: POSTGRESQL_USER
+                - name: POSTGRES_USER
                   valueFrom:
                     secretKeyRef:
                       key: database-user
                       name: ${DATABASE_SERVICE_NAME}
-                - name: POSTGRESQL_PASSWORD
+                - name: POSTGRES_PASSWORD
                   valueFrom:
                     secretKeyRef:
                       key: database-password
                       name: ${DATABASE_SERVICE_NAME}
-                - name: POSTGRESQL_DATABASE
+                - name: POSTGRES_DB
                   valueFrom:
                     secretKeyRef:
                       key: database-name
                       name: ${DATABASE_SERVICE_NAME}
-              image: quay.io/clyang82/postgresql-13:1-101
+              image: ${POSTGRES_IMAGE}
               imagePullPolicy: IfNotPresent
               livenessProbe:
-                exec:
-                  command:
-                    - /usr/libexec/check-container
-                    - --live
+                tcpSocket:
+                  port: 5432
                 initialDelaySeconds: 120
                 timeoutSeconds: 10
               name: postgresql
@@ -129,7 +127,9 @@ objects:
               readinessProbe:
                 exec:
                   command:
-                    - /usr/libexec/check-container
+                  - /bin/sh
+                  - -c
+                  - exec /usr/bin/pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h localhost -p 5432
                 initialDelaySeconds: 5
                 timeoutSeconds: 1
               securityContext:

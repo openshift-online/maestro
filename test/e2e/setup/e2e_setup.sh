@@ -64,5 +64,3 @@ export agent_namespace=maestro-agent
 kubectl create namespace $agent_namespace || true
 make agent-template
 kubectl apply -n ${agent_namespace} --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
-
-    
