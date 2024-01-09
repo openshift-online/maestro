@@ -83,14 +83,14 @@ func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource
 	return resource
 }
 
-func (helper *Helper) NewResourceList(consumerID string, count int) (resources []*api.Resource) {
+func (helper *Helper) CreateResourceList(consumerID string, count int) (resources []*api.Resource) {
 	for i := 1; i <= count; i++ {
 		resources = append(resources, helper.CreateResource(consumerID, 1))
 	}
 	return resources
 }
 
-func (helper *Helper) NewConsumer(name string) *api.Consumer {
+func (helper *Helper) CreateConsumer(name string) *api.Consumer {
 	consumerService := helper.Env().Services.Consumers()
 
 	consumer, err := consumerService.Create(context.Background(), &api.Consumer{Name: name})
@@ -100,9 +100,9 @@ func (helper *Helper) NewConsumer(name string) *api.Consumer {
 	return consumer
 }
 
-func (helper *Helper) NewConsumerList(count int) (consumers []*api.Consumer) {
+func (helper *Helper) CreateConsumerList(count int) (consumers []*api.Consumer) {
 	for i := 1; i <= count; i++ {
-		consumers = append(consumers, helper.NewConsumer(fmt.Sprintf("consumer-%d", i)))
+		consumers = append(consumers, helper.CreateConsumer(fmt.Sprintf("consumer-%d", i)))
 	}
 	return consumers
 }
