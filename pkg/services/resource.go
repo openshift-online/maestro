@@ -128,6 +128,16 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 
 func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
 	logger := logger.NewOCMLogger(ctx)
+	// Updates the resource status only when its status changes.
+	// If there are multiple requests at the same time, it will cause the race conditions among these
+	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, resource.ID, db.ResourceStatus)
+	// Ensure that the transaction related to this lock always end.
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
+	if err != nil {
+		return nil, errors.DatabaseAdvisoryLock(err)
+	}
+
 	found, err := s.resourceDao.Get(ctx, resource.ID)
 	if err != nil {
 		return nil, handleGetError("Resource", "id", resource.ID, err)
