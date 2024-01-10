@@ -31,6 +31,7 @@ require (
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
 	k8s.io/apimachinery v0.28.2
+	k8s.io/client-go v0.28.2
 	k8s.io/component-base v0.28.2
 	open-cluster-management.io/api v0.12.1-0.20231222015746-04e951f8f3ae
 	open-cluster-management.io/ocm v0.12.1-0.20231208025610-2e07fda72f59
@@ -140,7 +141,6 @@ require (
 	k8s.io/api v0.28.2 // indirect
 	k8s.io/apiextensions-apiserver v0.28.1 // indirect
 	k8s.io/apiserver v0.28.1 // indirect
-	k8s.io/client-go v0.28.2 // indirect
 	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kms v0.28.1 // indirect
 	k8s.io/kube-aggregator v0.28.1 // indirect
