@@ -33,7 +33,7 @@ require (
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
 	k8s.io/component-base v0.28.2
-	open-cluster-management.io/api v0.12.1-0.20231222015746-04e951f8f3ae
+	open-cluster-management.io/api v0.12.1-0.20240103082609-f6404f30c42c
 	open-cluster-management.io/ocm v0.12.1-0.20231208025610-2e07fda72f59
 )
 
@@ -45,6 +45,7 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/bwmarrin/snowflake v0.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20231030012137-0836a524e995 // indirect

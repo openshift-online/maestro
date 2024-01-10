@@ -25,6 +25,7 @@ type ResourceStatus struct {
 
 type ReconcileStatus struct {
 	ObservedVersion int32
+	SequenceID      string
 	Conditions      []metav1.Condition
 }
 

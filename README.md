@@ -255,7 +255,8 @@ ocm get /api/maestro/v1/resources
               "type": "StatusFeedbackSynced"
             }
           ],
-          "ObservedVersion": 1
+          "ObservedVersion": 1,
+          "SequenceID": "1744926882802962432"
         }
       },
       "updated_at": "2023-11-23T09:26:13.457419Z",

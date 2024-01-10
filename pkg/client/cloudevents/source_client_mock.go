@@ -5,11 +5,24 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/bwmarrin/snowflake"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/services"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+var sequenceGenerator *snowflake.Node
+
+func init() {
+	// init the snowflake id generator with node id 1 for each single agent. Each single agent has its own consumer id
+	// to be identified, and we can ensure the order of status update event from the same agent via sequence id. The
+	// events from different agents are independent, hence the ordering among them needs not to be guaranteed.
+	//
+	// The snowflake `NewNode` returns error only when the snowflake node id is less than 1 or great than 1024, so the
+	// error can be ignored here.
+	sequenceGenerator, _ = snowflake.NewNode(1)
+}
 
 // SourceClientMock is a mock implementation of the SourceClient interface
 type SourceClientMock struct {
@@ -34,6 +47,7 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
 			ObservedVersion: resource.Version,
+			SequenceID:         sequenceGenerator.Generate().String(),
 			Conditions: []metav1.Condition{
 				{
 					Type:               "Applied",
@@ -84,6 +98,7 @@ func (s *SourceClientMock) OnUpdate(ctx context.Context, id string) error {
 				resourceStatus.ReconcileStatus = &api.ReconcileStatus{}
 			}
 			resourceStatus.ReconcileStatus.ObservedVersion = resource.Version
+			resourceStatus.ReconcileStatus.SequenceID = sequenceGenerator.Generate().String()
 			condition := metav1.Condition{
 				Type:               "Updated",
 				Status:             "True",

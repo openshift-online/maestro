@@ -105,6 +105,11 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		}
 	}
 
+	sequenceID, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionStatusUpdateSequenceID])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sequenceid extension: %v", err)
+	}
+
 	clusterName, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionClusterName])
 	if err != nil {
 		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
@@ -127,6 +132,7 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
 			ObservedVersion: int32(resourceVersionInt),
+			SequenceID:      sequenceID,
 		},
 	}
 

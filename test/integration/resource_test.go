@@ -20,6 +20,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
+	"open-cluster-management.io/api/cloudevents/generic/types"
 	workv1 "open-cluster-management.io/api/work/v1"
 )
 
@@ -153,7 +154,7 @@ func TestResourcePost(t *testing.T) {
 	// Resync the resource status
 	ceSourceClient, ok := sourceClient.(*cloudevents.SourceClientImpl)
 	Expect(ok).To(BeTrue())
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx)).NotTo(HaveOccurred())
+	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, types.ListOptions{})).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		newRes, err := resourceService.Get(ctx, *resource.Id)
