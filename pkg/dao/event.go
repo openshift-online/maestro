@@ -17,6 +17,9 @@ type EventDao interface {
 	Delete(ctx context.Context, id string) error
 	FindByIDs(ctx context.Context, ids []string) (api.EventList, error)
 	All(ctx context.Context) (api.EventList, error)
+
+	DeleteAllReconciledEvents(ctx context.Context) error
+	FindAllUnreconciledEvents(ctx context.Context) (api.EventList, error)
 }
 
 var _ EventDao = &sqlEventDao{}
@@ -73,10 +76,28 @@ func (d *sqlEventDao) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (d *sqlEventDao) DeleteAllReconciledEvents(ctx context.Context) error {
+	g2 := (*d.sessionFactory).New(ctx)
+	if err := g2.Unscoped().Omit(clause.Associations).Where("reconciled_date IS NOT NULL").Delete(&api.Event{}).Error; err != nil {
+		db.MarkForRollback(ctx, err)
+		return err
+	}
+	return nil
+}
+
 func (d *sqlEventDao) FindByIDs(ctx context.Context, ids []string) (api.EventList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	events := api.EventList{}
 	if err := g2.Where("id in (?)", ids).Find(&events).Error; err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+
+func (d *sqlEventDao) FindAllUnreconciledEvents(ctx context.Context) (api.EventList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	events := api.EventList{}
+	if err := g2.Where("reconciled_date IS NULL").Find(&events).Error; err != nil {
 		return nil, err
 	}
 	return events, nil
