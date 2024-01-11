@@ -120,7 +120,7 @@ func TestResourcePost(t *testing.T) {
 	Expect(manifest).To(Equal(res.Manifest))
 
 	newWork := work.DeepCopy()
-	statusFeedbackValue := `{"observedGeneration":1,"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
+	statusFeedbackValue := `{"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
 	newWork.Status = workv1.ManifestWorkStatus{
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
@@ -167,17 +167,20 @@ func TestResourcePost(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	newRes, err := resourceService.Get(ctx, *resource.Id)
-	Expect(newRes.Version).To(Equal(*resource.Version))
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
+	Expect(newRes.Version).To(Equal(*resource.Version))
 	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
-	conditions := newRes.Status["ReconcileStatus"].(map[string]interface{})["Conditions"].([]interface{})
+	reconcileStatus := newRes.Status["ReconcileStatus"].(map[string]interface{})
+	observedVersion, err := reconcileStatus["ObservedVersion"].(json.Number).Int64()
+	Expect(err).NotTo(HaveOccurred(), "Error getting observedVersion: %v", err)
+	Expect(int32(observedVersion)).To(Equal(*resource.Version))
+	conditions := reconcileStatus["Conditions"].([]interface{})
 	Expect(len(conditions)).To(Equal(1))
 	condition := conditions[0].(map[string]interface{})
 	Expect(condition["type"]).To(Equal("Applied"))
 	Expect(condition["status"]).To(Equal("True"))
 
 	contentStatus := newRes.Status["ContentStatus"].(map[string]interface{})
-	Expect(contentStatus["observedGeneration"]).To(Equal(json.Number("1")))
 	Expect(contentStatus["replicas"]).To(Equal(json.Number("1")))
 	Expect(contentStatus["availableReplicas"]).To(Equal(json.Number("1")))
 	Expect(contentStatus["readyReplicas"]).To(Equal(json.Number("1")))

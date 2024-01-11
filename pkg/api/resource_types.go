@@ -24,9 +24,8 @@ type ResourceStatus struct {
 }
 
 type ReconcileStatus struct {
-	ObservedGeneration int32
-	// CreationTimestamp  time.Time
-	Conditions []metav1.Condition
+	ObservedVersion int32
+	Conditions      []metav1.Condition
 }
 
 type ResourceList []*Resource

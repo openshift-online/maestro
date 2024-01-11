@@ -126,7 +126,7 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
-			ObservedGeneration: int32(resourceVersionInt),
+			ObservedVersion: int32(resourceVersionInt),
 		},
 	}
 

@@ -255,7 +255,7 @@ ocm get /api/maestro/v1/resources
               "type": "StatusFeedbackSynced"
             }
           ],
-          "ObservedGeneration": 1
+          "ObservedVersion": 1
         }
       },
       "updated_at": "2023-11-23T09:26:13.457419Z",
