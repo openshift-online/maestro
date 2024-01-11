@@ -33,7 +33,7 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
-			ObservedGeneration: resource.Version,
+			ObservedVersion: resource.Version,
 			Conditions: []metav1.Condition{
 				{
 					Type:               "Applied",
@@ -83,7 +83,7 @@ func (s *SourceClientMock) OnUpdate(ctx context.Context, id string) error {
 			if resourceStatus.ReconcileStatus == nil {
 				resourceStatus.ReconcileStatus = &api.ReconcileStatus{}
 			}
-			resourceStatus.ReconcileStatus.ObservedGeneration = resource.Version
+			resourceStatus.ReconcileStatus.ObservedVersion = resource.Version
 			condition := metav1.Condition{
 				Type:               "Updated",
 				Status:             "True",
