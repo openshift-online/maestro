@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 
@@ -155,39 +154,29 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, nil
 	}
 
-	resourceStatusJSON, err := json.Marshal(resource.Status)
+	resourceStatus, err := api.JSONMapStausToResourceStatus(resource.Status)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to marshal resource status: %s", err)
-	}
-	resourceStatus := &api.ResourceStatus{}
-	if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
-		return nil, errors.GeneralError("Unable to unmarshal resource status: %s", err)
+		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
 	}
 
-	foundStatusJSON, err := json.Marshal(found.Status)
+	foundStatus, err := api.JSONMapStausToResourceStatus(found.Status)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to marshal resource status: %s", err)
-	}
-	foundStatus := &api.ResourceStatus{}
-	if err := json.Unmarshal(foundStatusJSON, foundStatus); err != nil {
-		return nil, errors.GeneralError("Unable to unmarshal resource status: %s", err)
+		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
 	}
 
 	sequenceID, foundSequenceID := "", ""
-	if resourceStatus.ReconcileStatus == nil && foundStatus.ReconcileStatus != nil {
+	if resourceStatus.ReconcileStatus != nil && foundStatus.ReconcileStatus != nil {
 		sequenceID = resourceStatus.ReconcileStatus.SequenceID
 		foundSequenceID = foundStatus.ReconcileStatus.SequenceID
 	}
 
-	if sequenceID != "" && foundSequenceID != "" {
-		newer, err := compareSequenceIDs(sequenceID, foundSequenceID)
-		if err != nil {
-			return nil, errors.GeneralError("Unable to compare sequence IDs: %s", err)
-		}
-		if !newer {
-			logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard as the latest sequence ID is: %s", foundSequenceID))
-			return found, nil
-		}
+	newer, err := compareSequenceIDs(sequenceID, foundSequenceID)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to compare sequence IDs: %s", err)
+	}
+	if !newer {
+		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard as the latest sequence ID is: %s", foundSequenceID))
+		return found, nil
 	}
 
 	found.Status = resource.Status

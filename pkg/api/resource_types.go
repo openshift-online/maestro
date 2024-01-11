@@ -1,8 +1,10 @@
 package api
 
 import (
+	"encoding/json"
 	"strconv"
 
+	"github.com/openshift-online/maestro/pkg/errors"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 
@@ -58,3 +60,29 @@ func (d *Resource) GetDeletionTimestamp() *metav1.Time {
 }
 
 type ResourcePatchRequest struct{}
+
+func JSONMapStausToResourceStatus(jsonMapStatus datatypes.JSONMap) (*ResourceStatus, error) {
+	resourceStatusJSON, err := json.Marshal(jsonMapStatus)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to marshal resource jsonmap status: %s", err)
+	}
+	resourceStatus := &ResourceStatus{}
+	if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
+		return nil, errors.GeneralError("Unable to unmarshal resource status: %s", err)
+	}
+
+	return resourceStatus, nil
+}
+
+func ResourceStatusToJSONMap(status *ResourceStatus) (datatypes.JSONMap, error) {
+	resourceStatusJSON, err := json.Marshal(status)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to marshal resource status: %s", err)
+	}
+	var resourceStatusJSONMap datatypes.JSONMap
+	if err := json.Unmarshal(resourceStatusJSON, &resourceStatusJSONMap); err != nil {
+		return nil, errors.GeneralError("Unable to unmarshal resource jsonmap status: %s", err)
+	}
+
+	return resourceStatusJSONMap, nil
+}
