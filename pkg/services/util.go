@@ -53,6 +53,10 @@ func handleDeleteError(resourceType string, err error) *errors.ServiceError {
 
 // compareSequenceIDs compares two snowflake sequence IDs and returns true if the first ID is greater than the second.
 func compareSequenceIDs(sequenceID1, sequenceID2 string) (bool, error) {
+	// If the second sequence ID is empty, then the first is greater
+	if sequenceID1 != "" && sequenceID2 == "" {
+		return true, nil
+	}
 	id1, err := snowflake.ParseString(sequenceID1)
 	if err != nil {
 		return false, errors.GeneralError("Unable to parse sequence ID: %s", err.Error())

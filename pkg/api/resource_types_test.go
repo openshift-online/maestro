@@ -46,8 +46,8 @@ func TestJSONMapStausToResourceStatus(t *testing.T) {
 			input: datatypes.JSONMap{
 				"ContentStatus": datatypes.JSONMap{},
 				"ReconcileStatus": datatypes.JSONMap{
-					"ObservedGeneration": 1,
-					"SequenceID":         "123",
+					"ObservedVersion": 1,
+					"SequenceID":      "123",
 					"Conditions": []datatypes.JSONMap{
 						{
 							"type":    "foo",
@@ -61,8 +61,8 @@ func TestJSONMapStausToResourceStatus(t *testing.T) {
 			expected: ResourceStatus{
 				ContentStatus: datatypes.JSONMap{},
 				ReconcileStatus: &ReconcileStatus{
-					ObservedGeneration: 1,
-					SequenceID:         "123",
+					ObservedVersion: 1,
+					SequenceID:      "123",
 					Conditions: []metav1.Condition{
 						{
 							Type:    "foo",
@@ -79,8 +79,8 @@ func TestJSONMapStausToResourceStatus(t *testing.T) {
 			input: datatypes.JSONMap{
 				"ContentStatus": datatypes.JSONMap{},
 				"ReconcileStatus": datatypes.JSONMap{
-					"ObservedGeneration": 1,
-					"SequenceID":         "123",
+					"ObservedVersion": 1,
+					"SequenceID":      "123",
 					"Conditions": []datatypes.JSONMap{
 						{
 							"type":    "foo",
@@ -100,8 +100,8 @@ func TestJSONMapStausToResourceStatus(t *testing.T) {
 			expected: ResourceStatus{
 				ContentStatus: datatypes.JSONMap{},
 				ReconcileStatus: &ReconcileStatus{
-					ObservedGeneration: 1,
-					SequenceID:         "123",
+					ObservedVersion: 1,
+					SequenceID:      "123",
 					Conditions: []metav1.Condition{
 						{
 							Type:    "foo",
@@ -148,9 +148,9 @@ func TestResourceStatusToJSONMap(t *testing.T) {
 			expected: datatypes.JSONMap{
 				"ContentStatus": map[string]interface{}{},
 				"ReconcileStatus": map[string]interface{}{
-					"ObservedGeneration": float64(0),
-					"SequenceID":         "",
-					"Conditions":         nil,
+					"ObservedVersion": float64(0),
+					"SequenceID":      "",
+					"Conditions":      nil,
 				},
 			},
 		},
@@ -167,9 +167,9 @@ func TestResourceStatusToJSONMap(t *testing.T) {
 					"foo": "bar",
 				},
 				"ReconcileStatus": map[string]interface{}{
-					"ObservedGeneration": float64(0),
-					"SequenceID":         "",
-					"Conditions":         nil,
+					"ObservedVersion": float64(0),
+					"SequenceID":      "",
+					"Conditions":      nil,
 				},
 			},
 		},
@@ -178,8 +178,8 @@ func TestResourceStatusToJSONMap(t *testing.T) {
 			input: &ResourceStatus{
 				ContentStatus: datatypes.JSONMap{},
 				ReconcileStatus: &ReconcileStatus{
-					ObservedGeneration: 1,
-					SequenceID:         "123",
+					ObservedVersion: 1,
+					SequenceID:      "123",
 					Conditions: []metav1.Condition{
 						{
 							Type:    "foo",
@@ -193,8 +193,8 @@ func TestResourceStatusToJSONMap(t *testing.T) {
 			expected: datatypes.JSONMap{
 				"ContentStatus": map[string]interface{}{},
 				"ReconcileStatus": map[string]interface{}{
-					"ObservedGeneration": float64(1),
-					"SequenceID":         "123",
+					"ObservedVersion": float64(1),
+					"SequenceID":      "123",
 					"Conditions": []interface{}{
 						map[string]interface{}{
 							"type":               "foo",
@@ -212,8 +212,8 @@ func TestResourceStatusToJSONMap(t *testing.T) {
 			input: &ResourceStatus{
 				ContentStatus: datatypes.JSONMap{},
 				ReconcileStatus: &ReconcileStatus{
-					ObservedGeneration: 1,
-					SequenceID:         "123",
+					ObservedVersion: 1,
+					SequenceID:      "123",
 					Conditions: []metav1.Condition{
 						{
 							Type:    "foo",
@@ -233,8 +233,8 @@ func TestResourceStatusToJSONMap(t *testing.T) {
 			expected: datatypes.JSONMap{
 				"ContentStatus": map[string]interface{}{},
 				"ReconcileStatus": map[string]interface{}{
-					"ObservedGeneration": float64(1),
-					"SequenceID":         "123",
+					"ObservedVersion": float64(1),
+					"SequenceID":      "123",
 					"Conditions": []interface{}{
 						map[string]interface{}{
 							"type":               "foo",

@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/auth0/go-jwt-middleware v0.0.0-20190805220309-36081240882b
+	github.com/bwmarrin/snowflake v0.3.0
 	github.com/bxcodec/faker/v3 v3.2.0
 	github.com/cloudevents/sdk-go/v2 v2.14.0
 	github.com/docker/go-healthcheck v0.1.0
@@ -45,7 +46,6 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/bwmarrin/snowflake v0.3.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20231030012137-0836a524e995 // indirect

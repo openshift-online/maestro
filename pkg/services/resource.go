@@ -165,8 +165,11 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	}
 
 	sequenceID, foundSequenceID := "", ""
-	if resourceStatus.ReconcileStatus != nil && foundStatus.ReconcileStatus != nil {
+	if resourceStatus.ReconcileStatus != nil {
 		sequenceID = resourceStatus.ReconcileStatus.SequenceID
+	}
+
+	if foundStatus.ReconcileStatus != nil {
 		foundSequenceID = foundStatus.ReconcileStatus.SequenceID
 	}
 
