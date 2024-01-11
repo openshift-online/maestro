@@ -14,6 +14,7 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/version"
+	"k8s.io/klog/v2"
 	ocmfeature "open-cluster-management.io/api/feature"
 	"open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
@@ -33,10 +34,18 @@ func NewAgentCommand() *cobra.Command {
 		Run:   runAgent,
 	}
 
-	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
-	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
-	commonOptions.CommoOpts.AddFlags(pflag.CommandLine)
-	addFlags(pflag.CommandLine)
+	// check if the flag is already registered to avoid duplicate flag define error
+	if flag.CommandLine.Lookup("alsologtostderr") != nil {
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
+	}
+	// add klog flags
+	klog.InitFlags(nil)
+
+	fs := cmd.PersistentFlags()
+	fs.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
+	fs.AddGoFlagSet(flag.CommandLine)
+	commonOptions.CommoOpts.AddFlags(fs)
+	addFlags(fs)
 	utilruntime.Must(features.SpokeMutableFeatureGate.Add(ocmfeature.DefaultSpokeWorkFeatureGates))
 	utilruntime.Must(features.SpokeMutableFeatureGate.Set(fmt.Sprintf("%s=true", ocmfeature.RawFeedbackJsonString)))
 
@@ -66,14 +75,14 @@ func runAgent(cmd *cobra.Command, args []string) {
 	}
 }
 
-func addFlags(flags *pflag.FlagSet) {
+func addFlags(fs *pflag.FlagSet) {
 	// workloadAgentOptions
-	flags.DurationVar(&agentOption.StatusSyncInterval, "status-sync-interval", agentOption.StatusSyncInterval, "Interval to sync resource status to hub")
-	flags.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "resource-eviction-grace-period",
+	fs.DurationVar(&agentOption.StatusSyncInterval, "status-sync-interval", agentOption.StatusSyncInterval, "Interval to sync resource status to hub")
+	fs.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "resource-eviction-grace-period",
 		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for resource eviction")
-	flags.StringVar(&commonOptions.SpokeClusterName, "consumer-id", commonOptions.SpokeClusterName, "Id of the consumer")
+	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-id", commonOptions.SpokeClusterName, "Id of the consumer")
 	// mqtt config file
-	flags.StringVar(&agentOption.WorkloadSourceDriver.Config, "mqtt-config-file",
+	fs.StringVar(&agentOption.WorkloadSourceDriver.Config, "mqtt-config-file",
 		agentOption.WorkloadSourceDriver.Config, "The config file path of mqtt broker")
 
 }

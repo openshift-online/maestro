@@ -34,6 +34,7 @@ require (
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
 	k8s.io/component-base v0.28.2
+	k8s.io/klog/v2 v2.100.1
 	open-cluster-management.io/api v0.12.1-0.20240103082609-f6404f30c42c
 	open-cluster-management.io/ocm v0.12.1-0.20231208025610-2e07fda72f59
 )
@@ -142,7 +143,6 @@ require (
 	k8s.io/api v0.28.2 // indirect
 	k8s.io/apiextensions-apiserver v0.28.1 // indirect
 	k8s.io/apiserver v0.28.1 // indirect
-	k8s.io/klog/v2 v2.100.1 // indirect
 	k8s.io/kms v0.28.1 // indirect
 	k8s.io/kube-aggregator v0.28.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20230717233707-2695361300d9 // indirect
