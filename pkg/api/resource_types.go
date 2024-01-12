@@ -4,12 +4,12 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/openshift-online/maestro/pkg/errors"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ktypes "k8s.io/apimachinery/pkg/types"
+
+	"github.com/openshift-online/maestro/pkg/errors"
 )
 
 type Resource struct {
