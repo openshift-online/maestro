@@ -105,6 +105,11 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		}
 	}
 
+	sequenceID, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionStatusUpdateSequenceID])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sequenceid extension: %v", err)
+	}
+
 	clusterName, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionClusterName])
 	if err != nil {
 		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
@@ -127,6 +132,7 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
 			ObservedVersion: int32(resourceVersionInt),
+			SequenceID:      sequenceID,
 		},
 	}
 
@@ -147,13 +153,9 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		}
 	}
 
-	resourceStatusJSON, err := json.Marshal(resourceStatus)
+	resource.Status, err = api.ResourceStatusToJSONMap(resourceStatus)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal resource status: %v", err)
-	}
-	err = json.Unmarshal(resourceStatusJSON, &resource.Status)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal resource status: %v", err)
+		return nil, fmt.Errorf("failed to convert resource status: %v", err)
 	}
 
 	return resource, nil

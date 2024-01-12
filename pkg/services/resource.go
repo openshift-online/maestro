@@ -154,6 +154,34 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, nil
 	}
 
+	resourceStatus, err := api.JSONMapStausToResourceStatus(resource.Status)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
+	}
+
+	foundStatus, err := api.JSONMapStausToResourceStatus(found.Status)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
+	}
+
+	sequenceID, foundSequenceID := "", ""
+	if resourceStatus.ReconcileStatus != nil {
+		sequenceID = resourceStatus.ReconcileStatus.SequenceID
+	}
+
+	if foundStatus.ReconcileStatus != nil {
+		foundSequenceID = foundStatus.ReconcileStatus.SequenceID
+	}
+
+	newer, err := compareSequenceIDs(sequenceID, foundSequenceID)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to compare sequence IDs: %s", err)
+	}
+	if !newer {
+		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard as the latest sequence ID is: %s", foundSequenceID))
+		return found, nil
+	}
+
 	found.Status = resource.Status
 	updated, err := s.resourceDao.Update(ctx, found)
 	if err != nil {

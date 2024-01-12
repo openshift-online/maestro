@@ -43,13 +43,9 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 			logger.Infof("received action %s for resource %s", action, resource.ID)
 			switch action {
 			case cetypes.StatusModified:
-				resourceStatusJSON, err := json.Marshal(resource.Status)
-				if err != nil {
-					return err
-				}
-				resourceStatus := &api.ResourceStatus{}
-				if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
-					return err
+				resourceStatus, error := api.JSONMapStausToResourceStatus(resource.Status)
+				if error != nil {
+					return error
 				}
 
 				// if the resource has been deleted from agent, delete it from maestro

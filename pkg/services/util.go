@@ -4,6 +4,7 @@ import (
 	e "errors"
 	"strings"
 
+	"github.com/bwmarrin/snowflake"
 	"gorm.io/gorm"
 
 	"github.com/openshift-online/maestro/pkg/errors"
@@ -48,4 +49,30 @@ func handleUpdateError(resourceType string, err error) *errors.ServiceError {
 
 func handleDeleteError(resourceType string, err error) *errors.ServiceError {
 	return errors.GeneralError("Unable to delete %s: %s", resourceType, err.Error())
+}
+
+// compareSequenceIDs compares two snowflake sequence IDs and returns true if the first ID is greater than the second.
+func compareSequenceIDs(sequenceID1, sequenceID2 string) (bool, error) {
+	// If the second sequence ID is empty, then the first is greater
+	if sequenceID1 != "" && sequenceID2 == "" {
+		return true, nil
+	}
+	id1, err := snowflake.ParseString(sequenceID1)
+	if err != nil {
+		return false, errors.GeneralError("Unable to parse sequence ID: %s", err.Error())
+	}
+	id2, err := snowflake.ParseString(sequenceID2)
+	if err != nil {
+		return false, errors.GeneralError("Unable to parse sequence ID: %s", err.Error())
+	}
+
+	if id1.Node() != id2.Node() {
+		return false, errors.GeneralError("Sequence IDs are not from the same node")
+	}
+
+	if id1.Time() != id2.Time() {
+		return id1.Time() > id2.Time(), nil
+	}
+
+	return id1.Step() > id2.Step(), nil
 }

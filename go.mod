@@ -5,6 +5,7 @@ go 1.21
 require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/auth0/go-jwt-middleware v0.0.0-20190805220309-36081240882b
+	github.com/bwmarrin/snowflake v0.3.0
 	github.com/bxcodec/faker/v3 v3.2.0
 	github.com/cloudevents/sdk-go/v2 v2.14.0
 	github.com/docker/go-healthcheck v0.1.0
@@ -33,7 +34,7 @@ require (
 	k8s.io/apimachinery v0.28.2
 	k8s.io/client-go v0.28.2
 	k8s.io/component-base v0.28.2
-	open-cluster-management.io/api v0.12.1-0.20231222015746-04e951f8f3ae
+	open-cluster-management.io/api v0.12.1-0.20240103082609-f6404f30c42c
 	open-cluster-management.io/ocm v0.12.1-0.20231208025610-2e07fda72f59
 )
 
