@@ -16,6 +16,7 @@ type ApplicationConfig struct {
 	Server        *ServerConfig        `json:"server"`
 	Metrics       *MetricsConfig       `json:"metrics"`
 	HealthCheck   *HealthCheckConfig   `json:"health_check"`
+	PulseServer   *PulseServerConfig   `json:"pulse_server"`
 	Database      *DatabaseConfig      `json:"database"`
 	MessageBroker *MessageBrokerConfig `json:"message_broker"`
 	OCM           *OCMConfig           `json:"ocm"`
@@ -27,6 +28,7 @@ func NewApplicationConfig() *ApplicationConfig {
 		Server:        NewServerConfig(),
 		Metrics:       NewMetricsConfig(),
 		HealthCheck:   NewHealthCheckConfig(),
+		PulseServer:   MewPulseServerConfig(),
 		Database:      NewDatabaseConfig(),
 		MessageBroker: NewMessageBrokerConfig(),
 		OCM:           NewOCMConfig(),
@@ -39,6 +41,7 @@ func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	c.Server.AddFlags(flagset)
 	c.Metrics.AddFlags(flagset)
 	c.HealthCheck.AddFlags(flagset)
+	c.PulseServer.AddFlags(flagset)
 	c.Database.AddFlags(flagset)
 	c.MessageBroker.AddFlags(flagset)
 	c.OCM.AddFlags(flagset)
@@ -56,6 +59,7 @@ func (c *ApplicationConfig) ReadFiles() []string {
 		{c.OCM.ReadFiles, "OCM"},
 		{c.Metrics.ReadFiles, "Metrics"},
 		{c.HealthCheck.ReadFiles, "HealthCheck"},
+		{c.PulseServer.ReadFiles, "PulseServer"},
 		{c.Sentry.ReadFiles, "Sentry"},
 	}
 	messages := []string{}
