@@ -6,19 +6,18 @@ import (
 	"github.com/go-gormigrate/gormigrate/v2"
 )
 
-func addInstances() *gormigrate.Migration {
-	type Instance struct {
+func addServerInstances() *gormigrate.Migration {
+	type ServerInstance struct {
 		Model
-		Name string `json:"name"`
 	}
 
 	return &gormigrate.Migration{
 		ID: "202401151014",
 		Migrate: func(tx *gorm.DB) error {
-			return tx.AutoMigrate(&Instance{})
+			return tx.AutoMigrate(&ServerInstance{})
 		},
 		Rollback: func(tx *gorm.DB) error {
-			return tx.Migrator().DropTable(&Instance{})
+			return tx.Migrator().DropTable(&ServerInstance{})
 		},
 	}
 }
