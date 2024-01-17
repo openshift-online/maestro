@@ -88,6 +88,7 @@ func (s *PulseServer) Start(ctx context.Context) {
 			if err != nil {
 				// ignore the error and continue to tolerate the intermittent db connection issue
 				logger.Error(fmt.Sprintf("Unable to get outdated maestro instances: %s", err.Error()))
+				s.lockFactory.Unlock(ctx, lockOwnerID)
 				continue
 			}
 			deletedInstanceIDs := []string{}
@@ -104,6 +105,7 @@ func (s *PulseServer) Start(ctx context.Context) {
 				// delete dead instances, ignore the error as it will be retried in the next pulse check
 				if err := s.instanceDao.DeleteByIDs(ctx, deletedInstanceIDs); err != nil {
 					logger.Error(fmt.Sprintf("Unable to delete dead maestro instances: %s", err.Error()))
+					s.lockFactory.Unlock(ctx, lockOwnerID)
 					continue
 				}
 			}
