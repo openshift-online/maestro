@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/pflag"
 
-	"open-cluster-management.io/api/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 )
 
 type MessageBrokerConfig struct {

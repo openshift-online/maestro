@@ -14,9 +14,9 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/logger"
-	mqttoptions "open-cluster-management.io/api/cloudevents/generic/options/mqtt"
-	"open-cluster-management.io/api/cloudevents/work"
-	"open-cluster-management.io/api/cloudevents/work/agent/codec"
+	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/golang-jwt/jwt/v4"
