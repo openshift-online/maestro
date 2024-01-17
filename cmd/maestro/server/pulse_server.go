@@ -93,15 +93,18 @@ func (s *PulseServer) Start(ctx context.Context) {
 			}
 			deletedInstanceIDs := []string{}
 			for _, i := range instances {
-				// trigger statusresync for dead instances, ignore the error as it will be retried in the next pulse check
-				if err := s.sourceClient.Resync(ctx); err != nil {
-					logger.Error(fmt.Sprintf("Unable to trigger statusresync for maestro instance (%s): %s", i.ID, err.Error()))
-					continue
-				}
 				deletedInstanceIDs = append(deletedInstanceIDs, i.ID)
 			}
 
 			if len(deletedInstanceIDs) > 0 {
+				// trigger statusresync for dead instances only once even if there are multiple dead instances
+				// will retry in next check if the statusresync fails
+				if err := s.sourceClient.Resync(ctx); err != nil {
+					logger.Error(fmt.Sprintf("Unable to trigger statusresync for maestro instance(s): %s", err.Error()))
+					s.lockFactory.Unlock(ctx, lockOwnerID)
+					continue
+				}
+
 				// delete dead instances, ignore the error as it will be retried in the next pulse check
 				if err := s.instanceDao.DeleteByIDs(ctx, deletedInstanceIDs); err != nil {
 					logger.Error(fmt.Sprintf("Unable to delete dead maestro instances: %s", err.Error()))
