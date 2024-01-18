@@ -61,17 +61,17 @@ func (s *PulseServer) Start(ctx context.Context) {
 			checkTicker.Stop()
 			return
 		case <-pulseTicker.C:
-			logger.Infof("Updating heartbeat for maestro instance: %s", instance.ID)
+			logger.V(4).Infof("Updating heartbeat for maestro instance: %s", instance.ID)
 			instance.UpdatedAt = time.Now()
 			_, err = s.instanceDao.UpSert(ctx, instance)
 			if err != nil {
-				// ignore the error and continue to tolerate the intermittent db connection issue
+				// log and ignore the error and continue to tolerate the intermittent issue
 				logger.Error(fmt.Sprintf("Unable to update heartbeat for maestro instance: %s", err.Error()))
 			}
 		case <-checkTicker.C:
-			logger.Infof("Checking maestro instances liveness and trigger statusresync for dead instances")
+			logger.V(4).Infof("Checking maestro instances liveness and trigger statusresync for dead instances")
 			if err := s.CheckInstances(ctx); err != nil {
-				// ignore the error and continue to tolerate the intermittent db connection issue
+				// log and ignore the error and continue to tolerate the intermittent issue
 				logger.Error(fmt.Sprintf("Unable to check maestro instances: %s", err.Error()))
 			}
 		}
@@ -79,8 +79,6 @@ func (s *PulseServer) Start(ctx context.Context) {
 }
 
 func (s *PulseServer) CheckInstances(ctx context.Context) error {
-	logger := logger.NewOCMLogger(ctx)
-	logger.Infof("Checking maestro instances liveness and trigger statusresync for dead instances")
 	// lock the Instance with a fail-fast advisory lock context.
 	// this allows concurrent processing of many instances by one or more maestro instances exclusively.
 	lockOwnerID, acquired, err := s.lockFactory.NewNonBlockingLock(ctx, "maestro-instances-pulse-check", db.Instances)
@@ -110,7 +108,7 @@ func (s *PulseServer) CheckInstances(ctx context.Context) error {
 			return fmt.Errorf("unable to trigger statusresync for maestro instance(s): %s", err.Error())
 		}
 
-		// delete dead instances, ignore the error as it will be retried in the next pulse check
+		// batch delete dead instances
 		if err := s.instanceDao.DeleteByIDs(ctx, deletedInstanceIDs); err != nil {
 			return fmt.Errorf("unable to delete dead maestro instances: %s", err.Error())
 		}
