@@ -39,13 +39,13 @@ type ControllersServer struct {
 }
 
 // Start is a blocking call that starts this controller server
-func (s ControllersServer) Start(stopCh <-chan struct{}) {
+func (s ControllersServer) Start(ctx context.Context) {
 	log := logger.NewOCMLogger(context.Background())
 
 	log.Infof("Kind controller handling events")
-	go s.KindControllerManager.Run(stopCh)
+	go s.KindControllerManager.Run(ctx.Done())
 
 	log.Infof("Kind controller listening for events")
 	// blocking call
-	env().Database.SessionFactory.NewListener(context.Background(), "events", s.KindControllerManager.AddEvent)
+	env().Database.SessionFactory.NewListener(ctx, "events", s.KindControllerManager.AddEvent)
 }

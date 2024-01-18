@@ -65,7 +65,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	go apiserver.Start()
 	go metricsServer.Start()
 	go healthcheckServer.Start()
-	go controllersServer.Start(ctx.Done())
+	go controllersServer.Start(ctx)
 
 	<-ctx.Done()
 }

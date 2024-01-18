@@ -69,7 +69,7 @@ func TestControllerRacing(t *testing.T) {
 				},
 			})
 
-			s.Start(ctx.Done())
+			s.Start(ctx)
 		}()
 	}
 
@@ -126,7 +126,7 @@ func TestControllerReconcile(t *testing.T) {
 			},
 		})
 
-		s.Start(ctx.Done())
+		s.Start(ctx)
 	}()
 
 	consumer := h.NewConsumer("cluster1")
@@ -219,7 +219,7 @@ func TestControllerSync(t *testing.T) {
 			},
 		})
 
-		s.Start(ctx.Done())
+		s.Start(ctx)
 	}()
 
 	// Eventually, the controller should only handle the one unreconciled event.
