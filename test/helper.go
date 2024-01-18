@@ -198,7 +198,7 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 	})
 
 	// start controller manager
-	go helper.ControllerManager.Start(ctx.Done())
+	go helper.ControllerManager.Start(ctx)
 }
 
 func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mqttOptions *mqttoptions.MQTTOptions) {
