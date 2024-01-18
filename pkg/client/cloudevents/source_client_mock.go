@@ -47,7 +47,7 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
 			ObservedVersion: resource.Version,
-			SequenceID:         sequenceGenerator.Generate().String(),
+			SequenceID:      sequenceGenerator.Generate().String(),
 			Conditions: []metav1.Condition{
 				{
 					Type:               "Applied",
@@ -150,5 +150,9 @@ func (s *SourceClientMock) OnDelete(ctx context.Context, id string) error {
 		}
 	}
 
+	return nil
+}
+
+func (s *SourceClientMock) Resync(ctx context.Context) error {
 	return nil
 }

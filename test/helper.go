@@ -63,6 +63,7 @@ type Helper struct {
 	APIServer         server.Server
 	MetricsServer     server.Server
 	HealthCheckServer server.Server
+	PulseServer       *server.PulseServer
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
 	TimeFunc          TimeFunc
@@ -112,6 +113,7 @@ func NewHelper(t *testing.T) *Helper {
 			jwkMockTeardown,
 			helper.stopAPIServer,
 		}
+		helper.startPulseServer()
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
@@ -176,6 +178,17 @@ func (helper *Helper) startHealthCheckServer() {
 		glog.V(10).Info("Test health check server started")
 		helper.HealthCheckServer.Start()
 		glog.V(10).Info("Test health check server stopped")
+	}()
+}
+
+func (helper *Helper) startPulseServer() {
+	helper.Env().Config.PulseServer.PulseInterval = 1
+	helper.Env().Config.PulseServer.CheckInterval = 1
+	helper.PulseServer = server.NewPulseServer()
+	go func() {
+		glog.V(10).Info("Test pulse server started")
+		helper.PulseServer.Start(context.Background())
+		glog.V(10).Info("Test pulse server stopped")
 	}()
 }
 
@@ -372,6 +385,7 @@ func (helper *Helper) CleanDB() error {
 		"events",
 		"resources",
 		"consumers",
+		"server_instances",
 		"migrations",
 	} {
 		if g2.Migrator().HasTable(table) {

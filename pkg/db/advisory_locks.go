@@ -22,6 +22,7 @@ const (
 	Resources      LockType = "Resources"
 	ResourceStatus LockType = "ResourceStatus"
 	Events         LockType = "events"
+	Instances      LockType = "instances"
 )
 
 // LockFactory provides the blocking/unblocking locks based on PostgreSQL advisory lock.

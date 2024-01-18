@@ -16,10 +16,13 @@ import (
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
+// SourceClient is an interface for publishing resource events to consumers
+// and resyncing resource status from consumers.
 type SourceClient interface {
 	OnCreate(ctx context.Context, id string) error
 	OnUpdate(ctx context.Context, id string) error
 	OnDelete(ctx context.Context, id string) error
+	Resync(ctx context.Context) error
 }
 
 type SourceClientImpl struct {
@@ -139,6 +142,14 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (s *SourceClientImpl) Resync(ctx context.Context) error {
+	logger := logger.NewOCMLogger(ctx)
+
+	logger.Infof("Resyncing resource status from consumers")
+	// TODO: optimize this to only resync resource status for specific consumers
+	return s.CloudEventSourceClient.Resync(ctx, cetypes.ListOptions{})
 }
 
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {

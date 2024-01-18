@@ -31,6 +31,7 @@ var MigrationList = []*gormigrate.Migration{
 	addResources(),
 	addConsumers(),
 	dropDinosaurs(),
+	addServerInstances(),
 }
 
 // Model represents the base model struct. All entities will have this struct embedded.
