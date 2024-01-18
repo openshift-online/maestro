@@ -9,8 +9,8 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 	logger "github.com/openshift-online/maestro/pkg/logger"
 
-	cegeneric "open-cluster-management.io/api/cloudevents/generic"
-	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
+	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"

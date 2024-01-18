@@ -20,8 +20,8 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
-	"open-cluster-management.io/api/cloudevents/generic/types"
 	workv1 "open-cluster-management.io/api/work/v1"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
 func TestResourceGet(t *testing.T) {

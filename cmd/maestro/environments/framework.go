@@ -14,7 +14,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
 
-	mqttoptions "open-cluster-management.io/api/cloudevents/generic/options/mqtt"
+	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 )
 
 func init() {

@@ -11,9 +11,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
-	cegeneric "open-cluster-management.io/api/cloudevents/generic"
-	ceoptions "open-cluster-management.io/api/cloudevents/generic/options"
-	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
+	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
+	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
 type SourceClient interface {

@@ -9,11 +9,11 @@ import (
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	cegeneric "open-cluster-management.io/api/cloudevents/generic"
-	cetypes "open-cluster-management.io/api/cloudevents/generic/types"
-	agentclient "open-cluster-management.io/api/cloudevents/work/agent/client"
-	workpayload "open-cluster-management.io/api/cloudevents/work/payload"
 	workv1 "open-cluster-management.io/api/work/v1"
+	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	agentclient "open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/client"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
 )
