@@ -19,7 +19,8 @@ var _ MappedNullable = &ConsumerPatchRequest{}
 
 // ConsumerPatchRequest struct for ConsumerPatchRequest
 type ConsumerPatchRequest struct {
-	Name *string `json:"name,omitempty"`
+	Name   *string            `json:"name,omitempty"`
+	Labels *map[string]string `json:"labels,omitempty"`
 }
 
 // NewConsumerPatchRequest instantiates a new ConsumerPatchRequest object
@@ -71,6 +72,38 @@ func (o *ConsumerPatchRequest) SetName(v string) {
 	o.Name = &v
 }
 
+// GetLabels returns the Labels field value if set, zero value otherwise.
+func (o *ConsumerPatchRequest) GetLabels() map[string]string {
+	if o == nil || IsNil(o.Labels) {
+		var ret map[string]string
+		return ret
+	}
+	return *o.Labels
+}
+
+// GetLabelsOk returns a tuple with the Labels field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConsumerPatchRequest) GetLabelsOk() (*map[string]string, bool) {
+	if o == nil || IsNil(o.Labels) {
+		return nil, false
+	}
+	return o.Labels, true
+}
+
+// HasLabels returns a boolean if a field has been set.
+func (o *ConsumerPatchRequest) HasLabels() bool {
+	if o != nil && !IsNil(o.Labels) {
+		return true
+	}
+
+	return false
+}
+
+// SetLabels gets a reference to the given map[string]string and assigns it to the Labels field.
+func (o *ConsumerPatchRequest) SetLabels(v map[string]string) {
+	o.Labels = &v
+}
+
 func (o ConsumerPatchRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -83,6 +116,9 @@ func (o ConsumerPatchRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.Name) {
 		toSerialize["name"] = o.Name
+	}
+	if !IsNil(o.Labels) {
+		toSerialize["labels"] = o.Labels
 	}
 	return toSerialize, nil
 }

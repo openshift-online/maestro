@@ -793,9 +793,15 @@ components:
     ConsumerPatchRequest:
       example:
         name: name
+        labels:
+          key: labels
       properties:
         name:
           type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
       type: object
     Error_allOf:
       properties:
@@ -845,6 +851,10 @@ components:
       properties:
         name:
           type: string
+        labels:
+          additionalProperties:
+            type: string
+          type: object
         created_at:
           format: date-time
           type: string

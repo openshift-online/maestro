@@ -20,12 +20,13 @@ var _ MappedNullable = &Consumer{}
 
 // Consumer struct for Consumer
 type Consumer struct {
-	Id        *string    `json:"id,omitempty"`
-	Kind      *string    `json:"kind,omitempty"`
-	Href      *string    `json:"href,omitempty"`
-	Name      *string    `json:"name,omitempty"`
-	CreatedAt *time.Time `json:"created_at,omitempty"`
-	UpdatedAt *time.Time `json:"updated_at,omitempty"`
+	Id        *string            `json:"id,omitempty"`
+	Kind      *string            `json:"kind,omitempty"`
+	Href      *string            `json:"href,omitempty"`
+	Name      *string            `json:"name,omitempty"`
+	Labels    *map[string]string `json:"labels,omitempty"`
+	CreatedAt *time.Time         `json:"created_at,omitempty"`
+	UpdatedAt *time.Time         `json:"updated_at,omitempty"`
 }
 
 // NewConsumer instantiates a new Consumer object
@@ -173,6 +174,38 @@ func (o *Consumer) SetName(v string) {
 	o.Name = &v
 }
 
+// GetLabels returns the Labels field value if set, zero value otherwise.
+func (o *Consumer) GetLabels() map[string]string {
+	if o == nil || IsNil(o.Labels) {
+		var ret map[string]string
+		return ret
+	}
+	return *o.Labels
+}
+
+// GetLabelsOk returns a tuple with the Labels field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *Consumer) GetLabelsOk() (*map[string]string, bool) {
+	if o == nil || IsNil(o.Labels) {
+		return nil, false
+	}
+	return o.Labels, true
+}
+
+// HasLabels returns a boolean if a field has been set.
+func (o *Consumer) HasLabels() bool {
+	if o != nil && !IsNil(o.Labels) {
+		return true
+	}
+
+	return false
+}
+
+// SetLabels gets a reference to the given map[string]string and assigns it to the Labels field.
+func (o *Consumer) SetLabels(v map[string]string) {
+	o.Labels = &v
+}
+
 // GetCreatedAt returns the CreatedAt field value if set, zero value otherwise.
 func (o *Consumer) GetCreatedAt() time.Time {
 	if o == nil || IsNil(o.CreatedAt) {
@@ -258,6 +291,9 @@ func (o Consumer) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Name) {
 		toSerialize["name"] = o.Name
+	}
+	if !IsNil(o.Labels) {
+		toSerialize["labels"] = o.Labels
 	}
 	if !IsNil(o.CreatedAt) {
 		toSerialize["created_at"] = o.CreatedAt

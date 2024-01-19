@@ -8,8 +8,10 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/api/presenters"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/errors"
 	"github.com/openshift-online/maestro/pkg/services"
+	"github.com/openshift-online/maestro/pkg/util"
 )
 
 var _ RestHandler = consumerHandler{}
@@ -61,8 +63,12 @@ func (h consumerHandler) Patch(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return nil, err
 			}
-
-			//patch a field
+			if patch.Labels != nil {
+				found.Labels = db.EmptyMapToNilStringMap(patch.Labels)
+			}
+			if patch.Name != nil {
+				found.Name = util.EmptyStringToNil(*patch.Name)
+			}
 
 			consumer, err := h.consumer.Replace(ctx, found)
 			if err != nil {

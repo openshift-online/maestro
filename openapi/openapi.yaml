@@ -532,6 +532,10 @@ components:
           properties:
             name:
               type: string
+            labels:
+              type: object
+              additionalProperties:
+                type: string
             created_at:
               type: string
               format: date-time
@@ -552,6 +556,10 @@ components:
       properties:
         name:
           type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
   parameters:
     id:
       name: id
