@@ -5,9 +5,12 @@ go 1.21
 require (
 	github.com/Masterminds/squirrel v1.5.3
 	github.com/auth0/go-jwt-middleware v0.0.0-20190805220309-36081240882b
+	github.com/buraksezer/consistent v0.10.0
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/bxcodec/faker/v3 v3.2.0
+	github.com/cespare/xxhash v1.1.0
 	github.com/cloudevents/sdk-go/v2 v2.14.0
+	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/docker/go-healthcheck v0.1.0
 	github.com/getsentry/sentry-go v0.20.0
 	github.com/ghodss/yaml v1.0.0
