@@ -59,7 +59,7 @@ objects:
             name: ${MQTT_BROKER_NAME}
         spec:
           containers:
-          - image: ${MOSQUITTO_IMAGE}
+          - image: ${MQTT_IMAGE}
             imagePullPolicy: IfNotPresent
             name: mosquitto
             ports:
