@@ -113,6 +113,8 @@ objects:
                     secretKeyRef:
                       key: database-name
                       name: ${DATABASE_SERVICE_NAME}
+                - name: PGDATA
+                  value: /var/lib/pgsql/data/pgdata
               image: ${POSTGRES_IMAGE}
               imagePullPolicy: IfNotPresent
               livenessProbe:
