@@ -153,6 +153,6 @@ func (s *SourceClientMock) OnDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *SourceClientMock) Resync(ctx context.Context) error {
+func (s *SourceClientMock) Resync(ctx context.Context, consumers []string) error {
 	return nil
 }

@@ -44,7 +44,7 @@ func (s healthCheckServer) Start() {
 	if env().Config.HealthCheck.EnableHTTPS {
 		if env().Config.Server.HTTPSCertFile == "" || env().Config.Server.HTTPSKeyFile == "" {
 			check(
-				fmt.Errorf("Unspecified required --https-cert-file, --https-key-file"),
+				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
 			)
 		}

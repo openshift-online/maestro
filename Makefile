@@ -376,11 +376,11 @@ db/teardown:
 
 .PHONY: mqtt/prepare
 mqtt/prepare:
-	@echo $(shell LC_CTYPE=C && cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 13) > $(mqtt_password_file)
+	@echo $(shell LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 13) > $(mqtt_password_file)
 
 .PHONY: mqtt/setup
 mqtt/setup: mqtt/prepare
-	@echo '{"brokerHost": "localhost:1883", "username": "$(mqtt_user)", "password": "$(shell cat $(mqtt_password_file))"}' > $(mqtt_config_file)
+	@echo '{"brokerHost":"localhost:1883","username":"$(mqtt_user)","password":"$(shell cat $(mqtt_password_file))","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > $(mqtt_config_file)
 	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(mqtt_image) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mqtt_user) $(shell cat $(mqtt_password_file))
 	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mqtt_image)
 
