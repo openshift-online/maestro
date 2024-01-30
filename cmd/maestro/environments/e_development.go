@@ -49,6 +49,6 @@ func (e *devEnvImpl) Flags() map[string]string {
 		"api-server-hostname":    "localhost",
 		"api-server-bindaddress": "localhost:8000",
 		"enable-sentry":          "false",
-		"source-id":              "maestro-development",
+		"source-id":              "maestro",
 	}
 }

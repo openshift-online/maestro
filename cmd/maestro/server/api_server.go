@@ -133,7 +133,7 @@ func (s apiServer) Serve(listener net.Listener) {
 		// Check https cert and key path path
 		if env().Config.Server.HTTPSCertFile == "" || env().Config.Server.HTTPSKeyFile == "" {
 			check(
-				fmt.Errorf("Unspecified required --https-cert-file, --https-key-file"),
+				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
 			)
 		}

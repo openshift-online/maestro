@@ -19,6 +19,7 @@ type PulseServer struct {
 	pulseInterval int64
 	checkInterval int64
 	instanceDao   dao.InstanceDao
+	consumerDao   dao.ConsumerDao
 	lockFactory   db.LockFactory
 	sourceClient  cloudevents.SourceClient
 }
@@ -30,6 +31,7 @@ func NewPulseServer() *PulseServer {
 		pulseInterval: env().Config.PulseServer.PulseInterval,
 		checkInterval: env().Config.PulseServer.CheckInterval,
 		instanceDao:   dao.NewInstanceDao(&sessionFactory),
+		consumerDao:   dao.NewConsumerDao(&sessionFactory),
 		lockFactory:   db.NewAdvisoryLockFactory(sessionFactory),
 		sourceClient:  env().Clients.CloudEventsSource,
 	}
@@ -104,7 +106,21 @@ func (s *PulseServer) CheckInstances(ctx context.Context) error {
 	if len(deletedInstanceIDs) > 0 {
 		// trigger statusresync for dead instances only once even if there are multiple dead instances
 		// will retry in next check if the statusresync fails
-		if err := s.sourceClient.Resync(ctx); err != nil {
+
+		// send resync request to each consumer
+		// TODO: optimize this to only resync resource status for necessary consumers
+		consumerIDs := []string{}
+
+		consumers, err := s.consumerDao.All(ctx)
+		if err != nil {
+			return fmt.Errorf("unable to trigger statusresync for maestro instance(s): %s", err.Error())
+		}
+
+		for _, c := range consumers {
+			consumerIDs = append(consumerIDs, c.ID)
+		}
+
+		if err := s.sourceClient.Resync(ctx, consumerIDs); err != nil {
 			return fmt.Errorf("unable to trigger statusresync for maestro instance(s): %s", err.Error())
 		}
 

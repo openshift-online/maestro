@@ -22,7 +22,7 @@ type SourceClient interface {
 	OnCreate(ctx context.Context, id string) error
 	OnUpdate(ctx context.Context, id string) error
 	OnDelete(ctx context.Context, id string) error
-	Resync(ctx context.Context) error
+	Resync(ctx context.Context, consumers []string) error
 }
 
 type SourceClientImpl struct {
@@ -144,12 +144,18 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *SourceClientImpl) Resync(ctx context.Context) error {
+func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error {
 	logger := logger.NewOCMLogger(ctx)
 
 	logger.Infof("Resyncing resource status from consumers")
-	// TODO: optimize this to only resync resource status for specific consumers
-	return s.CloudEventSourceClient.Resync(ctx, cetypes.ListOptions{})
+
+	for _, consumer := range consumers {
+		if err := s.CloudEventSourceClient.Resync(ctx, consumer); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {
