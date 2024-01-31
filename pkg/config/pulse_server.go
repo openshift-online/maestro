@@ -4,6 +4,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
+type SubscriptionType string
+
+const (
+	SharedSubscriptionType    SubscriptionType = "shared"
+	BroadcastSubscriptionType SubscriptionType = "broadcast"
+)
+
 // PulseServerConfig contains the configuration for the maestro pulse server.
 type PulseServerConfig struct {
 	PulseInterval    int64  `json:"pulse_interval"`

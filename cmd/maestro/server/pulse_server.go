@@ -8,6 +8,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
@@ -35,10 +36,10 @@ type PulseServer struct {
 
 func NewPulseServer() *PulseServer {
 	var statusDispatcher dispatcher.Dispatcher
-	switch env().Config.PulseServer.SubscriptionType {
-	case "shared":
+	switch config.SubscriptionType(env().Config.PulseServer.SubscriptionType) {
+	case config.SharedSubscriptionType:
 		statusDispatcher = dispatcher.NewNoopDispatcher(dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource)
-	case "broadcast":
+	case config.BroadcastSubscriptionType:
 		statusDispatcher = dispatcher.NewHashDispatcher(env().Config.MessageBroker.ClientID, dao.NewInstanceDao(&env().Database.SessionFactory), dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource)
 	default:
 		glog.Fatalf("Unsupported subscription type: %s", env().Config.PulseServer.SubscriptionType)
@@ -117,8 +118,8 @@ func (s *PulseServer) checkInstances() {
 
 	inactiveInstanceIDs := []string{}
 	for _, instance := range instances {
-		// Instances pulsing within the last two check intervals are considered as active.
-		if instance.UpdatedAt.After(time.Now().Add(time.Duration(int64(-2*time.Second) * s.pulseInterval))) {
+		// Instances pulsing within the last three check intervals are considered as active.
+		if instance.UpdatedAt.After(time.Now().Add(time.Duration(int64(-3*time.Second) * s.pulseInterval))) {
 			if err := s.statusDispatcher.OnInstanceUp(instance.ID); err != nil {
 				log.Error(fmt.Sprintf("Error to call OnInstanceUp handler for maestro instance %s: %s", instance.ID, err.Error()))
 			}
