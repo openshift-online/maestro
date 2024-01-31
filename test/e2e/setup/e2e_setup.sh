@@ -22,7 +22,15 @@ if ! command -v kind >/dev/null 2>&1; then
 fi
 
 # 1. create KinD cluster
-kind create cluster --name maestro --kubeconfig ./test/e2e/.kubeconfig
+cat << EOF | kind create cluster --name maestro --kubeconfig ./test/e2e/.kubeconfig --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 30080
+    hostPort: 30080
+EOF
 export KUBECONFIG=${PWD}/test/e2e/.kubeconfig
 
 # 2. build maestro image and load to KinD cluster
@@ -53,9 +61,10 @@ make template \
 kubectl patch service maestro -n $namespace -p '{"spec":{"type":"NodePort", "ports":  [{"nodePort": 30080, "port": 8000, "targetPort": 8000}]}}' --type merge
 
 # 5. create a consumer
-export external_host_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' maestro-control-plane)
+export external_host_ip="127.0.0.1"
 echo $external_host_ip > ./test/e2e/.external_host_ip
-kubectl wait deployment maestro -n $namespace --for condition=Available=True --timeout=200s 
+kubectl wait deployment maestro -n $namespace --for condition=Available=True --timeout=200s
+sleep 5 # wait 5 seconds for the serice ready
 export consumer_id=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{"name": "cluster1"}' | jq '.id')
 echo $consumer_id > ./test/e2e/.consumer_id
 
