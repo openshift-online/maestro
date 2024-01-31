@@ -106,7 +106,7 @@ func (s *PulseServer) checkInstances() {
 	}
 	// skip if the lock is not acquired
 	if !acquired {
-		log.Error(fmt.Sprintf("failed to acquire the lock as another maestro instance is checking instances"))
+		log.Error("failed to acquire the lock as another maestro instance is checking instances")
 		return
 	}
 
@@ -153,7 +153,7 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 				return nil
 			}
 
-			resourceStatus, error := api.JSONMapStausToResourceStatus(resource.Status)
+			resourceStatus, error := api.JSONMapStatusToResourceStatus(resource.Status)
 			if error != nil {
 				return error
 			}
