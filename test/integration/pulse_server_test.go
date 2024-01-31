@@ -106,7 +106,7 @@ func TestPulseServerWithStatusDispatcher(t *testing.T) {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	h.Env().Config.PulseServer.EnableConsistentHashing = true
+	h.Env().Config.PulseServer.SubscriptionType = "broadcast"
 	h.StartPulseServer(ctx)
 
 	clusterName := "cluster1"

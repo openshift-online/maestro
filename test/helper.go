@@ -14,7 +14,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/logger"
-	"github.com/openshift-online/maestro/pkg/pulseserver"
 	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
@@ -64,7 +63,7 @@ type Helper struct {
 	APIServer         server.Server
 	MetricsServer     server.Server
 	HealthCheckServer server.Server
-	PulseServer       pulseserver.PulseServer
+	PulseServer       *server.PulseServer
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
 	TimeFunc          TimeFunc
@@ -183,7 +182,6 @@ func (helper *Helper) startHealthCheckServer() {
 
 func (helper *Helper) StartPulseServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.PulseInterval = 1
-	helper.Env().Config.PulseServer.CheckInterval = 1
 	helper.PulseServer = server.NewPulseServer()
 	go func() {
 		glog.V(10).Info("Test pulse server started")

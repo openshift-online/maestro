@@ -1,36 +1,177 @@
 package server
 
 import (
-	"strings"
+	"context"
+	"fmt"
+	"time"
 
 	"github.com/golang/glog"
-	"github.com/openshift-online/maestro/pkg/pulseserver"
+	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
+	"github.com/openshift-online/maestro/pkg/logger"
+	"github.com/openshift-online/maestro/pkg/services"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
-// NewPulseServer returns a new Pulse Server instance. The server is configured based on whether
-// consistent hashing is enabled or not.
-//
-// If consistent hashing is enabled, the server is created with a consistent hashing status dispatcher.
-// Otherwise, it is created with a shared subscription.
-func NewPulseServer() pulseserver.PulseServer {
-	if env().Config.PulseServer.EnableConsistentHashing {
-		if strings.HasPrefix(env().Config.MessageBroker.MQTTOptions.Topics.AgentEvents, "$share") {
-			glog.Fatalf("The status topic should not be a shared topic when consistent hashing is enabled")
-		}
-		return pulseserver.NewPulseServerWithStatusDispatcher(
-			&env().Database.SessionFactory,
-			env().Services.Resources(),
-			env().Config.MessageBroker.ClientID,
-			env().Config.PulseServer.PulseInterval,
-			env().Config.PulseServer.CheckInterval,
-			env().Clients.CloudEventsSource)
-	} else {
-		return pulseserver.NewPulseServerImpl(
-			&env().Database.SessionFactory,
-			env().Services.Resources(),
-			env().Config.MessageBroker.ClientID,
-			env().Config.PulseServer.PulseInterval,
-			env().Config.PulseServer.CheckInterval,
-			env().Clients.CloudEventsSource)
+var log = logger.NewOCMLogger(context.Background())
+
+// PulseServer represents a server responsible for periodic heartbeat updates and
+// checking the liveness of Maestro instances, triggering status resync based on
+// instances' status and other conditions.
+type PulseServer struct {
+	instanceID       string
+	pulseInterval    int64
+	instanceDao      dao.InstanceDao
+	lockFactory      db.LockFactory
+	resourceService  services.ResourceService
+	sourceClient     cloudevents.SourceClient
+	statusDispatcher dispatcher.Dispatcher
+}
+
+func NewPulseServer() *PulseServer {
+	var statusDispatcher dispatcher.Dispatcher
+	switch env().Config.PulseServer.SubscriptionType {
+	case "shared":
+		statusDispatcher = dispatcher.NewNoopDispatcher(dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource)
+	case "broadcast":
+		statusDispatcher = dispatcher.NewHashDispatcher(env().Config.MessageBroker.ClientID, dao.NewInstanceDao(&env().Database.SessionFactory), dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource)
+	default:
+		glog.Fatalf("Unsupported subscription type: %s", env().Config.PulseServer.SubscriptionType)
 	}
+	sessionFactory := env().Database.SessionFactory
+	return &PulseServer{
+		instanceID:       env().Config.MessageBroker.ClientID,
+		pulseInterval:    env().Config.PulseServer.PulseInterval,
+		instanceDao:      dao.NewInstanceDao(&sessionFactory),
+		lockFactory:      db.NewAdvisoryLockFactory(sessionFactory),
+		resourceService:  env().Services.Resources(),
+		sourceClient:     env().Clients.CloudEventsSource,
+		statusDispatcher: statusDispatcher,
+	}
+}
+
+// Start initializes and runs the pulse server, updating and checking Maestro instances' liveness,
+// initializes subscription to status update messages and triggers status resync based on
+// instances' status and other conditions.
+func (s *PulseServer) Start(ctx context.Context) {
+	log.Infof("Starting pulse server")
+
+	// start subscribing to resource status update messages.
+	s.startSubscription(ctx)
+	// start the status dispatcher
+	go s.statusDispatcher.Start(ctx)
+
+	// start a goroutine to periodically update heartbeat for the current maestro instance
+	go wait.Until(s.pulse, time.Duration(s.pulseInterval*int64(time.Second)), ctx.Done())
+
+	// start a goroutine to periodically check the liveness of maestro instances
+	go wait.Until(s.checkInstances, time.Duration(s.pulseInterval/3*int64(time.Second)), ctx.Done())
+
+	// wait until context is canceled
+	<-ctx.Done()
+	log.Infof("Shutting down pulse server")
+}
+
+func (s *PulseServer) pulse() {
+	log.V(4).Infof("Updating heartbeat for maestro instance: %s", s.instanceID)
+	instance := &api.ServerInstance{
+		Meta: api.Meta{
+			ID:        s.instanceID,
+			UpdatedAt: time.Now(),
+		},
+	}
+	_, err := s.instanceDao.UpSert(context.TODO(), instance)
+	if err != nil {
+		log.Error(fmt.Sprintf("Unable to upsert maestro instance: %s", err.Error()))
+	}
+}
+
+func (s *PulseServer) checkInstances() {
+	log.V(4).Infof("Checking liveness of maestro instances")
+	ctx := context.TODO()
+	// lock the Instance with a fail-fast advisory lock context.
+	// this allows concurrent processing of many instances by one or more maestro instances exclusively.
+	lockOwnerID, acquired, err := s.lockFactory.NewNonBlockingLock(ctx, "maestro-instances-pulse-check", db.Instances)
+	// Ensure that the transaction related to this lock always end.
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
+	if err != nil {
+		log.Error(fmt.Sprintf("error obtaining the instance lock: %v", err))
+		return
+	}
+	// skip if the lock is not acquired
+	if !acquired {
+		log.Error(fmt.Sprintf("failed to acquire the lock as another maestro instance is checking instances"))
+		return
+	}
+
+	instances, err := s.instanceDao.All(ctx)
+	if err != nil {
+		log.Error(fmt.Sprintf("Unable to get all maestro instances: %s", err.Error()))
+		return
+	}
+
+	inactiveInstanceIDs := []string{}
+	for _, instance := range instances {
+		// Instances pulsing within the last two check intervals are considered as active.
+		if instance.UpdatedAt.After(time.Now().Add(time.Duration(int64(-2*time.Second) * s.pulseInterval))) {
+			if err := s.statusDispatcher.OnInstanceUp(instance.ID); err != nil {
+				log.Error(fmt.Sprintf("Error to call OnInstanceUp handler for maestro instance %s: %s", instance.ID, err.Error()))
+			}
+		} else {
+			if err := s.statusDispatcher.OnInstanceDown(instance.ID); err != nil {
+				log.Error(fmt.Sprintf("Error to call OnInstanceDown handler for maestro instance %s: %s", instance.ID, err.Error()))
+			} else {
+				inactiveInstanceIDs = append(inactiveInstanceIDs, instance.ID)
+			}
+		}
+	}
+
+	if len(inactiveInstanceIDs) > 0 {
+		// batch delete inactive instances
+		if err := s.instanceDao.DeleteByIDs(ctx, inactiveInstanceIDs); err != nil {
+			log.Error(fmt.Sprintf("Unable to delete inactive maestro instances (%s): %s", inactiveInstanceIDs, err.Error()))
+		}
+	}
+}
+
+// startSubscription initiates the subscription to resource status update messages.
+// It runs asynchronously in the background until the provided context is canceled.
+func (s *PulseServer) startSubscription(ctx context.Context) {
+	s.sourceClient.Subscribe(ctx, func(action types.ResourceAction, resource *api.Resource) error {
+		log.V(1).Infof("received action %s for resource %s", action, resource.ID)
+		switch action {
+		case types.StatusModified:
+			if !s.statusDispatcher.Dispatch(resource.ConsumerID) {
+				// the resource is not owned by the current instance, skip
+				log.V(4).Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
+				return nil
+			}
+
+			resourceStatus, error := api.JSONMapStausToResourceStatus(resource.Status)
+			if error != nil {
+				return error
+			}
+
+			// if the resource has been deleted from agent, delete it from maestro
+			if resourceStatus.ReconcileStatus != nil && meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, "Deleted") {
+				if err := s.resourceService.Delete(ctx, resource.ID); err != nil {
+					return err
+				}
+			} else {
+				// update the resource status
+				if _, err := s.resourceService.UpdateStatus(ctx, resource); err != nil {
+					return err
+				}
+			}
+		default:
+			return fmt.Errorf("unsupported action %s", action)
+		}
+
+		return nil
+	})
 }
