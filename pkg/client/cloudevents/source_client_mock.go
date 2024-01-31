@@ -8,6 +8,7 @@ import (
 	"github.com/bwmarrin/snowflake"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/services"
+	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -151,6 +152,9 @@ func (s *SourceClientMock) OnDelete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+func (s *SourceClientMock) Subscribe(ctx context.Context, handlers ...cegeneric.ResourceHandler[*api.Resource]) {
 }
 
 func (s *SourceClientMock) Resync(ctx context.Context, consumers []string) error {

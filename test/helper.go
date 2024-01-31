@@ -113,7 +113,6 @@ func NewHelper(t *testing.T) *Helper {
 			jwkMockTeardown,
 			helper.stopAPIServer,
 		}
-		helper.startPulseServer()
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
@@ -181,13 +180,12 @@ func (helper *Helper) startHealthCheckServer() {
 	}()
 }
 
-func (helper *Helper) startPulseServer() {
+func (helper *Helper) StartPulseServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.PulseInterval = 1
-	helper.Env().Config.PulseServer.CheckInterval = 1
 	helper.PulseServer = server.NewPulseServer()
 	go func() {
 		glog.V(10).Info("Test pulse server started")
-		helper.PulseServer.Start(context.Background())
+		helper.PulseServer.Start(ctx)
 		glog.V(10).Info("Test pulse server stopped")
 	}()
 }
