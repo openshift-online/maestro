@@ -61,7 +61,7 @@ func (d *Resource) GetDeletionTimestamp() *metav1.Time {
 
 type ResourcePatchRequest struct{}
 
-func JSONMapStausToResourceStatus(jsonMapStatus datatypes.JSONMap) (*ResourceStatus, error) {
+func JSONMapStatusToResourceStatus(jsonMapStatus datatypes.JSONMap) (*ResourceStatus, error) {
 	resourceStatusJSON, err := json.Marshal(jsonMapStatus)
 	if err != nil {
 		return nil, errors.GeneralError("Unable to marshal resource jsonmap status: %s", err)

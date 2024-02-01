@@ -54,7 +54,7 @@ func SendAPI(w http.ResponseWriter, r *http.Request) {
 	// Send the response:
 	_, err = w.Write(data)
 	if err != nil {
-		err = fmt.Errorf("Can't send response body for request '%s'", r.URL.Path)
+		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
 		glog.Error(err)
 		sentry.CaptureException(err)
 		return

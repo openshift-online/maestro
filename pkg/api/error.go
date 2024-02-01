@@ -39,7 +39,7 @@ func SendNotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	_, err = w.Write(data)
 	if err != nil {
-		err = fmt.Errorf("Can't send response body for request '%s'", r.URL.Path)
+		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
 		glog.Error(err)
 		sentry.CaptureException(err)
 		return
@@ -61,7 +61,7 @@ func SendUnauthorized(w http.ResponseWriter, r *http.Request, message string) {
 	w.WriteHeader(http.StatusUnauthorized)
 	_, err = w.Write(data)
 	if err != nil {
-		err = fmt.Errorf("Can't send response body for request '%s'", r.URL.Path)
+		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
 		glog.Error(err)
 		sentry.CaptureException(err)
 		return
@@ -74,7 +74,7 @@ func SendPanic(w http.ResponseWriter, r *http.Request) {
 	_, err := w.Write(panicBody)
 	if err != nil {
 		err = fmt.Errorf(
-			"Can't send panic response for request '%s': %s",
+			"cannot send panic response for request '%s': %s",
 			r.URL.Path,
 			err.Error(),
 		)
@@ -106,7 +106,7 @@ func init() {
 	panicBody, err = json.Marshal(panicError)
 	if err != nil {
 		err = fmt.Errorf(
-			"Can't create the panic error body: %s",
+			"cannot create the panic error body: %s",
 			err.Error(),
 		)
 		glog.Error(err)
