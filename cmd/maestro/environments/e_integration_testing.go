@@ -53,6 +53,6 @@ func (e *testingEnvImpl) Flags() map[string]string {
 		"ocm-debug":            "false",
 		"enable-ocm-mock":      "true",
 		"enable-sentry":        "false",
-		"source-id":            "maestro-integration",
+		"source-id":            "maestro",
 	}
 }

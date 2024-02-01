@@ -10,19 +10,19 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
-	"k8s.io/apimachinery/pkg/api/meta"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
 // SourceClient is an interface for publishing resource events to consumers
-// and resyncing resource status from consumers.
+// subscribing to and resyncing resource status from consumers.
 type SourceClient interface {
 	OnCreate(ctx context.Context, id string) error
 	OnUpdate(ctx context.Context, id string) error
 	OnDelete(ctx context.Context, id string) error
-	Resync(ctx context.Context) error
+	Subscribe(ctx context.Context, handlers ...cegeneric.ResourceHandler[*api.Resource])
+	Resync(ctx context.Context, consumers []string) error
 }
 
 type SourceClientImpl struct {
@@ -39,35 +39,6 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 	if err != nil {
 		return nil, err
 	}
-
-	logger := logger.NewOCMLogger(ctx)
-	go func() {
-		ceSourceClient.Subscribe(ctx, func(action cetypes.ResourceAction, resource *api.Resource) error {
-			logger.Infof("received action %s for resource %s", action, resource.ID)
-			switch action {
-			case cetypes.StatusModified:
-				resourceStatus, error := api.JSONMapStausToResourceStatus(resource.Status)
-				if error != nil {
-					return error
-				}
-
-				// if the resource has been deleted from agent, delete it from maestro
-				if resourceStatus.ReconcileStatus != nil && meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, "Deleted") {
-					if err := resourceService.Delete(ctx, resource.ID); err != nil {
-						return err
-					}
-				} else {
-					// update the resource status
-					if _, err := resourceService.UpdateStatus(ctx, resource); err != nil {
-						return err
-					}
-				}
-			default:
-				return fmt.Errorf("unsupported action %s", action)
-			}
-			return nil
-		})
-	}()
 
 	return &SourceClientImpl{
 		Codec:                  codec,
@@ -144,12 +115,22 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *SourceClientImpl) Resync(ctx context.Context) error {
+func (s *SourceClientImpl) Subscribe(ctx context.Context, handlers ...cegeneric.ResourceHandler[*api.Resource]) {
+	s.CloudEventSourceClient.Subscribe(ctx, handlers...)
+}
+
+func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error {
 	logger := logger.NewOCMLogger(ctx)
 
 	logger.Infof("Resyncing resource status from consumers")
-	// TODO: optimize this to only resync resource status for specific consumers
-	return s.CloudEventSourceClient.Resync(ctx, cetypes.ListOptions{})
+
+	for _, consumer := range consumers {
+		if err := s.CloudEventSourceClient.Resync(ctx, consumer); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {

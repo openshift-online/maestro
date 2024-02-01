@@ -56,7 +56,8 @@ func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, obj
 				},
 			},
 			UpdateStrategy: &workv1.UpdateStrategy{
-				Type: workv1.UpdateStrategyTypeUpdate,
+				// TODO support external configuration, e.g. configure this through manifest annotations
+				Type: workv1.UpdateStrategyTypeServerSideApply,
 			},
 		},
 	}

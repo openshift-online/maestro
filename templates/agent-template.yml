@@ -284,7 +284,7 @@ objects:
         containers:
         - name: maestro-agent
           image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command:
             - /usr/local/bin/maestro
             - agent
@@ -310,6 +310,9 @@ objects:
       caFile: ${MQTT_ROOT_CERT}
       clientCertFile: ${MQTT_CLENT_CERT}
       clientKeyFile: ${MQTT_CLENT_KEY}
+      topics:
+        sourceEvents: sources/maestro/consumers/${CONSUMER_ID}/sourceevents
+        agentEvents: sources/maestro/consumers/${CONSUMER_ID}/agentevents
 
 - kind: ServiceAccount
   apiVersion: v1

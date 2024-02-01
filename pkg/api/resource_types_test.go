@@ -123,7 +123,7 @@ func TestJSONMapStausToResourceStatus(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual, err := JSONMapStausToResourceStatus(tc.input)
+			actual, err := JSONMapStatusToResourceStatus(tc.input)
 			Expect(err).To(BeNil())
 
 			Expect(actual.ContentStatus).To(Equal(tc.expected.ContentStatus))

@@ -14,7 +14,7 @@ oc:=oc
 # cluster will not pull the new image from the internal registry:
 version:=$(shell date +%s)
 # Tag for the image:
-image_tag:=$(version)
+image_tag ?= $(version)
 
 # The namespace and the environment are calculated from the name of the user to
 # avoid clashes in shared infrastructure:
@@ -31,8 +31,8 @@ container_tool ?= podman
 # inside the cluster. We need the external name to push the image, and the
 # internal name to pull it.
 external_apps_domain ?= apps-crc.testing
-external_image_registry=default-route-openshift-image-registry.$(external_apps_domain)
-internal_image_registry=image-registry.openshift-image-registry.svc:5000
+external_image_registry ?= default-route-openshift-image-registry.$(external_apps_domain)
+internal_image_registry ?= image-registry.openshift-image-registry.svc:5000
 
 # The name of the image repository needs to start with the name of an existing
 # namespace because when the image is pushed to the internal registry of a
@@ -40,7 +40,7 @@ internal_image_registry=image-registry.openshift-image-registry.svc:5000
 # corresponding image stream inside that namespace. If the namespace doesn't
 # exist the push fails. This doesn't apply when the image is pushed to a public
 # repository, like `docker.io` or `quay.io`.
-image_repository:=$(namespace)/maestro
+image_repository ?= $(namespace)/maestro
 
 # Database connection details
 db_name:=maestro
@@ -76,6 +76,11 @@ CLIENT_SECRET ?= maestro
 # Enable JWT token verify and authz middleware
 ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
+ENABLE_OCM_MOCK ?= false
+
+# Enable set images
+POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
+MQTT_IMAGE ?= docker.io/library/eclipse-mosquitto:2.0.18
 
 # Prints a list of useful targets.
 help:
@@ -261,6 +266,7 @@ cmds:
 		--param="DATABASE_PORT=$(db_port)" \
 		--param="DATABASE_USER=$(db_user)" \
 		--param="DATABASE_SSLMODE=$(db_sslmode)" \
+		--param="POSTGRES_IMAGE=$(POSTGRES_IMAGE)" \
 		--param="MQTT_HOST=$(mqtt_host)" \
 		--param="MQTT_PORT=$(mqtt_port)" \
 		--param="MQTT_USER=$(mqtt_user)" \
@@ -268,6 +274,7 @@ cmds:
 		--param="MQTT_ROOT_CERT=" \
 		--param="MQTT_CLIENT_CERT=" \
 		--param="MQTT_CLIENT_KEY=" \
+		--param="MQTT_IMAGE=$(MQTT_IMAGE)" \
 		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \
@@ -287,6 +294,7 @@ cmds:
 		--param="AGENT_NAMESPACE=${agent_namespace}" \
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_ID=$(consumer_id)" \
+		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
 	> "templates/$*-template.json"
 
 
@@ -307,18 +315,18 @@ push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
 deploy-%: project %-template
-	$(oc) apply --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
+	$(oc) apply -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
 
 undeploy-%: project %-template
-	$(oc) delete --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
+	$(oc) delete -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
 
 .PHONY: deploy-agent
 deploy-agent: push agent-project agent-template
-	$(oc) apply --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
+	$(oc) apply -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
 
 .PHONY: undeploy-agent
 undeploy-agent: agent-project agent-template
-	$(oc) delete --filename="templates/agent-template.json" | egrep --color=auto 'deleted|$$'
+	$(oc) delete -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'deleted|$$'
 
 .PHONY: template
 template: \
@@ -368,11 +376,11 @@ db/teardown:
 
 .PHONY: mqtt/prepare
 mqtt/prepare:
-	@echo $(shell LC_CTYPE=C && cat /dev/urandom | tr -dc 'a-zA-Z0-9' | head -c 13) > $(mqtt_password_file)
+	@echo $(shell LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 13) > $(mqtt_password_file)
 
 .PHONY: mqtt/setup
 mqtt/setup: mqtt/prepare
-	@echo '{"brokerHost": "localhost:1883", "username": "$(mqtt_user)", "password": "$(shell cat $(mqtt_password_file))"}' > $(mqtt_config_file)
+	@echo '{"brokerHost":"localhost:1883","username":"$(mqtt_user)","password":"$(shell cat $(mqtt_password_file))","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > $(mqtt_config_file)
 	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(mqtt_image) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mqtt_user) $(shell cat $(mqtt_password_file))
 	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mqtt_image)
 
@@ -386,3 +394,17 @@ crc/login:
 	@crc console --credentials -ojson | jq -r .clusterConfig.adminCredentials.password | oc login --username kubeadmin --insecure-skip-tls-verify=true https://api.crc.testing:6443
 	@oc whoami --show-token | $(container_tool) login --username kubeadmin --password-stdin "$(external_image_registry)"
 .PHONY: crc/login
+
+e2e-test/setup:
+	./test/e2e/setup/e2e_setup.sh
+.PHONY: e2e-test/setup
+
+e2e-test/teardown:
+	./test/e2e/setup/e2e_teardown.sh
+.PHONY: e2e-test/teardown
+
+e2e-test: e2e-test/teardown e2e-test/setup
+	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
+	${PWD}/test/e2e/pkg -- -consumer_id=$(shell cat ${PWD}/test/e2e/.consumer_id) \
+	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 -kubeconfig=${PWD}/test/e2e/.kubeconfig
+.PHONY: e2e-test

@@ -154,12 +154,12 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, nil
 	}
 
-	resourceStatus, err := api.JSONMapStausToResourceStatus(resource.Status)
+	resourceStatus, err := api.JSONMapStatusToResourceStatus(resource.Status)
 	if err != nil {
 		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
 	}
 
-	foundStatus, err := api.JSONMapStausToResourceStatus(found.Status)
+	foundStatus, err := api.JSONMapStatusToResourceStatus(found.Status)
 	if err != nil {
 		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
 	}
