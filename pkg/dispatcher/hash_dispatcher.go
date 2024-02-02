@@ -55,7 +55,7 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 	go d.startStatusResyncWorkers(ctx)
 
 	// start a goroutine to periodically check the instances and consumers.
-	go wait.Until(d.check, 5*time.Second, ctx.Done())
+	go wait.UntilWithContext(ctx, d.check, 5*time.Second)
 
 	// wait until context is canceled
 	<-ctx.Done()
@@ -170,8 +170,7 @@ func (d *HashDispatcher) startStatusResyncWorkers(ctx context.Context) {
 }
 
 // check checks the instances & consumers and updates the hashing ring and consumer set for the current instance.
-func (d *HashDispatcher) check() {
-	ctx := context.TODO()
+func (d *HashDispatcher) check(ctx context.Context) {
 	log := logger.NewOCMLogger(ctx)
 
 	instances, err := d.instanceDao.All(ctx)
