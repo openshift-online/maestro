@@ -46,3 +46,20 @@ func TestResourceFindByConsumerID(t *testing.T) {
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(breviceratops)).To(gm.Equal(1))
 }
+
+func TestCreateInvalidResource(t *testing.T) {
+	gm.RegisterTestingT(t)
+
+	resourceDAO := mocks.NewResourceDao()
+	events := NewEventService(mocks.NewEventDao())
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events)
+
+	resource := &api.Resource{ConsumerID: "invalidation", Manifest: newManifest(t, "{}")}
+
+	_, err := resourceService.Create(context.Background(), resource)
+	gm.Expect(err).ShouldNot(gm.BeNil())
+
+	invalidations, err := resourceService.FindByConsumerIDs(context.Background(), "invalidation")
+	gm.Expect(err).To(gm.BeNil())
+	gm.Expect(len(invalidations)).To(gm.Equal(0))
+}
