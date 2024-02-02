@@ -55,13 +55,13 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 }
 
 func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
+	if err := ValidateManifest(resource.Manifest); err != nil {
+		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
+	}
+
 	resource, err := s.resourceDao.Create(ctx, resource)
 	if err != nil {
 		return nil, handleCreateError("Resource", err)
-	}
-
-	if err := ValidateManifest(resource.Manifest); err != nil {
-		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
 	}
 
 	_, eErr := s.events.Create(ctx, &api.Event{
