@@ -14,8 +14,8 @@ import (
 
 var dbConfig = config.NewDatabaseConfig()
 
-// migrate sub-command handles running migrations
-func NewMigrateCommand() *cobra.Command {
+// migration sub-command handles running migrations
+func NewMigrationCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "migration",
 		Short: "Run maestro service data migrations",
