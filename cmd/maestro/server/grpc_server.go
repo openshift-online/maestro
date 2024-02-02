@@ -3,7 +3,6 @@ package server
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
@@ -60,7 +59,9 @@ func NewGRPCServer(resourceService services.ResourceService, config config.GRPCS
 			glog.Fatalf("Failed to generate credentials %v", err)
 		}
 		grpcServerOptions = append(grpcServerOptions, grpc.Creds(creds))
-		glog.Infof("Serving gRPC with TLS at %s", config.BindAddress)
+		glog.Infof("Serving gRPC service with TLS at %s", config.BindAddress)
+	} else {
+		glog.Infof("Serving gRPC service without TLS at %s", config.BindAddress)
 	}
 
 	return &GRPCServer{
@@ -74,7 +75,7 @@ func NewGRPCServer(resourceService services.ResourceService, config config.GRPCS
 func (svr *GRPCServer) Start() error {
 	lis, err := net.Listen("tcp", svr.bindAddress)
 	if err != nil {
-		log.Printf("failed to listen: %v", err)
+		glog.Fatalf("failed to listen: %v", err)
 		return err
 	}
 	pbv1.RegisterCloudEventServiceServer(svr.grpcServer, svr)

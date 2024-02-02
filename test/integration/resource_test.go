@@ -546,7 +546,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	// Resync the resource status
 	ceSourceClient, ok := h.Env().Clients.CloudEventsSource.(*cloudevents.SourceClientImpl)
 	Expect(ok).To(BeTrue())
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, types.ListOptions{})).NotTo(HaveOccurred())
+	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.ID)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		resource, _, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, newRes.ID).Execute()

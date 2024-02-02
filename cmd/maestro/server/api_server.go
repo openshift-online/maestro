@@ -123,8 +123,10 @@ func NewAPIServer() Server {
 		Handler: mainHandler,
 	}
 
-	s.grpcServer = NewGRPCServer(env().Services.Resources(), *env().Config.GRPCServer)
-
+	// TODO: support authn and authz for gRPC
+	if env().Config.GRPCServer.EnableGRPCServer {
+		s.grpcServer = NewGRPCServer(env().Services.Resources(), *env().Config.GRPCServer)
+	}
 	return s
 }
 
@@ -163,9 +165,11 @@ func (s apiServer) Listen() (listener net.Listener, err error) {
 // Start listening on the configured port and start the server. This is a convenience wrapper for Listen() and Serve(listener Listener)
 func (s apiServer) Start() {
 
-	// start the grpc server
-	defer s.grpcServer.Stop()
-	go s.grpcServer.Start()
+	if env().Config.GRPCServer.EnableGRPCServer {
+		// start the grpc server
+		defer s.grpcServer.Stop()
+		go s.grpcServer.Start()
+	}
 
 	listener, err := s.Listen()
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 )
 
-func NewServeCommand() *cobra.Command {
+func NewServerCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
 		Short: "Start the maestro server",
