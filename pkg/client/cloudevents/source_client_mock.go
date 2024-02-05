@@ -2,7 +2,6 @@ package cloudevents
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/bwmarrin/snowflake"
@@ -59,13 +58,10 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 		},
 	}
 
-	resourceStatusJSON, err := json.Marshal(resourceStatus)
+	var err error
+	resource.Status, err = api.ResourceStatusToJSONMap(resourceStatus)
 	if err != nil {
-		return fmt.Errorf("failed to marshal resource status: %v", err)
-	}
-	err = json.Unmarshal(resourceStatusJSON, &resource.Status)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal resource status: %v", err)
+		return fmt.Errorf("failed to convert resource status: %v", err)
 	}
 
 	newResource, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
@@ -87,13 +83,9 @@ func (s *SourceClientMock) OnUpdate(ctx context.Context, id string) error {
 	found := false
 	for i, r := range s.resources {
 		if r.ID == resource.ID {
-			resourceStatusJSON, err := json.Marshal(resource.Status)
+			resourceStatus, err := api.JSONMapStatusToResourceStatus(resource.Status)
 			if err != nil {
-				return fmt.Errorf("failed to marshal resource status: %v", err)
-			}
-			resourceStatus := &api.ResourceStatus{}
-			if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
-				return fmt.Errorf("failed to unmarshal resource status: %v", err)
+				return fmt.Errorf("failed to convert resource status: %v", err)
 			}
 			if resourceStatus.ReconcileStatus == nil {
 				resourceStatus.ReconcileStatus = &api.ReconcileStatus{}
@@ -110,13 +102,9 @@ func (s *SourceClientMock) OnUpdate(ctx context.Context, id string) error {
 			}
 
 			resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, condition)
-			resourceStatusJSON, err = json.Marshal(resourceStatus)
+			resource.Status, err = api.ResourceStatusToJSONMap(resourceStatus)
 			if err != nil {
-				return fmt.Errorf("failed to marshal resource status: %v", err)
-			}
-			err = json.Unmarshal(resourceStatusJSON, &resource.Status)
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal resource status: %v", err)
+				return fmt.Errorf("failed to convert resource status: %v", err)
 			}
 
 			newResource, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
