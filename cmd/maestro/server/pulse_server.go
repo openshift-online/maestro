@@ -68,17 +68,17 @@ func (s *PulseServer) Start(ctx context.Context) {
 	go s.statusDispatcher.Start(ctx)
 
 	// start a goroutine to periodically update heartbeat for the current maestro instance
-	go wait.Until(s.pulse, time.Duration(s.pulseInterval*int64(time.Second)), ctx.Done())
+	go wait.UntilWithContext(ctx, s.pulse, time.Duration(s.pulseInterval*int64(time.Second)))
 
 	// start a goroutine to periodically check the liveness of maestro instances
-	go wait.Until(s.checkInstances, time.Duration(s.pulseInterval/3*int64(time.Second)), ctx.Done())
+	go wait.UntilWithContext(ctx, s.checkInstances, time.Duration(s.pulseInterval/3*int64(time.Second)))
 
 	// wait until context is canceled
 	<-ctx.Done()
 	log.Infof("Shutting down pulse server")
 }
 
-func (s *PulseServer) pulse() {
+func (s *PulseServer) pulse(ctx context.Context) {
 	log.V(4).Infof("Updating heartbeat for maestro instance: %s", s.instanceID)
 	instance := &api.ServerInstance{
 		Meta: api.Meta{
@@ -86,15 +86,14 @@ func (s *PulseServer) pulse() {
 			UpdatedAt: time.Now(),
 		},
 	}
-	_, err := s.instanceDao.UpSert(context.TODO(), instance)
+	_, err := s.instanceDao.UpSert(ctx, instance)
 	if err != nil {
 		log.Error(fmt.Sprintf("Unable to upsert maestro instance: %s", err.Error()))
 	}
 }
 
-func (s *PulseServer) checkInstances() {
+func (s *PulseServer) checkInstances(ctx context.Context) {
 	log.V(4).Infof("Checking liveness of maestro instances")
-	ctx := context.TODO()
 	// lock the Instance with a fail-fast advisory lock context.
 	// this allows concurrent processing of many instances by one or more maestro instances exclusively.
 	lockOwnerID, acquired, err := s.lockFactory.NewNonBlockingLock(ctx, "maestro-instances-pulse-check", db.Instances)
