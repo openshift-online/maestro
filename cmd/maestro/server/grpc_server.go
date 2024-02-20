@@ -15,6 +15,8 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubetypes "k8s.io/apimachinery/pkg/types"
 	workv1 "open-cluster-management.io/api/work/v1"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
@@ -105,24 +107,21 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
-
 	switch action {
-
 	case config.CreateRequestAction:
-		_, err := svr.resourceService.Create(ctx, res)
-		if err != nil {
+		if _, err := svr.resourceService.Create(ctx, res); err != nil {
 			return nil, fmt.Errorf("failed to create resource: %v", err)
 		}
 	case config.UpdateRequestAction:
-		_, err := svr.resourceService.Update(ctx, res)
-		if err != nil {
+		if _, err := svr.resourceService.Update(ctx, res); err != nil {
 			return nil, fmt.Errorf("failed to update resource: %v", err)
 		}
 	case config.DeleteRequestAction:
-		err := svr.resourceService.MarkAsDeleting(ctx, res.ID)
-		if err != nil {
+		if err := svr.resourceService.MarkAsDeleting(ctx, res.ID); err != nil {
 			return nil, fmt.Errorf("failed to update resource: %v", err)
 		}
+	default:
+		return nil, fmt.Errorf("unsupported action %s", action)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -173,29 +172,47 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 		return nil, "", fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	if eventType.CloudEventsDataType != payload.ManifestEventDataType {
-		return nil, "", fmt.Errorf("unsupported cloudevents data type %s", eventType.CloudEventsDataType)
-	}
-
 	evtExtensions := evt.Context.GetExtensions()
-
 	clusterName, err := cloudeventstypes.ToString(evtExtensions[types.ExtensionClusterName])
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get clustername extension: %v", err)
 	}
 
-	manifest := &payload.Manifest{}
-	if err := evt.DataAs(manifest); err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshal event data %s, %v", string(evt.Data()), err)
-	}
-
 	resource := &api.Resource{
 		ConsumerID: clusterName,
-		// Version:    resourceVersion,
-		Manifest: manifest.Manifest.Object,
 	}
 
-	if eventType.Action == config.UpdateRequestAction || eventType.Action == config.DeleteRequestAction {
+	if deletionTimestampValue, exists := evtExtensions[types.ExtensionDeletionTimestamp]; exists {
+		deletionTimestamp, err := cloudeventstypes.ToTime(deletionTimestampValue)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to convert deletion timestamp %v to time.Time: %v", deletionTimestampValue, err)
+		}
+		resource.Meta.DeletedAt.Time = deletionTimestamp
+	}
+
+	switch eventType.CloudEventsDataType {
+	case payload.ManifestEventDataType:
+		manifest := &payload.Manifest{}
+		if err := evt.DataAs(manifest); err != nil {
+			return nil, "", fmt.Errorf("failed to unmarshal event data %s, %v", string(evt.Data()), err)
+		}
+
+		resource.Manifest = manifest.Manifest.Object
+		if eventType.Action == config.UpdateRequestAction || eventType.Action == config.DeleteRequestAction {
+			resourceID, err := cloudeventstypes.ToString(evtExtensions[types.ExtensionResourceID])
+			if err != nil {
+				return nil, "", fmt.Errorf("failed to get resourceid extension: %v", err)
+			}
+
+			resourceVersion, err := cloudeventstypes.ToInteger(evtExtensions[types.ExtensionResourceVersion])
+			if err != nil {
+				return nil, "", fmt.Errorf("failed to get resourceversion extension: %v", err)
+			}
+
+			resource.ID = resourceID
+			resource.Version = int32(resourceVersion)
+		}
+	case payload.ManifestBundleEventDataType:
 		resourceID, err := cloudeventstypes.ToString(evtExtensions[types.ExtensionResourceID])
 		if err != nil {
 			return nil, "", fmt.Errorf("failed to get resourceid extension: %v", err)
@@ -208,14 +225,40 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 
 		resource.ID = resourceID
 		resource.Version = int32(resourceVersion)
-	}
 
-	if deletionTimestampValue, exists := evtExtensions[types.ExtensionDeletionTimestamp]; exists {
-		deletionTimestamp, err := cloudeventstypes.ToTime(deletionTimestampValue)
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to convert deletion timestamp %v to time.Time: %v", deletionTimestampValue, err)
+		manifestBundle := &payload.ManifestBundle{}
+		if err := evt.DataAs(manifestBundle); err != nil {
+			return nil, "", fmt.Errorf("failed to unmarshal event data %s, %v", string(evt.Data()), err)
 		}
-		resource.Meta.DeletedAt.Time = deletionTimestamp
+
+		work := &workv1.ManifestWork{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ManifestWork",
+				APIVersion: "work.open-cluster-management.io/v1",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: resourceID,
+				UID:  kubetypes.UID(resourceID),
+			},
+			Spec: workv1.ManifestWorkSpec{
+				Workload: workv1.ManifestsTemplate{
+					Manifests: manifestBundle.Manifests,
+				},
+				DeleteOption:    manifestBundle.DeleteOption,
+				ManifestConfigs: manifestBundle.ManifestConfigs,
+			},
+		}
+
+		workJSON, err := json.Marshal(work)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to marshal manifestwork: %v", err)
+		}
+		err = json.Unmarshal(workJSON, &resource.Manifest)
+		if err != nil {
+			return nil, "", fmt.Errorf("failed to unmarshal manifestwork: %v", err)
+		}
+	default:
+		return nil, "", fmt.Errorf("unsupported cloudevents data type %s", eventType.CloudEventsDataType)
 	}
 
 	return resource, eventType.Action, nil
@@ -223,10 +266,22 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 
 func encode(resource *api.Resource) (*cloudevents.Event, error) {
 	source := env().Config.MessageBroker.SourceID
+
+	bundle := false
+	if resource.Manifest != nil {
+		if kind, ok := resource.Manifest["kind"]; ok && kind == "ManifestWork" {
+			bundle = true
+		}
+	}
+
 	eventType := types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceStatus,
 		Action:              config.UpdateRequestAction,
+	}
+
+	if bundle {
+		eventType.CloudEventsDataType = payload.ManifestBundleEventDataType
 	}
 
 	evt := types.NewEventBuilder(source, eventType).
@@ -235,41 +290,74 @@ func encode(resource *api.Resource) (*cloudevents.Event, error) {
 		WithClusterName(resource.ConsumerID).
 		NewEvent()
 
-	resourceStatusJSON, err := json.Marshal(resource.Status)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal resource status, %v", err)
-	}
-	resourceStatus := &api.ResourceStatus{}
-	if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal resource status, %v", err)
-	}
+	if bundle {
+		statusJSON, err := json.Marshal(resource.Status)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal resource status, %v", err)
+		}
+		resourceStatus := &api.ResourceStatus{}
+		if err := json.Unmarshal(statusJSON, resourceStatus); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal resource status, %v", err)
+		}
 
-	contentStatusJSON, err := json.Marshal(resourceStatus.ContentStatus)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal content status, %v", err)
-	}
-	contentStatusJSONStr := string(contentStatusJSON)
-
-	statusPayload := &payload.ManifestStatus{
-		Conditions: resourceStatus.ReconcileStatus.Conditions,
-		Status: &workv1.ManifestCondition{
+		statusPayload := &payload.ManifestBundleStatus{
 			Conditions: resourceStatus.ReconcileStatus.Conditions,
-			StatusFeedbacks: workv1.StatusFeedbackResult{
-				Values: []workv1.FeedbackValue{
-					{
-						Name: "status",
-						Value: workv1.FieldValue{
-							Type:    workv1.JsonRaw,
-							JsonRaw: &contentStatusJSONStr,
+		}
+
+		contentStatusMap := map[string]interface{}(resourceStatus.ContentStatus)
+		manifestStatus, ok := contentStatusMap["resourceStatus"]
+		if !ok {
+			return nil, fmt.Errorf("resource status not found in content status")
+		}
+		manifestStatusJSON, err := json.Marshal(manifestStatus)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal content status, %v", err)
+		}
+		err = json.Unmarshal(manifestStatusJSON, &statusPayload.ResourceStatus)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal content status, %v", err)
+		}
+
+		if err := evt.SetData(cloudevents.ApplicationJSON, statusPayload); err != nil {
+			return nil, fmt.Errorf("failed to encode manifestwork status to a cloudevent: %v", err)
+		}
+	} else {
+		resourceStatusJSON, err := json.Marshal(resource.Status)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal resource status, %v", err)
+		}
+		resourceStatus := &api.ResourceStatus{}
+		if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal resource status, %v", err)
+		}
+
+		contentStatusJSON, err := json.Marshal(resourceStatus.ContentStatus)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal content status, %v", err)
+		}
+		contentStatusJSONStr := string(contentStatusJSON)
+
+		statusPayload := &payload.ManifestStatus{
+			Conditions: resourceStatus.ReconcileStatus.Conditions,
+			Status: &workv1.ManifestCondition{
+				Conditions: resourceStatus.ReconcileStatus.Conditions,
+				StatusFeedbacks: workv1.StatusFeedbackResult{
+					Values: []workv1.FeedbackValue{
+						{
+							Name: "status",
+							Value: workv1.FieldValue{
+								Type:    workv1.JsonRaw,
+								JsonRaw: &contentStatusJSONStr,
+							},
 						},
 					},
 				},
 			},
-		},
-	}
+		}
 
-	if err := evt.SetData(cloudevents.ApplicationJSON, statusPayload); err != nil {
-		return nil, fmt.Errorf("failed to encode manifestwork status to a cloudevent: %v", err)
+		if err := evt.SetData(cloudevents.ApplicationJSON, statusPayload); err != nil {
+			return nil, fmt.Errorf("failed to encode manifestwork status to a cloudevent: %v", err)
+		}
 	}
 
 	return &evt, nil

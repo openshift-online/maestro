@@ -43,7 +43,10 @@ func (l ResourceList) Index() ResourceIndex {
 }
 
 func (d *Resource) BeforeCreate(tx *gorm.DB) error {
-	d.ID = NewID()
+	// generate a new ID if it doesn't exist
+	if d.ID == "" {
+		d.ID = NewID()
+	}
 	return nil
 }
 

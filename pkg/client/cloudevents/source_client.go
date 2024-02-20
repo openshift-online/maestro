@@ -27,21 +27,23 @@ type SourceClient interface {
 
 type SourceClientImpl struct {
 	Codec                  cegeneric.Codec[*api.Resource]
+	BundleCodec            cegeneric.Codec[*api.Resource]
 	CloudEventSourceClient *cegeneric.CloudEventSourceClient[*api.Resource]
 	ResourceService        services.ResourceService
 }
 
 func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService) (SourceClient, error) {
 	ctx := context.Background()
-	codec := &Codec{}
+	codec, bundleCodec := &Codec{}, &BundleCodec{}
 	ceSourceClient, err := cegeneric.NewCloudEventSourceClient[*api.Resource](ctx, sourceOptions,
-		resourceService, ResourceStatusHashGetter, codec)
+		resourceService, ResourceStatusHashGetter, codec, bundleCodec)
 	if err != nil {
 		return nil, err
 	}
 
 	return &SourceClientImpl{
 		Codec:                  codec,
+		BundleCodec:            bundleCodec,
 		CloudEventSourceClient: ceSourceClient,
 		ResourceService:        resourceService,
 	}, nil
@@ -55,11 +57,21 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 		return err
 	}
 
+	bundle := false
+	if resource.Manifest != nil {
+		if kind, ok := resource.Manifest["kind"]; ok && kind == "ManifestWork" {
+			bundle = true
+		}
+	}
+
 	logger.Infof("Publishing resource %s for db row insert", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("create_request"),
+	}
+	if bundle {
+		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
 		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
@@ -77,11 +89,21 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 		return err
 	}
 
+	bundle := false
+	if resource.Manifest != nil {
+		if kind, ok := resource.Manifest["kind"]; ok && kind == "ManifestWork" {
+			bundle = true
+		}
+	}
+
 	logger.Infof("Publishing resource %s for db row update", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("update_request"),
+	}
+	if bundle {
+		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
 		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
@@ -99,6 +121,13 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 		return err
 	}
 
+	bundle := false
+	if resource.Manifest != nil {
+		if kind, ok := resource.Manifest["kind"]; ok && kind == "ManifestWork" {
+			bundle = true
+		}
+	}
+
 	// mark the resource as deleting
 	resource.Meta.DeletedAt.Time = time.Now()
 	logger.Infof("Publishing resource %s for db row delete", resource.ID)
@@ -106,6 +135,9 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("delete_request"),
+	}
+	if bundle {
+		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
 		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
