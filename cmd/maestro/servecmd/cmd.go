@@ -11,6 +11,7 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
+	"github.com/openshift-online/maestro/pkg/event"
 )
 
 func NewServerCommand() *cobra.Command {
@@ -34,14 +35,19 @@ func runServer(cmd *cobra.Command, args []string) {
 		glog.Fatalf("Unable to initialize environment: %s", err.Error())
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// crate event hub to subscribe resource status update events
+	eventHub := event.NewEventHub()
+	// start the event hub
+	go eventHub.Start(ctx)
+
 	// Create the servers
-	apiserver := server.NewAPIServer()
+	apiserver := server.NewAPIServer(eventHub)
 	metricsServer := server.NewMetricsServer()
 	healthcheckServer := server.NewHealthCheckServer()
-	pulseServer := server.NewPulseServer()
+	pulseServer := server.NewPulseServer(eventHub)
 	controllersServer := server.NewControllersServer()
-
-	ctx, cancel := context.WithCancel(context.Background())
 
 	stopCh := make(chan os.Signal, 1)
 	signal.Notify(stopCh, syscall.SIGINT, syscall.SIGTERM)

@@ -357,7 +357,7 @@ objects:
         app: maestro
         port: api
       annotations:
-        description: Exposes and load balances the account manager pods
+        description: Exposes and load balances the maestro pods restful api endpoint
         service.alpha.openshift.io/serving-cert-secret-name: maestro-tls
     spec:
       selector:
@@ -365,6 +365,24 @@ objects:
       ports:
         - port: 8000
           targetPort: 8000
+          protocol: TCP
+
+  - kind: Service
+    apiVersion: v1
+    metadata:
+      name: maestro-grpc
+      labels:
+        app: maestro-grpc
+        port: grpc
+      annotations:
+        description: Exposes and load balances the maestro pods grpc endpoint
+        service.alpha.openshift.io/serving-cert-secret-name: maestro-tls
+    spec:
+      selector:
+        app: maestro
+      ports:
+        - port: 8090
+          targetPort: 8090
           protocol: TCP
 
   # Services for diagnostic ports (not part of main service because we

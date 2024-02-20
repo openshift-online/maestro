@@ -26,3 +26,18 @@ objects:
     tls:
       termination: reencrypt
       insecureEdgeTerminationPolicy: Redirect
+
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: maestro-grpc
+    labels:
+      app: maestro-grpc
+  spec:
+    host: maestro-grpc.${EXTERNAL_APPS_DOMAIN}
+    to:
+      kind: Service
+      name: maestro-grpc
+    tls:
+      termination: reencrypt
+      insecureEdgeTerminationPolicy: Redirect
