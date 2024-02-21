@@ -116,6 +116,7 @@ func NewHelper(t *testing.T) *Helper {
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
+		helper.startPulseServer(helper.Ctx)
 	})
 	helper.T = t
 	return helper
@@ -180,12 +181,12 @@ func (helper *Helper) startHealthCheckServer() {
 	}()
 }
 
-func (helper *Helper) StartPulseServer(ctx context.Context) {
+func (helper *Helper) startPulseServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.PulseInterval = 1
-	helper.PulseServer = server.NewPulseServer()
+	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
 	go func() {
 		glog.V(10).Info("Test pulse server started")
-		helper.PulseServer.Start(ctx)
+		server.NewPulseServer().Start(ctx)
 		glog.V(10).Info("Test pulse server stopped")
 	}()
 }

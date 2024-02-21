@@ -17,79 +17,8 @@ import (
 )
 
 func TestPulseServer(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
-	h, _ := test.RegisterIntegration(t)
-
-	h.StartPulseServer(ctx)
-	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
-	instanceID := &h.Env().Config.MessageBroker.ClientID
-
-	Eventually(func() error {
-		instances, err := instanceDao.All(ctx)
-		if err != nil {
-			return err
-		}
-
-		if len(instances) != 1 {
-			return fmt.Errorf("expected 1 instance, got %d", len(instances))
-		}
-
-		instance := instances[0]
-		if instance.UpdatedAt.IsZero() {
-			return fmt.Errorf("expected instance.UpdatedAt to be non-zero")
-		}
-
-		if instance.ID != *instanceID {
-			return fmt.Errorf("expected instance.ID to be %s, got %s", *instanceID, instance.ID)
-		}
-
-		return nil
-	}, 10*time.Second, 1*time.Second).Should(Succeed())
-
-	// insert two outdated instances
-	_, err := instanceDao.UpSert(ctx, &api.ServerInstance{
-		Meta: api.Meta{
-			ID:        "outdated1",
-			UpdatedAt: time.Now().Add(-2 * time.Minute),
-		},
-	})
-	Expect(err).NotTo(HaveOccurred())
-	_, err = instanceDao.UpSert(ctx, &api.ServerInstance{
-		Meta: api.Meta{
-			ID:        "outdated2",
-			UpdatedAt: time.Now().Add(-2 * time.Minute),
-		},
-	})
-	Expect(err).NotTo(HaveOccurred())
-
-	// check that the outdated instances are deleted
-	Eventually(func() error {
-		instances, err := instanceDao.All(ctx)
-		if err != nil {
-			return err
-		}
-
-		if len(instances) != 1 {
-			return fmt.Errorf("expected 1 instance, got %d", len(instances))
-		}
-
-		instance := instances[0]
-		if instance.UpdatedAt.IsZero() {
-			return fmt.Errorf("expected instance.UpdatedAt to be non-zero")
-		}
-
-		if instance.ID != *instanceID {
-			return fmt.Errorf("expected instance.ID to be %s, got %s", *instanceID, instance.ID)
-		}
-
-		return nil
-	}, 10*time.Second, 1*time.Second).Should(Succeed())
-}
-
-func TestPulseServerWithStatusDispatcher(t *testing.T) {
-	h, _ := test.RegisterIntegration(t)
-	account := h.NewRandAccount()
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
 	// insert two existing instances
@@ -106,8 +35,28 @@ func TestPulseServerWithStatusDispatcher(t *testing.T) {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	h.Env().Config.PulseServer.SubscriptionType = "broadcast"
-	h.StartPulseServer(ctx)
+	instanceID := &h.Env().Config.MessageBroker.ClientID
+	Eventually(func() error {
+		instances, err := instanceDao.All(ctx)
+		if err != nil {
+			return err
+		}
+
+		if len(instances) != 1 {
+			return fmt.Errorf("expected 1 instance, got %d", len(instances))
+		}
+
+		instance := instances[0]
+		if instance.UpdatedAt.IsZero() {
+			return fmt.Errorf("expected instance.UpdatedAt to be non-zero")
+		}
+
+		if instance.ID != *instanceID {
+			return fmt.Errorf("expected instance.ID to be %s, got %s", *instanceID, instance.ID)
+		}
+
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	clusterName := "cluster1"
 	consumer := h.NewConsumer(clusterName)
@@ -180,7 +129,4 @@ func TestPulseServerWithStatusDispatcher(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
 	Expect(newRes.Version).To(Equal(res.Version))
 	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
-
-	// make sure controller manager and work agent are stopped
-	cancel()
 }
