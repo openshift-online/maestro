@@ -117,6 +117,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update resource: %v", err)
 		}
+		// TODO: resync request
 	}
 
 	return &emptypb.Empty{}, nil

@@ -119,11 +119,6 @@ parameters:
   description: Server's public hostname
   value: ""
 
-- name: GRPC_SERVER_HOSTNAME
-  displayName: gRPC Server Hostname
-  description: gRPC Server's public hostname
-  value: ""
-
 - name: ENABLE_AUTHZ
   displayName: Enable Authz
   description: Enable Authorization on endpoints, should only be disabled for debug
@@ -304,7 +299,6 @@ objects:
             - --enable-https=${ENABLE_HTTPS}
             - --http-server-hostname=${HTTP_SERVER_HOSTNAME}
             - --http-server-bindaddress=${HTTP_SERVER_BINDADDRESS}
-            - --grpc-server-hostname=${GRPC_SERVER_HOSTNAME}
             - --grpc-server-bindaddress=${GRPC_SERVER_BINDADDRESS}
             - --health-check-server-bindaddress=${HEALTH_CHECK_SERVER_BINDADDRESS}
             - --enable-health-check-https=${ENABLE_HTTPS}
