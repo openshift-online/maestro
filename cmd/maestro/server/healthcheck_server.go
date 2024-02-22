@@ -31,7 +31,7 @@ func NewHealthCheckServer() *healthCheckServer {
 
 	srv := &http.Server{
 		Handler: router,
-		Addr:    env().Config.HealthCheck.BindAddress,
+		Addr:    env().Config.HTTPServer.Hostname + ":" + env().Config.HealthCheck.BindPort,
 	}
 
 	return &healthCheckServer{
@@ -50,10 +50,10 @@ func (s healthCheckServer) Start() {
 		}
 
 		// Serve with TLS
-		glog.Infof("Serving HealthCheck with TLS at %s", env().Config.HealthCheck.BindAddress)
+		glog.Infof("Serving HealthCheck with TLS at %s", env().Config.HealthCheck.BindPort)
 		err = s.httpServer.ListenAndServeTLS(env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		glog.Infof("Serving HealthCheck without TLS at %s", env().Config.HealthCheck.BindAddress)
+		glog.Infof("Serving HealthCheck without TLS at %s", env().Config.HealthCheck.BindPort)
 		err = s.httpServer.ListenAndServe()
 	}
 	check(err, "HealthCheck server terminated with errors")

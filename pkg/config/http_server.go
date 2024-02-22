@@ -8,7 +8,7 @@ import (
 
 type HTTPServerConfig struct {
 	Hostname      string        `json:"hostname"`
-	BindAddress   string        `json:"bind_address"`
+	BindPort      string        `json:"bind_port"`
 	ReadTimeout   time.Duration `json:"read_timeout"`
 	WriteTimeout  time.Duration `json:"write_timeout"`
 	HTTPSCertFile string        `json:"https_cert_file"`
@@ -23,8 +23,8 @@ type HTTPServerConfig struct {
 
 func NewHTTPServerConfig() *HTTPServerConfig {
 	return &HTTPServerConfig{
-		Hostname:      "",
-		BindAddress:   "localhost:8000",
+		Hostname:      "localhost",
+		BindPort:      "8000",
 		ReadTimeout:   5 * time.Second,
 		WriteTimeout:  30 * time.Second,
 		EnableHTTPS:   false,
@@ -39,8 +39,8 @@ func NewHTTPServerConfig() *HTTPServerConfig {
 }
 
 func (s *HTTPServerConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.StringVar(&s.BindAddress, "http-server-bindaddress", s.BindAddress, "HTTP server bind adddress")
-	fs.StringVar(&s.Hostname, "http-server-hostname", s.Hostname, "Server's public hostname")
+	fs.StringVar(&s.BindPort, "http-server-bindport", s.BindPort, "HTTP server bind port")
+	fs.StringVar(&s.Hostname, "server-hostname", s.Hostname, "Server's public hostname")
 	fs.DurationVar(&s.ReadTimeout, "http-read-timeout", s.ReadTimeout, "HTTP server read timeout")
 	fs.DurationVar(&s.WriteTimeout, "http-write-timeout", s.WriteTimeout, "HTTP server write timeout")
 	fs.StringVar(&s.HTTPSCertFile, "https-cert-file", s.HTTPSCertFile, "The path to the tls.crt file.")

@@ -94,25 +94,25 @@ parameters:
   description: Enable HTTPS rather than HTTP
   value: "true"
 
-- name: HTTP_SERVER_BINDADDRESS
-  displayName: HTTP Server Bindaddress
-  description: HTTP server bind adddress
-  value: :8000
+- name: HTTP_SERVER_BINDPORT
+  displayName: HTTP Server Bindport
+  description: HTTP server bind port
+  value: "8000"
 
-- name: GRPC_SERVER_BINDADDRESS
-  displayName: gRPC Server Bindaddress
-  description: gRPC server bind adddress
-  value: :8090
+- name: GRPC_SERVER_BINDPORT
+  displayName: gRPC Server Bindport
+  description: gRPC server bind port
+  value: "8090"
 
-- name: METRICS_SERVER_BINDADDRESS
-  displayName: Metrics Server Bindaddress
-  description: Metrics server bind adddress
-  value: :8080
+- name: METRICS_SERVER_BINDPORT
+  displayName: Metrics Server Bindport
+  description: Metrics server bind port
+  value: "8080"
 
-- name: HEALTH_CHECK_SERVER_BINDADDRESS
-  displayName: Health check Server Bindaddress
-  description: Health check server bind adddress
-  value: :8083
+- name: HEALTH_CHECK_SERVER_BINDPORT
+  displayName: Health check Server Bindport
+  description: Health check server bind port
+  value: "8083"
 
 - name: HTTP_SERVER_HOSTNAME
   displayName: HTTP Server Hostname
@@ -297,10 +297,10 @@ objects:
             - --jwk-cert-url=${JWKS_URL}
             - --enable-jwt=${ENABLE_JWT}
             - --enable-https=${ENABLE_HTTPS}
-            - --http-server-hostname=${HTTP_SERVER_HOSTNAME}
-            - --http-server-bindaddress=${HTTP_SERVER_BINDADDRESS}
-            - --grpc-server-bindaddress=${GRPC_SERVER_BINDADDRESS}
-            - --health-check-server-bindaddress=${HEALTH_CHECK_SERVER_BINDADDRESS}
+            - --server-hostname=${HTTP_SERVER_HOSTNAME}
+            - --http-server-bindport=${HTTP_SERVER_BINDPORT}
+            - --grpc-server-bindport=${GRPC_SERVER_BINDPORT}
+            - --health-check-server-bindport=${HEALTH_CHECK_SERVER_BINDPORT}
             - --enable-health-check-https=${ENABLE_HTTPS}
             - --db-sslmode=${DB_SSLMODE}
             - --db-max-open-connections=${DB_MAX_OPEN_CONNS}

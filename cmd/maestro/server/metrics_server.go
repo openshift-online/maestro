@@ -25,7 +25,7 @@ func NewMetricsServer() Server {
 
 	s := &metricsServer{}
 	s.httpServer = &http.Server{
-		Addr:    env().Config.Metrics.BindAddress,
+		Addr:    env().Config.HTTPServer.Hostname + ":" + env().Config.Metrics.BindPort,
 		Handler: mainHandler,
 	}
 	return s
@@ -56,10 +56,10 @@ func (s metricsServer) Start() {
 		}
 
 		// Serve with TLS
-		log.Infof("Serving Metrics with TLS at %s", env().Config.HTTPServer.BindAddress)
+		log.Infof("Serving Metrics with TLS at %s", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.ListenAndServeTLS(env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		log.Infof("Serving Metrics without TLS at %s", env().Config.Metrics.BindAddress)
+		log.Infof("Serving Metrics without TLS at %s", env().Config.Metrics.BindPort)
 		err = s.httpServer.ListenAndServe()
 	}
 	check(err, "Metrics server terminated with errors")

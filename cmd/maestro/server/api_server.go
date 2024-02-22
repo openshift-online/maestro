@@ -119,7 +119,7 @@ func NewAPIServer() Server {
 	mainHandler = removeTrailingSlash(mainHandler)
 
 	s.httpServer = &http.Server{
-		Addr:    env().Config.HTTPServer.BindAddress,
+		Addr:    env().Config.HTTPServer.Hostname + ":" + env().Config.HTTPServer.BindPort,
 		Handler: mainHandler,
 	}
 
@@ -144,10 +144,10 @@ func (s apiServer) Serve(listener net.Listener) {
 		}
 
 		// Serve with TLS
-		glog.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindAddress)
+		glog.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.ServeTLS(listener, env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		glog.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindAddress)
+		glog.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.Serve(listener)
 	}
 
@@ -159,7 +159,7 @@ func (s apiServer) Serve(listener net.Listener) {
 // Listen only start the listener, not the server.
 // Useful for breaking up ListenAndServer (Start) when you require the server to be listening before continuing
 func (s apiServer) Listen() (listener net.Listener, err error) {
-	return net.Listen("tcp", env().Config.HTTPServer.BindAddress)
+	return net.Listen("tcp", env().Config.HTTPServer.Hostname+":"+env().Config.HTTPServer.BindPort)
 }
 
 // Start listening on the configured port and start the server. This is a convenience wrapper for Listen() and Serve(listener Listener)

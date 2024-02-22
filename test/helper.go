@@ -271,15 +271,16 @@ func (helper *Helper) RestURL(path string) string {
 	if helper.AppConfig.HTTPServer.EnableHTTPS {
 		protocol = "https"
 	}
-	return fmt.Sprintf("%s://%s/api/maestro/v1%s", protocol, helper.AppConfig.HTTPServer.BindAddress, path)
+	return fmt.Sprintf("%s://%s:%s/api/maestro/v1%s", protocol, helper.AppConfig.HTTPServer.Hostname,
+		helper.AppConfig.HTTPServer.BindPort, path)
 }
 
 func (helper *Helper) MetricsURL(path string) string {
-	return fmt.Sprintf("http://%s%s", helper.AppConfig.Metrics.BindAddress, path)
+	return fmt.Sprintf("http://%s:%s%s", helper.AppConfig.HTTPServer.Hostname, helper.AppConfig.Metrics.BindPort, path)
 }
 
 func (helper *Helper) HealthCheckURL(path string) string {
-	return fmt.Sprintf("http://%s%s", helper.AppConfig.HealthCheck.BindAddress, path)
+	return fmt.Sprintf("http://%s:%s%s", helper.AppConfig.HTTPServer.Hostname, helper.AppConfig.HealthCheck.BindPort, path)
 }
 
 func (helper *Helper) NewApiClient() *openapi.APIClient {

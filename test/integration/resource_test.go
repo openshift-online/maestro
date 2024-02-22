@@ -419,7 +419,7 @@ func TestResourceFromGRPC(t *testing.T) {
 
 	// use grpc client to create resource
 	grpcOptions := grpcoptions.NewGRPCOptions()
-	grpcOptions.URL = h.Env().Config.GRPCServer.BindAddress
+	grpcOptions.URL = h.Env().Config.HTTPServer.Hostname + ":" + h.Env().Config.GRPCServer.BindPort
 	grpcSourceCloudEventsClient, err := generic.NewCloudEventSourceClient[*api.Resource](
 		ctx,
 		grpcoptions.NewSourceOptions(grpcOptions, "integration-grpc-test"),
