@@ -34,8 +34,8 @@ func main() {
 	}
 
 	// All subcommands under root
-	migrateCmd := migrate.NewMigrateCommand()
-	serveCmd := servecmd.NewServeCommand()
+	migrateCmd := migrate.NewMigrationCommand()
+	serveCmd := servecmd.NewServerCommand()
 	agentCmd := agent.NewAgentCommand()
 
 	// Add subcommand(s)
