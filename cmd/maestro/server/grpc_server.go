@@ -95,7 +95,7 @@ func (svr *GRPCServer) Stop() {
 
 // Publish implements the Publish method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest) (*emptypb.Empty, error) {
-	// pbEvt, err := pb.ToProto(evt)
+	// WARNING: don't use "evt, err := pb.FromProto(pubReq.Event)" to convert protobuf to cloudevent
 	evt, err := binding.ToEvent(ctx, grpcprotocol.NewMessage(pubReq.Event))
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert protobuf to cloudevent: %v", err)
@@ -129,6 +129,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	return &emptypb.Empty{}, nil
 }
 
+// Subscribe implements the Subscribe method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
 	topicSplits := strings.Split(subReq.Topic, "/")
 	if len(topicSplits) != 5 {
@@ -141,7 +142,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		return fmt.Errorf("invalid subscription topic %s", subReq.Topic)
 	}
 
-	eventClient := event.NewEventClient(clusterName)
+	eventClient := event.NewEventClient(source, clusterName)
 	svr.eventHub.Register(eventClient)
 	// unregister the event client when the subscription is closed
 	defer svr.eventHub.Unregister(eventClient)
@@ -153,7 +154,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
 
-		// pbEvt, err := pb.ToProto(evt)
+		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
 		if err = grpcprotocol.WritePBMessage(context.TODO(), binding.ToMessage(evt), pbEvt); err != nil {
 			return fmt.Errorf("failed to convert cloudevent to protobuf: %v", err)
@@ -191,6 +192,7 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 	}
 
 	resource := &api.Resource{
+		Source:     evt.Source(),
 		ConsumerID: clusterName,
 		// Version:    resourceVersion,
 		Manifest: manifest.Manifest.Object,

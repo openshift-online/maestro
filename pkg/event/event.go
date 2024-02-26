@@ -9,13 +9,15 @@ import (
 
 // EventClient is a client that can receive resource status change events.
 type EventClient struct {
+	source      string
 	clusterName string
 	resChan     chan *api.Resource
 }
 
 // NewEventClient creates a new event client.
-func NewEventClient(clusterName string) *EventClient {
+func NewEventClient(source, clusterName string) *EventClient {
 	return &EventClient{
+		source:      source,
 		clusterName: clusterName,
 		resChan:     make(chan *api.Resource),
 	}
@@ -76,7 +78,7 @@ func (h *EventHub) Start(ctx context.Context) {
 		case res := <-h.broadcast:
 			h.mu.RLock()
 			for client := range h.clients {
-				if client.clusterName == res.ConsumerID || client.clusterName == "+" {
+				if client.source == res.Source && (client.clusterName == res.ConsumerID || client.clusterName == "+") {
 					client.resChan <- res
 				}
 			}
