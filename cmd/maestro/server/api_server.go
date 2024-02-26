@@ -19,6 +19,7 @@ import (
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/data/generated/openapi"
 	"github.com/openshift-online/maestro/pkg/errors"
+	"github.com/openshift-online/maestro/pkg/event"
 )
 
 type apiServer struct {
@@ -32,7 +33,7 @@ func env() *environments.Env {
 	return environments.Environment()
 }
 
-func NewAPIServer() Server {
+func NewAPIServer(eventHub *event.EventHub) Server {
 	s := &apiServer{}
 
 	mainRouter := s.routes()
@@ -125,7 +126,7 @@ func NewAPIServer() Server {
 
 	// TODO: support authn and authz for gRPC
 	if env().Config.GRPCServer.EnableGRPCServer {
-		s.grpcServer = NewGRPCServer(env().Services.Resources(), *env().Config.GRPCServer)
+		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventHub, *env().Config.GRPCServer)
 	}
 	return s
 }

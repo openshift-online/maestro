@@ -12,6 +12,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
+	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -29,12 +30,13 @@ type PulseServer struct {
 	pulseInterval    int64
 	instanceDao      dao.InstanceDao
 	lockFactory      db.LockFactory
+	eventHub         *event.EventHub
 	resourceService  services.ResourceService
 	sourceClient     cloudevents.SourceClient
 	statusDispatcher dispatcher.Dispatcher
 }
 
-func NewPulseServer() *PulseServer {
+func NewPulseServer(eventHub *event.EventHub) *PulseServer {
 	var statusDispatcher dispatcher.Dispatcher
 	switch config.SubscriptionType(env().Config.PulseServer.SubscriptionType) {
 	case config.SharedSubscriptionType:
@@ -50,6 +52,7 @@ func NewPulseServer() *PulseServer {
 		pulseInterval:    env().Config.PulseServer.PulseInterval,
 		instanceDao:      dao.NewInstanceDao(&sessionFactory),
 		lockFactory:      db.NewAdvisoryLockFactory(sessionFactory),
+		eventHub:         eventHub,
 		resourceService:  env().Services.Resources(),
 		sourceClient:     env().Clients.CloudEventsSource,
 		statusDispatcher: statusDispatcher,
@@ -151,6 +154,9 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 				log.V(4).Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
 				return nil
 			}
+
+			// broadcast the resource status update event
+			s.eventHub.Broadcast(resource)
 
 			resourceStatus, error := api.JSONMapStatusToResourceStatus(resource.Status)
 			if error != nil {
