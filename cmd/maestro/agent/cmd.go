@@ -63,7 +63,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 	}()
 
 	// use mqtt as the default driver
-	agentOption.WorkloadSourceDriver.Type = spoke.MQTTDriver
+	agentOption.WorkloadSourceDriver.Type = options.MQTTDriver
 
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
 	cmdConfig := commonOptions.CommoOpts.
@@ -81,8 +81,11 @@ func addFlags(fs *pflag.FlagSet) {
 	fs.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "resource-eviction-grace-period",
 		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for resource eviction")
 	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-id", commonOptions.SpokeClusterName, "Id of the consumer")
-	// mqtt config file
-	fs.StringVar(&agentOption.WorkloadSourceDriver.Config, "mqtt-config-file",
-		agentOption.WorkloadSourceDriver.Config, "The config file path of mqtt broker")
-
+	// workload driver config
+	fs.StringVar(&agentOption.WorkloadSourceDriver.Type, "workload-driver-type",
+		agentOption.WorkloadSourceDriver.Type, "The driver type for workload source")
+	fs.StringVar(&agentOption.WorkloadSourceDriver.Config, "workload-driver-config-file",
+		agentOption.WorkloadSourceDriver.Config, "The config file path of workload driver")
+	fs.StringVar(&agentOption.WorkloadSourceDriver.Codec, "workload-driver-codec",
+		agentOption.WorkloadSourceDriver.Codec, "The workload codec for workload driver")
 }

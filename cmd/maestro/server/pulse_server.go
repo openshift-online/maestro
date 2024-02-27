@@ -18,6 +18,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 )
 
 var log = logger.NewOCMLogger(context.Background())
@@ -164,7 +165,7 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 			}
 
 			// if the resource has been deleted from agent, delete it from maestro
-			if resourceStatus.ReconcileStatus != nil && meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, "Deleted") {
+			if resourceStatus.ReconcileStatus != nil && meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, common.ManifestsDeleted) {
 				if err := s.resourceService.Delete(ctx, resource.ID); err != nil {
 					return err
 				}

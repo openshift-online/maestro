@@ -44,7 +44,10 @@ func (l ResourceList) Index() ResourceIndex {
 }
 
 func (d *Resource) BeforeCreate(tx *gorm.DB) error {
-	d.ID = NewID()
+	// generate a new ID if it doesn't exist
+	if d.ID == "" {
+		d.ID = NewID()
+	}
 	return nil
 }
 
@@ -58,6 +61,15 @@ func (d *Resource) GetResourceVersion() string {
 
 func (d *Resource) GetDeletionTimestamp() *metav1.Time {
 	return &metav1.Time{Time: d.Meta.DeletedAt.Time}
+}
+
+func (d *Resource) HasManifestBundle() bool {
+	if d.Manifest != nil {
+		if kind, ok := d.Manifest["kind"]; ok && kind == "ManifestWork" {
+			return true
+		}
+	}
+	return false
 }
 
 type ResourcePatchRequest struct{}

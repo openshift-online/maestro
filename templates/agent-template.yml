@@ -289,7 +289,9 @@ objects:
             - /usr/local/bin/maestro
             - agent
             - --consumer-id=${CONSUMER_ID}
-            - --mqtt-config-file=/secrets/mqtt/config.yaml
+            - --workload-driver-type=mqtt
+            - --workload-driver-config-file=/secrets/mqtt/config.yaml
+            - --workload-driver-codec=manifest
           volumeMounts:
           - name: mqtt
             mountPath: /secrets/mqtt

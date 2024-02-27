@@ -57,6 +57,16 @@ func (d *resourceDaoMock) FindByConsumerID(ctx context.Context, consumerID strin
 	return resources, nil
 }
 
+func (d *resourceDaoMock) FindBySource(ctx context.Context, source string) (api.ResourceList, error) {
+	var resources api.ResourceList
+	for _, resource := range d.resources {
+		if resource.Source == source {
+			resources = append(resources, resource)
+		}
+	}
+	return resources, nil
+}
+
 func (d *resourceDaoMock) All(ctx context.Context) (api.ResourceList, error) {
 	return d.resources, nil
 }

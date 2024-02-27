@@ -246,7 +246,7 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BindPort)
 	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
 		helper.Ctx,
-		grpcoptions.NewSourceOptions(grpcOptions, "integration-grpc-test"),
+		grpcoptions.NewSourceOptions(grpcOptions, "maestro"),
 		store,
 		resourceStatusHashGetter,
 		&ResourceCodec{},
