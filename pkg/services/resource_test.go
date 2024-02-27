@@ -34,15 +34,15 @@ func TestResourceFindByConsumerID(t *testing.T) {
 		_, err := resourceService.Create(context.Background(), resource)
 		gm.Expect(err).To(gm.BeNil())
 	}
-	fukuisaurus, err := resourceService.FindByConsumerIDs(context.Background(), Fukuisaurus)
+	fukuisaurus, err := resourceService.FindByConsumerID(context.Background(), Fukuisaurus)
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(fukuisaurus)).To(gm.Equal(3))
 
-	seismosaurus, err := resourceService.FindByConsumerIDs(context.Background(), Seismosaurus)
+	seismosaurus, err := resourceService.FindByConsumerID(context.Background(), Seismosaurus)
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(seismosaurus)).To(gm.Equal(2))
 
-	breviceratops, err := resourceService.FindByConsumerIDs(context.Background(), Breviceratops)
+	breviceratops, err := resourceService.FindByConsumerID(context.Background(), Breviceratops)
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(breviceratops)).To(gm.Equal(1))
 }
@@ -59,7 +59,7 @@ func TestCreateInvalidResource(t *testing.T) {
 	_, err := resourceService.Create(context.Background(), resource)
 	gm.Expect(err).ShouldNot(gm.BeNil())
 
-	invalidations, err := resourceService.FindByConsumerIDs(context.Background(), "invalidation")
+	invalidations, err := resourceService.FindByConsumerID(context.Background(), "invalidation")
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(invalidations)).To(gm.Equal(0))
 }

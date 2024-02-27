@@ -15,6 +15,7 @@ type ResourceDao interface {
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Delete(ctx context.Context, id string) error
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
+	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
 }
@@ -69,6 +70,15 @@ func (d *sqlResourceDao) FindByIDs(ctx context.Context, ids []string) (api.Resou
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
 	if err := g2.Where("id in (?)", ids).Find(&resources).Error; err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
+func (d *sqlResourceDao) FindBySource(ctx context.Context, source string) (api.ResourceList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	resources := api.ResourceList{}
+	if err := g2.Where("source = ?", source).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil

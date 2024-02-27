@@ -7,26 +7,25 @@ import (
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	workv1 "open-cluster-management.io/api/work/v1"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubetypes "k8s.io/apimachinery/pkg/types"
 )
 
-type Codec struct{}
+type BundleCodec struct{}
 
-var _ cegeneric.Codec[*api.Resource] = &Codec{}
+var _ cegeneric.Codec[*api.Resource] = &BundleCodec{}
 
-func (codec *Codec) EventDataType() cetypes.CloudEventsDataType {
-	return workpayload.ManifestEventDataType
+func (codec *BundleCodec) EventDataType() cetypes.CloudEventsDataType {
+	return workpayload.ManifestBundleEventDataType
 }
 
-func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, obj *api.Resource) (*cloudevents.Event, error) {
+func (codec *BundleCodec) Encode(source string, eventType cetypes.CloudEventsType, obj *api.Resource) (*cloudevents.Event, error) {
 	// the resource source takes precedence over the CloudEvent source.
 	if obj.Source != "" {
 		source = obj.Source
@@ -42,28 +41,19 @@ func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, obj
 
 	evt := evtBuilder.NewEvent()
 
-	resourcePayload := &workpayload.Manifest{
-		Manifest: unstructured.Unstructured{Object: obj.Manifest},
-		DeleteOption: &workv1.DeleteOption{
-			PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
-		},
-		ConfigOption: &workpayload.ManifestConfigOption{
-			FeedbackRules: []workv1.FeedbackRule{
-				{
-					Type: workv1.JSONPathsType,
-					JsonPaths: []workv1.JsonPath{
-						{
-							Name: "status",
-							Path: ".status",
-						},
-					},
-				},
-			},
-			UpdateStrategy: &workv1.UpdateStrategy{
-				// TODO support external configuration, e.g. configure this through manifest annotations
-				Type: workv1.UpdateStrategyTypeServerSideApply,
-			},
-		},
+	workJSON, err := json.Marshal(obj.Manifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal manifestwork: %v", err)
+	}
+	work := &workv1.ManifestWork{}
+	if err := json.Unmarshal(workJSON, work); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal manifestwork: %v", err)
+	}
+
+	resourcePayload := &workpayload.ManifestBundle{
+		Manifests:       work.Spec.Workload.Manifests,
+		DeleteOption:    work.Spec.DeleteOption,
+		ManifestConfigs: work.Spec.ManifestConfigs,
 	}
 
 	if err := evt.SetData(cloudevents.ApplicationJSON, resourcePayload); err != nil {
@@ -73,13 +63,13 @@ func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, obj
 	return &evt, nil
 }
 
-func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
+func (codec *BundleCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 	eventType, err := cetypes.ParseCloudEventsType(evt.Type())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	if eventType.CloudEventsDataType != workpayload.ManifestEventDataType {
+	if eventType.CloudEventsDataType != workpayload.ManifestBundleEventDataType {
 		return nil, fmt.Errorf("unsupported cloudevents data type %s", eventType.CloudEventsDataType)
 	}
 
@@ -120,9 +110,8 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		return nil, fmt.Errorf("failed to get originalsource extension: %v", err)
 	}
 
-	data := evt.Data()
-	resourceStatusPayload := &workpayload.ManifestStatus{}
-	if err := json.Unmarshal(data, resourceStatusPayload); err != nil {
+	resourceStatusPayload := &workpayload.ManifestBundleStatus{}
+	if err := json.Unmarshal(evt.Data(), resourceStatusPayload); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal event data as resource status: %v", err)
 	}
 
@@ -135,28 +124,43 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		ConsumerID: clusterName,
 	}
 
+	work := &workv1.ManifestWork{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "ManifestWork",
+			APIVersion: workv1.GroupVersion.String(),
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: resourceID,
+			UID:  kubetypes.UID(resourceID),
+		},
+	}
+
+	workJSON, err := json.Marshal(work)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal manifestwork: %v", err)
+	}
+	err = json.Unmarshal(workJSON, &resource.Manifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal manifestwork: %v", err)
+	}
+
 	resourceStatus := &api.ResourceStatus{
 		ReconcileStatus: &api.ReconcileStatus{
 			ObservedVersion: int32(resourceVersionInt),
 			SequenceID:      sequenceID,
+			Conditions:      resourceStatusPayload.Conditions,
 		},
 	}
 
-	if resourceStatusPayload.Status != nil {
-		resourceStatus.ReconcileStatus.Conditions = resourceStatusPayload.Status.Conditions
-		if meta.IsStatusConditionTrue(resourceStatusPayload.Conditions, common.ManifestsDeleted) {
-			deletedCondition := meta.FindStatusCondition(resourceStatusPayload.Conditions, common.ManifestsDeleted)
-			resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, *deletedCondition)
-		}
-		for _, value := range resourceStatusPayload.Status.StatusFeedbacks.Values {
-			if value.Name == "status" {
-				contentStatus := make(map[string]interface{})
-				if err := json.Unmarshal([]byte(*value.Value.JsonRaw), &contentStatus); err != nil {
-					return nil, fmt.Errorf("failed to convert status feedback value to content status: %v", err)
-				}
-				resourceStatus.ContentStatus = contentStatus
-			}
-		}
+	contentStatusMap := make(map[string]interface{})
+	contentStatusMap["ManifestStatus"] = resourceStatusPayload.ResourceStatus
+	contentStatusJSON, err := json.Marshal(contentStatusMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal content status: %v", err)
+	}
+	err = json.Unmarshal(contentStatusJSON, &resourceStatus.ContentStatus)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal content status: %v", err)
 	}
 
 	resource.Status, err = api.ResourceStatusToJSONMap(resourceStatus)

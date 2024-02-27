@@ -25,8 +25,9 @@ type ResourceService interface {
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
-	FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
+	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
+	FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
 	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
 }
 
@@ -222,12 +223,20 @@ func (s *sqlResourceService) Delete(ctx context.Context, id string) *errors.Serv
 func (s *sqlResourceService) FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError) {
 	resources, err := s.resourceDao.FindByIDs(ctx, ids)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to get all resources: %s", err)
+		return nil, handleGetError("Resource", "id", ids, err)
 	}
 	return resources, nil
 }
 
-func (s *sqlResourceService) FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError) {
+func (s *sqlResourceService) FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError) {
+	resources, err := s.resourceDao.FindBySource(ctx, source)
+	if err != nil {
+		return nil, handleGetError("Resource", "source", source, err)
+	}
+	return resources, nil
+}
+
+func (s *sqlResourceService) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError) {
 	resources, err := s.resourceDao.FindByConsumerID(ctx, consumerID)
 	if err != nil {
 		return nil, handleGetError("Resource", "consumerID", consumerID, err)
@@ -246,7 +255,7 @@ func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors
 var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 
 func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
-	resourceList, err := s.FindByConsumerIDs(context.TODO(), listOpts.ClusterName)
+	resourceList, err := s.resourceDao.FindByConsumerID(context.TODO(), listOpts.ClusterName)
 	if err != nil {
 		return nil, err
 	}

@@ -6,21 +6,27 @@ import (
 	"fmt"
 	"net"
 
-	cloudevents "github.com/cloudevents/sdk-go/v2"
+	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
-	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
+	cetypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/golang/glog"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubetypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
 	workv1 "open-cluster-management.io/api/work/v1"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
@@ -100,29 +106,54 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to convert protobuf to cloudevent: %v", err)
 	}
 
-	res, action, err := decode(evt)
+	eventType, err := types.ParseCloudEventsType(evt.Type())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
+	}
+
+	// handler resync request
+	if eventType.Action == types.ResyncRequestAction {
+		err := svr.respondResyncStatusRequest(ctx, evt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to respond resync status request: %v", err)
+		}
+		return &emptypb.Empty{}, nil
+	}
+
+	res, err := decode(eventType.CloudEventsDataType, evt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
 
-	switch action {
-
-	case config.CreateRequestAction:
+	switch eventType.Action {
+	case common.CreateRequestAction:
 		_, err := svr.resourceService.Create(ctx, res)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create resource: %v", err)
 		}
-	case config.UpdateRequestAction:
+	case common.UpdateRequestAction:
+		if res.HasManifestBundle() {
+			found, err := svr.resourceService.Get(ctx, res.ID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get resource: %v", err)
+			}
+			// handle the special case that the resource is updated by the source controller
+			// and the version of the resource in the request is less than it in the database
+			if found.Version < res.Version {
+				res.Version = found.Version
+			}
+		}
 		_, err := svr.resourceService.Update(ctx, res)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update resource: %v", err)
 		}
-	case config.DeleteRequestAction:
+	case common.DeleteRequestAction:
 		err := svr.resourceService.MarkAsDeleting(ctx, res.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update resource: %v", err)
 		}
-		// TODO: resync request
+	default:
+		return nil, fmt.Errorf("unsupported action %s", eventType.Action)
 	}
 
 	return &emptypb.Empty{}, nil
@@ -161,110 +192,221 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 	}
 }
 
-func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
-	eventType, err := types.ParseCloudEventsType(evt.Type())
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
-	}
-
-	if eventType.CloudEventsDataType != payload.ManifestEventDataType {
-		return nil, "", fmt.Errorf("unsupported cloudevents data type %s", eventType.CloudEventsDataType)
-	}
-
+// decode translates a cloudevent to a resource
+func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resource, error) {
 	evtExtensions := evt.Context.GetExtensions()
 
-	clusterName, err := cloudeventstypes.ToString(evtExtensions[types.ExtensionClusterName])
+	clusterName, err := cetypes.ToString(evtExtensions[types.ExtensionClusterName])
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to get clustername extension: %v", err)
+		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
 	}
 
-	manifest := &payload.Manifest{}
-	if err := evt.DataAs(manifest); err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshal event data %s, %v", string(evt.Data()), err)
+	resourceID, err := cetypes.ToString(evtExtensions[types.ExtensionResourceID])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resourceid extension: %v", err)
+	}
+
+	resourceVersion, err := cetypes.ToInteger(evtExtensions[types.ExtensionResourceVersion])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get resourceversion extension: %v", err)
 	}
 
 	resource := &api.Resource{
 		Source:     evt.Source(),
 		ConsumerID: clusterName,
-		// Version:    resourceVersion,
-		Manifest: manifest.Manifest.Object,
-	}
-
-	if eventType.Action == config.UpdateRequestAction || eventType.Action == config.DeleteRequestAction {
-		resourceID, err := cloudeventstypes.ToString(evtExtensions[types.ExtensionResourceID])
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to get resourceid extension: %v", err)
-		}
-
-		resourceVersion, err := cloudeventstypes.ToInteger(evtExtensions[types.ExtensionResourceVersion])
-		if err != nil {
-			return nil, "", fmt.Errorf("failed to get resourceversion extension: %v", err)
-		}
-
-		resource.ID = resourceID
-		resource.Version = int32(resourceVersion)
+		Version:    int32(resourceVersion),
+		Meta: api.Meta{
+			ID: resourceID,
+		},
 	}
 
 	if deletionTimestampValue, exists := evtExtensions[types.ExtensionDeletionTimestamp]; exists {
-		deletionTimestamp, err := cloudeventstypes.ToTime(deletionTimestampValue)
+		deletionTimestamp, err := cetypes.ToTime(deletionTimestampValue)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to convert deletion timestamp %v to time.Time: %v", deletionTimestampValue, err)
+			return nil, fmt.Errorf("failed to convert deletion timestamp %v to time.Time: %v", deletionTimestampValue, err)
 		}
 		resource.Meta.DeletedAt.Time = deletionTimestamp
 	}
 
-	return resource, eventType.Action, nil
+	switch eventDataType {
+	case workpayload.ManifestEventDataType:
+		manifest := &workpayload.Manifest{}
+		if err := evt.DataAs(manifest); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal event data %s, %v", string(evt.Data()), err)
+		}
+
+		resource.Manifest = manifest.Manifest.Object
+	case workpayload.ManifestBundleEventDataType:
+		manifestBundle := &workpayload.ManifestBundle{}
+		if err := evt.DataAs(manifestBundle); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal event data %s, %v", string(evt.Data()), err)
+		}
+
+		work := &workv1.ManifestWork{
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "ManifestWork",
+				APIVersion: workv1.GroupVersion.String(),
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: resourceID,
+				UID:  kubetypes.UID(resourceID),
+			},
+			Spec: workv1.ManifestWorkSpec{
+				Workload: workv1.ManifestsTemplate{
+					Manifests: manifestBundle.Manifests,
+				},
+				DeleteOption:    manifestBundle.DeleteOption,
+				ManifestConfigs: manifestBundle.ManifestConfigs,
+			},
+		}
+
+		workJSON, err := json.Marshal(work)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal manifestwork: %v", err)
+		}
+		err = json.Unmarshal(workJSON, &resource.Manifest)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal manifestwork: %v", err)
+		}
+	default:
+		return nil, fmt.Errorf("unsupported cloudevents data type %s", eventDataType)
+	}
+
+	return resource, nil
 }
 
-func encode(resource *api.Resource) (*cloudevents.Event, error) {
+// encode translates a resource to a cloudevent
+func encode(resource *api.Resource) (*ce.Event, error) {
 	eventType := types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestEventDataType,
+		CloudEventsDataType: workpayload.ManifestEventDataType,
 		SubResource:         types.SubResourceStatus,
 		Action:              config.UpdateRequestAction,
+	}
+	if resource.HasManifestBundle() {
+		eventType.CloudEventsDataType = workpayload.ManifestBundleEventDataType
 	}
 
 	evt := types.NewEventBuilder(resource.Source, eventType).
 		WithResourceID(resource.ID).
 		WithResourceVersion(int64(resource.Version)).
 		WithClusterName(resource.ConsumerID).
+		WithOriginalSource(resource.Source).
 		NewEvent()
 
-	resourceStatusJSON, err := json.Marshal(resource.Status)
+	resourceStatus, err := api.JSONMapStatusToResourceStatus(resource.Status)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal resource status, %v", err)
-	}
-	resourceStatus := &api.ResourceStatus{}
-	if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal resource status, %v", err)
+		return nil, fmt.Errorf("failed to convert resource status to resource status: %v", err)
 	}
 
-	contentStatusJSON, err := json.Marshal(resourceStatus.ContentStatus)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal content status, %v", err)
-	}
-	contentStatusJSONStr := string(contentStatusJSON)
+	if resource.HasManifestBundle() {
+		statusPayload := &workpayload.ManifestBundleStatus{}
+		if resourceStatus.ReconcileStatus != nil {
+			statusPayload.Conditions = resourceStatus.ReconcileStatus.Conditions
+		}
 
-	statusPayload := &payload.ManifestStatus{
-		Conditions: resourceStatus.ReconcileStatus.Conditions,
-		Status: &workv1.ManifestCondition{
+		contentStatusMap := map[string]interface{}(resourceStatus.ContentStatus)
+		manifestStatus, ok := contentStatusMap["ManifestStatus"]
+		if !ok {
+			return nil, fmt.Errorf("resource status not found in content status")
+		}
+		manifestStatusJSON, err := json.Marshal(manifestStatus)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal content status, %v", err)
+		}
+		err = json.Unmarshal(manifestStatusJSON, &statusPayload.ResourceStatus)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal content status, %v", err)
+		}
+
+		if err := evt.SetData(ce.ApplicationJSON, statusPayload); err != nil {
+			return nil, fmt.Errorf("failed to encode manifestwork status to cloudevent: %v", err)
+		}
+	} else {
+		contentStatusJSON, err := json.Marshal(resourceStatus.ContentStatus)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal content status, %v", err)
+		}
+		contentStatusJSONStr := string(contentStatusJSON)
+
+		statusPayload := &workpayload.ManifestStatus{
 			Conditions: resourceStatus.ReconcileStatus.Conditions,
-			StatusFeedbacks: workv1.StatusFeedbackResult{
-				Values: []workv1.FeedbackValue{
-					{
-						Name: "status",
-						Value: workv1.FieldValue{
-							Type:    workv1.JsonRaw,
-							JsonRaw: &contentStatusJSONStr,
+			Status: &workv1.ManifestCondition{
+				Conditions: resourceStatus.ReconcileStatus.Conditions,
+				StatusFeedbacks: workv1.StatusFeedbackResult{
+					Values: []workv1.FeedbackValue{
+						{
+							Name: "status",
+							Value: workv1.FieldValue{
+								Type:    workv1.JsonRaw,
+								JsonRaw: &contentStatusJSONStr,
+							},
 						},
 					},
 				},
 			},
-		},
-	}
+		}
 
-	if err := evt.SetData(cloudevents.ApplicationJSON, statusPayload); err != nil {
-		return nil, fmt.Errorf("failed to encode manifestwork status to a cloudevent: %v", err)
+		if err := evt.SetData(ce.ApplicationJSON, statusPayload); err != nil {
+			return nil, fmt.Errorf("failed to encode manifestwork status to cloudevent: %v", err)
+		}
 	}
 
 	return &evt, nil
+}
+
+// respondResyncStatusRequest responds to the status resync request by comparing the status hash of the resources
+// from the database and the status hash in the request, and then respond the resources whose status is changed.
+func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, evt *ce.Event) error {
+	objs, serviceErr := svr.resourceService.FindBySource(ctx, evt.Source())
+	if serviceErr != nil {
+		return fmt.Errorf("failed to list resources: %s", serviceErr)
+	}
+
+	statusHashes, err := payload.DecodeStatusResyncRequest(*evt)
+	if err != nil {
+		return fmt.Errorf("failed to decode status resync request: %v", err)
+	}
+
+	if len(statusHashes.Hashes) == 0 {
+		// publish all resources status
+		for _, obj := range objs {
+			svr.eventBroadcaster.Broadcast(obj)
+		}
+
+		return nil
+	}
+
+	for _, obj := range objs {
+		lastHash, ok := findStatusHash(string(obj.GetUID()), statusHashes.Hashes)
+		if !ok {
+			// ignore the resource that is not on the source, but exists on the maestro, wait for the source deleting it
+			klog.Infof("The resource %s is not found from the maestro, ignore", obj.GetUID())
+			continue
+		}
+
+		currentHash, err := cloudevents.ResourceStatusHashGetter(obj)
+		if err != nil {
+			continue
+		}
+
+		if currentHash == lastHash {
+			// the status is not changed, do nothing
+			continue
+		}
+
+		svr.eventBroadcaster.Broadcast(obj)
+	}
+
+	return nil
+}
+
+// findStatusHash finds the status hash of the resource from the status resync request payload
+func findStatusHash(id string, hashes []payload.ResourceStatusHash) (string, bool) {
+	for _, hash := range hashes {
+		if id == hash.ResourceID {
+			return hash.StatusHash, true
+		}
+	}
+
+	return "", false
 }
