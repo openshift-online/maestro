@@ -30,13 +30,13 @@ type PulseServer struct {
 	pulseInterval    int64
 	instanceDao      dao.InstanceDao
 	lockFactory      db.LockFactory
-	eventHub         *event.EventHub
+	eventBroadcaster *event.EventBroadcaster
 	resourceService  services.ResourceService
 	sourceClient     cloudevents.SourceClient
 	statusDispatcher dispatcher.Dispatcher
 }
 
-func NewPulseServer(eventHub *event.EventHub) *PulseServer {
+func NewPulseServer(eventBroadcaster *event.EventBroadcaster) *PulseServer {
 	var statusDispatcher dispatcher.Dispatcher
 	switch config.SubscriptionType(env().Config.PulseServer.SubscriptionType) {
 	case config.SharedSubscriptionType:
@@ -52,7 +52,7 @@ func NewPulseServer(eventHub *event.EventHub) *PulseServer {
 		pulseInterval:    env().Config.PulseServer.PulseInterval,
 		instanceDao:      dao.NewInstanceDao(&sessionFactory),
 		lockFactory:      db.NewAdvisoryLockFactory(sessionFactory),
-		eventHub:         eventHub,
+		eventBroadcaster: eventBroadcaster,
 		resourceService:  env().Services.Resources(),
 		sourceClient:     env().Clients.CloudEventsSource,
 		statusDispatcher: statusDispatcher,
@@ -156,7 +156,7 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 			}
 
 			// broadcast the resource status update event
-			s.eventHub.Broadcast(resource)
+			s.eventBroadcaster.Broadcast(resource)
 
 			resourceStatus, error := api.JSONMapStatusToResourceStatus(resource.Status)
 			if error != nil {

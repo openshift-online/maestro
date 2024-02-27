@@ -62,7 +62,7 @@ type TimeFunc func() time.Time
 type Helper struct {
 	Ctx context.Context
 
-	EventHub          *event.EventHub
+	EventBroadcaster  *event.EventBroadcaster
 	Store             *MemoryStore
 	GRPCSourceClient  *generic.CloudEventSourceClient[*api.Resource]
 	DBFactory         db.SessionFactory
@@ -106,12 +106,12 @@ func NewHelper(t *testing.T) *Helper {
 		}
 
 		helper = &Helper{
-			Ctx:           context.Background(),
-			EventHub:      event.NewEventHub(),
-			AppConfig:     env.Config,
-			DBFactory:     env.Database.SessionFactory,
-			JWTPrivateKey: jwtKey,
-			JWTCA:         jwtCA,
+			Ctx:              context.Background(),
+			EventBroadcaster: event.NewEventBroadcaster(),
+			AppConfig:        env.Config,
+			DBFactory:        env.Database.SessionFactory,
+			JWTPrivateKey:    jwtKey,
+			JWTCA:            jwtCA,
 		}
 
 		// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
@@ -122,7 +122,7 @@ func NewHelper(t *testing.T) *Helper {
 			helper.stopAPIServer,
 		}
 
-		helper.startEventHub()
+		helper.startEventBroadcaster()
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
@@ -148,7 +148,7 @@ func (helper *Helper) Teardown() {
 func (helper *Helper) startAPIServer() {
 	// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
-	helper.APIServer = server.NewAPIServer(helper.EventHub)
+	helper.APIServer = server.NewAPIServer(helper.EventBroadcaster)
 	go func() {
 		glog.V(10).Info("Test API server started")
 		helper.APIServer.Start()
@@ -192,16 +192,16 @@ func (helper *Helper) startPulseServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
 	go func() {
 		glog.V(10).Info("Test pulse server started")
-		server.NewPulseServer(helper.EventHub).Start(ctx)
+		server.NewPulseServer(helper.EventBroadcaster).Start(ctx)
 		glog.V(10).Info("Test pulse server stopped")
 	}()
 }
 
-func (helper *Helper) startEventHub() {
+func (helper *Helper) startEventBroadcaster() {
 	go func() {
-		glog.V(10).Info("Test event hub started")
-		helper.EventHub.Start(helper.Ctx)
-		glog.V(10).Info("Test event hub stopped")
+		glog.V(10).Info("Test event broadcaster started")
+		helper.EventBroadcaster.Start(helper.Ctx)
+		glog.V(10).Info("Test event broadcaster stopped")
 	}()
 }
 

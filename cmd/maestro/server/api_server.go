@@ -33,7 +33,7 @@ func env() *environments.Env {
 	return environments.Environment()
 }
 
-func NewAPIServer(eventHub *event.EventHub) Server {
+func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 	s := &apiServer{}
 
 	mainRouter := s.routes()
@@ -126,7 +126,7 @@ func NewAPIServer(eventHub *event.EventHub) Server {
 
 	// TODO: support authn and authz for gRPC
 	if env().Config.GRPCServer.EnableGRPCServer {
-		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventHub, *env().Config.GRPCServer)
+		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventBroadcaster, *env().Config.GRPCServer)
 	}
 	return s
 }

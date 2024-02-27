@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
@@ -27,17 +28,19 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
+const subscriptionRequestTopicPattern = `^sources/([a-z0-9-]+)/clusters/([a-z0-9-]+|\+)/status$`
+
 // GRPCServer includes a gRPC server and a resource service
 type GRPCServer struct {
 	pbv1.UnimplementedCloudEventServiceServer
-	grpcServer      *grpc.Server
-	eventHub        *event.EventHub
-	resourceService services.ResourceService
-	bindAddress     string
+	grpcServer       *grpc.Server
+	eventBroadcaster *event.EventBroadcaster
+	resourceService  services.ResourceService
+	bindAddress      string
 }
 
 // NewGRPCServer creates a new GRPCServer
-func NewGRPCServer(resourceService services.ResourceService, eventHub *event.EventHub, config config.GRPCServerConfig) *GRPCServer {
+func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *event.EventBroadcaster, config config.GRPCServerConfig) *GRPCServer {
 	grpcServerOptions := make([]grpc.ServerOption, 0)
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxRecvMsgSize(config.MaxReceiveMessageSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxSendMsgSize(config.MaxSendMessageSize))
@@ -70,10 +73,10 @@ func NewGRPCServer(resourceService services.ResourceService, eventHub *event.Eve
 	}
 
 	return &GRPCServer{
-		grpcServer:      grpc.NewServer(grpcServerOptions...),
-		eventHub:        eventHub,
-		resourceService: resourceService,
-		bindAddress:     env().Config.HTTPServer.Hostname + ":" + config.BindPort,
+		grpcServer:       grpc.NewServer(grpcServerOptions...),
+		eventBroadcaster: eventBroadcaster,
+		resourceService:  resourceService,
+		bindAddress:      env().Config.HTTPServer.Hostname + ":" + config.BindPort,
 	}
 }
 
@@ -131,24 +134,18 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 
 // Subscribe implements the Subscribe method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
+	if !regexp.MustCompile(subscriptionRequestTopicPattern).MatchString(subReq.Topic) {
+		return fmt.Errorf("invalid subscription topic %q, it should match `%s`", subReq.Topic, subscriptionRequestTopicPattern)
+	}
+
 	topicSplits := strings.Split(subReq.Topic, "/")
 	if len(topicSplits) != 5 {
 		return fmt.Errorf("invalid subscription topic %s", subReq.Topic)
 	}
 
-	source, clusterName, statusSub := topicSplits[1], topicSplits[3], topicSplits[4]
-	if source == "" || clusterName == "" || statusSub != "status" {
-		// TODO: validate source and clusterName
-		return fmt.Errorf("invalid subscription topic %s", subReq.Topic)
-	}
+	source, clusterName := topicSplits[1], topicSplits[3]
 
-	eventClient := event.NewEventClient(source, clusterName)
-	svr.eventHub.Register(eventClient)
-	// unregister the event client when the subscription is closed
-	defer svr.eventHub.Unregister(eventClient)
-
-	// receive events with the event client and send them to the subscriber
-	for res := range eventClient.Receive() {
+	clientID, errChan := svr.eventBroadcaster.Register(source, clusterName, func(res *api.Resource) error {
 		evt, err := encode(res)
 		if err != nil {
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
@@ -161,12 +158,22 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		}
 
 		// send the cloudevent to the subscriber
+		// TODO: error handling to address errors beyond network issues.
 		if err := subServer.Send(pbEvt); err != nil {
 			return err
 		}
-	}
 
-	return nil
+		return nil
+	})
+
+	select {
+	case err := <-errChan:
+		svr.eventBroadcaster.Unregister(clientID)
+		return err
+	case <-subServer.Context().Done():
+		svr.eventBroadcaster.Unregister(clientID)
+		return nil
+	}
 }
 
 func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
@@ -225,14 +232,13 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 }
 
 func encode(resource *api.Resource) (*cloudevents.Event, error) {
-	source := env().Config.MessageBroker.SourceID
 	eventType := types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceStatus,
 		Action:              config.UpdateRequestAction,
 	}
 
-	evt := types.NewEventBuilder(source, eventType).
+	evt := types.NewEventBuilder(resource.Source, eventType).
 		WithResourceID(resource.ID).
 		WithResourceVersion(int64(resource.Version)).
 		WithClusterName(resource.ConsumerID).

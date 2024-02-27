@@ -4,82 +4,84 @@ import (
 	"context"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/api"
 )
 
-// EventClient is a client that can receive resource status change events.
-type EventClient struct {
+// resourceHandler is a function that can handle resource status change events.
+type resourceHandler func(res *api.Resource) error
+
+// eventClient is a client that can receive and handle resource status change events.
+type eventClient struct {
 	source      string
 	clusterName string
-	resChan     chan *api.Resource
+	handler     resourceHandler
+	errChan     chan<- error
 }
 
-// NewEventClient creates a new event client.
-func NewEventClient(source, clusterName string) *EventClient {
-	return &EventClient{
-		source:      source,
-		clusterName: clusterName,
-		resChan:     make(chan *api.Resource),
-	}
-}
-
-// Receive returns a channel that can be used to receive resource status change events.
-func (c *EventClient) Receive() <-chan *api.Resource {
-	return c.resChan
-}
-
-// EventHub is a hub that can broadcast resource status change events to registered clients.
-type EventHub struct {
+// EventBroadcaster is a component that can broadcast resource status change events to registered clients.
+type EventBroadcaster struct {
 	mu sync.RWMutex
 
-	// Registered clients.
-	clients map[*EventClient]struct{}
+	// registered clients.
+	clients map[string]*eventClient
 
-	// Inbound messages from the clients.
+	// inbound messages from the clients.
 	broadcast chan *api.Resource
 }
 
-// NewEventHub creates a new event hub.
-func NewEventHub() *EventHub {
-	return &EventHub{
-		clients:   make(map[*EventClient]struct{}),
+// NewEventBroadcaster creates a new event broadcaster.
+func NewEventBroadcaster() *EventBroadcaster {
+	return &EventBroadcaster{
+		clients:   make(map[string]*eventClient),
 		broadcast: make(chan *api.Resource),
 	}
 }
 
-// Register registers a client.
-func (h *EventHub) Register(client *EventClient) {
+// Register registers a client and return client id and error channel.
+func (h *EventBroadcaster) Register(source, clustername string, handler resourceHandler) (string, <-chan error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	h.clients[client] = struct{}{}
+	id := uuid.NewString()
+	errChan := make(chan error)
+	h.clients[id] = &eventClient{
+		source:      source,
+		clusterName: clustername,
+		handler:     handler,
+		errChan:     errChan,
+	}
+
+	return id, errChan
 }
 
-// Unregister unregisters a client.
-func (h *EventHub) Unregister(client *EventClient) {
+// Unregister unregisters a client by id
+func (h *EventBroadcaster) Unregister(id string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	delete(h.clients, client)
-	close(client.resChan)
+	close(h.clients[id].errChan)
+	delete(h.clients, id)
 }
 
 // Broadcast broadcasts a resource status change event to all registered clients.
-func (h *EventHub) Broadcast(res *api.Resource) {
+func (h *EventBroadcaster) Broadcast(res *api.Resource) {
 	h.broadcast <- res
 }
 
-// Start starts the event hub and waits for events to broadcast.
-func (h *EventHub) Start(ctx context.Context) {
+// Start starts the event broadcaster and waits for events to broadcast.
+func (h *EventBroadcaster) Start(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case res := <-h.broadcast:
 			h.mu.RLock()
-			for client := range h.clients {
+			for _, client := range h.clients {
 				if client.source == res.Source && (client.clusterName == res.ConsumerID || client.clusterName == "+") {
-					client.resChan <- res
+					if err := client.handler(res); err != nil {
+						client.errChan <- err
+					}
 				}
 			}
 			h.mu.RUnlock()
