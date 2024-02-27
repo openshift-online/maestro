@@ -13,8 +13,12 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/controllers"
+	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
 
@@ -58,6 +62,9 @@ type TimeFunc func() time.Time
 type Helper struct {
 	Ctx context.Context
 
+	EventBroadcaster  *event.EventBroadcaster
+	Store             *MemoryStore
+	GRPCSourceClient  *generic.CloudEventSourceClient[*api.Resource]
 	DBFactory         db.SessionFactory
 	AppConfig         *config.ApplicationConfig
 	APIServer         server.Server
@@ -99,11 +106,12 @@ func NewHelper(t *testing.T) *Helper {
 		}
 
 		helper = &Helper{
-			Ctx:           context.Background(),
-			AppConfig:     env.Config,
-			DBFactory:     env.Database.SessionFactory,
-			JWTPrivateKey: jwtKey,
-			JWTCA:         jwtCA,
+			Ctx:              context.Background(),
+			EventBroadcaster: event.NewEventBroadcaster(),
+			AppConfig:        env.Config,
+			DBFactory:        env.Database.SessionFactory,
+			JWTPrivateKey:    jwtKey,
+			JWTCA:            jwtCA,
 		}
 
 		// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
@@ -113,6 +121,8 @@ func NewHelper(t *testing.T) *Helper {
 			jwkMockTeardown,
 			helper.stopAPIServer,
 		}
+
+		helper.startEventBroadcaster()
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
@@ -138,7 +148,7 @@ func (helper *Helper) Teardown() {
 func (helper *Helper) startAPIServer() {
 	// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
-	helper.APIServer = server.NewAPIServer()
+	helper.APIServer = server.NewAPIServer(helper.EventBroadcaster)
 	go func() {
 		glog.V(10).Info("Test API server started")
 		helper.APIServer.Start()
@@ -182,8 +192,16 @@ func (helper *Helper) startPulseServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
 	go func() {
 		glog.V(10).Info("Test pulse server started")
-		server.NewPulseServer().Start(ctx)
+		server.NewPulseServer(helper.EventBroadcaster).Start(ctx)
 		glog.V(10).Info("Test pulse server stopped")
+	}()
+}
+
+func (helper *Helper) startEventBroadcaster() {
+	go func() {
+		glog.V(10).Info("Test event broadcaster started")
+		helper.EventBroadcaster.Start(helper.Ctx)
+		glog.V(10).Info("Test event broadcaster stopped")
 	}()
 }
 
@@ -220,6 +238,30 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mq
 
 	go clientHolder.ManifestWorkInformer().Informer().Run(ctx.Done())
 	helper.WorkAgentHolder = clientHolder
+}
+
+func (helper *Helper) StartGRPCResourceSourceClient() {
+	store := NewStore()
+	grpcOptions := grpcoptions.NewGRPCOptions()
+	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BindPort)
+	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
+		helper.Ctx,
+		grpcoptions.NewSourceOptions(grpcOptions, "integration-grpc-test"),
+		store,
+		resourceStatusHashGetter,
+		&ResourceCodec{},
+	)
+
+	if err != nil {
+		glog.Fatalf("Unable to create grpc cloudevents source client: %s", err.Error())
+	}
+
+	sourceClient.Subscribe(helper.Ctx, func(action types.ResourceAction, resource *api.Resource) error {
+		return store.UpdateStatus(resource)
+	})
+
+	helper.Store = store
+	helper.GRPCSourceClient = sourceClient
 }
 
 func (helper *Helper) RestartServer() {

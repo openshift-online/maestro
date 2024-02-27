@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
+	"regexp"
+	"strings"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
@@ -13,6 +16,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
+	workv1 "open-cluster-management.io/api/work/v1"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -20,19 +24,23 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 )
+
+const subscriptionRequestTopicPattern = `^sources/([a-z0-9-]+)/clusters/([a-z0-9-]+|\+)/status$`
 
 // GRPCServer includes a gRPC server and a resource service
 type GRPCServer struct {
 	pbv1.UnimplementedCloudEventServiceServer
-	grpcServer      *grpc.Server
-	resourceService services.ResourceService
-	bindAddress     string
+	grpcServer       *grpc.Server
+	eventBroadcaster *event.EventBroadcaster
+	resourceService  services.ResourceService
+	bindAddress      string
 }
 
 // NewGRPCServer creates a new GRPCServer
-func NewGRPCServer(resourceService services.ResourceService, config config.GRPCServerConfig) *GRPCServer {
+func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *event.EventBroadcaster, config config.GRPCServerConfig) *GRPCServer {
 	grpcServerOptions := make([]grpc.ServerOption, 0)
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxRecvMsgSize(config.MaxReceiveMessageSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxSendMsgSize(config.MaxSendMessageSize))
@@ -65,9 +73,10 @@ func NewGRPCServer(resourceService services.ResourceService, config config.GRPCS
 	}
 
 	return &GRPCServer{
-		resourceService: resourceService,
-		grpcServer:      grpc.NewServer(grpcServerOptions...),
-		bindAddress:     env().Config.HTTPServer.Hostname + ":" + config.BindPort,
+		grpcServer:       grpc.NewServer(grpcServerOptions...),
+		eventBroadcaster: eventBroadcaster,
+		resourceService:  resourceService,
+		bindAddress:      env().Config.HTTPServer.Hostname + ":" + config.BindPort,
 	}
 }
 
@@ -89,7 +98,7 @@ func (svr *GRPCServer) Stop() {
 
 // Publish implements the Publish method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest) (*emptypb.Empty, error) {
-	// pbEvt, err := pb.ToProto(evt)
+	// WARNING: don't use "evt, err := pb.FromProto(pubReq.Event)" to convert protobuf to cloudevent
 	evt, err := binding.ToEvent(ctx, grpcprotocol.NewMessage(pubReq.Event))
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert protobuf to cloudevent: %v", err)
@@ -123,6 +132,50 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	return &emptypb.Empty{}, nil
 }
 
+// Subscribe implements the Subscribe method of the CloudEventServiceServer interface
+func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
+	if !regexp.MustCompile(subscriptionRequestTopicPattern).MatchString(subReq.Topic) {
+		return fmt.Errorf("invalid subscription topic %q, it should match `%s`", subReq.Topic, subscriptionRequestTopicPattern)
+	}
+
+	topicSplits := strings.Split(subReq.Topic, "/")
+	if len(topicSplits) != 5 {
+		return fmt.Errorf("invalid subscription topic %s", subReq.Topic)
+	}
+
+	source, clusterName := topicSplits[1], topicSplits[3]
+
+	clientID, errChan := svr.eventBroadcaster.Register(source, clusterName, func(res *api.Resource) error {
+		evt, err := encode(res)
+		if err != nil {
+			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
+		}
+
+		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
+		pbEvt := &pbv1.CloudEvent{}
+		if err = grpcprotocol.WritePBMessage(context.TODO(), binding.ToMessage(evt), pbEvt); err != nil {
+			return fmt.Errorf("failed to convert cloudevent to protobuf: %v", err)
+		}
+
+		// send the cloudevent to the subscriber
+		// TODO: error handling to address errors beyond network issues.
+		if err := subServer.Send(pbEvt); err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	select {
+	case err := <-errChan:
+		svr.eventBroadcaster.Unregister(clientID)
+		return err
+	case <-subServer.Context().Done():
+		svr.eventBroadcaster.Unregister(clientID)
+		return nil
+	}
+}
+
 func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 	eventType, err := types.ParseCloudEventsType(evt.Type())
 	if err != nil {
@@ -146,6 +199,7 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 	}
 
 	resource := &api.Resource{
+		Source:     evt.Source(),
 		ConsumerID: clusterName,
 		// Version:    resourceVersion,
 		Manifest: manifest.Manifest.Object,
@@ -175,4 +229,57 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 	}
 
 	return resource, eventType.Action, nil
+}
+
+func encode(resource *api.Resource) (*cloudevents.Event, error) {
+	eventType := types.CloudEventsType{
+		CloudEventsDataType: payload.ManifestEventDataType,
+		SubResource:         types.SubResourceStatus,
+		Action:              config.UpdateRequestAction,
+	}
+
+	evt := types.NewEventBuilder(resource.Source, eventType).
+		WithResourceID(resource.ID).
+		WithResourceVersion(int64(resource.Version)).
+		WithClusterName(resource.ConsumerID).
+		NewEvent()
+
+	resourceStatusJSON, err := json.Marshal(resource.Status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal resource status, %v", err)
+	}
+	resourceStatus := &api.ResourceStatus{}
+	if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal resource status, %v", err)
+	}
+
+	contentStatusJSON, err := json.Marshal(resourceStatus.ContentStatus)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal content status, %v", err)
+	}
+	contentStatusJSONStr := string(contentStatusJSON)
+
+	statusPayload := &payload.ManifestStatus{
+		Conditions: resourceStatus.ReconcileStatus.Conditions,
+		Status: &workv1.ManifestCondition{
+			Conditions: resourceStatus.ReconcileStatus.Conditions,
+			StatusFeedbacks: workv1.StatusFeedbackResult{
+				Values: []workv1.FeedbackValue{
+					{
+						Name: "status",
+						Value: workv1.FieldValue{
+							Type:    workv1.JsonRaw,
+							JsonRaw: &contentStatusJSONStr,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := evt.SetData(cloudevents.ApplicationJSON, statusPayload); err != nil {
+		return nil, fmt.Errorf("failed to encode manifestwork status to a cloudevent: %v", err)
+	}
+
+	return &evt, nil
 }

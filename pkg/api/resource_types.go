@@ -15,6 +15,7 @@ import (
 type Resource struct {
 	Meta
 	Version    int32
+	Source     string
 	ConsumerID string
 	Manifest   datatypes.JSONMap
 	Status     datatypes.JSONMap

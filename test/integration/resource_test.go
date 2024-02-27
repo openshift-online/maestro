@@ -11,11 +11,10 @@ import (
 
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	workv1 "open-cluster-management.io/api/work/v1"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
-	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
@@ -418,23 +417,13 @@ func TestResourceFromGRPC(t *testing.T) {
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
 	// use grpc client to create resource
-	grpcOptions := grpcoptions.NewGRPCOptions()
-	grpcOptions.URL = h.Env().Config.HTTPServer.Hostname + ":" + h.Env().Config.GRPCServer.BindPort
-	grpcSourceCloudEventsClient, err := generic.NewCloudEventSourceClient[*api.Resource](
-		ctx,
-		grpcoptions.NewSourceOptions(grpcOptions, "integration-grpc-test"),
-		nil,
-		nil,
-		&test.ResourceCodec{},
-	)
-	Expect(err).NotTo(HaveOccurred(), "Error getting events:  %v", err)
-
-	err = grpcSourceCloudEventsClient.Publish(context.TODO(), types.CloudEventsType{
+	h.StartGRPCResourceSourceClient()
+	err := h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              config.CreateRequestAction,
 	}, res)
-	Expect(err).NotTo(HaveOccurred(), "Error getting events:  %v", err)
+	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
 	// for real case, the controller should have a mappping between resource (replicated) in maestro and resource (root) in kubernetes
 	// so call subscribe method can return the resource
@@ -450,6 +439,10 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
 	Expect(*resource.Version).To(Equal(int32(0)))
+
+	// add the resource to the store
+	res.ID = *resource.Id
+	h.Store.Add(res)
 
 	var work *workv1.ManifestWork
 	Eventually(func() error {
@@ -468,15 +461,80 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 
 	// update the resource
+	newWork := work.DeepCopy()
+	statusFeedbackValue := `{"observedGeneration":1,"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
+	newWork.Status = workv1.ManifestWorkStatus{
+		ResourceStatus: workv1.ManifestResourceStatus{
+			Manifests: []workv1.ManifestCondition{
+				{
+					Conditions: []metav1.Condition{
+						{
+							Type:   "Applied",
+							Status: metav1.ConditionTrue,
+						},
+					},
+					StatusFeedbacks: workv1.StatusFeedbackResult{
+						Values: []workv1.FeedbackValue{
+							{
+								Name: "status",
+								Value: workv1.FieldValue{
+									Type:    workv1.JsonRaw,
+									JsonRaw: &statusFeedbackValue,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// only update the status on the agent local part
+	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
+
+	// Resync the resource status
+	ceSourceClient, ok := h.Env().Clients.CloudEventsSource.(*cloudevents.SourceClientImpl)
+	Expect(ok).To(BeTrue())
+	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.ID)).NotTo(HaveOccurred())
+
+	Eventually(func() error {
+		newRes, err := h.Store.Get(*resource.Id)
+		if err != nil {
+			return err
+		}
+		if newRes.Status == nil || len(newRes.Status) == 0 {
+			return fmt.Errorf("resource status is empty")
+		}
+
+		resourceStatusJSON, err := json.Marshal(newRes.Status)
+		if err != nil {
+			return err
+		}
+		resourceStatus := &api.ResourceStatus{}
+		if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
+			return err
+		}
+
+		if len(resourceStatus.ReconcileStatus.Conditions) == 0 {
+			return fmt.Errorf("resource status is empty")
+		}
+
+		if !meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, "Applied") {
+			return fmt.Errorf("resource status is not applied")
+		}
+
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
+
 	newRes := h.NewResource(consumer.ID, 2)
 	newRes.ID = *resource.Id
 	newRes.Version = *resource.Version
-	err = grpcSourceCloudEventsClient.Publish(context.TODO(), types.CloudEventsType{
+	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              config.UpdateRequestAction,
 	}, newRes)
-	Expect(err).NotTo(HaveOccurred(), "Error getting events:  %v", err)
+	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
 	resource, resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, newRes.ID).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
@@ -506,12 +564,12 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 	Expect(manifest["spec"].(map[string]interface{})["replicas"]).To(Equal(float64(2)))
 
-	err = grpcSourceCloudEventsClient.Publish(context.TODO(), types.CloudEventsType{
+	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              config.DeleteRequestAction,
 	}, newRes)
-	Expect(err).NotTo(HaveOccurred(), "Error getting events:  %v", err)
+	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
 	Eventually(func() error {
 		// ensure the work can be get by work client
@@ -526,8 +584,8 @@ func TestResourceFromGRPC(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	// no real kubernete environment, so need to update the resource status manually
-	newWork := work.DeepCopy()
-	newWork.Status = workv1.ManifestWorkStatus{
+	deletingWork := work.DeepCopy()
+	deletingWork.Status = workv1.ManifestWorkStatus{
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
 				{
@@ -542,10 +600,8 @@ func TestResourceFromGRPC(t *testing.T) {
 		},
 	}
 	// only update the status on the agent local part
-	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
+	Expect(informer.Informer().GetStore().Update(deletingWork)).NotTo(HaveOccurred())
 	// Resync the resource status
-	ceSourceClient, ok := h.Env().Clients.CloudEventsSource.(*cloudevents.SourceClientImpl)
-	Expect(ok).To(BeTrue())
 	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.ID)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
