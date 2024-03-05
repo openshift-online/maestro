@@ -56,7 +56,6 @@ db_image?=docker.io/library/postgres:14.2
 mqtt_host=maestro-mqtt.$(namespace)
 mqtt_port=1883
 mqtt_user:=maestro
-mqtt_image=docker.io/eclipse-mosquitto:2.0.18
 mqtt_password_file=${PWD}/secrets/mqtt.password
 mqtt_config_file=${PWD}/secrets/mqtt.config
 
@@ -81,6 +80,10 @@ ENABLE_OCM_MOCK ?= false
 # Enable set images
 POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
 MQTT_IMAGE ?= docker.io/library/eclipse-mosquitto:2.0.18
+
+# Test output files
+unit_test_json_output ?= ${PWD}/unit-test-results.json
+integration_test_json_output ?= ${PWD}/integration-test-results.json
 
 # Prints a list of useful targets.
 help:
@@ -192,7 +195,7 @@ install: check-gopath
 # Examples:
 #   make test TESTFLAGS="-run TestSomething"
 test: install
-	OCM_ENV=testing gotestsum --format short-verbose -- -p 1 -v $(TESTFLAGS) \
+	OCM_ENV=testing gotestsum --jsonfile-timing-events=$(unit_test_json_output) --format short-verbose -- -p 1 -v $(TESTFLAGS) \
 		./pkg/... \
 		./cmd/...
 .PHONY: test
@@ -208,7 +211,7 @@ test: install
 #   make test-integration TESTFLAGS="-run TestAccountsGet"  runs TestAccountsGet
 #   make test-integration TESTFLAGS="-short"                skips long-run tests
 test-integration: install
-	OCM_ENV=testing gotestsum --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	OCM_ENV=testing gotestsum --jsonfile-timing-events=$(integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration
 
@@ -381,8 +384,8 @@ mqtt/prepare:
 .PHONY: mqtt/setup
 mqtt/setup: mqtt/prepare
 	@echo '{"brokerHost":"localhost:1883","username":"$(mqtt_user)","password":"$(shell cat $(mqtt_password_file))","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > $(mqtt_config_file)
-	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(mqtt_image) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mqtt_user) $(shell cat $(mqtt_password_file))
-	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mqtt_image)
+	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(MQTT_IMAGE) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mqtt_user) $(shell cat $(mqtt_password_file))
+	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(MQTT_IMAGE)
 
 .PHONY: mqtt/teardown
 mqtt/teardown:
