@@ -28,7 +28,7 @@ func TestConsumerGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.NewConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster1")
 
 	found, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, consumer.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -153,7 +153,7 @@ func TestConsumerPaging(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// Paging
-	_ = h.NewConsumerList(20)
+	_ = h.CreateConsumerList(20)
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)

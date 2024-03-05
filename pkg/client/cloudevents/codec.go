@@ -27,6 +27,10 @@ func (codec *Codec) EventDataType() cetypes.CloudEventsDataType {
 }
 
 func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, obj *api.Resource) (*cloudevents.Event, error) {
+	// the resource source takes precedence over the CloudEvent source.
+	if obj.Source != "" {
+		source = obj.Source
+	}
 	evtBuilder := cetypes.NewEventBuilder(source, eventType).
 		WithResourceID(obj.ID).
 		WithResourceVersion(int64(obj.Version)).
@@ -116,6 +120,11 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
 	}
 
+	originalSource, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionOriginalSource])
+	if err != nil {
+		return nil, fmt.Errorf("failed to get originalsource extension: %v", err)
+	}
+
 	data := evt.Data()
 	resourceStatusPayload := &workpayload.ManifestStatus{}
 	if err := json.Unmarshal(data, resourceStatusPayload); err != nil {
@@ -127,6 +136,7 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 			ID: resourceID,
 		},
 		Version:    int32(resourceVersionInt),
+		Source:     originalSource,
 		ConsumerID: clusterName,
 	}
 

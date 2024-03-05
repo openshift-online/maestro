@@ -11,9 +11,10 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
+	"github.com/openshift-online/maestro/pkg/event"
 )
 
-func NewServeCommand() *cobra.Command {
+func NewServerCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "server",
 		Short: "Start the maestro server",
@@ -34,11 +35,14 @@ func runServer(cmd *cobra.Command, args []string) {
 		glog.Fatalf("Unable to initialize environment: %s", err.Error())
 	}
 
+	// Create event broadcaster to broadcast resource status update events to subscribers
+	eventBroadcaster := event.NewEventBroadcaster()
+
 	// Create the servers
-	apiserver := server.NewAPIServer()
+	apiserver := server.NewAPIServer(eventBroadcaster)
 	metricsServer := server.NewMetricsServer()
 	healthcheckServer := server.NewHealthCheckServer()
-	pulseServer := server.NewPulseServer()
+	pulseServer := server.NewPulseServer(eventBroadcaster)
 	controllersServer := server.NewControllersServer()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -61,6 +65,9 @@ func runServer(cmd *cobra.Command, args []string) {
 			glog.Errorf("Failed to stop healthcheck server, %v", err)
 		}
 	}()
+
+	// Start the event broadcaster
+	go eventBroadcaster.Start(ctx)
 
 	// Run the servers
 	go apiserver.Start()
