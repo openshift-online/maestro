@@ -90,7 +90,7 @@ func TestConsumerPatch(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// create a consumer
-	consumer := h.NewConsumer("Brontosaurus")
+	consumer := h.CreateConsumer("Brontosaurus")
 
 	assert := func (patched *openapi.Consumer, resp *http.Response, err error, name *string, labels *map[string]string) {
 		Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
@@ -108,21 +108,13 @@ func TestConsumerPatch(t *testing.T) {
 	patched, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &labels}).Execute()
 	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), &labels)
 
-	// patch name
-	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Name: openapi.PtrString("Tyranosaurus Rex")}).Execute()
-	assert(patched, resp, err, openapi.PtrString("Tyranosaurus Rex"), &labels)
-
 	// no-op patch
 	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
-	assert(patched, resp, err, openapi.PtrString("Tyranosaurus Rex"), &labels)
+	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), &labels)
 
 	// delete labels
 	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &map[string]string{}}).Execute()
-	assert(patched, resp, err, openapi.PtrString("Tyranosaurus Rex"), nil)
-
-	// delete name
-	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Name: openapi.PtrString("")}).Execute()
-	assert(patched, resp, err, nil, nil)
+	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), nil)
 
 	// 500 server error. posting junk json is one way to trigger 500.
 	jwtToken := ctx.Value(openapi.ContextAccessToken)

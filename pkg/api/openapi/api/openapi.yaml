@@ -792,12 +792,9 @@ components:
       - $ref: '#/components/schemas/ConsumerList_allOf'
     ConsumerPatchRequest:
       example:
-        name: name
         labels:
           key: labels
       properties:
-        name:
-          type: string
         labels:
           additionalProperties:
             type: string

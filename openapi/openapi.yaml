@@ -554,8 +554,6 @@ components:
     ConsumerPatchRequest:
       type: object
       properties:
-        name:
-          type: string
         labels:
           type: object
           additionalProperties:

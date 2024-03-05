@@ -4,7 +4,6 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**Name** | Pointer to **string** |  | [optional] 
 **Labels** | Pointer to **map[string]string** |  | [optional] 
 
 ## Methods
@@ -25,31 +24,6 @@ will change when the set of required properties is changed
 NewConsumerPatchRequestWithDefaults instantiates a new ConsumerPatchRequest object
 This constructor will only assign default values to properties that have it defined,
 but it doesn't guarantee that properties required by API are set
-
-### GetName
-
-`func (o *ConsumerPatchRequest) GetName() string`
-
-GetName returns the Name field if non-nil, zero value otherwise.
-
-### GetNameOk
-
-`func (o *ConsumerPatchRequest) GetNameOk() (*string, bool)`
-
-GetNameOk returns a tuple with the Name field if it's non-nil, zero value otherwise
-and a boolean to check if the value has been set.
-
-### SetName
-
-`func (o *ConsumerPatchRequest) SetName(v string)`
-
-SetName sets Name field to given value.
-
-### HasName
-
-`func (o *ConsumerPatchRequest) HasName() bool`
-
-HasName returns a boolean if a field has been set.
 
 ### GetLabels
 
