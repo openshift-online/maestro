@@ -11,7 +11,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	agentclient "open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/client"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
@@ -96,8 +96,8 @@ func (c *ResourceCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 
 	if manifestStatus.Status != nil {
 		resourceStatus.ReconcileStatus.Conditions = manifestStatus.Status.Conditions
-		if meta.IsStatusConditionTrue(manifestStatus.Conditions, agentclient.ManifestsDeleted) {
-			deletedCondition := meta.FindStatusCondition(manifestStatus.Conditions, agentclient.ManifestsDeleted)
+		if meta.IsStatusConditionTrue(manifestStatus.Conditions, common.ManifestsDeleted) {
+			deletedCondition := meta.FindStatusCondition(manifestStatus.Conditions, common.ManifestsDeleted)
 			resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, *deletedCondition)
 		}
 		for _, value := range manifestStatus.Status.StatusFeedbacks.Values {

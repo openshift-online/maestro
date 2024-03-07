@@ -228,10 +228,11 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 }
 
 func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mqttOptions *mqttoptions.MQTTOptions) {
-	clientHolder, err := work.NewClientHolderBuilder(clusterName, mqttOptions).
+	clientHolder, err := work.NewClientHolderBuilder(mqttOptions).
+		WithClientID(clusterName).
 		WithClusterName(clusterName).
 		WithCodecs(codec.NewManifestCodec(nil)).
-		NewClientHolder(ctx)
+		NewAgentClientHolder(ctx)
 	if err != nil {
 		glog.Fatalf("Unable to create work agent holder: %s", err)
 	}
@@ -246,7 +247,7 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BindPort)
 	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
 		helper.Ctx,
-		grpcoptions.NewSourceOptions(grpcOptions, "integration-grpc-test"),
+		grpcoptions.NewSourceOptions(grpcOptions, "maestro"),
 		store,
 		resourceStatusHashGetter,
 		&ResourceCodec{},

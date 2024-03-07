@@ -26,6 +26,9 @@ var (
 	agentOption   = spoke.NewWorkloadAgentOptions()
 )
 
+// by default uses 1M as the limit for state feedback
+var maxJSONRawLength int32 = 1024 * 1024
+
 func NewAgentCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "agent",
@@ -63,7 +66,9 @@ func runAgent(cmd *cobra.Command, args []string) {
 	}()
 
 	// use mqtt as the default driver
-	agentOption.WorkloadSourceDriver.Type = spoke.MQTTDriver
+	agentOption.MaxJSONRawLength = maxJSONRawLength
+	agentOption.WorkloadSourceDriver = "mqtt"
+	agentOption.CloudEventsClientCodecs = []string{"manifest"}
 
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
 	cmdConfig := commonOptions.CommoOpts.
@@ -77,12 +82,17 @@ func runAgent(cmd *cobra.Command, args []string) {
 
 func addFlags(fs *pflag.FlagSet) {
 	// workloadAgentOptions
-	fs.DurationVar(&agentOption.StatusSyncInterval, "status-sync-interval", agentOption.StatusSyncInterval, "Interval to sync resource status to hub")
+	fs.Int32Var(&maxJSONRawLength, "max-json-raw-length",
+		maxJSONRawLength, "The maximum size of the JSON raw string returned from status feedback")
+	fs.DurationVar(&agentOption.StatusSyncInterval, "status-sync-interval",
+		agentOption.StatusSyncInterval, "Interval to sync resource status to hub")
 	fs.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "resource-eviction-grace-period",
 		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for resource eviction")
-	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-id", commonOptions.SpokeClusterName, "Id of the consumer")
+	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-id",
+		commonOptions.SpokeClusterName, "Id of the consumer")
 	// mqtt config file
-	fs.StringVar(&agentOption.WorkloadSourceDriver.Config, "mqtt-config-file",
-		agentOption.WorkloadSourceDriver.Config, "The config file path of mqtt broker")
-
+	fs.StringVar(&agentOption.WorkloadSourceConfig, "mqtt-config-file",
+		agentOption.WorkloadSourceConfig, "The config file path of mqtt broker")
+	fs.StringVar(&agentOption.CloudEventsClientID, "mqtt-client-id",
+		agentOption.CloudEventsClientID, "The ID of the mqtt client, by default it is <consumer-id>-work-agent")
 }
