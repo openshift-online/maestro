@@ -425,7 +425,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	}, res)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
-	// for real case, the controller should have a mappping between resource (replicated) in maestro and resource (root) in kubernetes
+	// for real case, the controller should have a mapping between resource (replicated) in maestro and resource (root) in kubernetes
 	// so call subscribe method can return the resource
 	// for testing, just list the resource via restful api.
 	resources, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()

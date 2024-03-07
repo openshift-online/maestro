@@ -12,7 +12,7 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	agentclient "open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/client"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -149,8 +149,8 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 
 	if resourceStatusPayload.Status != nil {
 		resourceStatus.ReconcileStatus.Conditions = resourceStatusPayload.Status.Conditions
-		if meta.IsStatusConditionTrue(resourceStatusPayload.Conditions, agentclient.ManifestsDeleted) {
-			deletedCondition := meta.FindStatusCondition(resourceStatusPayload.Conditions, agentclient.ManifestsDeleted)
+		if meta.IsStatusConditionTrue(resourceStatusPayload.Conditions, common.ManifestsDeleted) {
+			deletedCondition := meta.FindStatusCondition(resourceStatusPayload.Conditions, common.ManifestsDeleted)
 			resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, *deletedCondition)
 		}
 		for _, value := range resourceStatusPayload.Status.StatusFeedbacks.Values {

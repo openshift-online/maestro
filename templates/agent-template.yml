@@ -290,6 +290,7 @@ objects:
             - agent
             - --consumer-id=${CONSUMER_ID}
             - --mqtt-config-file=/secrets/mqtt/config.yaml
+            - --mqtt-client-id=${CONSUMER_ID}-work-agent
           volumeMounts:
           - name: mqtt
             mountPath: /secrets/mqtt
