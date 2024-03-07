@@ -60,7 +60,7 @@ func TestPulseServer(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.CreateResource(consumer.ID, 1)
+	res := h.CreateResource(consumer.ID, "test_value")
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
@@ -128,5 +128,4 @@ func TestPulseServer(t *testing.T) {
 	newRes, err := resourceService.Get(ctx, res.ID)
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
 	Expect(newRes.Version).To(Equal(res.Version))
-	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
 }

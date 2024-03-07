@@ -37,12 +37,19 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
-			resource := presenters.ConvertResource(rs)
-			resource, err := h.resource.Create(ctx, resource)
+			resource, err := presenters.ConvertResource(rs)
 			if err != nil {
-				return nil, err
+				return nil, errors.GeneralError("failed to convert resource: %s", err)
 			}
-			return presenters.PresentResource(resource), nil
+			resource, serviceErr := h.resource.Create(ctx, resource)
+			if serviceErr != nil {
+				return nil, serviceErr
+			}
+			res, err := presenters.PresentResource(resource)
+			if err != nil {
+				return nil, errors.GeneralError("failed to present resource: %s", err)
+			}
+			return res, nil
 		},
 		handleError,
 	}
@@ -62,15 +69,24 @@ func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			resource, err := h.resource.Update(ctx, &api.Resource{
+			manifest, err := presenters.ConvertResourceManifest(patch.Manifest)
+			if err != nil {
+				return nil, errors.GeneralError("failed to convert resource manifest: %s", err)
+			}
+			resource, serviceErr := h.resource.Update(ctx, &api.Resource{
 				Meta:     api.Meta{ID: id},
 				Version:  *patch.Version,
-				Manifest: patch.Manifest,
+				Type:     api.ResourceTypeSingle,
+				Manifest: manifest,
 			})
-			if err != nil {
-				return nil, err
+			if serviceErr != nil {
+				return nil, serviceErr
 			}
-			return presenters.PresentResource(resource), nil
+			res, err := presenters.PresentResource(resource)
+			if err != nil {
+				return nil, errors.GeneralError("failed to present resource: %s", err)
+			}
+			return res, nil
 		},
 		handleError,
 	}
@@ -85,9 +101,9 @@ func (h resourceHandler) List(w http.ResponseWriter, r *http.Request) {
 
 			listArgs := services.NewListArguments(r.URL.Query())
 			var resources []api.Resource
-			paging, err := h.generic.List(ctx, "username", listArgs, &resources)
-			if err != nil {
-				return nil, err
+			paging, serviceErr := h.generic.List(ctx, "username", listArgs, &resources)
+			if serviceErr != nil {
+				return nil, serviceErr
 			}
 			resourceList := openapi.ResourceList{
 				Kind:  *presenters.ObjectKind(resources),
@@ -98,8 +114,11 @@ func (h resourceHandler) List(w http.ResponseWriter, r *http.Request) {
 			}
 
 			for _, resource := range resources {
-				converted := presenters.PresentResource(&resource)
-				resourceList.Items = append(resourceList.Items, converted)
+				converted, err := presenters.PresentResource(&resource)
+				if err != nil {
+					return nil, errors.GeneralError("failed to present resource: %s", err)
+				}
+				resourceList.Items = append(resourceList.Items, *converted)
 			}
 			if listArgs.Fields != nil {
 				filteredItems, err := presenters.SliceFilter(listArgs.Fields, resourceList.Items)
@@ -120,12 +139,16 @@ func (h resourceHandler) Get(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			resource, err := h.resource.Get(ctx, id)
-			if err != nil {
-				return nil, err
+			resource, serviceErr := h.resource.Get(ctx, id)
+			if serviceErr != nil {
+				return nil, serviceErr
 			}
 
-			return presenters.PresentResource(resource), nil
+			res, err := presenters.PresentResource(resource)
+			if err != nil {
+				return nil, errors.GeneralError("failed to present resource: %s", err)
+			}
+			return res, nil
 		},
 	}
 

@@ -1,265 +1,167 @@
 package api
 
 import (
+	"encoding/json"
 	"testing"
 
-	. "github.com/onsi/gomega"
 	"gorm.io/datatypes"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 )
 
-func TestJSONMapStausToResourceStatus(t *testing.T) {
-	RegisterTestingT(t)
+func TestEncodeManifest(t *testing.T) {
 	cases := []struct {
-		name     string
-		input    datatypes.JSONMap
-		expected ResourceStatus
+		name             string
+		input            map[string]interface{}
+		expected         datatypes.JSONMap
+		expectedErrorMsg string
 	}{
 		{
-			name: "empty",
-			input: datatypes.JSONMap{
-				"ContentStatus":   datatypes.JSONMap{},
-				"ReconcileStatus": datatypes.JSONMap{},
-			},
-			expected: ResourceStatus{
-				ContentStatus:   datatypes.JSONMap{},
-				ReconcileStatus: &ReconcileStatus{},
-			},
+			name:             "empty",
+			input:            map[string]interface{}{},
+			expected:         datatypes.JSONMap{},
+			expectedErrorMsg: "manifest is empty",
 		},
 		{
-			name: "content status",
-			input: datatypes.JSONMap{
-				"ContentStatus": datatypes.JSONMap{
-					"foo": "bar",
-				},
-				"ReconcileStatus": datatypes.JSONMap{},
-			},
-			expected: ResourceStatus{
-				ContentStatus: datatypes.JSONMap{
-					"foo": "bar",
-				},
-				ReconcileStatus: &ReconcileStatus{},
-			},
-		},
-		{
-			name: "reconcile status",
-			input: datatypes.JSONMap{
-				"ContentStatus": datatypes.JSONMap{},
-				"ReconcileStatus": datatypes.JSONMap{
-					"ObservedVersion": 1,
-					"SequenceID":      "123",
-					"Conditions": []datatypes.JSONMap{
-						{
-							"type":    "foo",
-							"status":  "True",
-							"reason":  "bar",
-							"message": "baz",
-						},
-					},
-				},
-			},
-			expected: ResourceStatus{
-				ContentStatus: datatypes.JSONMap{},
-				ReconcileStatus: &ReconcileStatus{
-					ObservedVersion: 1,
-					SequenceID:      "123",
-					Conditions: []metav1.Condition{
-						{
-							Type:    "foo",
-							Status:  "True",
-							Reason:  "bar",
-							Message: "baz",
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "reconcile status with deleted Condition",
-			input: datatypes.JSONMap{
-				"ContentStatus": datatypes.JSONMap{},
-				"ReconcileStatus": datatypes.JSONMap{
-					"ObservedVersion": 1,
-					"SequenceID":      "123",
-					"Conditions": []datatypes.JSONMap{
-						{
-							"type":    "foo",
-							"status":  "True",
-							"reason":  "bar",
-							"message": "baz",
-						},
-						{
-							"type":    "Deleted",
-							"status":  "True",
-							"reason":  "bar",
-							"message": "baz",
-						},
-					},
-				},
-			},
-			expected: ResourceStatus{
-				ContentStatus: datatypes.JSONMap{},
-				ReconcileStatus: &ReconcileStatus{
-					ObservedVersion: 1,
-					SequenceID:      "123",
-					Conditions: []metav1.Condition{
-						{
-							Type:    "foo",
-							Status:  "True",
-							Reason:  "bar",
-							Message: "baz",
-						},
-						{
-							Type:    "Deleted",
-							Status:  "True",
-							Reason:  "bar",
-							Message: "baz",
-						},
-					},
-				},
-			},
+			name:     "valid",
+			input:    newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
+			expected: newManifest(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifest\":{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}}}"),
 		},
 	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			actual, err := JSONMapStatusToResourceStatus(tc.input)
-			Expect(err).To(BeNil())
-
-			Expect(actual.ContentStatus).To(Equal(tc.expected.ContentStatus))
-			Expect(actual.ReconcileStatus).To(Equal(tc.expected.ReconcileStatus))
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotManifest, err := EncodeManifest(c.input)
+			if err != nil {
+				if err.Error() != c.expectedErrorMsg {
+					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
+				}
+				return
+			}
+			if !equality.Semantic.DeepDerivative(c.expected, gotManifest) {
+				t.Errorf("expected %#v but got: %#v", c.expected, gotManifest)
+			}
 		})
 	}
 }
 
-func TestResourceStatusToJSONMap(t *testing.T) {
-	RegisterTestingT(t)
+func TestDecodeManifest(t *testing.T) {
 	cases := []struct {
-		name     string
-		input    *ResourceStatus
-		expected datatypes.JSONMap
+		name             string
+		input            datatypes.JSONMap
+		expected         map[string]interface{}
+		expectedErrorMsg string
 	}{
 		{
-			name: "empty",
-			input: &ResourceStatus{
-				ContentStatus:   datatypes.JSONMap{},
-				ReconcileStatus: &ReconcileStatus{},
-			},
-			expected: datatypes.JSONMap{
-				"ContentStatus": map[string]interface{}{},
-				"ReconcileStatus": map[string]interface{}{
-					"ObservedVersion": float64(0),
-					"SequenceID":      "",
-					"Conditions":      nil,
-				},
-			},
+			name:             "empty",
+			input:            datatypes.JSONMap{},
+			expected:         nil,
+			expectedErrorMsg: "",
 		},
 		{
-			name: "content status",
-			input: &ResourceStatus{
-				ContentStatus: datatypes.JSONMap{
-					"foo": "bar",
-				},
-				ReconcileStatus: &ReconcileStatus{},
-			},
-			expected: datatypes.JSONMap{
-				"ContentStatus": map[string]interface{}{
-					"foo": "bar",
-				},
-				"ReconcileStatus": map[string]interface{}{
-					"ObservedVersion": float64(0),
-					"SequenceID":      "",
-					"Conditions":      nil,
-				},
-			},
-		},
-		{
-			name: "reconcile status",
-			input: &ResourceStatus{
-				ContentStatus: datatypes.JSONMap{},
-				ReconcileStatus: &ReconcileStatus{
-					ObservedVersion: 1,
-					SequenceID:      "123",
-					Conditions: []metav1.Condition{
-						{
-							Type:    "foo",
-							Status:  "True",
-							Reason:  "bar",
-							Message: "baz",
-						},
-					},
-				},
-			},
-			expected: datatypes.JSONMap{
-				"ContentStatus": map[string]interface{}{},
-				"ReconcileStatus": map[string]interface{}{
-					"ObservedVersion": float64(1),
-					"SequenceID":      "123",
-					"Conditions": []interface{}{
-						map[string]interface{}{
-							"type":               "foo",
-							"status":             "True",
-							"reason":             "bar",
-							"message":            "baz",
-							"lastTransitionTime": nil,
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "reconcile status with deleted Condition",
-			input: &ResourceStatus{
-				ContentStatus: datatypes.JSONMap{},
-				ReconcileStatus: &ReconcileStatus{
-					ObservedVersion: 1,
-					SequenceID:      "123",
-					Conditions: []metav1.Condition{
-						{
-							Type:    "foo",
-							Status:  "True",
-							Reason:  "bar",
-							Message: "baz",
-						},
-						{
-							Type:    "Deleted",
-							Status:  "True",
-							Reason:  "bar",
-							Message: "baz",
-						},
-					},
-				},
-			},
-			expected: datatypes.JSONMap{
-				"ContentStatus": map[string]interface{}{},
-				"ReconcileStatus": map[string]interface{}{
-					"ObservedVersion": float64(1),
-					"SequenceID":      "123",
-					"Conditions": []interface{}{
-						map[string]interface{}{
-							"type":               "foo",
-							"status":             "True",
-							"reason":             "bar",
-							"message":            "baz",
-							"lastTransitionTime": nil,
-						},
-						map[string]interface{}{
-							"type":               "Deleted",
-							"status":             "True",
-							"reason":             "bar",
-							"message":            "baz",
-							"lastTransitionTime": nil,
-						},
-					},
-				},
-			},
+			name:     "valid",
+			input:    newManifest(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifest\":{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}}}"),
+			expected: newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
 		},
 	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			actual, err := ResourceStatusToJSONMap(tc.input)
-			Expect(err).To(BeNil())
-			Expect(actual).To(Equal(tc.expected))
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotManifest, err := DecodeManifest(c.input)
+			if err != nil {
+				if err.Error() != c.expectedErrorMsg {
+					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
+				}
+				return
+			}
+			if !equality.Semantic.DeepDerivative(c.expected, gotManifest) {
+				t.Errorf("expected %#v but got: %#v", c.expected, gotManifest)
+			}
 		})
 	}
+}
+
+func TestDecodeManifestBundle(t *testing.T) {
+	cases := []struct {
+		name             string
+		input            datatypes.JSONMap
+		expected         []map[string]interface{}
+		expectedErrorMsg string
+	}{
+		{
+			name:             "empty",
+			input:            datatypes.JSONMap{},
+			expected:         nil,
+			expectedErrorMsg: "",
+		},
+		{
+			name:  "valid",
+			input: newManifest(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}"),
+			expected: []map[string]interface{}{
+				newManifest(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}"),
+				newManifest(t, "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}"),
+			},
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotManifests, err := DecodeManifestBundle(c.input)
+			if err != nil {
+				if err.Error() != c.expectedErrorMsg {
+					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
+				}
+				return
+			}
+			if len(gotManifests) != len(c.expected) {
+				t.Errorf("expected %d resource in manifest bundle but got: %d", len(c.expected), len(gotManifests))
+				return
+			}
+			for i, expected := range c.expected {
+				if !equality.Semantic.DeepDerivative(expected, gotManifests[i]) {
+					t.Errorf("expected %#v but got: %#v", expected, gotManifests[i])
+				}
+			}
+		})
+	}
+}
+
+func TestDecodeStatus(t *testing.T) {
+	cases := []struct {
+		name             string
+		input            datatypes.JSONMap
+		expected         map[string]interface{}
+		expectedErrorMsg string
+	}{
+		{
+			name:             "empty",
+			input:            datatypes.JSONMap{},
+			expected:         nil,
+			expectedErrorMsg: "",
+		},
+		{
+			name:     "valid",
+			input:    newManifest(t, "{\"id\":\"1f21fcbe-3e41-4639-ab8d-1713c578e4cd\",\"time\":\"2024-03-07T03:29:12.094854533Z\",\"type\":\"io.open-cluster-management.works.v1alpha1.manifests.status.update_request\",\"source\":\"maestro-agent-59d9c485d9-7bvwb\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"resourceid\":\"b9368296-3200-42ec-bfbb-f7d44a06c4e0\",\"sequenceid\":\"1765580430112722944\",\"clustername\":\"b288a9da-8bfe-4c82-94cc-2b48e773fc46\",\"originalsource\":\"maestro\",\"resourceversion\":\"1\",\"data\":{\"status\":{\"conditions\":[{\"type\":\"Applied\",\"reason\":\"AppliedManifestComplete\",\"status\":\"True\",\"message\":\"Apply manifest complete\",\"lastTransitionTime\":\"2024-03-07T03:29:03Z\"},{\"type\":\"Available\",\"reason\":\"ResourceAvailable\",\"status\":\"True\",\"message\":\"Resource is available\",\"lastTransitionTime\":\"2024-03-07T03:29:03Z\"},{\"type\":\"StatusFeedbackSynced\",\"reason\":\"StatusFeedbackSynced\",\"status\":\"True\",\"message\":\"\",\"lastTransitionTime\":\"2024-03-07T03:29:03Z\"}],\"resourceMeta\":{\"kind\":\"Deployment\",\"name\":\"nginx1\",\"group\":\"apps\",\"ordinal\":0,\"version\":\"v1\",\"resource\":\"deployments\",\"namespace\":\"default\"},\"statusFeedback\":{\"values\":[{\"name\":\"status\",\"fieldValue\":{\"type\":\"JsonRaw\",\"jsonRaw\":\"{\\\"availableReplicas\\\":1,\\\"conditions\\\":[{\\\"lastTransitionTime\\\":\\\"2024-03-07T03:29:06Z\\\",\\\"lastUpdateTime\\\":\\\"2024-03-07T03:29:06Z\\\",\\\"message\\\":\\\"Deployment has minimum availability.\\\",\\\"reason\\\":\\\"MinimumReplicasAvailable\\\",\\\"status\\\":\\\"True\\\",\\\"type\\\":\\\"Available\\\"},{\\\"lastTransitionTime\\\":\\\"2024-03-07T03:29:03Z\\\",\\\"lastUpdateTime\\\":\\\"2024-03-07T03:29:06Z\\\",\\\"message\\\":\\\"ReplicaSet \\\\\\\"nginx1-5d6b548959\\\\\\\" has successfully progressed.\\\",\\\"reason\\\":\\\"NewReplicaSetAvailable\\\",\\\"status\\\":\\\"True\\\",\\\"type\\\":\\\"Progressing\\\"}],\\\"observedGeneration\\\":1,\\\"readyReplicas\\\":1,\\\"replicas\\\":1,\\\"updatedReplicas\\\":1}\"}}]}},\"conditions\":[{\"type\":\"Applied\",\"reason\":\"AppliedManifestWorkComplete\",\"status\":\"True\",\"message\":\"Apply manifest work complete\",\"lastTransitionTime\":\"2024-03-07T03:29:03Z\"},{\"type\":\"Available\",\"reason\":\"ResourcesAvailable\",\"status\":\"True\",\"message\":\"All resources are available\",\"lastTransitionTime\":\"2024-03-07T03:29:03Z\"}]}}"),
+			expected: newManifest(t, "{\"ContentStatus\":{\"availableReplicas\":1,\"observedGeneration\":1,\"readyReplicas\":1,\"replicas\":1,\"updatedReplicas\":1,\"conditions\":[{\"lastTransitionTime\":\"2024-03-07T03:29:06Z\",\"lastUpdateTime\":\"2024-03-07T03:29:06Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2024-03-07T03:29:03Z\",\"lastUpdateTime\":\"2024-03-07T03:29:06Z\",\"message\":\"ReplicaSet \\\"nginx1-5d6b548959\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"}]},\"ReconcileStatus\":{\"Conditions\":[{\"lastTransitionTime\":\"2024-03-07T03:29:03Z\",\"message\":\"Apply manifest complete\",\"reason\":\"AppliedManifestComplete\",\"status\":\"True\",\"type\":\"Applied\"},{\"lastTransitionTime\":\"2024-03-07T03:29:03Z\",\"message\":\"Resource is available\",\"reason\":\"ResourceAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2024-03-07T03:29:03Z\",\"message\":\"\",\"reason\":\"StatusFeedbackSynced\",\"status\":\"True\",\"type\":\"StatusFeedbackSynced\"}],\"ObservedVersion\":1,\"SequenceID\":\"1765580430112722944\"}}"),
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			gotManifest, err := DecodeStatus(c.input)
+			if err != nil {
+				if err.Error() != c.expectedErrorMsg {
+					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
+				}
+				return
+			}
+			if !equality.Semantic.DeepDerivative(c.expected, gotManifest) {
+				t.Errorf("expected %#v but got: %#v", c.expected, gotManifest)
+			}
+		})
+	}
+}
+
+func newManifest(t *testing.T, data string) datatypes.JSONMap {
+	manifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(data), &manifest); err != nil {
+		t.Fatal(err)
+	}
+
+	return manifest
 }

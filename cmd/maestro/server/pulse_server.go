@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
 var log = logger.NewOCMLogger(context.Background())
@@ -159,13 +160,20 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 			// broadcast the resource status update event
 			s.eventBroadcaster.Broadcast(resource)
 
-			resourceStatus, error := api.JSONMapStatusToResourceStatus(resource.Status)
-			if error != nil {
-				return error
+			// convert the resource status to cloudevent
+			evt, err := api.JSONMAPToCloudEvent(resource.Status)
+			if err != nil {
+				return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
+			}
+
+			// decode the cloudevent data as manifest status
+			statusPayload := &workpayload.ManifestStatus{}
+			if err := evt.DataAs(statusPayload); err != nil {
+				return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
 			}
 
 			// if the resource has been deleted from agent, delete it from maestro
-			if resourceStatus.ReconcileStatus != nil && meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, common.ManifestsDeleted) {
+			if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
 				if err := s.resourceService.Delete(ctx, resource.ID); err != nil {
 					return err
 				}

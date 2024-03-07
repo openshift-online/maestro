@@ -63,7 +63,7 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("create_request"),
 	}
-	if resource.HasManifestBundle() {
+	if resource.Type == api.ResourceTypeBundle {
 		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
@@ -88,7 +88,7 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("update_request"),
 	}
-	if resource.HasManifestBundle() {
+	if resource.Type == api.ResourceTypeBundle {
 		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
@@ -115,7 +115,7 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("delete_request"),
 	}
-	if resource.HasManifestBundle() {
+	if resource.Type == api.ResourceTypeBundle {
 		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
@@ -145,9 +145,13 @@ func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error
 }
 
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {
-	statusBytes, err := json.Marshal(res.Status)
+	status, err := api.DecodeStatus(res.Status)
 	if err != nil {
-		return "", fmt.Errorf("failed to marshal work status, %v", err)
+		return "", fmt.Errorf("failed to decode resource status, %v", err)
+	}
+	statusBytes, err := json.Marshal(status)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal resource status, %v", err)
 	}
 
 	return fmt.Sprintf("%x", sha256.Sum256(statusBytes)), nil

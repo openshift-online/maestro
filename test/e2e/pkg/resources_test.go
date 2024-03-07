@@ -22,8 +22,8 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 	Context("Create Resource", func() {
 
-		It("post the nginx resource to the maestro api", func() {
-			res := helper.NewAPIResource(consumer_id, 1)
+		It("post the configmap resource to the maestro api", func() {
+			res := helper.NewAPIResource(consumer_id, "test_value")
 			var resp *http.Response
 			var err error
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(context.Background()).Resource(res).Execute()
@@ -32,7 +32,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				_, err := kubeClient.CoreV1().ConfigMaps("test").Get(context.Background(), "test", metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -43,9 +43,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 	Context("Patch Resource", func() {
 
-		It("patch the nginx resource", func() {
+		It("patch the configmap resource", func() {
 
-			newRes := helper.NewAPIResource(consumer_id, 2)
+			newRes := helper.NewAPIResource(consumer_id, "test_new_value")
 			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(context.Background(), *resource.Id).
 				ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resource.Version, Manifest: newRes.Manifest}).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -53,14 +53,14 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(*patchedResource.Version).To(Equal(*resource.Version + 1))
 
 			Eventually(func() error {
-				deploy, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				cm, err := kubeClient.CoreV1().ConfigMaps("test").Get(context.Background(), "test", metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				if *deploy.Spec.Replicas == 2 {
+				if cm.Data["test_key"] == "test_new_value" {
 					return nil
 				}
-				return fmt.Errorf("replicas is not 2")
+				return fmt.Errorf("configmap not patched correctly")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
@@ -74,14 +74,14 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				_, err := kubeClient.CoreV1().ConfigMaps("test").Get(context.Background(), "test", metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
-				return fmt.Errorf("nginx deployment still exists")
+				return fmt.Errorf("the configmap still exists")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})

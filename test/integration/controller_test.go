@@ -130,7 +130,7 @@ func TestControllerReconcile(t *testing.T) {
 	}()
 
 	consumer := h.CreateConsumer("cluster1")
-	_ = h.CreateResource(consumer.ID, 1)
+	_ = h.CreateResource(consumer.ID, "test_value")
 
 	// Eventually, the event will be processed by the controller.
 	Eventually(func() error {

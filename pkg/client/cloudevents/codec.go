@@ -1,18 +1,13 @@
 package cloudevents
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	workv1 "open-cluster-management.io/api/work/v1"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -26,51 +21,28 @@ func (codec *Codec) EventDataType() cetypes.CloudEventsDataType {
 	return workpayload.ManifestEventDataType
 }
 
-func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, obj *api.Resource) (*cloudevents.Event, error) {
+func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, res *api.Resource) (*cloudevents.Event, error) {
+	evt, err := api.JSONMAPToCloudEvent(res.Manifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
+	}
+
 	// the resource source takes precedence over the CloudEvent source.
-	if obj.Source != "" {
-		source = obj.Source
-	}
-	evtBuilder := cetypes.NewEventBuilder(source, eventType).
-		WithResourceID(obj.ID).
-		WithResourceVersion(int64(obj.Version)).
-		WithClusterName(obj.ConsumerID)
-
-	if !obj.GetDeletionTimestamp().IsZero() {
-		evtBuilder.WithDeletionTimestamp(obj.GetDeletionTimestamp().Time)
+	if res.Source != "" {
+		source = res.Source
 	}
 
-	evt := evtBuilder.NewEvent()
+	evt.SetSource(source)
+	evt.SetType(eventType.String())
+	evt.SetExtension(cetypes.ExtensionResourceID, res.ID)
+	evt.SetExtension(cetypes.ExtensionResourceVersion, int64(res.Version))
+	evt.SetExtension(cetypes.ExtensionClusterName, res.ConsumerID)
 
-	resourcePayload := &workpayload.Manifest{
-		Manifest: unstructured.Unstructured{Object: obj.Manifest},
-		DeleteOption: &workv1.DeleteOption{
-			PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
-		},
-		ConfigOption: &workpayload.ManifestConfigOption{
-			FeedbackRules: []workv1.FeedbackRule{
-				{
-					Type: workv1.JSONPathsType,
-					JsonPaths: []workv1.JsonPath{
-						{
-							Name: "status",
-							Path: ".status",
-						},
-					},
-				},
-			},
-			UpdateStrategy: &workv1.UpdateStrategy{
-				// TODO support external configuration, e.g. configure this through manifest annotations
-				Type: workv1.UpdateStrategyTypeServerSideApply,
-			},
-		},
+	if !res.GetDeletionTimestamp().IsZero() {
+		evt.SetExtension(cetypes.ExtensionDeletionTimestamp, res.GetDeletionTimestamp().Time)
 	}
 
-	if err := evt.SetData(cloudevents.ApplicationJSON, resourcePayload); err != nil {
-		return nil, fmt.Errorf("failed to encode resource to cloud event: %v", err)
-	}
-
-	return &evt, nil
+	return evt, nil
 }
 
 func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
@@ -105,11 +77,6 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		}
 	}
 
-	sequenceID, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionStatusUpdateSequenceID])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sequenceid extension: %v", err)
-	}
-
 	clusterName, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionClusterName])
 	if err != nil {
 		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
@@ -120,10 +87,9 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		return nil, fmt.Errorf("failed to get originalsource extension: %v", err)
 	}
 
-	data := evt.Data()
-	resourceStatusPayload := &workpayload.ManifestStatus{}
-	if err := json.Unmarshal(data, resourceStatusPayload); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal event data as resource status: %v", err)
+	status, err := api.CloudEventToJSONMap(evt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert cloudevent to resource status: %v", err)
 	}
 
 	resource := &api.Resource{
@@ -133,35 +99,8 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Version:    int32(resourceVersionInt),
 		Source:     originalSource,
 		ConsumerID: clusterName,
-	}
-
-	resourceStatus := &api.ResourceStatus{
-		ReconcileStatus: &api.ReconcileStatus{
-			ObservedVersion: int32(resourceVersionInt),
-			SequenceID:      sequenceID,
-		},
-	}
-
-	if resourceStatusPayload.Status != nil {
-		resourceStatus.ReconcileStatus.Conditions = resourceStatusPayload.Status.Conditions
-		if meta.IsStatusConditionTrue(resourceStatusPayload.Conditions, common.ManifestsDeleted) {
-			deletedCondition := meta.FindStatusCondition(resourceStatusPayload.Conditions, common.ManifestsDeleted)
-			resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, *deletedCondition)
-		}
-		for _, value := range resourceStatusPayload.Status.StatusFeedbacks.Values {
-			if value.Name == "status" {
-				contentStatus := make(map[string]interface{})
-				if err := json.Unmarshal([]byte(*value.Value.JsonRaw), &contentStatus); err != nil {
-					return nil, fmt.Errorf("failed to convert status feedback value to content status: %v", err)
-				}
-				resourceStatus.ContentStatus = contentStatus
-			}
-		}
-	}
-
-	resource.Status, err = api.ResourceStatusToJSONMap(resourceStatus)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert resource status: %v", err)
+		Type:       api.ResourceTypeSingle,
+		Status:     status,
 	}
 
 	return resource, nil

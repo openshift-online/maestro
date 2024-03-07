@@ -1,20 +1,16 @@
 package cloudevents
 
 import (
-	"encoding/json"
 	"fmt"
 	"strconv"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
-	workv1 "open-cluster-management.io/api/work/v1"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	kubetypes "k8s.io/apimachinery/pkg/types"
 )
 
 type BundleCodec struct{}
@@ -25,42 +21,28 @@ func (codec *BundleCodec) EventDataType() cetypes.CloudEventsDataType {
 	return workpayload.ManifestBundleEventDataType
 }
 
-func (codec *BundleCodec) Encode(source string, eventType cetypes.CloudEventsType, obj *api.Resource) (*cloudevents.Event, error) {
-	// the resource source takes precedence over the CloudEvent source.
-	if obj.Source != "" {
-		source = obj.Source
-	}
-	evtBuilder := cetypes.NewEventBuilder(source, eventType).
-		WithResourceID(obj.ID).
-		WithResourceVersion(int64(obj.Version)).
-		WithClusterName(obj.ConsumerID)
-
-	if !obj.GetDeletionTimestamp().IsZero() {
-		evtBuilder.WithDeletionTimestamp(obj.GetDeletionTimestamp().Time)
-	}
-
-	evt := evtBuilder.NewEvent()
-
-	workJSON, err := json.Marshal(obj.Manifest)
+func (codec *BundleCodec) Encode(source string, eventType cetypes.CloudEventsType, res *api.Resource) (*cloudevents.Event, error) {
+	evt, err := api.JSONMAPToCloudEvent(res.Manifest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal manifestwork: %v", err)
-	}
-	work := &workv1.ManifestWork{}
-	if err := json.Unmarshal(workJSON, work); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal manifestwork: %v", err)
+		return nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
 	}
 
-	resourcePayload := &workpayload.ManifestBundle{
-		Manifests:       work.Spec.Workload.Manifests,
-		DeleteOption:    work.Spec.DeleteOption,
-		ManifestConfigs: work.Spec.ManifestConfigs,
+	// the resource source takes precedence over the CloudEvent source.
+	if res.Source != "" {
+		source = res.Source
 	}
 
-	if err := evt.SetData(cloudevents.ApplicationJSON, resourcePayload); err != nil {
-		return nil, fmt.Errorf("failed to encode resource to cloud event: %v", err)
+	evt.SetSource(source)
+	evt.SetType(eventType.String())
+	evt.SetExtension(cetypes.ExtensionResourceID, res.ID)
+	evt.SetExtension(cetypes.ExtensionResourceVersion, int64(res.Version))
+	evt.SetExtension(cetypes.ExtensionClusterName, res.ConsumerID)
+
+	if !res.GetDeletionTimestamp().IsZero() {
+		evt.SetExtension(cetypes.ExtensionDeletionTimestamp, res.GetDeletionTimestamp().Time)
 	}
 
-	return &evt, nil
+	return evt, nil
 }
 
 func (codec *BundleCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
@@ -95,11 +77,6 @@ func (codec *BundleCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) 
 		}
 	}
 
-	sequenceID, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionStatusUpdateSequenceID])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sequenceid extension: %v", err)
-	}
-
 	clusterName, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionClusterName])
 	if err != nil {
 		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
@@ -110,9 +87,9 @@ func (codec *BundleCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) 
 		return nil, fmt.Errorf("failed to get originalsource extension: %v", err)
 	}
 
-	resourceStatusPayload := &workpayload.ManifestBundleStatus{}
-	if err := json.Unmarshal(evt.Data(), resourceStatusPayload); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal event data as resource status: %v", err)
+	status, err := api.CloudEventToJSONMap(evt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert cloudevent to resource status: %v", err)
 	}
 
 	resource := &api.Resource{
@@ -122,50 +99,8 @@ func (codec *BundleCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) 
 		Version:    int32(resourceVersionInt),
 		Source:     originalSource,
 		ConsumerID: clusterName,
-	}
-
-	work := &workv1.ManifestWork{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "ManifestWork",
-			APIVersion: workv1.GroupVersion.String(),
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name: resourceID,
-			UID:  kubetypes.UID(resourceID),
-		},
-	}
-
-	workJSON, err := json.Marshal(work)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal manifestwork: %v", err)
-	}
-	err = json.Unmarshal(workJSON, &resource.Manifest)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal manifestwork: %v", err)
-	}
-
-	resourceStatus := &api.ResourceStatus{
-		ReconcileStatus: &api.ReconcileStatus{
-			ObservedVersion: int32(resourceVersionInt),
-			SequenceID:      sequenceID,
-			Conditions:      resourceStatusPayload.Conditions,
-		},
-	}
-
-	contentStatusMap := make(map[string]interface{})
-	contentStatusMap["ManifestStatus"] = resourceStatusPayload.ResourceStatus
-	contentStatusJSON, err := json.Marshal(contentStatusMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal content status: %v", err)
-	}
-	err = json.Unmarshal(contentStatusJSON, &resourceStatus.ContentStatus)
-	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal content status: %v", err)
-	}
-
-	resource.Status, err = api.ResourceStatusToJSONMap(resourceStatus)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert resource status: %v", err)
+		Type:       api.ResourceTypeBundle,
+		Status:     status,
 	}
 
 	return resource, nil

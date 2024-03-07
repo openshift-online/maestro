@@ -13,6 +13,7 @@ func addResources() *gormigrate.Migration {
 		Source     string         `gorm:"index"`
 		ConsumerID string         `gorm:"index"`
 		Version    int            `gorm:"not null"`
+		Type       string         `gorm:"index"`
 		Manifest   datatypes.JSON `gorm:"type:json"`
 		Status     datatypes.JSON `gorm:"type:json"`
 	}

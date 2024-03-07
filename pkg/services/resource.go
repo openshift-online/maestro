@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	logger "github.com/openshift-online/maestro/pkg/logger"
@@ -56,7 +57,7 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 }
 
 func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
-	if err := ValidateManifest(resource.Manifest); err != nil {
+	if err := ValidateManifest(resource.Type, resource.Manifest); err != nil {
 		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
 	}
 
@@ -103,7 +104,7 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return found, nil
 	}
 
-	if err := ValidateManifestUpdate(resource.Manifest, found.Manifest); err != nil {
+	if err := ValidateManifestUpdate(resource.Type, resource.Manifest, found.Manifest); err != nil {
 		return nil, errors.Validation("the new manifest in the resource is invalid, %v", err)
 	}
 
@@ -155,23 +156,27 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, nil
 	}
 
-	resourceStatus, err := api.JSONMapStatusToResourceStatus(resource.Status)
+	resourceStatusEvent, err := api.JSONMAPToCloudEvent(resource.Status)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
+		return nil, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
 	}
 
-	foundStatus, err := api.JSONMapStatusToResourceStatus(found.Status)
+	sequenceID, err := cloudeventstypes.ToString(resourceStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
 	if err != nil {
-		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
+		return nil, errors.GeneralError("Unable to get sequence ID from resource status: %s", err)
 	}
 
-	sequenceID, foundSequenceID := "", ""
-	if resourceStatus.ReconcileStatus != nil {
-		sequenceID = resourceStatus.ReconcileStatus.SequenceID
-	}
+	foundSequenceID := ""
+	if len(found.Status) != 0 {
+		foundStatusEvent, err := api.JSONMAPToCloudEvent(found.Status)
+		if err != nil {
+			return nil, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
+		}
 
-	if foundStatus.ReconcileStatus != nil {
-		foundSequenceID = foundStatus.ReconcileStatus.SequenceID
+		foundSequenceID, err = cloudeventstypes.ToString(foundStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
+		if err != nil {
+			return nil, errors.GeneralError("Unable to get sequence ID from found resource status: %s", err)
+		}
 	}
 
 	newer, err := compareSequenceIDs(sequenceID, foundSequenceID)

@@ -7,12 +7,6 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	UpdateRequestAction = "update_request"
-	DeleteRequestAction = "delete_request"
-	CreateRequestAction = "create_request"
-)
-
 type GRPCServerConfig struct {
 	EnableGRPCServer      bool          `json:"enable_grpc_server"`
 	TLSCertFile           string        `json:"grpc_tls_cert_file"`
