@@ -88,7 +88,7 @@ func (c *ResourceCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Meta: api.Meta{
 			ID: resourceID,
 		},
-		Version:    int32(resourceVersion),
+		Version:    resourceVersion,
 		ConsumerID: clusterName,
 	}
 

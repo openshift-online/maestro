@@ -210,7 +210,7 @@ func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resour
 	resource := &api.Resource{
 		Source:     evt.Source(),
 		ConsumerID: clusterName,
-		Version:    int32(resourceVersion),
+		Version:    resourceVersion,
 		Meta: api.Meta{
 			ID: resourceID,
 		},

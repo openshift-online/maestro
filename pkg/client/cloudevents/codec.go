@@ -2,7 +2,6 @@ package cloudevents
 
 import (
 	"fmt"
-	"strconv"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
@@ -62,19 +61,9 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		return nil, fmt.Errorf("failed to get resourceid extension: %v", err)
 	}
 
-	resourceVersionInt := int64(0)
-	resourceVersion, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionResourceVersion])
+	resourceVersion, err := cloudeventstypes.ToInteger(evtExtensions[cetypes.ExtensionResourceVersion])
 	if err != nil {
-		resourceVersionIntVal, err := cloudeventstypes.ToInteger(evtExtensions[cetypes.ExtensionResourceVersion])
-		if err != nil {
-			return nil, fmt.Errorf("failed to get resourceversion extension: %v", err)
-		}
-		resourceVersionInt = int64(resourceVersionIntVal)
-	} else {
-		resourceVersionInt, err = strconv.ParseInt(resourceVersion, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert resourceversion - %v to int64", resourceVersion)
-		}
+		return nil, fmt.Errorf("failed to get resourceversion extension: %v", err)
 	}
 
 	clusterName, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionClusterName])
@@ -96,7 +85,7 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Meta: api.Meta{
 			ID: resourceID,
 		},
-		Version:    int32(resourceVersionInt),
+		Version:    resourceVersion,
 		Source:     originalSource,
 		ConsumerID: clusterName,
 		Type:       api.ResourceTypeSingle,

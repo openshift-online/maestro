@@ -219,19 +219,9 @@ func DecodeStatus(status datatypes.JSONMap) (map[string]interface{}, error) {
 	}
 
 	evtExtensions := evt.Extensions()
-	resourceVersionInt := int64(0)
-	resourceVersion, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionResourceVersion])
+	resourceVersion, err := cloudeventstypes.ToInteger(evtExtensions[cetypes.ExtensionResourceVersion])
 	if err != nil {
-		resourceVersionIntVal, err := cloudeventstypes.ToInteger(evtExtensions[cetypes.ExtensionResourceVersion])
-		if err != nil {
-			return nil, fmt.Errorf("failed to get resourceversion extension: %v", err)
-		}
-		resourceVersionInt = int64(resourceVersionIntVal)
-	} else {
-		resourceVersionInt, err = strconv.ParseInt(resourceVersion, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert resourceversion - %v to int64", resourceVersion)
-		}
+		return nil, fmt.Errorf("failed to get resourceversion extension: %v", err)
 	}
 
 	sequenceID, err := cloudeventstypes.ToString(evtExtensions[cetypes.ExtensionStatusUpdateSequenceID])
@@ -241,7 +231,7 @@ func DecodeStatus(status datatypes.JSONMap) (map[string]interface{}, error) {
 
 	resourceStatus := &ResourceStatus{
 		ReconcileStatus: &ReconcileStatus{
-			ObservedVersion: int32(resourceVersionInt),
+			ObservedVersion: resourceVersion,
 			SequenceID:      sequenceID,
 		},
 	}

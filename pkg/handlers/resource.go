@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -100,6 +101,11 @@ func (h resourceHandler) List(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
+			if listArgs.Search == "" {
+				listArgs.Search = fmt.Sprintf("type='%s'", api.ResourceTypeSingle)
+			} else {
+				listArgs.Search = fmt.Sprintf("%s and type='%s'", listArgs.Search, api.ResourceTypeSingle)
+			}
 			var resources []api.Resource
 			paging, serviceErr := h.generic.List(ctx, "username", listArgs, &resources)
 			if serviceErr != nil {
