@@ -78,18 +78,13 @@ var _ = Describe("Server Side Apply", func() {
 				return fmt.Errorf("the resource %s status is nil", resourceID)
 			}
 
-			status, err := api.DecodeStatus(found.Status)
-			if err != nil {
-				return fmt.Errorf("failed to decode status for resource %s: %v", resourceID, err)
-			}
-
-			statusJSON, err := json.Marshal(status)
+			statusJSON, err := json.Marshal(found.Status)
 			if err != nil {
 				return fmt.Errorf("failed to marshal status to JSON: %v", err)
 			}
 			resourceStatus := &api.ResourceStatus{}
 			if err := json.Unmarshal(statusJSON, resourceStatus); err != nil {
-				return fmt.Errorf("failed to unmarshal status to ResourceStatus: %v", err)
+				return fmt.Errorf("failed to unmarshal status JSON to ResourceStatus: %v", err)
 			}
 
 			conditions := resourceStatus.ReconcileStatus.Conditions

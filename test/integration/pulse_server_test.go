@@ -60,7 +60,7 @@ func TestPulseServer(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.CreateResource(consumer.ID, "test_value")
+	res := h.CreateResource(consumer.ID, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder

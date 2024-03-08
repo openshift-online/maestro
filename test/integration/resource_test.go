@@ -43,21 +43,18 @@ func TestResourceGet(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	consumer := h.CreateConsumer("cluster1")
-	res := h.CreateResource(consumer.ID, "test_value")
+	resource := h.CreateResource(consumer.ID, 1)
 
-	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, res.ID).Execute()
+	res, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resource.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
-	Expect(*resource.Id).To(Equal(res.ID), "found object does not match test object")
-	Expect(*resource.Kind).To(Equal("Resource"))
-	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", res.ID)))
-	Expect(*resource.CreatedAt).To(BeTemporally("~", res.CreatedAt))
-	Expect(*resource.UpdatedAt).To(BeTemporally("~", res.UpdatedAt))
-	Expect(*resource.Version).To(Equal(res.Version))
-	manifest, err := api.DecodeManifest(res.Manifest)
-	Expect(err).NotTo(HaveOccurred(), "Error decoding manifest:  %v", err)
-	Expect(resource.Manifest).To(Equal(manifest))
+	Expect(*res.Id).To(Equal(resource.ID), "found object does not match test object")
+	Expect(*res.Kind).To(Equal("Resource"))
+	Expect(*res.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", resource.ID)))
+	Expect(*res.CreatedAt).To(BeTemporally("~", resource.CreatedAt))
+	Expect(*res.UpdatedAt).To(BeTemporally("~", resource.UpdatedAt))
+	Expect(*res.Version).To(Equal(resource.Version))
 }
 
 func TestResourcePost(t *testing.T) {
@@ -67,7 +64,7 @@ func TestResourcePost(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.ID, "test_value")
+	res := h.NewAPIResource(consumer.ID, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
@@ -128,12 +125,6 @@ func TestResourcePost(t *testing.T) {
 	newWork := work.DeepCopy()
 	statusFeedbackValue := `{"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
 	newWork.Status = workv1.ManifestWorkStatus{
-		Conditions: []metav1.Condition{
-			{
-				Type:   "Applied",
-				Status: metav1.ConditionTrue,
-			},
-		},
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
 				{
@@ -211,7 +202,7 @@ func TestResourcePatch(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.CreateResource(consumer.ID, "test_value")
+	res := h.CreateResource(consumer.ID, 1)
 
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
@@ -223,7 +214,7 @@ func TestResourcePatch(t *testing.T) {
 	// POST responses per openapi spec: 201, 400, 409, 500
 
 	// 200 OK
-	newRes := h.NewAPIResource(consumer.ID, "test_new_value")
+	newRes := h.NewAPIResource(consumer.ID, 2)
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -356,8 +347,8 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	consumer := h.CreateConsumer("cluster1")
-	res := h.CreateResource(consumer.ID, "test_value")
-	newRes := h.NewAPIResource(consumer.ID, "test_new_value")
+	res := h.CreateResource(consumer.ID, 1)
+	newRes := h.NewAPIResource(consumer.ID, 2)
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20
@@ -419,7 +410,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	// create a mock resource
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewResource(consumer.ID, "test_value")
+	res := h.NewResource(consumer.ID, 1)
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
@@ -537,7 +528,7 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes := h.NewResource(consumer.ID, "test_new_value")
+	newRes := h.NewResource(consumer.ID, 2)
 	newRes.ID = *resource.Id
 	newRes.Version = *resource.Version
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
@@ -573,7 +564,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(len(work.Spec.Workload.Manifests)).To(Equal(1))
 	manifest = map[string]interface{}{}
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
-	Expect(manifest["data"].(map[string]interface{})["test_key"]).To(Equal("test_new_value"))
+	Expect(manifest["spec"].(map[string]interface{})["replicas"]).To(Equal(float64(2)))
 
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
