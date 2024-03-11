@@ -16,10 +16,9 @@ func TestEncodeManifest(t *testing.T) {
 		expectedErrorMsg string
 	}{
 		{
-			name:             "empty",
-			input:            map[string]interface{}{},
-			expected:         datatypes.JSONMap{},
-			expectedErrorMsg: "manifest is empty",
+			name:     "empty",
+			input:    map[string]interface{}{},
+			expected: datatypes.JSONMap{},
 		},
 		{
 			name:     "valid",

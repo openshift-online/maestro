@@ -112,9 +112,10 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 // EncodeManifest converts a resource manifest (map[string]interface{}) into a CloudEvent JSONMap representation.
 func EncodeManifest(manifest map[string]interface{}) (datatypes.JSONMap, error) {
 	if len(manifest) == 0 {
-		return nil, fmt.Errorf("manifest is empty")
+		return nil, nil
 	}
 
+	// create a cloud event with the manifest as the data
 	evt := cetypes.NewEventBuilder("maestro", cetypes.CloudEventsType{}).NewEvent()
 	eventPayload := &workpayload.Manifest{
 		Manifest: unstructured.Unstructured{Object: manifest},
@@ -147,7 +148,7 @@ func EncodeManifest(manifest map[string]interface{}) (datatypes.JSONMap, error) 
 	// convert cloudevent to JSONMap
 	manifest, err := CloudEventToJSONMap(&evt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert cloudevent to resource manifest JSON: %v", err)
+		return nil, fmt.Errorf("failed to convert cloudevent to resource manifest: %v", err)
 	}
 
 	return manifest, nil
@@ -206,7 +207,7 @@ func DecodeManifestBundle(manifest datatypes.JSONMap) ([]map[string]interface{},
 	return manifests, nil
 }
 
-// DecodeManifest converts a CloudEvent JSONMap representation of a resource status
+// DecodeStatus converts a CloudEvent JSONMap representation of a resource status
 // into resource status (map[string]interface{}).
 func DecodeStatus(status datatypes.JSONMap) (map[string]interface{}, error) {
 	if len(status) == 0 {

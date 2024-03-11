@@ -109,7 +109,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
-		err := svr.respondResyncStatusRequest(ctx, evt)
+		err := svr.respondResyncStatusRequest(ctx, eventType.CloudEventsDataType, evt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to respond resync status request: %v", err)
 		}
@@ -249,7 +249,7 @@ func encode(resource *api.Resource) (*ce.Event, error) {
 
 // respondResyncStatusRequest responds to the status resync request by comparing the status hash of the resources
 // from the database and the status hash in the request, and then respond the resources whose status is changed.
-func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, evt *ce.Event) error {
+func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, eventDataType types.CloudEventsDataType, evt *ce.Event) error {
 	objs, serviceErr := svr.resourceService.FindBySource(ctx, evt.Source())
 	if serviceErr != nil {
 		return fmt.Errorf("failed to list resources: %s", serviceErr)
@@ -269,7 +269,16 @@ func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, evt *ce.E
 		return nil
 	}
 
+	resyncType := api.ResourceTypeSingle
+	if eventDataType == workpayload.ManifestBundleEventDataType {
+		resyncType = api.ResourceTypeBundle
+	}
+
 	for _, obj := range objs {
+		if obj.Type != resyncType {
+			continue
+		}
+
 		lastHash, ok := findStatusHash(string(obj.GetUID()), statusHashes.Hashes)
 		if !ok {
 			// ignore the resource that is not on the source, but exists on the maestro, wait for the source deleting it
