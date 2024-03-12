@@ -16,6 +16,8 @@ spec:
       name: EXPECTED_OUTPUT
       default: ""
       type: string
+    - name: pull_request_number
+    - name: pull_request
   tasks:
     - name: unit-test
       description: Set up DB, run unit tests, and read results
@@ -26,6 +28,10 @@ spec:
           value: $(params.NAMESPACE)
         - name: EXPECTED_OUTPUT
           value: $(params.EXPECTED_OUTPUT)
+        - name: PULL_REQUEST_NUMBER
+          value: $(param.pull_request_number)
+        - name: PULL_REQUEST
+          value: $(param.pull_request)
       taskSpec:
         params:
         - name: SNAPSHOT
@@ -59,22 +65,25 @@ spec:
             test_output_file=${PWD}/test_output.json
 
             # Log Vars for Tracibility
+            echo "---------------------"
             echo "REPO_URL: $REPO_URL"
             echo "TARGET_COMPONENT_NAME: $TARGET_COMPONENT_NAME"
             echo "REPO_COMMIT: $REPO_COMMIT"
             echo "SNAPSHOT: $(echo $SNAPSHOT | jq)"
+            echo "PULL_REQUEST_NUMBER: $PULL_REQUEST_NUMBER"
+            echo "PULL_REQUEST: $PULL_REQUEST"
 
             # Clone Repo and checkout at snapshot commit
             git clone $REPO_URL $TARGET_COMPONENT_NAME
             cd $TARGET_COMPONENT_NAME
-            git checkout $REPO_COMMIT
+            git fetch origin pull/$PULL_REQUEST_NUMBER/head:$PULL_REQUEST_NUMBER
 
             # Wait for the DB sidecar to be ready
             echo "[INFO] Waiting for database to be ready for connection"
-              timeout 5m bash -c 'until echo > /dev/tcp/localhost/5432; do sleep 2s; done'
+            timeout 5m bash -c 'until echo > /dev/tcp/localhost/5432; do sleep 2s; done'
 
             # Generate mqtt config file
-            @echo '{"brokerHost":"localhost:1883","username":"","password":"","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > secrets/mqtt.config
+            echo '{"brokerHost":"localhost:1883","username":"","password":"","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > secrets/mqtt.config
 
             # Run unit tests with JSON output
             make test unit_test_json_output="$test_output_file"
