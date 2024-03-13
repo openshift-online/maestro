@@ -16,7 +16,6 @@ spec:
       name: EXPECTED_OUTPUT
       default: ""
       type: string
-    - name: pull_request_number
   tasks:
     - name: integration-test
       description: Set up DB, run integration tests, and read results
@@ -27,8 +26,6 @@ spec:
           value: $(params.NAMESPACE)
         - name: EXPECTED_OUTPUT
           value: $(params.EXPECTED_OUTPUT)
-        - name: PULL_REQUEST_NUMBER
-          value: $(param.pull_request_number)
       taskSpec:
         params:
         - name: SNAPSHOT
@@ -70,7 +67,9 @@ spec:
             # Clone Repo and checkout at snapshot commit
             git clone $REPO_URL $TARGET_COMPONENT_NAME
             cd $TARGET_COMPONENT_NAME
-            git fetch origin pull/$PULL_REQUEST_NUMBER/head:$PULL_REQUEST_NUMBER
+            git config --local --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pr/*'
+            git fetch origin
+            git checkout $REPO_COMMIT
 
             # Wait for the DB sidecar to be ready
             echo "[INFO] Waiting for database to be ready for connection"
