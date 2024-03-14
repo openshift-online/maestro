@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"regexp"
-	"strings"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
@@ -27,8 +25,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 )
-
-const subscriptionRequestTopicPattern = `^sources/([a-z0-9-]+)/clusters/([a-z0-9-]+|\+)/status$`
 
 // GRPCServer includes a gRPC server and a resource service
 type GRPCServer struct {
@@ -134,18 +130,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 
 // Subscribe implements the Subscribe method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
-	if !regexp.MustCompile(subscriptionRequestTopicPattern).MatchString(subReq.Topic) {
-		return fmt.Errorf("invalid subscription topic %q, it should match `%s`", subReq.Topic, subscriptionRequestTopicPattern)
-	}
-
-	topicSplits := strings.Split(subReq.Topic, "/")
-	if len(topicSplits) != 5 {
-		return fmt.Errorf("invalid subscription topic %s", subReq.Topic)
-	}
-
-	source, clusterName := topicSplits[1], topicSplits[3]
-
-	clientID, errChan := svr.eventBroadcaster.Register(source, clusterName, func(res *api.Resource) error {
+	clientID, errChan := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
 		evt, err := encode(res)
 		if err != nil {
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)

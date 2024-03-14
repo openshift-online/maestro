@@ -13,10 +13,9 @@ type resourceHandler func(res *api.Resource) error
 
 // eventClient is a client that can receive and handle resource status change events.
 type eventClient struct {
-	source      string
-	clusterName string
-	handler     resourceHandler
-	errChan     chan<- error
+	source  string
+	handler resourceHandler
+	errChan chan<- error
 }
 
 // EventBroadcaster is a component that can broadcast resource status change events to registered clients.
@@ -39,17 +38,16 @@ func NewEventBroadcaster() *EventBroadcaster {
 }
 
 // Register registers a client and return client id and error channel.
-func (h *EventBroadcaster) Register(source, clustername string, handler resourceHandler) (string, <-chan error) {
+func (h *EventBroadcaster) Register(source string, handler resourceHandler) (string, <-chan error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	id := uuid.NewString()
 	errChan := make(chan error)
 	h.clients[id] = &eventClient{
-		source:      source,
-		clusterName: clustername,
-		handler:     handler,
-		errChan:     errChan,
+		source:  source,
+		handler: handler,
+		errChan: errChan,
 	}
 
 	return id, errChan
@@ -78,7 +76,7 @@ func (h *EventBroadcaster) Start(ctx context.Context) {
 		case res := <-h.broadcast:
 			h.mu.RLock()
 			for _, client := range h.clients {
-				if client.source == res.Source && (client.clusterName == res.ConsumerID || client.clusterName == "+") {
+				if client.source == res.Source {
 					if err := client.handler(res); err != nil {
 						client.errChan <- err
 					}
