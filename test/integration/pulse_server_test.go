@@ -60,13 +60,13 @@ func TestPulseServer(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.CreateResource(consumer.ID, 1)
+	res := h.CreateResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
-	lister := informer.Lister().ManifestWorks(consumer.ID)
-	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
+	lister := informer.Lister().ManifestWorks(consumer.Name)
+	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()
 
 	var work *workv1.ManifestWork
@@ -112,7 +112,7 @@ func TestPulseServer(t *testing.T) {
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
 
-	// afther the two instances are stale, the current instance will take over the consumer
+	// after the two instances are stale, the current instance will take over the consumer
 	// and resync status, then the resource status will be updated finally
 	Eventually(func() error {
 		newRes, err := resourceService.Get(ctx, res.ID)

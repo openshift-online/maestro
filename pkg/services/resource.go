@@ -25,7 +25,7 @@ type ResourceService interface {
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
-	FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
+	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, *errors.ServiceError)
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
 }
@@ -227,10 +227,10 @@ func (s *sqlResourceService) FindByIDs(ctx context.Context, ids []string) (api.R
 	return resources, nil
 }
 
-func (s *sqlResourceService) FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError) {
-	resources, err := s.resourceDao.FindByConsumerID(ctx, consumerID)
+func (s *sqlResourceService) FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, *errors.ServiceError) {
+	resources, err := s.resourceDao.FindByConsumerName(ctx, consumerName)
 	if err != nil {
-		return nil, handleGetError("Resource", "consumerID", consumerID, err)
+		return nil, handleGetError("Resource", "consumerID", consumerName, err)
 	}
 	return resources, nil
 }
@@ -246,7 +246,7 @@ func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors
 var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 
 func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
-	resourceList, err := s.FindByConsumerIDs(context.TODO(), listOpts.ClusterName)
+	resourceList, err := s.FindByConsumerName(context.TODO(), listOpts.ClusterName)
 	if err != nil {
 		return nil, err
 	}

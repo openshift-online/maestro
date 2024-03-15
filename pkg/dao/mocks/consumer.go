@@ -42,6 +42,15 @@ func (d *consumerDaoMock) Delete(ctx context.Context, id string) error {
 	return errors.NotImplemented("Consumer").AsError()
 }
 
+func (d *consumerDaoMock) GetByName(ctx context.Context, name string) (*api.Consumer, error) {
+	for _, consumer := range d.consumers {
+		if consumer.Name == name {
+			return consumer, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (d *consumerDaoMock) FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, error) {
 	return nil, errors.NotImplemented("Consumer").AsError()
 }

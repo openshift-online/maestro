@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/openshift-online/maestro/pkg/api"
 	"gorm.io/datatypes"
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -12,6 +13,19 @@ import (
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
+
+func ValidateConsumer(consumer *api.Consumer) error {
+	errs := field.ErrorList{}
+	for _, msg := range apivalidation.ValidateNamespaceName(consumer.Name, false) {
+		errs = append(errs, field.Invalid(field.NewPath("consumer").Child("name"), consumer.Name, msg))
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(errs.ToAggregate().Error())
+}
 
 func ValidateManifest(manifest datatypes.JSONMap) error {
 	errs := field.ErrorList{}

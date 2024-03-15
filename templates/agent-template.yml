@@ -17,8 +17,8 @@ parameters:
 - name: AGENT_NAMESPACE
   description: namespace of maestro agent
 
-- name: CONSUMER_ID
-  displayName: Treat CONSUMER_ID as cluster name
+- name: CONSUMER_NAME
+  displayName: Treat CONSUMER_NAME as cluster name
   required: true
 
 - name: IMAGE_REGISTRY
@@ -288,9 +288,9 @@ objects:
           command:
             - /usr/local/bin/maestro
             - agent
-            - --consumer-id=${CONSUMER_ID}
+            - --consumer-name=${CONSUMER_NAME}
             - --mqtt-config-file=/secrets/mqtt/config.yaml
-            - --mqtt-client-id=${CONSUMER_ID}-work-agent
+            - --mqtt-client-id=${CONSUMER_NAME}-work-agent
           volumeMounts:
           - name: mqtt
             mountPath: /secrets/mqtt
@@ -312,8 +312,8 @@ objects:
       clientCertFile: ${MQTT_CLENT_CERT}
       clientKeyFile: ${MQTT_CLENT_KEY}
       topics:
-        sourceEvents: sources/maestro/consumers/${CONSUMER_ID}/sourceevents
-        agentEvents: sources/maestro/consumers/${CONSUMER_ID}/agentevents
+        sourceEvents: sources/maestro/consumers/${CONSUMER_NAME}/sourceevents
+        agentEvents: sources/maestro/consumers/${CONSUMER_NAME}/agentevents
 
 - kind: ServiceAccount
   apiVersion: v1

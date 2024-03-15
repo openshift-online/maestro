@@ -42,7 +42,7 @@ func TestResourceGet(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	consumer := h.CreateConsumer("cluster1")
-	res := h.CreateResource(consumer.ID, 1)
+	res := h.CreateResource(consumer.Name, 1)
 
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, res.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -64,13 +64,13 @@ func TestResourcePost(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.ID, 1)
+	res := h.NewAPIResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
-	lister := informer.Lister().ManifestWorks(consumer.ID)
-	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
+	lister := informer.Lister().ManifestWorks(consumer.Name)
+	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()
 	sourceClient := h.Env().Clients.CloudEventsSource
 
@@ -156,7 +156,7 @@ func TestResourcePost(t *testing.T) {
 	// Resync the resource status
 	ceSourceClient, ok := sourceClient.(*cloudevents.SourceClientImpl)
 	Expect(ok).To(BeTrue())
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.ID)).NotTo(HaveOccurred())
+	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		newRes, err := resourceService.Get(ctx, *resource.Id)
@@ -198,8 +198,8 @@ func TestResourcePatch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	clusterName := "cluster1"
-	consumer := h.CreateConsumer(clusterName)
+	// use the consumer id as the consumer name
+	consumer := h.CreateConsumer("")
 	res := h.CreateResource(consumer.ID, 1)
 
 	h.StartControllerManager(ctx)
@@ -301,7 +301,7 @@ func TestResourcePaging(t *testing.T) {
 
 	// Paging
 	consumer := h.CreateConsumer("cluster1")
-	_ = h.CreateResourceList(consumer.ID, 20)
+	_ = h.CreateResourceList(consumer.Name, 20)
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
@@ -327,7 +327,7 @@ func TestResourceListSearch(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	consumer := h.CreateConsumer("cluster1")
-	resources := h.CreateResourceList(consumer.ID, 20)
+	resources := h.CreateResourceList(consumer.Name, 20)
 
 	search := fmt.Sprintf("id in ('%s')", resources[0].ID)
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Search(search).Execute()
@@ -345,8 +345,8 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	consumer := h.CreateConsumer("cluster1")
-	res := h.CreateResource(consumer.ID, 1)
-	newRes := h.NewAPIResource(consumer.ID, 2)
+	res := h.CreateResource(consumer.Name, 1)
+	newRes := h.NewAPIResource(consumer.Name, 2)
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20
@@ -408,13 +408,13 @@ func TestResourceFromGRPC(t *testing.T) {
 	// create a mock resource
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewResource(consumer.ID, 1)
+	res := h.NewResource(consumer.Name, 1)
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
-	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
+	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
 	// use grpc client to create resource
 	h.StartGRPCResourceSourceClient()
@@ -495,7 +495,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	// Resync the resource status
 	ceSourceClient, ok := h.Env().Clients.CloudEventsSource.(*cloudevents.SourceClientImpl)
 	Expect(ok).To(BeTrue())
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.ID)).NotTo(HaveOccurred())
+	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		newRes, err := h.Store.Get(*resource.Id)
@@ -526,7 +526,7 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes := h.NewResource(consumer.ID, 2)
+	newRes := h.NewResource(consumer.Name, 2)
 	newRes.ID = *resource.Id
 	newRes.Version = *resource.Version
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
@@ -602,7 +602,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(deletingWork)).NotTo(HaveOccurred())
 	// Resync the resource status
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.ID)).NotTo(HaveOccurred())
+	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		resource, _, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, newRes.ID).Execute()
@@ -611,5 +611,4 @@ func TestResourceFromGRPC(t *testing.T) {
 		}
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
-
 }

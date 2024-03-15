@@ -47,10 +47,10 @@ func (d *resourceDaoMock) FindByIDs(ctx context.Context, ids []string) (api.Reso
 	return nil, errors.NotImplemented("Resource").AsError()
 }
 
-func (d *resourceDaoMock) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error) {
+func (d *resourceDaoMock) FindByConsumerName(ctx context.Context, consumerID string) (api.ResourceList, error) {
 	var resources api.ResourceList
 	for _, resource := range d.resources {
-		if resource.ConsumerID == consumerID {
+		if resource.ConsumerName == consumerID {
 			resources = append(resources, resource)
 		}
 	}

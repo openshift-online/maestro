@@ -66,7 +66,7 @@ glog_v:=10
 jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
 
 # consumer id from the database. it is used by the maestro agent to identify itself
-consumer_id ?= cluster1
+consumer_name ?= cluster1
 
 # Client id and secret are used to interact with other UHC services
 CLIENT_ID ?= maestro
@@ -296,7 +296,7 @@ cmds:
 		--param="ENABLE_JQS="false \
 		--param="AGENT_NAMESPACE=${agent_namespace}" \
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
-		--param="CONSUMER_ID=$(consumer_id)" \
+		--param="CONSUMER_NAME=$(consumer_name)" \
 		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
 	> "templates/$*-template.json"
 
@@ -408,6 +408,6 @@ e2e-test/teardown:
 
 e2e-test: e2e-test/teardown e2e-test/setup
 	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
-	${PWD}/test/e2e/pkg -- -consumer_id=$(shell cat ${PWD}/test/e2e/.consumer_id) \
+	${PWD}/test/e2e/pkg -- -consumer_name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 -kubeconfig=${PWD}/test/e2e/.kubeconfig
 .PHONY: e2e-test

@@ -184,10 +184,9 @@ func decode(evt *cloudevents.Event) (*api.Resource, types.EventAction, error) {
 	}
 
 	resource := &api.Resource{
-		Source:     evt.Source(),
-		ConsumerID: clusterName,
-		// Version:    resourceVersion,
-		Manifest: manifest.Manifest.Object,
+		Source:       evt.Source(),
+		ConsumerName: clusterName,
+		Manifest:     manifest.Manifest.Object,
 	}
 
 	if eventType.Action == config.UpdateRequestAction || eventType.Action == config.DeleteRequestAction {
@@ -226,7 +225,7 @@ func encode(resource *api.Resource) (*cloudevents.Event, error) {
 	evt := types.NewEventBuilder(resource.Source, eventType).
 		WithResourceID(resource.ID).
 		WithResourceVersion(int64(resource.Version)).
-		WithClusterName(resource.ConsumerID).
+		WithClusterName(resource.ConsumerName).
 		NewEvent()
 
 	resourceStatusJSON, err := json.Marshal(resource.Status)

@@ -14,11 +14,11 @@ import (
 
 type Resource struct {
 	Meta
-	Version    int32
-	Source     string
-	ConsumerID string
-	Manifest   datatypes.JSONMap
-	Status     datatypes.JSONMap
+	Version      int32
+	Source       string
+	ConsumerName string
+	Manifest     datatypes.JSONMap
+	Status       datatypes.JSONMap
 }
 
 type ResourceStatus struct {

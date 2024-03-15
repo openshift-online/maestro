@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 
@@ -16,6 +17,7 @@ type ConsumerService interface {
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ConsumerList, *errors.ServiceError)
 
+	GetByName(ctx context.Context, name string) (*api.Consumer, *errors.ServiceError)
 	FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, *errors.ServiceError)
 }
 
@@ -40,6 +42,12 @@ func (s *sqlConsumerService) Get(ctx context.Context, id string) (*api.Consumer,
 }
 
 func (s *sqlConsumerService) Create(ctx context.Context, consumer *api.Consumer) (*api.Consumer, *errors.ServiceError) {
+	if consumer.Name != "" {
+		if err := ValidateConsumer(consumer); err != nil {
+			return nil, handleCreateError("Consumer", err)
+		}
+	}
+
 	consumer, err := s.consumerDao.Create(ctx, consumer)
 	if err != nil {
 		return nil, handleCreateError("Consumer", err)
@@ -60,6 +68,14 @@ func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.Serv
 		return handleDeleteError("Consumer", errors.GeneralError("Unable to delete consumer: %s", err))
 	}
 	return nil
+}
+
+func (s *sqlConsumerService) GetByName(ctx context.Context, name string) (*api.Consumer, *errors.ServiceError) {
+	consumer, err := s.consumerDao.Get(ctx, name)
+	if err != nil {
+		return nil, handleGetError("Consumer", "name", name, err)
+	}
+	return consumer, nil
 }
 
 func (s *sqlConsumerService) FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, *errors.ServiceError) {

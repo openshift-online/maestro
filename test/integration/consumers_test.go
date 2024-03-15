@@ -73,6 +73,18 @@ func TestConsumerPost(t *testing.T) {
 	_, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+	// POST a consumer without name
+
+	// 201 Created
+	consumer, resp, err = client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(openapi.Consumer{}).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*consumer.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*consumer.Kind).To(Equal("Consumer"))
+	Expect(*consumer.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", *consumer.Id)))
+	Expect(*consumer.Name).To(Equal(*consumer.Id), "the name and id are not same")
+
 }
 
 //

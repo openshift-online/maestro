@@ -44,7 +44,7 @@ func (d *NoopDispatcher) OnInstanceUp(instanceID string) error {
 func (d *NoopDispatcher) OnInstanceDown(instanceID string) error {
 	// send resync request to each consumer
 	// TODO: optimize this to only resync resource status for necessary consumers
-	consumerIDs := []string{}
+	consumerNames := []string{}
 	ctx := context.TODO()
 	consumers, err := d.consumerDao.All(ctx)
 	if err != nil {
@@ -52,10 +52,10 @@ func (d *NoopDispatcher) OnInstanceDown(instanceID string) error {
 	}
 
 	for _, c := range consumers {
-		consumerIDs = append(consumerIDs, c.ID)
+		consumerNames = append(consumerNames, c.Name)
 	}
 
-	if err := d.sourceClient.Resync(ctx, consumerIDs); err != nil {
+	if err := d.sourceClient.Resync(ctx, consumerNames); err != nil {
 		return fmt.Errorf("unable to trigger statusresync: %s", err.Error())
 	}
 

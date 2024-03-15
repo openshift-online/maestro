@@ -165,7 +165,7 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 		return false, serviceErr
 	}
 	// prepend table names to prevent "ambiguous" errors
-	tslTree, serviceErr = s.treeWalkForAddingTableName(listCtx, tslTree, d)
+	tslTree, serviceErr = s.treeWalkForAddingTableName(tslTree, d)
 	if serviceErr != nil {
 		return false, serviceErr
 	}
@@ -296,7 +296,7 @@ func (s *sqlGenericService) treeWalkForRelatedTables(listCtx *listContext, tslTr
 }
 
 // prepend table name to these "free" identifiers since they could cause "ambiguous" errors
-func (s *sqlGenericService) treeWalkForAddingTableName(listCtx *listContext, tslTree tsl.Node, dao *dao.GenericDao) (tsl.Node, *errors.ServiceError) {
+func (s *sqlGenericService) treeWalkForAddingTableName(tslTree tsl.Node, dao *dao.GenericDao) (tsl.Node, *errors.ServiceError) {
 	resourceTable := (*dao).GetTableName()
 
 	walkFn := func(field string) (string, error) {

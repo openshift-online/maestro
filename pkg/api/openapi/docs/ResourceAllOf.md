@@ -4,7 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
-**ConsumerId** | Pointer to **string** |  | [optional] 
+**ConsumerName** | Pointer to **string** |  | [optional] 
 **Version** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
@@ -30,30 +30,30 @@ NewResourceAllOfWithDefaults instantiates a new ResourceAllOf object
 This constructor will only assign default values to properties that have it defined,
 but it doesn't guarantee that properties required by API are set
 
-### GetConsumerId
+### GetConsumerName
 
-`func (o *ResourceAllOf) GetConsumerId() string`
+`func (o *ResourceAllOf) GetConsumerName() string`
 
-GetConsumerId returns the ConsumerId field if non-nil, zero value otherwise.
+GetConsumerName returns the ConsumerName field if non-nil, zero value otherwise.
 
-### GetConsumerIdOk
+### GetConsumerNameOk
 
-`func (o *ResourceAllOf) GetConsumerIdOk() (*string, bool)`
+`func (o *ResourceAllOf) GetConsumerNameOk() (*string, bool)`
 
-GetConsumerIdOk returns a tuple with the ConsumerId field if it's non-nil, zero value otherwise
+GetConsumerNameOk returns a tuple with the ConsumerName field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
-### SetConsumerId
+### SetConsumerName
 
-`func (o *ResourceAllOf) SetConsumerId(v string)`
+`func (o *ResourceAllOf) SetConsumerName(v string)`
 
-SetConsumerId sets ConsumerId field to given value.
+SetConsumerName sets ConsumerName field to given value.
 
-### HasConsumerId
+### HasConsumerName
 
-`func (o *ResourceAllOf) HasConsumerId() bool`
+`func (o *ResourceAllOf) HasConsumerName() bool`
 
-HasConsumerId returns a boolean if a field has been set.
+HasConsumerName returns a boolean if a field has been set.
 
 ### GetVersion
 

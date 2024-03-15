@@ -14,6 +14,7 @@ type ConsumerDao interface {
 	Create(ctx context.Context, consumer *api.Consumer) (*api.Consumer, error)
 	Replace(ctx context.Context, consumer *api.Consumer) (*api.Consumer, error)
 	Delete(ctx context.Context, id string) error
+	GetByName(ctx context.Context, name string) (*api.Consumer, error)
 	FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, error)
 	All(ctx context.Context) (api.ConsumerList, error)
 }
@@ -62,6 +63,15 @@ func (d *sqlConsumerDao) Delete(ctx context.Context, id string) error {
 		return err
 	}
 	return nil
+}
+
+func (d *sqlConsumerDao) GetByName(ctx context.Context, name string) (*api.Consumer, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var consumer api.Consumer
+	if err := g2.Take(&consumer, "name = ?", name).Error; err != nil {
+		return nil, err
+	}
+	return &consumer, nil
 }
 
 func (d *sqlConsumerDao) FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, error) {

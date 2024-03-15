@@ -21,7 +21,7 @@ import (
 var (
 	apiServerAddress string
 	kubeconfig       string
-	consumer_id      string
+	consumer_name    string
 	kubeClient       *kubernetes.Clientset
 	apiClient        *openapi.APIClient
 	helper           *test.Helper
@@ -37,7 +37,7 @@ func TestE2E(t *testing.T) {
 func init() {
 	klog.SetOutput(GinkgoWriter)
 	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro API server address")
-	flag.StringVar(&consumer_id, "consumer_id", "", "Connsumer ID is used to identify the consumer")
+	flag.StringVar(&consumer_name, "consumer_name", "", "The name of the consumer")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig file")
 }
 
@@ -82,8 +82,8 @@ var _ = BeforeSuite(func() {
 	}
 
 	// validate the consumer_id
-	if consumer_id == "" {
-		panic("consumer_id is not provided")
+	if consumer_name == "" {
+		panic("consumer_name is not provided")
 	}
 })
 

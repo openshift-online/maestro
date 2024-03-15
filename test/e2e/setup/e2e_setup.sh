@@ -65,8 +65,8 @@ export external_host_ip="127.0.0.1"
 echo $external_host_ip > ./test/e2e/.external_host_ip
 kubectl wait deployment maestro -n $namespace --for condition=Available=True --timeout=200s
 sleep 5 # wait 5 seconds for the serice ready
-export consumer_id=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{"name": "cluster1"}' | jq '.id')
-echo $consumer_id > ./test/e2e/.consumer_id
+export consumer_name=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq '.name')
+echo $consumer_name > ./test/e2e/.consumer_name
 
 # 6. deploy maestro agent into maestro-agent namespace
 export agent_namespace=maestro-agent

@@ -495,7 +495,7 @@ components:
       - $ref: '#/components/schemas/ObjectReference'
       - type: object
         properties:
-          consumer_id:
+          consumer_name:
             type: string
           version:
             type: integer

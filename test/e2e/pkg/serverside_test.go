@@ -58,8 +58,8 @@ var _ = Describe("Server Side Apply", func() {
 		Expect(json.Unmarshal([]byte(sleepJob), &manifest)).ShouldNot(HaveOccurred())
 
 		res := openapi.Resource{
-			Manifest:   manifest,
-			ConsumerId: &consumer_id,
+			Manifest:     manifest,
+			ConsumerName: &consumer_name,
 		}
 
 		created, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(context.Background()).Resource(res).Execute()
