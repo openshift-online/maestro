@@ -45,7 +45,7 @@ spec:
             value: $(params.EXPECTED_OUTPUT)
           script: |
             # Install Deps
-            dnf -y install jq git make golang podman
+            dnf -y install jq git make golang
 
             # Runtime Env Config
             export GOPATH=$HOME/.go
@@ -77,6 +77,9 @@ spec:
 
             # Generate mqtt config file
             echo '{"brokerHost":"localhost:1883","username":"","password":"","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > secrets/mqtt.config
+
+            # Generate db.password
+            echo 'foobar-bizz-buzz' > secrets/db.password
 
             # Run unit tests with JSON output
             make test unit_test_json_output="$test_output_file"
