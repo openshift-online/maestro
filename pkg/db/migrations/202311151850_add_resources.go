@@ -10,12 +10,17 @@ import (
 func addResources() *gormigrate.Migration {
 	type Resource struct {
 		Model
-		Source     string         `gorm:"index"`
-		ConsumerID string         `gorm:"index"`
-		Version    int            `gorm:"not null"`
-		Type       string         `gorm:"index"`
-		Manifest   datatypes.JSON `gorm:"type:json"`
-		Status     datatypes.JSON `gorm:"type:json"`
+		Source     string `gorm:"index"`
+		ConsumerID string `gorm:"index"`
+		Version    int    `gorm:"not null"`
+		// Type indicates the resource type. Supported types: "Single" and "Bundle".
+		// "Single" resource type for RESTful API calls,
+		// "Bundle" resource type mainly for gRPC calls.
+		Type string `gorm:"index"`
+		// Manifest holds the resource manifest in CloudEvent format (JSON representation).
+		Manifest datatypes.JSON `gorm:"type:json"`
+		// Status represents the resource status in CloudEvent format (JSON representation).
+		Status datatypes.JSON `gorm:"type:json"`
 	}
 
 	return &gormigrate.Migration{
