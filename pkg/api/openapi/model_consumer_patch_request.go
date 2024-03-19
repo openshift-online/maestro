@@ -19,7 +19,7 @@ var _ MappedNullable = &ConsumerPatchRequest{}
 
 // ConsumerPatchRequest struct for ConsumerPatchRequest
 type ConsumerPatchRequest struct {
-	Name *string `json:"name,omitempty"`
+	Labels *map[string]string `json:"labels,omitempty"`
 }
 
 // NewConsumerPatchRequest instantiates a new ConsumerPatchRequest object
@@ -39,36 +39,36 @@ func NewConsumerPatchRequestWithDefaults() *ConsumerPatchRequest {
 	return &this
 }
 
-// GetName returns the Name field value if set, zero value otherwise.
-func (o *ConsumerPatchRequest) GetName() string {
-	if o == nil || IsNil(o.Name) {
-		var ret string
+// GetLabels returns the Labels field value if set, zero value otherwise.
+func (o *ConsumerPatchRequest) GetLabels() map[string]string {
+	if o == nil || IsNil(o.Labels) {
+		var ret map[string]string
 		return ret
 	}
-	return *o.Name
+	return *o.Labels
 }
 
-// GetNameOk returns a tuple with the Name field value if set, nil otherwise
+// GetLabelsOk returns a tuple with the Labels field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ConsumerPatchRequest) GetNameOk() (*string, bool) {
-	if o == nil || IsNil(o.Name) {
+func (o *ConsumerPatchRequest) GetLabelsOk() (*map[string]string, bool) {
+	if o == nil || IsNil(o.Labels) {
 		return nil, false
 	}
-	return o.Name, true
+	return o.Labels, true
 }
 
-// HasName returns a boolean if a field has been set.
-func (o *ConsumerPatchRequest) HasName() bool {
-	if o != nil && !IsNil(o.Name) {
+// HasLabels returns a boolean if a field has been set.
+func (o *ConsumerPatchRequest) HasLabels() bool {
+	if o != nil && !IsNil(o.Labels) {
 		return true
 	}
 
 	return false
 }
 
-// SetName gets a reference to the given string and assigns it to the Name field.
-func (o *ConsumerPatchRequest) SetName(v string) {
-	o.Name = &v
+// SetLabels gets a reference to the given map[string]string and assigns it to the Labels field.
+func (o *ConsumerPatchRequest) SetLabels(v map[string]string) {
+	o.Labels = &v
 }
 
 func (o ConsumerPatchRequest) MarshalJSON() ([]byte, error) {
@@ -81,8 +81,8 @@ func (o ConsumerPatchRequest) MarshalJSON() ([]byte, error) {
 
 func (o ConsumerPatchRequest) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.Name) {
-		toSerialize["name"] = o.Name
+	if !IsNil(o.Labels) {
+		toSerialize["labels"] = o.Labels
 	}
 	return toSerialize, nil
 }

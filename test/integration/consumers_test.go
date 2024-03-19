@@ -28,13 +28,15 @@ func TestConsumerGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumerWithLabels("cluster1", map[string]string{"foo": "bar"})
 
 	found, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, consumer.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 	Expect(*found.Id).To(Equal(consumer.ID), "found object does not match test object")
+	Expect(*found.Name).To(Equal(*consumer.Name))
+	Expect(*found.Labels).To(Equal(*consumer.Labels.ToMap()))
 	Expect(*found.Kind).To(Equal("Consumer"))
 	Expect(*found.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", consumer.ID)))
 	Expect(*found.CreatedAt).To(BeTemporally("~", consumer.CreatedAt))
@@ -50,6 +52,9 @@ func TestConsumerPost(t *testing.T) {
 	// POST responses per openapi spec: 201, 409, 500
 	c := openapi.Consumer{
 		Name: openapi.PtrString("foobar"),
+		Labels: &map[string]string{
+			"foo": "bar",
+		},
 	}
 
 	// 201 Created
@@ -59,6 +64,8 @@ func TestConsumerPost(t *testing.T) {
 	Expect(*consumer.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
 	Expect(*consumer.Kind).To(Equal("Consumer"))
 	Expect(*consumer.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", *consumer.Id)))
+	Expect(*consumer.Name).To(Equal(*c.Name))
+	Expect(*consumer.Labels).To(Equal(*c.Labels))
 
 	// 400 bad request. posting junk json is one way to trigger 400.
 	jwtToken := ctx.Value(openapi.ContextAccessToken)
@@ -75,37 +82,51 @@ func TestConsumerPost(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 }
 
-//
-//func TestConsumerPatch(t *testing.T) {
-//	h, client := test.RegisterIntegration(t)
-//
-//	account := h.NewRandAccount()
-//	ctx := h.NewAuthenticatedContext(account)
-//
-//	// POST responses per openapi spec: 201, 409, 500
-//
-//	consumer := h.NewConsumer("Brontosaurus")
-//
-//	// 200 OK
-//	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
-//	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
-//	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-//	Expect(*consumer.Id).To(Equal(consumer.ID))
-//	Expect(*consumer.CreatedAt).To(BeTemporally("~", consumer.CreatedAt))
-//	Expect(*consumer.Kind).To(Equal("Consumer"))
-//	Expect(*consumer.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", *consumer.Id)))
-//
-//	jwtToken := ctx.Value(openapi.ContextAccessToken)
-//	// 500 server error. posting junk json is one way to trigger 500.
-//	restyResp, err := resty.R().
-//		SetHeader("Content-Type", "application/json").
-//		SetHeader("Authorization", fmt.Sprintf("Bearer %s", jwtToken)).
-//		SetBody(`{ this is invalid }`).
-//		Patch(h.RestURL("/consumers/foo"))
-//
-//	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
-//}
-//
+
+func TestConsumerPatch(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// create a consumer
+	consumer := h.CreateConsumer("Brontosaurus")
+
+	assert := func (patched *openapi.Consumer, resp *http.Response, err error, name *string, labels *map[string]string) {
+		Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+		Expect(*patched.Id).To(Equal(consumer.ID))
+		Expect(*patched.CreatedAt).To(BeTemporally("~", consumer.CreatedAt))
+		Expect(*patched.Kind).To(Equal("Consumer"))
+		Expect(*patched.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", consumer.ID)))
+		Expect(patched.Name).To(Equal(name))
+		Expect(patched.Labels).To(Equal(labels))
+	}
+
+	// add labels
+	labels := map[string]string{"foo": "bar"}
+	patched, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &labels}).Execute()
+	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), &labels)
+
+	// no-op patch
+	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
+	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), &labels)
+
+	// delete labels
+	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &map[string]string{}}).Execute()
+	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), nil)
+
+	// 500 server error. posting junk json is one way to trigger 500.
+	jwtToken := ctx.Value(openapi.ContextAccessToken)
+	restyResp, err := resty.R().
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Authorization", fmt.Sprintf("Bearer %s", jwtToken)).
+		SetBody(`{ this is invalid }`).
+		Patch(h.RestURL("/consumers/foo"))
+
+	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
+}
+
 //func TestConsumerPaging(t *testing.T) {
 //	h, client := test.RegisterIntegration(t)
 //

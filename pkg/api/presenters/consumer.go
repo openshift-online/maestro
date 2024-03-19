@@ -3,6 +3,7 @@ package presenters
 import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/util"
 )
 
@@ -11,7 +12,8 @@ func ConvertConsumer(consumer openapi.Consumer) *api.Consumer {
 		Meta: api.Meta{
 			ID: util.NilToEmptyString(consumer.Id),
 		},
-		Name: util.NilToEmptyString(consumer.Name),
+		Name: consumer.Name,
+		Labels: db.EmptyMapToNilStringMap(consumer.Labels),
 	}
 }
 
@@ -21,7 +23,8 @@ func PresentConsumer(consumer *api.Consumer) openapi.Consumer {
 		Id:        reference.Id,
 		Kind:      reference.Kind,
 		Href:      reference.Href,
-		Name:      openapi.PtrString(consumer.Name),
+		Name:      consumer.Name,
+		Labels:    consumer.Labels.ToMap(),
 		CreatedAt: openapi.PtrTime(consumer.CreatedAt),
 		UpdatedAt: openapi.PtrTime(consumer.UpdatedAt),
 	}
