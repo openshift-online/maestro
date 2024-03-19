@@ -1,10 +1,14 @@
 package api
 
-import "gorm.io/gorm"
+import (
+	"github.com/openshift-online/maestro/pkg/db"
+	"gorm.io/gorm"
+)
 
 type Consumer struct {
 	Meta
-	Name string
+	Name   *string
+	Labels *db.StringMap
 }
 
 type ConsumerList []*Consumer

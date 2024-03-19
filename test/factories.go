@@ -7,6 +7,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/maestro/pkg/db"
 )
 
 var testManifestJSON = `
@@ -91,9 +92,13 @@ func (helper *Helper) CreateResourceList(consumerID string, count int) (resource
 }
 
 func (helper *Helper) CreateConsumer(name string) *api.Consumer {
+	return helper.CreateConsumerWithLabels(name, nil)
+}
+
+func (helper *Helper) CreateConsumerWithLabels(name string, labels map[string]string) *api.Consumer {
 	consumerService := helper.Env().Services.Consumers()
 
-	consumer, err := consumerService.Create(context.Background(), &api.Consumer{Name: name})
+	consumer, err := consumerService.Create(context.Background(), &api.Consumer{Name: &name, Labels: db.EmptyMapToNilStringMap(&labels)})
 	if err != nil {
 		helper.T.Errorf("error creating resource: %q", err)
 	}
