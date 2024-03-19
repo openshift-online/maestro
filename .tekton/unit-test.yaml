@@ -45,7 +45,7 @@ spec:
             value: $(params.EXPECTED_OUTPUT)
           script: |
             # Install Deps
-            dnf -y install jq git make golang podman
+            dnf -y install jq git make golang
 
             # Runtime Env Config
             export GOPATH=$HOME/.go
@@ -67,14 +67,19 @@ spec:
             # Clone Repo and checkout at snapshot commit
             git clone $REPO_URL $TARGET_COMPONENT_NAME
             cd $TARGET_COMPONENT_NAME
+            git config --local --add remote.origin.fetch '+refs/pull/*/head:refs/remotes/origin/pr/*'
+            git fetch origin
             git checkout $REPO_COMMIT
 
             # Wait for the DB sidecar to be ready
             echo "[INFO] Waiting for database to be ready for connection"
-              timeout 5m bash -c 'until echo > /dev/tcp/localhost/5432; do sleep 2s; done'
+            timeout 5m bash -c 'until echo > /dev/tcp/localhost/5432; do sleep 2s; done'
 
             # Generate mqtt config file
-            @echo '{"brokerHost":"localhost:1883","username":"","password":"","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > secrets/mqtt.config
+            echo '{"brokerHost":"localhost:1883","username":"","password":"","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > secrets/mqtt.config
+
+            # Generate db.password
+            echo 'foobar-bizz-buzz' > secrets/db.password
 
             # Run unit tests with JSON output
             make test unit_test_json_output="$test_output_file"
