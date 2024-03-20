@@ -12,15 +12,15 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 )
 
-type Codec struct{}
+type BundleCodec struct{}
 
-var _ cegeneric.Codec[*api.Resource] = &Codec{}
+var _ cegeneric.Codec[*api.Resource] = &BundleCodec{}
 
-func (codec *Codec) EventDataType() cetypes.CloudEventsDataType {
-	return workpayload.ManifestEventDataType
+func (codec *BundleCodec) EventDataType() cetypes.CloudEventsDataType {
+	return workpayload.ManifestBundleEventDataType
 }
 
-func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, res *api.Resource) (*cloudevents.Event, error) {
+func (codec *BundleCodec) Encode(source string, eventType cetypes.CloudEventsType, res *api.Resource) (*cloudevents.Event, error) {
 	evt, err := api.JSONMAPToCloudEvent(res.Manifest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
@@ -44,13 +44,13 @@ func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, res
 	return evt, nil
 }
 
-func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
+func (codec *BundleCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 	eventType, err := cetypes.ParseCloudEventsType(evt.Type())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	if eventType.CloudEventsDataType != workpayload.ManifestEventDataType {
+	if eventType.CloudEventsDataType != workpayload.ManifestBundleEventDataType {
 		return nil, fmt.Errorf("unsupported cloudevents data type %s", eventType.CloudEventsDataType)
 	}
 
@@ -88,7 +88,7 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Version:    resourceVersion,
 		Source:     originalSource,
 		ConsumerID: clusterName,
-		Type:       api.ResourceTypeSingle,
+		Type:       api.ResourceTypeBundle,
 		Status:     status,
 	}
 

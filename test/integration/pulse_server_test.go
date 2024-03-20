@@ -128,5 +128,4 @@ func TestPulseServer(t *testing.T) {
 	newRes, err := resourceService.Get(ctx, res.ID)
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
 	Expect(newRes.Version).To(Equal(res.Version))
-	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
 }

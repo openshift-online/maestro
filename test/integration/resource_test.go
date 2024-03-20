@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -16,12 +17,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
-	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
 )
@@ -42,19 +43,18 @@ func TestResourceGet(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	consumer := h.CreateConsumer("cluster1")
-	res := h.CreateResource(consumer.ID, 1)
+	resource := h.CreateResource(consumer.ID, 1)
 
-	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, res.ID).Execute()
+	res, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resource.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
-	Expect(*resource.Id).To(Equal(res.ID), "found object does not match test object")
-	Expect(*resource.Kind).To(Equal("Resource"))
-	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", res.ID)))
-	Expect(*resource.CreatedAt).To(BeTemporally("~", res.CreatedAt))
-	Expect(*resource.UpdatedAt).To(BeTemporally("~", res.UpdatedAt))
-	Expect(*resource.Version).To(Equal(res.Version))
-	Expect(resource.Manifest).To(Equal(map[string]interface{}(res.Manifest)))
+	Expect(*res.Id).To(Equal(resource.ID), "found object does not match test object")
+	Expect(*res.Kind).To(Equal("Resource"))
+	Expect(*res.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", resource.ID)))
+	Expect(*res.CreatedAt).To(BeTemporally("~", resource.CreatedAt))
+	Expect(*res.UpdatedAt).To(BeTemporally("~", resource.UpdatedAt))
+	Expect(*res.Version).To(Equal(resource.Version))
 }
 
 func TestResourcePost(t *testing.T) {
@@ -172,10 +172,12 @@ func TestResourcePost(t *testing.T) {
 	newRes, err := resourceService.Get(ctx, *resource.Id)
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
 	Expect(newRes.Version).To(Equal(*resource.Version))
-	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
-	reconcileStatus := newRes.Status["ReconcileStatus"].(map[string]interface{})
-	observedVersion, err := reconcileStatus["ObservedVersion"].(json.Number).Int64()
-	Expect(err).NotTo(HaveOccurred(), "Error getting observedVersion: %v", err)
+	status, err := api.DecodeStatus(newRes.Status)
+	Expect(err).NotTo(HaveOccurred(), "Error decoding status:  %v", err)
+	Expect(status["ReconcileStatus"]).NotTo(BeNil())
+	reconcileStatus := status["ReconcileStatus"].(map[string]interface{})
+	observedVersion, ok := reconcileStatus["ObservedVersion"].(float64)
+	Expect(ok).To(BeTrue())
 	Expect(int32(observedVersion)).To(Equal(*resource.Version))
 	conditions := reconcileStatus["Conditions"].([]interface{})
 	Expect(len(conditions)).To(Equal(1))
@@ -183,11 +185,11 @@ func TestResourcePost(t *testing.T) {
 	Expect(condition["type"]).To(Equal("Applied"))
 	Expect(condition["status"]).To(Equal("True"))
 
-	contentStatus := newRes.Status["ContentStatus"].(map[string]interface{})
-	Expect(contentStatus["replicas"]).To(Equal(json.Number("1")))
-	Expect(contentStatus["availableReplicas"]).To(Equal(json.Number("1")))
-	Expect(contentStatus["readyReplicas"]).To(Equal(json.Number("1")))
-	Expect(contentStatus["updatedReplicas"]).To(Equal(json.Number("1")))
+	contentStatus := status["ContentStatus"].(map[string]interface{})
+	Expect(contentStatus["replicas"]).To(Equal(float64(1)))
+	Expect(contentStatus["availableReplicas"]).To(Equal(float64(1)))
+	Expect(contentStatus["readyReplicas"]).To(Equal(float64(1)))
+	Expect(contentStatus["updatedReplicas"]).To(Equal(float64(1)))
 
 	// make sure controller manager and work agent are stopped
 	cancel()
@@ -409,6 +411,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewResource(consumer.ID, 1)
+	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
@@ -421,7 +424,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	err := h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceSpec,
-		Action:              config.CreateRequestAction,
+		Action:              common.CreateRequestAction,
 	}, res)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
@@ -435,19 +438,18 @@ func TestResourceFromGRPC(t *testing.T) {
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resources.Items[0].Id).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resource.Id).To(Equal(res.ID))
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
 	Expect(*resource.Version).To(Equal(int32(0)))
 
 	// add the resource to the store
-	res.ID = *resource.Id
 	h.Store.Add(res)
 
 	var work *workv1.ManifestWork
 	Eventually(func() error {
 		// ensure the work can be get by work client
-		work, err = agentWorkClient.Get(ctx, *resource.Id, metav1.GetOptions{})
+		work, err = agentWorkClient.Get(ctx, res.ID, metav1.GetOptions{})
 		if err != nil {
 			return err
 		}
@@ -498,7 +500,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.ID)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
-		newRes, err := h.Store.Get(*resource.Id)
+		newRes, err := h.Store.Get(res.ID)
 		if err != nil {
 			return err
 		}
@@ -532,7 +534,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceSpec,
-		Action:              config.UpdateRequestAction,
+		Action:              common.UpdateRequestAction,
 	}, newRes)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
@@ -567,7 +569,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestEventDataType,
 		SubResource:         types.SubResourceSpec,
-		Action:              config.DeleteRequestAction,
+		Action:              common.DeleteRequestAction,
 	}, newRes)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
@@ -586,16 +588,10 @@ func TestResourceFromGRPC(t *testing.T) {
 	// no real kubernete environment, so need to update the resource status manually
 	deletingWork := work.DeepCopy()
 	deletingWork.Status = workv1.ManifestWorkStatus{
-		ResourceStatus: workv1.ManifestResourceStatus{
-			Manifests: []workv1.ManifestCondition{
-				{
-					Conditions: []metav1.Condition{
-						{
-							Type:   "Deleted",
-							Status: metav1.ConditionTrue,
-						},
-					},
-				},
+		Conditions: []metav1.Condition{
+			{
+				Type:   common.ManifestsDeleted,
+				Status: metav1.ConditionTrue,
 			},
 		},
 	}

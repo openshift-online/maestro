@@ -129,7 +129,7 @@ func (km *KindControllerManager) handleEvent(id string) error {
 
 	event, svcErr := km.events.Get(reqContext, id)
 	if svcErr != nil {
-		return svcErr
+		return fmt.Errorf("error getting event with id(%s): %s", id, svcErr)
 	}
 
 	if event.ReconciledDate != nil {
@@ -159,7 +159,10 @@ func (km *KindControllerManager) handleEvent(id string) error {
 	now := time.Now()
 	event.ReconciledDate = &now
 	_, svcErr = km.events.Replace(reqContext, event)
-	return svcErr
+	if svcErr != nil {
+		return fmt.Errorf("error updating event with id(%s): %s", id, svcErr)
+	}
+	return nil
 }
 
 func (km *KindControllerManager) runWorker() {

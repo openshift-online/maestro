@@ -39,9 +39,13 @@ func (c *ResourceCodec) Encode(source string, eventType types.CloudEventsType, r
 		return &evt, nil
 	}
 
-	evt := eventBuilder.NewEvent()
+	manifest, err := api.DecodeManifest(resource.Manifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode manifest: %v", err)
+	}
 
-	if err := evt.SetData(cloudevents.ApplicationJSON, &payload.Manifest{Manifest: unstructured.Unstructured{Object: resource.Manifest}}); err != nil {
+	evt := eventBuilder.NewEvent()
+	if err := evt.SetData(cloudevents.ApplicationJSON, &payload.Manifest{Manifest: unstructured.Unstructured{Object: manifest}}); err != nil {
 		return nil, fmt.Errorf("failed to encode manifests to cloud event: %v", err)
 	}
 
@@ -84,7 +88,7 @@ func (c *ResourceCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Meta: api.Meta{
 			ID: resourceID,
 		},
-		Version:    int32(resourceVersion),
+		Version:    resourceVersion,
 		ConsumerID: clusterName,
 	}
 

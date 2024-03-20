@@ -56,9 +56,24 @@ func (helper *Helper) NewAPIResource(consumerID string, replicas int) openapi.Re
 	}
 }
 
+func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource {
+	testResource := helper.NewAPIResource(consumerID, replicas)
+	testManifest, err := api.EncodeManifest(testResource.Manifest)
+	if err != nil {
+		helper.T.Errorf("error encoding manifest: %q", err)
+	}
+
+	resource := &api.Resource{
+		ConsumerID: consumerID,
+		Type:       api.ResourceTypeSingle,
+		Manifest:   testManifest,
+	}
+
+	return resource
+}
+
 func (helper *Helper) CreateResource(consumerID string, replicas int) *api.Resource {
 	resourceService := helper.Env().Services.Resources()
-
 	resource := helper.NewResource(consumerID, replicas)
 
 	res, err := resourceService.Create(context.Background(), resource)
@@ -67,21 +82,6 @@ func (helper *Helper) CreateResource(consumerID string, replicas int) *api.Resou
 	}
 
 	return res
-}
-
-func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource {
-
-	testManifest := map[string]interface{}{}
-	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
-		helper.T.Errorf("error unmarshalling test manifest: %q", err)
-	}
-
-	resource := &api.Resource{
-		ConsumerID: consumerID,
-		Manifest:   testManifest,
-	}
-
-	return resource
 }
 
 func (helper *Helper) CreateResourceList(consumerID string, count int) (resources []*api.Resource) {

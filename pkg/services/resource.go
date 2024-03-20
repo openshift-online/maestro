@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	logger "github.com/openshift-online/maestro/pkg/logger"
@@ -25,8 +26,9 @@ type ResourceService interface {
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
-	FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
+	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
+	FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
 	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
 }
 
@@ -55,7 +57,7 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 }
 
 func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
-	if err := ValidateManifest(resource.Manifest); err != nil {
+	if err := ValidateManifest(resource.Type, resource.Manifest); err != nil {
 		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
 	}
 
@@ -102,7 +104,7 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return found, nil
 	}
 
-	if err := ValidateManifestUpdate(resource.Manifest, found.Manifest); err != nil {
+	if err := ValidateManifestUpdate(resource.Type, resource.Manifest, found.Manifest); err != nil {
 		return nil, errors.Validation("the new manifest in the resource is invalid, %v", err)
 	}
 
@@ -154,23 +156,27 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, nil
 	}
 
-	resourceStatus, err := api.JSONMapStatusToResourceStatus(resource.Status)
+	resourceStatusEvent, err := api.JSONMAPToCloudEvent(resource.Status)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
+		return nil, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
 	}
 
-	foundStatus, err := api.JSONMapStatusToResourceStatus(found.Status)
+	sequenceID, err := cloudeventstypes.ToString(resourceStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
 	if err != nil {
-		return nil, errors.GeneralError("Unable to convert resource status: %s", err)
+		return nil, errors.GeneralError("Unable to get sequence ID from resource status: %s", err)
 	}
 
-	sequenceID, foundSequenceID := "", ""
-	if resourceStatus.ReconcileStatus != nil {
-		sequenceID = resourceStatus.ReconcileStatus.SequenceID
-	}
+	foundSequenceID := ""
+	if len(found.Status) != 0 {
+		foundStatusEvent, err := api.JSONMAPToCloudEvent(found.Status)
+		if err != nil {
+			return nil, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
+		}
 
-	if foundStatus.ReconcileStatus != nil {
-		foundSequenceID = foundStatus.ReconcileStatus.SequenceID
+		foundSequenceID, err = cloudeventstypes.ToString(foundStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
+		if err != nil {
+			return nil, errors.GeneralError("Unable to get sequence ID from found resource status: %s", err)
+		}
 	}
 
 	newer, err := compareSequenceIDs(sequenceID, foundSequenceID)
@@ -222,12 +228,20 @@ func (s *sqlResourceService) Delete(ctx context.Context, id string) *errors.Serv
 func (s *sqlResourceService) FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError) {
 	resources, err := s.resourceDao.FindByIDs(ctx, ids)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to get all resources: %s", err)
+		return nil, handleGetError("Resource", "id", ids, err)
 	}
 	return resources, nil
 }
 
-func (s *sqlResourceService) FindByConsumerIDs(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError) {
+func (s *sqlResourceService) FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError) {
+	resources, err := s.resourceDao.FindBySource(ctx, source)
+	if err != nil {
+		return nil, handleGetError("Resource", "source", source, err)
+	}
+	return resources, nil
+}
+
+func (s *sqlResourceService) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError) {
 	resources, err := s.resourceDao.FindByConsumerID(ctx, consumerID)
 	if err != nil {
 		return nil, handleGetError("Resource", "consumerID", consumerID, err)
@@ -246,7 +260,7 @@ func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors
 var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 
 func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
-	resourceList, err := s.FindByConsumerIDs(context.TODO(), listOpts.ClusterName)
+	resourceList, err := s.resourceDao.FindByConsumerID(context.TODO(), listOpts.ClusterName)
 	if err != nil {
 		return nil, err
 	}

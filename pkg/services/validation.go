@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/openshift-online/maestro/pkg/api"
 	"gorm.io/datatypes"
 
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
@@ -13,9 +14,40 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
-func ValidateManifest(manifest datatypes.JSONMap) error {
+func ValidateManifest(resType api.ResourceType, manifest datatypes.JSONMap) error {
+	switch resType {
+	case api.ResourceTypeSingle:
+		obj, err := api.DecodeManifest(manifest)
+		if err != nil {
+			return fmt.Errorf("failed to decode manifest: %v", err)
+		}
+		if len(obj) == 0 {
+			return fmt.Errorf("manifest is empty")
+		}
+		return ValidateObject(obj)
+	case api.ResourceTypeBundle:
+		objs, err := api.DecodeManifestBundle(manifest)
+		if err != nil {
+			return fmt.Errorf("failed to decode manifest bundle: %v", err)
+		}
+		if len(objs) == 0 {
+			return fmt.Errorf("manifest bundle is empty")
+		}
+		for _, obj := range objs {
+			if err := ValidateObject(obj); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("unknown resource type: %s", resType)
+	}
+
+	return nil
+}
+
+func ValidateObject(obj datatypes.JSONMap) error {
 	errs := field.ErrorList{}
-	unstructuredObj := unstructured.Unstructured{Object: manifest}
+	unstructuredObj := unstructured.Unstructured{Object: obj}
 
 	errs = append(errs, validatedAPIVersion(unstructuredObj.GetAPIVersion())...)
 
@@ -43,7 +75,49 @@ func ValidateManifest(manifest datatypes.JSONMap) error {
 	return fmt.Errorf(errs.ToAggregate().Error())
 }
 
-func ValidateManifestUpdate(new, old datatypes.JSONMap) error {
+func ValidateManifestUpdate(resType api.ResourceType, new, old datatypes.JSONMap) error {
+	switch resType {
+	case api.ResourceTypeSingle:
+		newObj, err := api.DecodeManifest(new)
+		if err != nil {
+			return fmt.Errorf("failed to decode new manifest: %v", err)
+		}
+		oldObj, err := api.DecodeManifest(old)
+		if err != nil {
+			return fmt.Errorf("failed to decode old manifest: %v", err)
+		}
+		if len(newObj) == 0 || len(oldObj) == 0 {
+			return fmt.Errorf("new or old manifest is empty")
+		}
+		return ValidateObjectUpdate(newObj, oldObj)
+	case api.ResourceTypeBundle:
+		newObjs, err := api.DecodeManifestBundle(new)
+		if err != nil {
+			return fmt.Errorf("failed to decode new manifest bundle: %v", err)
+		}
+		oldObjs, err := api.DecodeManifestBundle(old)
+		if err != nil {
+			return fmt.Errorf("failed to decode old manifest bundle: %v", err)
+		}
+		if len(newObjs) != len(oldObjs) {
+			return fmt.Errorf("new and old manifest bundles have different number of objects")
+		}
+		if len(newObjs) == 0 || len(oldObjs) == 0 {
+			return fmt.Errorf("new or old manifest bundle is empty")
+		}
+		for i := range newObjs {
+			if err := ValidateObjectUpdate(newObjs[i], oldObjs[i]); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("unknown resource type: %s", resType)
+	}
+
+	return nil
+}
+
+func ValidateObjectUpdate(new, old datatypes.JSONMap) error {
 	fldPath := field.NewPath("metadata")
 
 	newObj := unstructured.Unstructured{Object: new}

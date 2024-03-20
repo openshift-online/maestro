@@ -4,23 +4,43 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/util"
+	"gorm.io/datatypes"
 )
 
-func ConvertResource(resource openapi.Resource) *api.Resource {
+// ConvertResource converts a resource from the API to the openapi representation.
+func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
+	manifest, err := ConvertResourceManifest(resource.Manifest)
+	if err != nil {
+		return nil, err
+	}
 	return &api.Resource{
 		Meta: api.Meta{
 			ID: util.NilToEmptyString(resource.Id),
 		},
 		ConsumerID: util.NilToEmptyString(resource.ConsumerId),
 		Version:    util.NilToEmptyInt32(resource.Version),
-		Manifest:   resource.Manifest,
-		Status:     resource.Status,
-	}
+		Type:       api.ResourceTypeSingle,
+		Manifest:   manifest,
+	}, nil
 }
 
-func PresentResource(resource *api.Resource) openapi.Resource {
+// ConvertResourceManifest converts a resource manifest from the openapi representation to the API.
+func ConvertResourceManifest(manifest map[string]interface{}) (datatypes.JSONMap, error) {
+	return api.EncodeManifest(manifest)
+}
+
+// PresentResource converts a resource from the API to the openapi representation.
+func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
+	manifest, err := api.DecodeManifest(resource.Manifest)
+	if err != nil {
+		return nil, err
+	}
+	status, err := api.DecodeStatus(resource.Status)
+	if err != nil {
+		return nil, err
+	}
 	reference := PresentReference(resource.ID, resource)
-	return openapi.Resource{
+	return &openapi.Resource{
 		Id:         reference.Id,
 		Kind:       reference.Kind,
 		Href:       reference.Href,
@@ -28,7 +48,7 @@ func PresentResource(resource *api.Resource) openapi.Resource {
 		Version:    openapi.PtrInt32(resource.Version),
 		CreatedAt:  openapi.PtrTime(resource.CreatedAt),
 		UpdatedAt:  openapi.PtrTime(resource.UpdatedAt),
-		Manifest:   resource.Manifest,
-		Status:     resource.Status,
-	}
+		Manifest:   manifest,
+		Status:     status,
+	}, nil
 }
