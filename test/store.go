@@ -113,7 +113,7 @@ func (s *MemoryStore) ListByNamespace(namespace string) []*api.Resource {
 	resources := make([]*api.Resource, len(s.resources))
 	i := 0
 	for _, res := range s.resources {
-		if res.ConsumerID != namespace {
+		if res.ConsumerName != namespace {
 			continue
 		}
 

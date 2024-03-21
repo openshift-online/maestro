@@ -32,7 +32,7 @@ func (c *ResourceCodec) Encode(source string, eventType types.CloudEventsType, r
 	eventBuilder := types.NewEventBuilder(source, eventType).
 		WithResourceID(resource.ID).
 		WithResourceVersion(int64(resource.Version)).
-		WithClusterName(resource.ConsumerID)
+		WithClusterName(resource.ConsumerName)
 
 	if !resource.GetDeletionTimestamp().IsZero() {
 		evt := eventBuilder.WithDeletionTimestamp(resource.GetDeletionTimestamp().Time).NewEvent()
@@ -88,8 +88,8 @@ func (c *ResourceCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Meta: api.Meta{
 			ID: resourceID,
 		},
-		Version:    resourceVersion,
-		ConsumerID: clusterName,
+		Version:      resourceVersion,
+		ConsumerName: clusterName,
 	}
 
 	resourceStatus := &api.ResourceStatus{

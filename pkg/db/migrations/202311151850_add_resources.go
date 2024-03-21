@@ -10,9 +10,9 @@ import (
 func addResources() *gormigrate.Migration {
 	type Resource struct {
 		Model
-		Source     string `gorm:"index"`
-		ConsumerID string `gorm:"index"`
-		Version    int    `gorm:"not null"`
+		Source       string `gorm:"index"`
+		ConsumerName string `gorm:"index"`
+		Version      int    `gorm:"not null"`
 		// Type indicates the resource type. Supported types: "Single" and "Bundle".
 		// "Single" resource type for RESTful API calls,
 		// "Bundle" resource type mainly for gRPC calls.

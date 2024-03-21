@@ -35,7 +35,7 @@ func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, res
 	evt.SetType(eventType.String())
 	evt.SetExtension(cetypes.ExtensionResourceID, res.ID)
 	evt.SetExtension(cetypes.ExtensionResourceVersion, int64(res.Version))
-	evt.SetExtension(cetypes.ExtensionClusterName, res.ConsumerID)
+	evt.SetExtension(cetypes.ExtensionClusterName, res.ConsumerName)
 
 	if !res.GetDeletionTimestamp().IsZero() {
 		evt.SetExtension(cetypes.ExtensionDeletionTimestamp, res.GetDeletionTimestamp().Time)
@@ -85,11 +85,11 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		Meta: api.Meta{
 			ID: resourceID,
 		},
-		Version:    resourceVersion,
-		Source:     originalSource,
-		ConsumerID: clusterName,
-		Type:       api.ResourceTypeSingle,
-		Status:     status,
+		Version:      resourceVersion,
+		Source:       originalSource,
+		ConsumerName: clusterName,
+		Type:         api.ResourceTypeSingle,
+		Status:       status,
 	}
 
 	return resource, nil

@@ -27,12 +27,12 @@ const (
 
 type Resource struct {
 	Meta
-	Version    int32
-	Source     string
-	ConsumerID string
-	Type       ResourceType
-	Manifest   datatypes.JSONMap
-	Status     datatypes.JSONMap
+	Version      int32
+	Source       string
+	ConsumerName string
+	Type         ResourceType
+	Manifest     datatypes.JSONMap
+	Status       datatypes.JSONMap
 }
 
 type ResourceStatus struct {

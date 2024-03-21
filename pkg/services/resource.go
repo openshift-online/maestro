@@ -28,7 +28,6 @@ type ResourceService interface {
 
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
-	FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError)
 	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
 }
 
@@ -241,14 +240,6 @@ func (s *sqlResourceService) FindBySource(ctx context.Context, source string) (a
 	return resources, nil
 }
 
-func (s *sqlResourceService) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, *errors.ServiceError) {
-	resources, err := s.resourceDao.FindByConsumerID(ctx, consumerID)
-	if err != nil {
-		return nil, handleGetError("Resource", "consumerID", consumerID, err)
-	}
-	return resources, nil
-}
-
 func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors.ServiceError) {
 	resources, err := s.resourceDao.All(ctx)
 	if err != nil {
@@ -260,7 +251,7 @@ func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors
 var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 
 func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
-	resourceList, err := s.resourceDao.FindByConsumerID(context.TODO(), listOpts.ClusterName)
+	resourceList, err := s.resourceDao.FindByConsumerName(context.TODO(), listOpts.ClusterName)
 	if err != nil {
 		return nil, err
 	}
