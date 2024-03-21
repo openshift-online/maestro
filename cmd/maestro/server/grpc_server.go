@@ -208,9 +208,9 @@ func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resour
 	}
 
 	resource := &api.Resource{
-		Source:     evt.Source(),
-		ConsumerID: clusterName,
-		Version:    resourceVersion,
+		Source:       evt.Source(),
+		ConsumerName: clusterName,
+		Version:      resourceVersion,
 		Meta: api.Meta{
 			ID: resourceID,
 		},

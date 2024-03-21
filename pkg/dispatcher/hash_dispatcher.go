@@ -65,8 +65,8 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 // Dispatch checks if the provided consumer ID is owned by the current maestro instance.
 // It returns true if the consumer is part of the current instance's consumer set;
 // otherwise, it returns false.
-func (d *HashDispatcher) Dispatch(consumerID string) bool {
-	return d.consumerSet.Contains(consumerID)
+func (d *HashDispatcher) Dispatch(consumerName string) bool {
+	return d.consumerSet.Contains(consumerName)
 }
 
 // OnInstanceUp adds the new instance to the hashing ring and updates the consumer set for the current instance.
@@ -130,19 +130,17 @@ func (d *HashDispatcher) updateConsumerSet() error {
 
 	toAddConsumers, toRemoveConsumers := []string{}, []string{}
 	for _, consumer := range consumers {
-		instanceID := d.consistent.LocateKey([]byte(consumer.ID)).String()
+		instanceID := d.consistent.LocateKey([]byte(consumer.Name)).String()
 		if instanceID == d.instanceID {
-			if !d.consumerSet.Contains(consumer.ID) {
+			if !d.consumerSet.Contains(consumer.Name) {
 				// new consumer added to the current instance, need to resync resource status updates for this consumer
-				// log.V(4).Infof("Adding new consumer %s to consumer set", consumer.ID)
-				toAddConsumers = append(toAddConsumers, consumer.ID)
-				d.workQueue.Add(consumer.ID)
+				toAddConsumers = append(toAddConsumers, consumer.Name)
+				d.workQueue.Add(consumer.Name)
 			}
 		} else {
 			// remove the consumer from the set if it is not in the current instance
-			if d.consumerSet.Contains(consumer.ID) {
-				// log.V(4).Infof("Removing consumer %s from consumer set", consumer.ID)
-				toRemoveConsumers = append(toRemoveConsumers, consumer.ID)
+			if d.consumerSet.Contains(consumer.Name) {
+				toRemoveConsumers = append(toRemoveConsumers, consumer.Name)
 			}
 		}
 	}
@@ -202,7 +200,7 @@ func (d *HashDispatcher) check(ctx context.Context) {
 // processNextResync attempts to resync resource status updates for new consumers added to the current maestro instance
 // using the cloudevents source client. It returns true if the resync is successful.
 func (d *HashDispatcher) processNextResync(ctx context.Context) bool {
-	consumerID, shutdown := d.workQueue.Get()
+	key, shutdown := d.workQueue.Get()
 	if shutdown {
 		// workqueue has been shutdown, return false
 		return false
@@ -214,21 +212,21 @@ func (d *HashDispatcher) processNextResync(ctx context.Context) bool {
 	// not call Forget if a transient error occurs, instead the item is
 	// put back on the workqueue and attempted again after a back-off
 	// period.
-	defer d.workQueue.Done(consumerID)
+	defer d.workQueue.Done(key)
 
-	consumerIDStr, ok := consumerID.(string)
+	consumerName, ok := key.(string)
 	if !ok {
-		d.workQueue.Forget(consumerID)
+		d.workQueue.Forget(key)
 		// return true to indicate that we should continue processing the next item
 		return true
 	}
 
 	log := logger.NewOCMLogger(ctx)
-	log.V(4).Infof("processing status resync request for consumer %s", consumerIDStr)
-	if err := d.sourceClient.Resync(ctx, []string{consumerIDStr}); err != nil {
-		log.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerIDStr, err))
+	log.V(4).Infof("processing status resync request for consumer %s", consumerName)
+	if err := d.sourceClient.Resync(ctx, []string{consumerName}); err != nil {
+		log.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerName, err))
 		// Put the item back on the workqueue to handle any transient errors.
-		d.workQueue.AddRateLimited(consumerID)
+		d.workQueue.AddRateLimited(key)
 	}
 
 	return true

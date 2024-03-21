@@ -74,7 +74,7 @@ func TestControllerRacing(t *testing.T) {
 	}
 
 	consumer := h.CreateConsumer("cluster1")
-	_ = h.CreateResourceList(consumer.ID, 50)
+	_ = h.CreateResourceList(consumer.Name, 50)
 
 	// This is to check only 50 create events is processed. It waits for 5 seconds to ensure all events have been
 	// processed by the controllers.
@@ -130,7 +130,7 @@ func TestControllerReconcile(t *testing.T) {
 	}()
 
 	consumer := h.CreateConsumer("cluster1")
-	_ = h.CreateResource(consumer.ID, 1)
+	_ = h.CreateResource(consumer.Name, 1)
 
 	// Eventually, the event will be processed by the controller.
 	Eventually(func() error {

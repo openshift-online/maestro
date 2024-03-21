@@ -12,7 +12,7 @@ func ConvertConsumer(consumer openapi.Consumer) *api.Consumer {
 		Meta: api.Meta{
 			ID: util.NilToEmptyString(consumer.Id),
 		},
-		Name: consumer.Name,
+		Name:   util.NilToEmptyString(consumer.Name),
 		Labels: db.EmptyMapToNilStringMap(consumer.Labels),
 	}
 }
@@ -23,7 +23,7 @@ func PresentConsumer(consumer *api.Consumer) openapi.Consumer {
 		Id:        reference.Id,
 		Kind:      reference.Kind,
 		Href:      reference.Href,
-		Name:      consumer.Name,
+		Name:      openapi.PtrString(consumer.Name),
 		Labels:    consumer.Labels.ToMap(),
 		CreatedAt: openapi.PtrTime(consumer.CreatedAt),
 		UpdatedAt: openapi.PtrTime(consumer.UpdatedAt),

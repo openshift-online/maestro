@@ -820,7 +820,7 @@ components:
       example: null
     Resource_allOf:
       properties:
-        consumer_id:
+        consumer_name:
           type: string
         version:
           type: integer

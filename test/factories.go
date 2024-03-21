@@ -44,37 +44,37 @@ var testManifestJSON = `
 }
 `
 
-func (helper *Helper) NewAPIResource(consumerID string, replicas int) openapi.Resource {
+func (helper *Helper) NewAPIResource(consumerName string, replicas int) openapi.Resource {
 	testManifest := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
 		helper.T.Errorf("error unmarshalling test manifest: %q", err)
 	}
 
 	return openapi.Resource{
-		Manifest:   testManifest,
-		ConsumerId: &consumerID,
+		Manifest:     testManifest,
+		ConsumerName: &consumerName,
 	}
 }
 
-func (helper *Helper) NewResource(consumerID string, replicas int) *api.Resource {
-	testResource := helper.NewAPIResource(consumerID, replicas)
+func (helper *Helper) NewResource(consumerName string, replicas int) *api.Resource {
+	testResource := helper.NewAPIResource(consumerName, replicas)
 	testManifest, err := api.EncodeManifest(testResource.Manifest)
 	if err != nil {
 		helper.T.Errorf("error encoding manifest: %q", err)
 	}
 
 	resource := &api.Resource{
-		ConsumerID: consumerID,
-		Type:       api.ResourceTypeSingle,
-		Manifest:   testManifest,
+		ConsumerName: consumerName,
+		Type:         api.ResourceTypeSingle,
+		Manifest:     testManifest,
 	}
 
 	return resource
 }
 
-func (helper *Helper) CreateResource(consumerID string, replicas int) *api.Resource {
+func (helper *Helper) CreateResource(consumerName string, replicas int) *api.Resource {
 	resourceService := helper.Env().Services.Resources()
-	resource := helper.NewResource(consumerID, replicas)
+	resource := helper.NewResource(consumerName, replicas)
 
 	res, err := resourceService.Create(context.Background(), resource)
 	if err != nil {
@@ -84,9 +84,9 @@ func (helper *Helper) CreateResource(consumerID string, replicas int) *api.Resou
 	return res
 }
 
-func (helper *Helper) CreateResourceList(consumerID string, count int) (resources []*api.Resource) {
+func (helper *Helper) CreateResourceList(consumerName string, count int) (resources []*api.Resource) {
 	for i := 1; i <= count; i++ {
-		resources = append(resources, helper.CreateResource(consumerID, 1))
+		resources = append(resources, helper.CreateResource(consumerName, 1))
 	}
 	return resources
 }
@@ -98,7 +98,7 @@ func (helper *Helper) CreateConsumer(name string) *api.Consumer {
 func (helper *Helper) CreateConsumerWithLabels(name string, labels map[string]string) *api.Consumer {
 	consumerService := helper.Env().Services.Consumers()
 
-	consumer, err := consumerService.Create(context.Background(), &api.Consumer{Name: &name, Labels: db.EmptyMapToNilStringMap(&labels)})
+	consumer, err := consumerService.Create(context.Background(), &api.Consumer{Name: name, Labels: db.EmptyMapToNilStringMap(&labels)})
 	if err != nil {
 		helper.T.Errorf("error creating resource: %q", err)
 	}

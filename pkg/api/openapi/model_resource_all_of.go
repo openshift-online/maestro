@@ -20,12 +20,12 @@ var _ MappedNullable = &ResourceAllOf{}
 
 // ResourceAllOf struct for ResourceAllOf
 type ResourceAllOf struct {
-	ConsumerId *string                `json:"consumer_id,omitempty"`
-	Version    *int32                 `json:"version,omitempty"`
-	CreatedAt  *time.Time             `json:"created_at,omitempty"`
-	UpdatedAt  *time.Time             `json:"updated_at,omitempty"`
-	Manifest   map[string]interface{} `json:"manifest,omitempty"`
-	Status     map[string]interface{} `json:"status,omitempty"`
+	ConsumerName *string                `json:"consumer_name,omitempty"`
+	Version      *int32                 `json:"version,omitempty"`
+	CreatedAt    *time.Time             `json:"created_at,omitempty"`
+	UpdatedAt    *time.Time             `json:"updated_at,omitempty"`
+	Manifest     map[string]interface{} `json:"manifest,omitempty"`
+	Status       map[string]interface{} `json:"status,omitempty"`
 }
 
 // NewResourceAllOf instantiates a new ResourceAllOf object
@@ -45,36 +45,36 @@ func NewResourceAllOfWithDefaults() *ResourceAllOf {
 	return &this
 }
 
-// GetConsumerId returns the ConsumerId field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetConsumerId() string {
-	if o == nil || IsNil(o.ConsumerId) {
+// GetConsumerName returns the ConsumerName field value if set, zero value otherwise.
+func (o *ResourceAllOf) GetConsumerName() string {
+	if o == nil || IsNil(o.ConsumerName) {
 		var ret string
 		return ret
 	}
-	return *o.ConsumerId
+	return *o.ConsumerName
 }
 
-// GetConsumerIdOk returns a tuple with the ConsumerId field value if set, nil otherwise
+// GetConsumerNameOk returns a tuple with the ConsumerName field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetConsumerIdOk() (*string, bool) {
-	if o == nil || IsNil(o.ConsumerId) {
+func (o *ResourceAllOf) GetConsumerNameOk() (*string, bool) {
+	if o == nil || IsNil(o.ConsumerName) {
 		return nil, false
 	}
-	return o.ConsumerId, true
+	return o.ConsumerName, true
 }
 
-// HasConsumerId returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasConsumerId() bool {
-	if o != nil && !IsNil(o.ConsumerId) {
+// HasConsumerName returns a boolean if a field has been set.
+func (o *ResourceAllOf) HasConsumerName() bool {
+	if o != nil && !IsNil(o.ConsumerName) {
 		return true
 	}
 
 	return false
 }
 
-// SetConsumerId gets a reference to the given string and assigns it to the ConsumerId field.
-func (o *ResourceAllOf) SetConsumerId(v string) {
-	o.ConsumerId = &v
+// SetConsumerName gets a reference to the given string and assigns it to the ConsumerName field.
+func (o *ResourceAllOf) SetConsumerName(v string) {
+	o.ConsumerName = &v
 }
 
 // GetVersion returns the Version field value if set, zero value otherwise.
@@ -247,8 +247,8 @@ func (o ResourceAllOf) MarshalJSON() ([]byte, error) {
 
 func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
-	if !IsNil(o.ConsumerId) {
-		toSerialize["consumer_id"] = o.ConsumerId
+	if !IsNil(o.ConsumerName) {
+		toSerialize["consumer_name"] = o.ConsumerName
 	}
 	if !IsNil(o.Version) {
 		toSerialize["version"] = o.Version

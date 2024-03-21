@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 
@@ -40,6 +41,12 @@ func (s *sqlConsumerService) Get(ctx context.Context, id string) (*api.Consumer,
 }
 
 func (s *sqlConsumerService) Create(ctx context.Context, consumer *api.Consumer) (*api.Consumer, *errors.ServiceError) {
+	if consumer.Name != "" {
+		if err := ValidateConsumer(consumer); err != nil {
+			return nil, handleCreateError("Consumer", err)
+		}
+	}
+
 	consumer, err := s.consumerDao.Create(ctx, consumer)
 	if err != nil {
 		return nil, handleCreateError("Consumer", err)
