@@ -60,7 +60,8 @@ var jwkURL string
 type TimeFunc func() time.Time
 
 type Helper struct {
-	Ctx context.Context
+	Ctx               context.Context
+	ContextCancelFunc context.CancelFunc
 
 	EventBroadcaster  *event.EventBroadcaster
 	Store             *MemoryStore
@@ -105,21 +106,25 @@ func NewHelper(t *testing.T) *Helper {
 			glog.Fatalf("Unable to initialize testing environment: %s", err.Error())
 		}
 
+		ctx, cancel := context.WithCancel(context.Background())
 		helper = &Helper{
-			Ctx:              context.Background(),
-			EventBroadcaster: event.NewEventBroadcaster(),
-			AppConfig:        env.Config,
-			DBFactory:        env.Database.SessionFactory,
-			JWTPrivateKey:    jwtKey,
-			JWTCA:            jwtCA,
+			Ctx:               ctx,
+			ContextCancelFunc: cancel,
+			EventBroadcaster:  event.NewEventBroadcaster(),
+			AppConfig:         env.Config,
+			DBFactory:         env.Database.SessionFactory,
+			JWTPrivateKey:     jwtKey,
+			JWTCA:             jwtCA,
 		}
 
 		// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 		jwkMockTeardown := helper.StartJWKCertServerMock()
 		helper.teardowns = []func() error{
-			helper.CleanDB,
-			jwkMockTeardown,
+			helper.sendShutdownSignal,
 			helper.stopAPIServer,
+			helper.stopMetricsServer,
+			helper.stopHealthCheckServer,
+			jwkMockTeardown,
 		}
 
 		helper.startEventBroadcaster()
@@ -172,10 +177,11 @@ func (helper *Helper) startMetricsServer() {
 	}()
 }
 
-func (helper *Helper) stopMetricsServer() {
+func (helper *Helper) stopMetricsServer() error {
 	if err := helper.MetricsServer.Stop(); err != nil {
-		glog.Fatalf("Unable to stop metrics server: %s", err.Error())
+		return fmt.Errorf("unable to stop metrics server: %s", err.Error())
 	}
+	return nil
 }
 
 func (helper *Helper) startHealthCheckServer() {
@@ -185,6 +191,18 @@ func (helper *Helper) startHealthCheckServer() {
 		helper.HealthCheckServer.Start()
 		glog.V(10).Info("Test health check server stopped")
 	}()
+}
+
+func (helper *Helper) stopHealthCheckServer() error {
+	if err := helper.HealthCheckServer.Stop(); err != nil {
+		return fmt.Errorf("unable to stop health check server: %s", err.Error())
+	}
+	return nil
+}
+
+func (helper *Helper) sendShutdownSignal() error {
+	helper.ContextCancelFunc()
+	return nil
 }
 
 func (helper *Helper) startPulseServer(ctx context.Context) {
@@ -428,12 +446,12 @@ func (helper *Helper) CleanDB() error {
 		"migrations",
 	} {
 		if g2.Migrator().HasTable(table) {
-			if err := g2.Migrator().DropTable(table); err != nil {
-				helper.T.Errorf("error dropping table %s: %v", table, err)
+			// remove table contents instead of dropping table
+			sql := fmt.Sprintf("DELETE FROM %s", table)
+			if err := g2.Exec(sql).Error; err != nil {
+				helper.T.Errorf("error delete content of table %s: %v", table, err)
 				return err
 			}
-		} else {
-			helper.T.Errorf("Unable to drop table %q, it does not exist", table)
 		}
 	}
 	return nil

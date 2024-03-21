@@ -18,7 +18,8 @@ import (
 
 func TestPulseServer(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
 	// insert two existing instances
