@@ -10,7 +10,7 @@ import (
 func addConsumers() *gormigrate.Migration {
 	type Consumer struct {
 		Model
-		Name   string
+		Name   string         `gorm:"uniqueIndex;not null"`
 		Labels datatypes.JSON `gorm:"type:json"`
 	}
 
@@ -22,7 +22,7 @@ func addConsumers() *gormigrate.Migration {
 			}
 
 			if err := CreateFK(tx, fkMigration{
-				"resources", "consumers", "consumer_id", "consumers(id)",
+				"resources", "consumers", "consumer_name", "consumers(name)",
 			}); err != nil {
 				return err
 			}

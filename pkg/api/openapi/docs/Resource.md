@@ -7,7 +7,7 @@ Name | Type | Description | Notes
 **Id** | Pointer to **string** |  | [optional] 
 **Kind** | Pointer to **string** |  | [optional] 
 **Href** | Pointer to **string** |  | [optional] 
-**ConsumerId** | Pointer to **string** |  | [optional] 
+**ConsumerName** | Pointer to **string** |  | [optional] 
 **Version** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
@@ -108,30 +108,30 @@ SetHref sets Href field to given value.
 
 HasHref returns a boolean if a field has been set.
 
-### GetConsumerId
+### GetConsumerName
 
-`func (o *Resource) GetConsumerId() string`
+`func (o *Resource) GetConsumerName() string`
 
-GetConsumerId returns the ConsumerId field if non-nil, zero value otherwise.
+GetConsumerName returns the ConsumerName field if non-nil, zero value otherwise.
 
-### GetConsumerIdOk
+### GetConsumerNameOk
 
-`func (o *Resource) GetConsumerIdOk() (*string, bool)`
+`func (o *Resource) GetConsumerNameOk() (*string, bool)`
 
-GetConsumerIdOk returns a tuple with the ConsumerId field if it's non-nil, zero value otherwise
+GetConsumerNameOk returns a tuple with the ConsumerName field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
-### SetConsumerId
+### SetConsumerName
 
-`func (o *Resource) SetConsumerId(v string)`
+`func (o *Resource) SetConsumerName(v string)`
 
-SetConsumerId sets ConsumerId field to given value.
+SetConsumerName sets ConsumerName field to given value.
 
-### HasConsumerId
+### HasConsumerName
 
-`func (o *Resource) HasConsumerId() bool`
+`func (o *Resource) HasConsumerName() bool`
 
-HasConsumerId returns a boolean if a field has been set.
+HasConsumerName returns a boolean if a field has been set.
 
 ### GetVersion
 

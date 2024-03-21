@@ -125,7 +125,7 @@ ocm get /api/maestro/v1/resources
 
 ocm post /api/maestro/v1/resources << EOF
 {
-  "consumer_id": "cluster1",
+  "consumer_name": "cluster1",
   "version": 1,
   "manifest": {
     "apiVersion": "apps/v1",
@@ -170,7 +170,7 @@ ocm get /api/maestro/v1/resources
 {
   "items": [
     {
-      "consumer_id": "cluster1",
+      "consumer_name": "cluster1",
       "created_at": "2023-11-23T09:26:13.43061Z",
       "href": "/api/maestro/v1/resources/f428e21d-71cb-47a4-8d7f-82a65d9a4048",
       "id": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
@@ -342,10 +342,8 @@ EOF
 
 Deploy maestro agent:
 
-You need to set `consumer_id` to the consumer id you received in the previous step.
-
 ```shell
-$ export consumer_id=3f28c601-5028-47f4-9264-5cc43f2f27fb
+$ export consumer_name=cluster1
 $ make deploy-agent
 $ oc get pod -n maestro-agent-root
 NAME                             READY   STATUS    RESTARTS   AGE
@@ -356,7 +354,7 @@ Create a resource:
 ```shell
 $ ocm post /api/maestro/v1/resources << EOF
 {
-  "consumer_id": "3f28c601-5028-47f4-9264-5cc43f2f27fb",
+  "consumer_name": "cluster1",
   "version": 1,
   "manifest": {
     "apiVersion": "apps/v1",

@@ -60,13 +60,13 @@ func TestPulseServer(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
-	res := h.CreateResource(consumer.ID, 1)
+	res := h.CreateResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
-	lister := informer.Lister().ManifestWorks(consumer.ID)
-	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
+	lister := informer.Lister().ManifestWorks(consumer.Name)
+	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()
 
 	var work *workv1.ManifestWork

@@ -35,7 +35,7 @@ func TestConsumerGet(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 	Expect(*found.Id).To(Equal(consumer.ID), "found object does not match test object")
-	Expect(*found.Name).To(Equal(*consumer.Name))
+	Expect(*found.Name).To(Equal(consumer.Name))
 	Expect(*found.Labels).To(Equal(*consumer.Labels.ToMap()))
 	Expect(*found.Kind).To(Equal("Consumer"))
 	Expect(*found.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", consumer.ID)))
@@ -80,8 +80,18 @@ func TestConsumerPost(t *testing.T) {
 	_, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
-}
 
+	// POST a consumer without name
+
+	// 201 Created
+	consumer, resp, err = client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(openapi.Consumer{}).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*consumer.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*consumer.Kind).To(Equal("Consumer"))
+	Expect(*consumer.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/consumers/%s", *consumer.Id)))
+	Expect(*consumer.Name).To(Equal(*consumer.Id), "the name and id are not same")
+}
 
 func TestConsumerPatch(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
@@ -90,9 +100,9 @@ func TestConsumerPatch(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// create a consumer
-	consumer := h.CreateConsumer("Brontosaurus")
+	consumer := h.CreateConsumer("brontosaurus")
 
-	assert := func (patched *openapi.Consumer, resp *http.Response, err error, name *string, labels *map[string]string) {
+	assert := func(patched *openapi.Consumer, resp *http.Response, err error, name *string, labels *map[string]string) {
 		Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 		Expect(*patched.Id).To(Equal(consumer.ID))
@@ -106,19 +116,19 @@ func TestConsumerPatch(t *testing.T) {
 	// add labels
 	labels := map[string]string{"foo": "bar"}
 	patched, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &labels}).Execute()
-	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), &labels)
+	assert(patched, resp, err, openapi.PtrString("brontosaurus"), &labels)
 
 	// no-op patch
 	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
-	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), &labels)
+	assert(patched, resp, err, openapi.PtrString("brontosaurus"), &labels)
 
 	// delete labels
 	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &map[string]string{}}).Execute()
-	assert(patched, resp, err, openapi.PtrString("Brontosaurus"), nil)
+	assert(patched, resp, err, openapi.PtrString("brontosaurus"), nil)
 
 	// 500 server error. posting junk json is one way to trigger 500.
 	jwtToken := ctx.Value(openapi.ContextAccessToken)
-	restyResp, err := resty.R().
+	restyResp, _ := resty.R().
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Authorization", fmt.Sprintf("Bearer %s", jwtToken)).
 		SetBody(`{ this is invalid }`).
@@ -126,46 +136,6 @@ func TestConsumerPatch(t *testing.T) {
 
 	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
 }
-
-//func TestConsumerPaging(t *testing.T) {
-//	h, client := test.RegisterIntegration(t)
-//
-//	account := h.NewRandAccount()
-//	ctx := h.NewAuthenticatedContext(account)
-//
-//	// Paging
-//	_ = h.NewConsumerList("Bronto", 20)
-//
-//	list, _, err := client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Execute()
-//	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
-//	Expect(len(list.Items)).To(Equal(20))
-//	Expect(list.Size).To(Equal(int32(20)))
-//	Expect(list.Total).To(Equal(int32(20)))
-//	Expect(list.Page).To(Equal(int32(1)))
-//
-//	list, _, err = client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Page(2).Size(5).Execute()
-//	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
-//	Expect(len(list.Items)).To(Equal(5))
-//	Expect(list.Size).To(Equal(int32(5)))
-//	Expect(list.Total).To(Equal(int32(20)))
-//	Expect(list.Page).To(Equal(int32(2)))
-//}
-//
-//func TestConsumerListSearch(t *testing.T) {
-//	h, client := test.RegisterIntegration(t)
-//
-//	account := h.NewRandAccount()
-//	ctx := h.NewAuthenticatedContext(account)
-//
-//	consumers := h.NewConsumerList("bronto", 20)
-//
-//	search := fmt.Sprintf("id in ('%s')", consumers[0].ID)
-//	list, _, err := client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Search(search).Execute()
-//	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
-//	Expect(len(list.Items)).To(Equal(1))
-//	Expect(list.Total).To(Equal(int32(20)))
-//	Expect(*list.Items[0].Id).To(Equal(consumers[0].ID))
-//}
 
 func TestConsumerPaging(t *testing.T) {
 	h, client := test.RegisterIntegration(t)

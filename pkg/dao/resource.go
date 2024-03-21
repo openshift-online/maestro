@@ -16,7 +16,7 @@ type ResourceDao interface {
 	Delete(ctx context.Context, id string) error
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
-	FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error)
+	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
 }
 
@@ -84,10 +84,10 @@ func (d *sqlResourceDao) FindBySource(ctx context.Context, source string) (api.R
 	return resources, nil
 }
 
-func (d *sqlResourceDao) FindByConsumerID(ctx context.Context, consumerID string) (api.ResourceList, error) {
+func (d *sqlResourceDao) FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
-	if err := g2.Where("consumer_id = ?", consumerID).Find(&resources).Error; err != nil {
+	if err := g2.Where("consumer_name = ?", consumerName).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil

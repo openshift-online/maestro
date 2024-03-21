@@ -23,7 +23,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 	Context("Create Resource", func() {
 
 		It("post the nginx resource to the maestro api", func() {
-			res := helper.NewAPIResource(consumer_id, 1)
+			res := helper.NewAPIResource(consumer_name, 1)
 			var resp *http.Response
 			var err error
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(context.Background()).Resource(res).Execute()
@@ -45,7 +45,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 		It("patch the nginx resource", func() {
 
-			newRes := helper.NewAPIResource(consumer_id, 2)
+			newRes := helper.NewAPIResource(consumer_name, 2)
 			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(context.Background(), *resource.Id).
 				ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resource.Version, Manifest: newRes.Manifest}).Execute()
 			Expect(err).ShouldNot(HaveOccurred())

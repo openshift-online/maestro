@@ -88,8 +88,8 @@ func addFlags(fs *pflag.FlagSet) {
 		agentOption.StatusSyncInterval, "Interval to sync resource status to hub")
 	fs.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "resource-eviction-grace-period",
 		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for resource eviction")
-	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-id",
-		commonOptions.SpokeClusterName, "Id of the consumer")
+	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-name",
+		commonOptions.SpokeClusterName, "Name of the consumer")
 	// mqtt config file
 	fs.StringVar(&agentOption.WorkloadSourceConfig, "mqtt-config-file",
 		agentOption.WorkloadSourceConfig, "The config file path of mqtt broker")

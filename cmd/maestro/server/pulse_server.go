@@ -151,7 +151,7 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 		log.V(1).Infof("received action %s for resource %s", action, resource.ID)
 		switch action {
 		case types.StatusModified:
-			if !s.statusDispatcher.Dispatch(resource.ConsumerID) {
+			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 				// the resource is not owned by the current instance, skip
 				log.V(4).Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
 				return nil

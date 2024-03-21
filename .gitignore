@@ -54,6 +54,7 @@ vendor/
 # Ignore test data
 test/e2e/.kubeconfig
 test/e2e/.consumer_id
+test/e2e/.consumer_name
 test/e2e/.external_host_ip
 test/e2e/report/*
 unit-test-results.json

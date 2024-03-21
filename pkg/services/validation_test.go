@@ -2,11 +2,51 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"gorm.io/datatypes"
 )
+
+func TestValidateConsumer(t *testing.T) {
+	cases := []struct {
+		name             string
+		consumer         *api.Consumer
+		expectedErrorMsg string
+	}{
+		{
+			name: "validated",
+			consumer: &api.Consumer{
+				Name: "test",
+			},
+		},
+		{
+			name: "wrong name",
+			consumer: &api.Consumer{
+				Name: "_",
+			},
+			expectedErrorMsg: "consumer.name: Invalid value: \"_\": a lowercase RFC 1123 label must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc', regex used for validation is '[a-z0-9]([-a-z0-9]*[a-z0-9])?')",
+		},
+		{
+			name: "max length",
+			consumer: &api.Consumer{
+				Name: maxName(),
+			},
+			expectedErrorMsg: fmt.Sprintf("consumer.name: Invalid value: \"%s\": must be no more than 63 characters", maxName()),
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := ValidateConsumer(c.consumer)
+			if err != nil && err.Error() != c.expectedErrorMsg {
+				t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
+			}
+		})
+	}
+}
 
 func TestValidateNewManifest(t *testing.T) {
 	cases := []struct {
@@ -235,4 +275,12 @@ func newManifest(t *testing.T, data string) datatypes.JSONMap {
 	}
 
 	return manifest
+}
+
+func maxName() string {
+	n := []string{}
+	for i := 0; i < 64; i++ {
+		n = append(n, "a")
+	}
+	return strings.Join(n, "")
 }
