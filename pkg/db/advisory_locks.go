@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,6 +41,7 @@ type LockFactory interface {
 type AdvisoryLockFactory struct {
 	connection SessionFactory
 	locks      advisoryLockMap
+	mutex      *sync.Mutex
 }
 
 // NewAdvisoryLockFactory returns a new factory with AdvisoryLock stored in it.
@@ -47,6 +49,7 @@ func NewAdvisoryLockFactory(connection SessionFactory) *AdvisoryLockFactory {
 	return &AdvisoryLockFactory{
 		connection: connection,
 		locks:      make(advisoryLockMap),
+		mutex:      &sync.Mutex{},
 	}
 }
 
@@ -69,7 +72,12 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 	}
 
 	log.V(4).Info(fmt.Sprintf("Locked advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid))
+	f.mutex.Lock()
+	// Map access is unsafe only when updates are occurring. As long as all goroutines are only reading—looking up elements in the map,
+	// including iterating through it using a for range loop—and not changing the map by assigning to elements or doing deletions,
+	// it is safe for them to access the map concurrently without synchronization.
 	f.locks[*lock.uuid] = lock
+	f.mutex.Unlock()
 	return *lock.uuid, nil
 }
 
@@ -93,7 +101,9 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 	}
 
 	log.V(4).Info(fmt.Sprintf("Locked non blocking advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid))
+	f.mutex.Lock()
 	f.locks[*lock.uuid] = lock
+	f.mutex.Unlock()
 	return *lock.uuid, acquired, nil
 }
 
@@ -146,8 +156,9 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 	UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
 
 	log.V(4).Info(fmt.Sprintf("Unlocked lock id=%s type=%s - owner=%s", lockID, lockType, uuid))
-
+	f.mutex.Lock()
 	delete(f.locks, uuid)
+	f.mutex.Unlock()
 }
 
 // AdvisoryLock represents a postgres advisory lock
