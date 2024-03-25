@@ -40,7 +40,7 @@ type ControllersServer struct {
 
 // Start is a blocking call that starts this controller server
 func (s ControllersServer) Start(ctx context.Context) {
-	log := logger.NewOCMLogger(context.Background())
+	log := logger.NewOCMLogger(ctx)
 
 	log.Infof("Kind controller handling events")
 	go s.KindControllerManager.Run(ctx.Done())

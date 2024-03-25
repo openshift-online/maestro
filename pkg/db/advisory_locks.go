@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,8 +14,7 @@ import (
 )
 
 type (
-	advisoryLockMap map[string]*AdvisoryLock
-	LockType        string
+	LockType string
 )
 
 const (
@@ -37,16 +37,54 @@ type LockFactory interface {
 	Unlock(ctx context.Context, uuid string)
 }
 
+// AdvisoryLockStore is a thread-safe map that stores AdvisoryLocks.
+// Map access is unsafe only when updates are occurring.
+// As long as all goroutines are only reading—looking up elements in the map,
+// including iterating through it using a for range loop and not changing
+// the map by assigning to elements or doing deletions,
+// it is safe for them to access the map concurrently without synchronization.
+type AdvisoryLockStore struct {
+	advisoryLockMap map[string]*AdvisoryLock
+	mutex           *sync.Mutex
+}
+
+// NewAdvisoryLockStore returns a new AdvisoryLockStore.
+func NewAdvisoryLockStore() *AdvisoryLockStore {
+	return &AdvisoryLockStore{
+		advisoryLockMap: make(map[string]*AdvisoryLock),
+		mutex:           &sync.Mutex{},
+	}
+}
+
+func (s *AdvisoryLockStore) add(uuid string, lock *AdvisoryLock) {
+	s.mutex.Lock()
+	s.advisoryLockMap[uuid] = lock
+	defer s.mutex.Unlock()
+}
+
+func (s *AdvisoryLockStore) delete(uuid string) {
+	s.mutex.Lock()
+	delete(s.advisoryLockMap, uuid)
+	defer s.mutex.Unlock()
+}
+
+func (s *AdvisoryLockStore) get(uuid string) (*AdvisoryLock, bool) {
+	s.mutex.Lock()
+	lock, ok := s.advisoryLockMap[uuid]
+	defer s.mutex.Unlock()
+	return lock, ok
+}
+
 type AdvisoryLockFactory struct {
 	connection SessionFactory
-	locks      advisoryLockMap
+	lockStore  *AdvisoryLockStore
 }
 
 // NewAdvisoryLockFactory returns a new factory with AdvisoryLock stored in it.
 func NewAdvisoryLockFactory(connection SessionFactory) *AdvisoryLockFactory {
 	return &AdvisoryLockFactory{
 		connection: connection,
-		locks:      make(advisoryLockMap),
+		lockStore:  NewAdvisoryLockStore(),
 	}
 }
 
@@ -69,7 +107,7 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 	}
 
 	log.V(4).Info(fmt.Sprintf("Locked advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid))
-	f.locks[*lock.uuid] = lock
+	f.lockStore.add(*lock.uuid, lock)
 	return *lock.uuid, nil
 }
 
@@ -93,7 +131,7 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 	}
 
 	log.V(4).Info(fmt.Sprintf("Locked non blocking advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid))
-	f.locks[*lock.uuid] = lock
+	f.lockStore.add(*lock.uuid, lock)
 	return *lock.uuid, acquired, nil
 }
 
@@ -122,7 +160,7 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 		return
 	}
 
-	lock, ok := f.locks[uuid]
+	lock, ok := f.lockStore.get(uuid)
 	if !ok {
 		// the resolving UUID belongs to a service call that did *not* initiate the lock.
 		// we can safely ignore this, knowing the top-most func in the call stack
@@ -146,8 +184,7 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 	UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
 
 	log.V(4).Info(fmt.Sprintf("Unlocked lock id=%s type=%s - owner=%s", lockID, lockType, uuid))
-
-	delete(f.locks, uuid)
+	f.lockStore.delete(uuid)
 }
 
 // AdvisoryLock represents a postgres advisory lock
