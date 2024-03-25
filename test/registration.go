@@ -16,7 +16,7 @@ func RegisterIntegration(t *testing.T) (*Helper, *openapi.APIClient) {
 	// Create a new helper
 	helper := NewHelper(t)
 	// Reset the database to a seeded blank state
-	helper.DBFactory.ResetDB()
+	helper.ResetDB()
 	// Create an api client
 	client := helper.NewApiClient()
 

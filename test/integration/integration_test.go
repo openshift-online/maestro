@@ -17,5 +17,6 @@ func TestMain(m *testing.M) {
 	helper := test.NewHelper(&testing.T{})
 	exitCode := m.Run()
 	helper.Teardown()
+	helper.CleanDB()
 	os.Exit(exitCode)
 }

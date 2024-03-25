@@ -129,6 +129,10 @@ func (km *KindControllerManager) handleEvent(id string) error {
 
 	event, svcErr := km.events.Get(reqContext, id)
 	if svcErr != nil {
+		if svcErr.Is404() {
+			// the event is already deleted, we can ignore it
+			return nil
+		}
 		return fmt.Errorf("error getting event with id(%s): %s", id, svcErr)
 	}
 

@@ -10,7 +10,7 @@ import (
 // NewContext returns a new context with transaction stored in it.
 // Upon error, the original context is still returned along with an error
 func NewContext(ctx context.Context, connection SessionFactory) (context.Context, error) {
-	tx, err := newTransaction(ctx, connection)
+	tx, err := newTransaction(connection)
 	if err != nil {
 		return ctx, err
 	}

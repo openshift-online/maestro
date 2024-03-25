@@ -1,8 +1,6 @@
 package db
 
 import (
-	"context"
-
 	"github.com/openshift-online/maestro/pkg/db/transaction"
 )
 
@@ -11,7 +9,7 @@ import (
 const defaultRollbackPolicy = false
 
 // newTransaction constructs a new Transaction object.
-func newTransaction(ctx context.Context, connection SessionFactory) (*transaction.Transaction, error) {
+func newTransaction(connection SessionFactory) (*transaction.Transaction, error) {
 	if connection == nil {
 		// This happens in non-integration tests
 		return nil, nil
