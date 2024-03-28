@@ -132,7 +132,7 @@ parameters:
 - name: DB_SSLMODE
   displayName: DB SSLmode
   description: Database ssl mode (disable | require | verify-ca | verify-full)
-  value: "disable"
+  value: "verify-full"
 
 - name: ENABLE_DB_DEBUG
   displayName: Enable DB Debug
@@ -249,6 +249,8 @@ objects:
             - --db-user-file=/secrets/rds/db.user
             - --db-password-file=/secrets/rds/db.password
             - --db-name-file=/secrets/rds/db.name
+            - --db-rootcert=/secrets/rds/db.ca_cert
+            - --db-sslmode=${DB_SSLMODE}
             - --alsologtostderr
             - -v=${GLOG_V}
           containers:
