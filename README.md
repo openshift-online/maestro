@@ -1,9 +1,10 @@
 # Maestro
-Maestro is a system to leverage MQTT to transport Kubernetes resources to the target clusters, and then transport the resource status back. The resources are stored in a database and the status is updated in the database as well. The system is composed of two parts: the Maestro server and the Maestro agent. 
-- The Maestro server is responsible for storing the resources and their status. And sending the resources to MQTT. The Maestro server provides Resful APIs and gRPC APIs to manage the resources.
+Maestro is a system to leverage [CloudEvents](https://cloudevents.io/) to transport Kubernetes resources to the target clusters, and then transport the resource status back. The resources are stored in a database and the status is updated in the database as well. The system is composed of two parts: the Maestro server and the Maestro agent.
+- The Maestro server is responsible for storing the resources and their status. And sending the resources to the message broker in the CloudEvents format. The Maestro server provides Resful APIs and gRPC APIs to manage the resources.
 - Maestro agent is responsible for receiving the resources and applying them to the target clusters. And reporting back the status of the resources.
 
 ## Architecture
+Taking MQTT as an example:
 ![Maestro Architecture](./arch.png)
 
 ## Run for the first time
