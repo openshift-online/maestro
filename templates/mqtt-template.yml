@@ -58,6 +58,7 @@ objects:
           labels:
             name: ${MQTT_BROKER_NAME}
         spec:
+          serviceAccountName: maestro
           containers:
           - image: ${MQTT_IMAGE}
             imagePullPolicy: IfNotPresent
