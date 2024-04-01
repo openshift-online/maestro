@@ -284,6 +284,8 @@ objects:
             - --db-user-file=/secrets/rds/db.user
             - --db-password-file=/secrets/rds/db.password
             - --db-name-file=/secrets/rds/db.name
+            - --db-rootcert=/secrets/rds/db.ca_cert
+            - --db-sslmode=${DB_SSLMODE}
             - --mqtt-config-file=/secrets/mqtt/config.yaml
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
             - --ocm-client-id-file=/secrets/service/ocm-service.clientId
