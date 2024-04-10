@@ -133,11 +133,10 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get resource: %v", err)
 			}
-			// handle the special case that the resource is updated by the source controller
-			// and the version of the resource in the request is less than it in the database
-			if found.Version < res.Version {
-				res.Version = found.Version
-			}
+			// keep the existing version for bundle resource, mainly from hub controller,
+			// the version is not guaranteed to be increased.
+			// TODO: handle the resource version for bundle resource from the source
+			res.Version = found.Version
 		}
 		_, err := svr.resourceService.Update(ctx, res)
 		if err != nil {
