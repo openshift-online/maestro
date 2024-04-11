@@ -62,6 +62,10 @@ func (d *Resource) BeforeCreate(tx *gorm.DB) error {
 	if d.ID == "" {
 		d.ID = NewID()
 	}
+	// start the resource version from 1
+	if d.Version == 0 {
+		d.Version = 1
+	}
 	return nil
 }
 

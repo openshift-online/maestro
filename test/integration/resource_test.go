@@ -268,7 +268,7 @@ func TestResourcePatch(t *testing.T) {
 		}
 
 		// ensure the work version is updated
-		if work.GetResourceVersion() != "1" {
+		if work.GetResourceVersion() != "2" {
 			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
 		}
 
@@ -441,7 +441,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(*resource.Id).To(Equal(res.ID))
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
-	Expect(*resource.Version).To(Equal(int32(0)))
+	Expect(*resource.Version).To(Equal(int32(1)))
 
 	// add the resource to the store
 	h.Store.Add(res)
@@ -544,7 +544,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
-	Expect(*resource.Version).To(Equal(int32(1)))
+	Expect(*resource.Version).To(Equal(int32(2)))
 
 	Eventually(func() error {
 		// ensure the work can be get by work client
@@ -553,7 +553,7 @@ func TestResourceFromGRPC(t *testing.T) {
 			return err
 		}
 		// ensure the work version is updated
-		if work.GetResourceVersion() != "1" {
+		if work.GetResourceVersion() != "2" {
 			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
 		}
 		return nil
@@ -723,7 +723,6 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 
 	newRes := h.NewResource(consumer.Name, 2)
 	newRes.ID = res.ID
-	// newRes.Version = *resource.Version
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
@@ -738,7 +737,7 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 			return err
 		}
 		// ensure the work version is updated
-		if work.GetResourceVersion() != "1" {
+		if work.GetResourceVersion() != "2" {
 			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
 		}
 		return nil
