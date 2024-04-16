@@ -202,6 +202,75 @@ func TestResourcePost(t *testing.T) {
 	cancel()
 }
 
+func TestResourcePostWithoutName(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+
+	clusterName := "cluster1"
+	consumer := h.CreateConsumer(clusterName)
+	res := h.NewAPIResource(consumer.Name, 1)
+	h.StartControllerManager(ctx)
+	resourceService := h.Env().Services.Resources()
+	// POST responses per openapi spec: 201, 400, 409, 500
+
+	// 201 Created
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resource.Name).To(Equal(*resource.Id))
+
+	// 201 Created
+	resource, resp, err = client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resource.Name).To(Equal(*resource.Id))
+
+	Eventually(func() error {
+		newRes, err := resourceService.List(types.ListOptions{ClusterName: clusterName})
+		if err != nil {
+			return err
+		}
+		if len(newRes) != 2 {
+			return fmt.Errorf("should create two resources")
+		}
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
+
+	// make sure controller manager and work agent are stopped
+	cancel()
+}
+
+func TestResourcePostWithName(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+
+	clusterName := "cluster1"
+	consumer := h.CreateConsumer(clusterName)
+	res := h.NewAPIResource(consumer.Name, 1)
+	h.StartControllerManager(ctx)
+	// POST responses per openapi spec: 201, 400, 409, 500
+
+	// 201 Created
+	resourceName := "ngix"
+	res.Name = &resourceName
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resource.Name).To(Equal(resourceName))
+
+	// 201 Created
+	_, _, err = client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).To(HaveOccurred())
+
+	// make sure controller manager and work agent are stopped
+	cancel()
+}
+
 func TestResourcePatch(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()

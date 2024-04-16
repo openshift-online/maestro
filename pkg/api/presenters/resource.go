@@ -14,6 +14,7 @@ func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
 		return nil, err
 	}
 	return &api.Resource{
+		Name: util.NilToEmptyString(resource.Name),
 		Meta: api.Meta{
 			ID: util.NilToEmptyString(resource.Id),
 		},
@@ -44,6 +45,7 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 		Id:           reference.Id,
 		Kind:         reference.Kind,
 		Href:         reference.Href,
+		Name:         openapi.PtrString(resource.Name),
 		ConsumerName: openapi.PtrString(resource.ConsumerName),
 		Version:      openapi.PtrInt32(resource.Version),
 		CreatedAt:    openapi.PtrTime(resource.CreatedAt),

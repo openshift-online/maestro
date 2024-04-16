@@ -125,6 +125,16 @@ ocm get /api/maestro/v1/resources
 }
 ```
 
+#### Create a consumer:
+
+```
+ocm post /api/maestro/v1/consumers << EOF
+{
+  "name": "cluster1"
+}
+EOF
+```
+
 #### Post a new Resource
 
 ```shell

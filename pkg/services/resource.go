@@ -56,6 +56,11 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 }
 
 func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
+	if resource.Name != "" {
+		if err := ValidateResourceName(resource); err != nil {
+			return nil, errors.Validation("the name in the resource is invalid, %v", err)
+		}
+	}
 	if err := ValidateManifest(resource.Type, resource.Manifest); err != nil {
 		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
 	}

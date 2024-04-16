@@ -33,7 +33,7 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 		&rs,
 		[]validate{
 			validateEmpty(&rs, "Id", "id"),
-			validateNotEmpty(&rs, "ConsumerId", "consumer_id"),
+			validateNotEmpty(&rs, "ConsumerName", "consumer_name"),
 			validateNotEmpty(&rs, "Manifest", "manifest"),
 		},
 		func() (interface{}, *errors.ServiceError) {
