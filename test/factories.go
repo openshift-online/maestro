@@ -67,6 +67,7 @@ func (helper *Helper) NewResource(consumerName string, replicas int) *api.Resour
 		ConsumerName: consumerName,
 		Type:         api.ResourceTypeSingle,
 		Manifest:     testManifest,
+		Version:      1,
 	}
 
 	return resource
