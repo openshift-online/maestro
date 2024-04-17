@@ -195,7 +195,7 @@ install: check-gopath
 # Examples:
 #   make test TESTFLAGS="-run TestSomething"
 test:
-	OCM_ENV=testing gotestsum --jsonfile-timing-events=$(unit_test_json_output) --format short-verbose -- -p 1 -v $(TESTFLAGS) \
+	OCM_ENV=testing gotestsum --jsonfile-timing-events=$(unit_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -v $(TESTFLAGS) \
 		./pkg/... \
 		./cmd/...
 .PHONY: test

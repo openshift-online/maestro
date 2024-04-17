@@ -128,6 +128,8 @@ func TestControllerReconcile(t *testing.T) {
 
 		s.Start(ctx)
 	}()
+	// wait for the listener to start
+	time.Sleep(100 * time.Millisecond)
 
 	consumer := h.CreateConsumer("cluster1")
 	_ = h.CreateResource(consumer.Name, 1)
