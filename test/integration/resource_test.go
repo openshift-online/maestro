@@ -209,7 +209,6 @@ func TestResourcePatch(t *testing.T) {
 
 	// use the consumer id as the consumer name
 	consumer := h.CreateConsumer("")
-	res := h.CreateResource(consumer.ID, 1)
 
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions, false)
@@ -218,7 +217,8 @@ func TestResourcePatch(t *testing.T) {
 	lister := informer.Lister().ManifestWorks(consumer.ID)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
-	// POST responses per openapi spec: 201, 400, 409, 500
+	res := h.CreateResource(consumer.ID, 1)
+	Expect(res.Version).To(Equal(int32(1)))
 
 	// 200 OK
 	newRes := h.NewAPIResource(consumer.ID, 2)
