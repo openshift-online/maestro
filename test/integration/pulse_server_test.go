@@ -77,6 +77,13 @@ func TestPulseServer(t *testing.T) {
 			return err
 		}
 
+		if len(list) == 0 {
+			// no work synced yet, resync it now
+			if _, err := agentWorkClient.List(ctx, metav1.ListOptions{}); err != nil {
+				return err
+			}
+		}
+
 		// ensure there is only one work was synced on the cluster
 		if len(list) != 1 {
 			return fmt.Errorf("unexpected work list %v", list)

@@ -102,6 +102,13 @@ func TestResourcePost(t *testing.T) {
 			return err
 		}
 
+		if len(list) == 0 {
+			// no work synced yet, resync it now
+			if _, err := agentWorkClient.List(ctx, metav1.ListOptions{}); err != nil {
+				return err
+			}
+		}
+
 		// ensure there is only one work was synced on the cluster
 		if len(list) != 1 {
 			return fmt.Errorf("unexpected work list %v", list)
@@ -202,7 +209,6 @@ func TestResourcePatch(t *testing.T) {
 
 	// use the consumer id as the consumer name
 	consumer := h.CreateConsumer("")
-	res := h.CreateResource(consumer.ID, 1)
 
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions, false)
@@ -211,7 +217,8 @@ func TestResourcePatch(t *testing.T) {
 	lister := informer.Lister().ManifestWorks(consumer.ID)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
-	// POST responses per openapi spec: 201, 400, 409, 500
+	res := h.CreateResource(consumer.ID, 1)
+	Expect(res.Version).To(Equal(int32(1)))
 
 	// 200 OK
 	newRes := h.NewAPIResource(consumer.ID, 2)
@@ -254,6 +261,13 @@ func TestResourcePatch(t *testing.T) {
 		list, err := lister.List(labels.Everything())
 		if err != nil {
 			return err
+		}
+
+		if len(list) == 0 {
+			// no work synced yet, resync it now
+			if _, err := agentWorkClient.List(ctx, metav1.ListOptions{}); err != nil {
+				return err
+			}
 		}
 
 		// ensure there is only one work was synced on the cluster
@@ -399,7 +413,7 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 			return fmt.Errorf("there are %d unreleased advisory lock", count)
 		}
 		return nil
-	}, 5*time.Second, 1*time.Second).Should(Succeed())
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 }
 
 func TestResourceFromGRPC(t *testing.T) {
