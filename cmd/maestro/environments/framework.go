@@ -14,7 +14,10 @@ import (
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
 
-	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/kafka"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 )
 
 func init() {
@@ -173,11 +176,28 @@ func (e *Env) LoadClients() error {
 		glog.Infof("Using Mock CloudEvents Source Client")
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
-		cloudEventsSourceOptions := mqttoptions.NewSourceOptions(e.Config.MessageBroker.MQTTOptions, e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
-		e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
-		if err != nil {
-			glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
-			return err
+		var cloudEventsSourceOptions *options.CloudEventsSourceOptions
+		if e.Config.MessageBroker.MessageBrokerType == work.ConfigTypeMQTT {
+			mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(e.Config.MessageBroker.MessageBrokerConfig)
+			if err != nil {
+				glog.Errorf("Unable to build MQTT options: %s", err.Error())
+				return err
+			}
+			cloudEventsSourceOptions = mqtt.NewSourceOptions(mqttOptions, e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
+		} else if e.Config.MessageBroker.MessageBrokerType == work.ConfigTypeKafka {
+			kafkaConfigmap, err := kafka.BuildKafkaOptionsFromFlags(e.Config.MessageBroker.MessageBrokerConfig)
+			if err != nil {
+				glog.Errorf("Unable to build Kafka options: %s", err.Error())
+				return err
+			}
+			cloudEventsSourceOptions = kafka.NewSourceOptions(kafkaConfigmap, e.Config.MessageBroker.SourceID)
+		}
+		if cloudEventsSourceOptions != nil {
+			e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+			if err != nil {
+				glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
+				return err
+			}
 		}
 	}
 

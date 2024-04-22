@@ -63,7 +63,7 @@ func TestPulseServer(t *testing.T) {
 	consumer := h.CreateConsumer(clusterName)
 	res := h.CreateResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions, false)
+	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	lister := informer.Lister().ManifestWorks(consumer.Name)

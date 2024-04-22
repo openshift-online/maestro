@@ -67,7 +67,6 @@ func runAgent(cmd *cobra.Command, args []string) {
 
 	// use mqtt as the default driver
 	agentOption.MaxJSONRawLength = maxJSONRawLength
-	agentOption.WorkloadSourceDriver = "mqtt"
 	agentOption.CloudEventsClientCodecs = []string{"manifest"}
 
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
@@ -90,9 +89,10 @@ func addFlags(fs *pflag.FlagSet) {
 		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for resource eviction")
 	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-name",
 		commonOptions.SpokeClusterName, "Name of the consumer")
-	// mqtt config file
-	fs.StringVar(&agentOption.WorkloadSourceConfig, "mqtt-config-file",
-		agentOption.WorkloadSourceConfig, "The config file path of mqtt broker")
-	fs.StringVar(&agentOption.CloudEventsClientID, "mqtt-client-id",
-		agentOption.CloudEventsClientID, "The ID of the mqtt client, by default it is <consumer-id>-work-agent")
+	// message broker config file
+	fs.StringVar(&agentOption.WorkloadSourceConfig, "message-broker-config-file",
+		agentOption.WorkloadSourceConfig, "The config file path of the message broker, it can be mqtt broker or kafka broker")
+	fs.StringVar(&agentOption.WorkloadSourceDriver, "message-broker-type", "mqtt", "Message broker type (default: mqtt)")
+	fs.StringVar(&agentOption.CloudEventsClientID, "agent-client-id",
+		agentOption.CloudEventsClientID, "The ID of the agent client, by default it is <consumer-id>-work-agent")
 }

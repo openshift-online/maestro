@@ -58,7 +58,6 @@ func (c *ApplicationConfig) ReadFiles() []string {
 	}{
 		{c.HTTPServer.ReadFiles, "Server"},
 		{c.Database.ReadFiles, "Database"},
-		{c.MessageBroker.ReadFile, "MessageBroker"},
 		{c.OCM.ReadFiles, "OCM"},
 		{c.Metrics.ReadFiles, "Metrics"},
 		{c.HealthCheck.ReadFiles, "HealthCheck"},
