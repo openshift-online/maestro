@@ -9,6 +9,7 @@ import (
 
 func addResources() *gormigrate.Migration {
 	type Resource struct {
+		Name string `gorm:"uniqueIndex"`
 		Model
 		Source       string `gorm:"index"`
 		ConsumerName string `gorm:"index"`
