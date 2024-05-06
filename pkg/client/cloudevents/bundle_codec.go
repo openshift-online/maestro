@@ -12,7 +12,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 )
 
-type BundleCodec struct{}
+type BundleCodec struct {
+	sourceID string
+}
 
 var _ cegeneric.Codec[*api.Resource] = &BundleCodec{}
 
@@ -26,13 +28,9 @@ func (codec *BundleCodec) Encode(source string, eventType cetypes.CloudEventsTyp
 		return nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
 	}
 
-	// the resource source takes precedence over the CloudEvent source.
-	if res.Source != "" {
-		source = res.Source
-	}
-
 	evt.SetSource(source)
 	evt.SetType(eventType.String())
+	// TODO set resource.Source with a new extension attribute if the agent needs
 	evt.SetExtension(cetypes.ExtensionResourceID, res.ID)
 	evt.SetExtension(cetypes.ExtensionResourceVersion, int64(res.Version))
 	evt.SetExtension(cetypes.ExtensionClusterName, res.ConsumerName)
@@ -81,12 +79,15 @@ func (codec *BundleCodec) Decode(evt *cloudevents.Event) (*api.Resource, error) 
 		return nil, fmt.Errorf("failed to convert cloudevent to resource status: %v", err)
 	}
 
+	if originalSource != codec.sourceID {
+		return nil, fmt.Errorf("unmatched original source id %s for resource %s", originalSource, resourceID)
+	}
+
 	resource := &api.Resource{
 		Meta: api.Meta{
 			ID: resourceID,
 		},
 		Version:      resourceVersion,
-		Source:       originalSource,
 		ConsumerName: clusterName,
 		Type:         api.ResourceTypeBundle,
 		Status:       status,

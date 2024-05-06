@@ -151,6 +151,20 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 		log.V(1).Infof("received action %s for resource %s", action, resource.ID)
 		switch action {
 		case types.StatusModified:
+			found, svcErr := s.resourceService.Get(ctx, resource.ID)
+			if svcErr != nil {
+				if svcErr.Is404() {
+					log.Warning(fmt.Sprintf("skipping resource %s as it is not found", resource.ID))
+					return nil
+				}
+
+				return fmt.Errorf("failed to get resource %s, %s", resource.ID, svcErr.Error())
+			}
+
+			if found.ConsumerName != resource.ConsumerName {
+				return fmt.Errorf("unmatched consumer name %s for resource %s", resource.ConsumerName, resource.ID)
+			}
+
 			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 				// the resource is not owned by the current instance, skip
 				log.V(4).Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
@@ -158,6 +172,7 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 			}
 
 			// broadcast the resource status update event
+			resource.Source = found.Source
 			s.eventBroadcaster.Broadcast(resource)
 
 			// convert the resource status to cloudevent

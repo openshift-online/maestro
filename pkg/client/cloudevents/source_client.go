@@ -34,7 +34,7 @@ type SourceClientImpl struct {
 
 func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService) (SourceClient, error) {
 	ctx := context.Background()
-	codec, bundleCodec := &Codec{}, &BundleCodec{}
+	codec, bundleCodec := &Codec{sourceID: sourceOptions.SourceID}, &BundleCodec{sourceID: sourceOptions.SourceID}
 	ceSourceClient, err := cegeneric.NewCloudEventSourceClient[*api.Resource](ctx, sourceOptions,
 		resourceService, ResourceStatusHashGetter, codec, bundleCodec)
 	if err != nil {

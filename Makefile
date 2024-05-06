@@ -268,7 +268,7 @@ cmds:
 		--param="DATABASE_PASSWORD=$(db_password)" \
 		--param="DATABASE_PORT=$(db_port)" \
 		--param="DATABASE_USER=$(db_user)" \
-		--param="DATABASE_SSLMODE=$(db_sslmode)" \
+		--param="DB_SSLMODE=$(db_sslmode)" \
 		--param="POSTGRES_IMAGE=$(POSTGRES_IMAGE)" \
 		--param="MQTT_HOST=$(mqtt_host)" \
 		--param="MQTT_PORT=$(mqtt_port)" \
