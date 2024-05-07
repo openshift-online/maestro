@@ -39,7 +39,16 @@ export image_tag=latest
 export external_image_registry=image-registry.testing
 export internal_image_registry=image-registry.testing
 make image
-kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
+# related issue: https://github.com/kubernetes-sigs/kind/issues/2038
+if command -v docker &> /dev/null; then
+    kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
+elif command -v podman &> /dev/null; then
+    podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
+    kind load image-archive /tmp/maestro.tar --name maestro 
+else 
+    echo "Neither Docker nor Podman is installed, exiting"
+    exit 1
+fi
 
 # 3. deploy service-ca
 kubectl label node maestro-control-plane node-role.kubernetes.io/master=
