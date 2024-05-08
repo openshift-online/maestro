@@ -412,8 +412,31 @@ $ oc get pod -n default
 NAME                     READY   STATUS    RESTARTS   AGE
 nginx-5d6b548959-829c7   1/1     Running   0          70s
 ```
-
-### Make a new Kind
+## Make a new Kind
 
 1. Add to openapi.yaml
 2. Generate the new structs/clients (`make generate`)
+
+## Configure maestro server
+
+### MQTT Configuration
+
+Using the `--mqtt-config-file` to specify the MQTT configuration file for maestro server, the format of the configuration file can be yaml or json, it contains the following configurations
+
+```yaml
+brokerHost: <MQTT broker host, e.g. 127.0.0.1:1883>
+username: <the username for MQTT broker, if required by username and password authentication>
+password: <the password for MQTT broker, if required by username and password authentication>
+caFile: <the CA of the MQTT broker, if required by mTLS authentication>
+clientCertFile: <the cert of the MQTT client, if required by mTLS authentication>
+clientKeyFile: <the cert key of the MQTT client, if required by mTLS authentication>
+topics:
+  sourceEvents: sources/maestro/consumers/+/sourceevents
+  agentEvents: <the topic for agent events>
+```
+
+For `topics.agentEvents`
+
+- If the MQTT broker supports the [shared subscriptions](
+https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901250), the topic needs to be set to `$share/statussubscribers/sources/maestro/consumers/+/agentevents`
+- If the MQTT broker does not support the shared subscriptions, the topic needs to be set to `sources/maestro/consumers/+/agentevents` and set the maestro server flag `--subscription-type` to `broadcast`
