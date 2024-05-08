@@ -45,6 +45,7 @@ if command -v docker &> /dev/null; then
 elif command -v podman &> /dev/null; then
     podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
     kind load image-archive /tmp/maestro.tar --name maestro 
+    rm /tmp/maestro.tar
 else 
     echo "Neither Docker nor Podman is installed, exiting"
     exit 1
