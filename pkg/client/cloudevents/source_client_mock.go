@@ -68,7 +68,7 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to unmarshal resource status: %v", err)
 	}
 
-	newResource, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
+	newResource, _, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
 	if serviceErr != nil {
 		return fmt.Errorf("failed to update resource status: %v", serviceErr)
 	}
@@ -119,7 +119,7 @@ func (s *SourceClientMock) OnUpdate(ctx context.Context, id string) error {
 				return fmt.Errorf("failed to unmarshal resource status: %v", err)
 			}
 
-			newResource, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
+			newResource, _, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
 			if serviceErr != nil {
 				return fmt.Errorf("failed to update resource status: %v", serviceErr)
 			}
