@@ -21,7 +21,7 @@ type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
-	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
+	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError)
 	MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
@@ -132,7 +132,7 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 	return updated, nil
 }
 
-func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
+func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError) {
 	logger := logger.NewOCMLogger(ctx)
 	// Updates the resource status only when its status changes.
 	// If there are multiple requests at the same time, it will cause the race conditions among these
@@ -141,64 +141,68 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	// Ensure that the transaction related to this lock always end.
 	defer s.lockFactory.Unlock(ctx, lockOwnerID)
 	if err != nil {
-		return nil, errors.DatabaseAdvisoryLock(err)
+		return nil, false, errors.DatabaseAdvisoryLock(err)
 	}
 
 	found, err := s.resourceDao.Get(ctx, resource.ID)
 	if err != nil {
-		return nil, handleGetError("Resource", "id", resource.ID, err)
+		return nil, false, handleGetError("Resource", "id", resource.ID, err)
 	}
 
 	// Make sure the requested resource version is consistent with its database version.
 	if found.Version != resource.Version {
-		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard as the latest version is: %d", found.Version))
-		return found, nil
+		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard it: id=%s, foundVersion=%d, wantedVersion=%d",
+			resource.ID, found.Version, resource.Version))
+		return found, false, nil
 	}
 
 	// New status is not changed, the update status action is not needed.
 	if reflect.DeepEqual(resource.Status, found.Status) {
-		return found, nil
+		return found, false, nil
 	}
 
 	resourceStatusEvent, err := api.JSONMAPToCloudEvent(resource.Status)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
+		return nil, false, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
 	}
+
+	logger.V(4).Info(fmt.Sprintf("Updating resource status with event %s", resourceStatusEvent))
 
 	sequenceID, err := cloudeventstypes.ToString(resourceStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
 	if err != nil {
-		return nil, errors.GeneralError("Unable to get sequence ID from resource status: %s", err)
+		return nil, false, errors.GeneralError("Unable to get sequence ID from resource status: %s", err)
 	}
 
 	foundSequenceID := ""
 	if len(found.Status) != 0 {
 		foundStatusEvent, err := api.JSONMAPToCloudEvent(found.Status)
 		if err != nil {
-			return nil, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
+			return nil, false, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
 		}
 
 		foundSequenceID, err = cloudeventstypes.ToString(foundStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
 		if err != nil {
-			return nil, errors.GeneralError("Unable to get sequence ID from found resource status: %s", err)
+			return nil, false, errors.GeneralError("Unable to get sequence ID from found resource status: %s", err)
 		}
 	}
 
 	newer, err := compareSequenceIDs(sequenceID, foundSequenceID)
 	if err != nil {
-		return nil, errors.GeneralError("Unable to compare sequence IDs: %s", err)
+		return nil, false, errors.GeneralError("Unable to compare sequence IDs: %s", err)
 	}
 	if !newer {
-		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard as the latest sequence ID is: %s", foundSequenceID))
-		return found, nil
+		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard it: id=%s, foundSequenceID=%s, wantedSequenceID=%s",
+			resource.ID, foundSequenceID, sequenceID))
+		return found, false, nil
 	}
 
 	found.Status = resource.Status
 	updated, err := s.resourceDao.Update(ctx, found)
 	if err != nil {
-		return nil, handleUpdateError("Resource", err)
+		return nil, false, handleUpdateError("Resource", err)
 	}
 
-	return updated, nil
+	return updated, true, nil
 }
 
 // MarkAsDeleting marks the resource as deleting by setting the deleted_at timestamp.

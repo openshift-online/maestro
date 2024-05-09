@@ -165,15 +165,14 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 				return fmt.Errorf("unmatched consumer name %s for resource %s", resource.ConsumerName, resource.ID)
 			}
 
+			// set the resource source back for broadcast
+			resource.Source = found.Source
+
 			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 				// the resource is not owned by the current instance, skip
 				log.V(4).Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
 				return nil
 			}
-
-			// broadcast the resource status update event
-			resource.Source = found.Source
-			s.eventBroadcaster.Broadcast(resource)
 
 			// convert the resource status to cloudevent
 			evt, err := api.JSONMAPToCloudEvent(resource.Status)
@@ -189,14 +188,22 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 
 			// if the resource has been deleted from agent, delete it from maestro
 			if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
-				if err := s.resourceService.Delete(ctx, resource.ID); err != nil {
-					return err
+				if svcErr := s.resourceService.Delete(ctx, resource.ID); svcErr != nil {
+					return svcErr
 				}
-			} else {
-				// update the resource status
-				if _, err := s.resourceService.UpdateStatus(ctx, resource); err != nil {
-					return err
-				}
+
+				s.eventBroadcaster.Broadcast(resource)
+				return nil
+			}
+			// update the resource status
+			_, updated, svcErr := s.resourceService.UpdateStatus(ctx, resource)
+			if svcErr != nil {
+				return svcErr
+			}
+
+			// broadcast the resource status updated only when the resource is updated
+			if updated {
+				s.eventBroadcaster.Broadcast(resource)
 			}
 		default:
 			return fmt.Errorf("unsupported action %s", action)
