@@ -1179,6 +1179,8 @@ open-cluster-management.io/ocm v0.13.1-0.20240514020334-4117a4b3027f h1:SCVhQ15F
 open-cluster-management.io/ocm v0.13.1-0.20240514020334-4117a4b3027f/go.mod h1:0FCG0enWLUzJ8gUYCeUfYVn5xlwgzJb3U1Fjx/7HCPQ=
 open-cluster-management.io/sdk-go v0.13.1-0.20240513131409-c283261a6f59 h1:F+wEc89bZs7ZL9e+a7Bwnb9SYkxRx584gleBH98f8I0=
 open-cluster-management.io/sdk-go v0.13.1-0.20240513131409-c283261a6f59/go.mod h1:XBrldz+AqVBy9miOVNIu+6l8JXS18i795XbTqIqURJU=
+open-cluster-management.io/sdk-go v0.13.1-0.20240515064508-7d68eaf5dd8f h1:MxePaz0WQNOPlnRKA4Vc58LSLeCpgJmSkDURLfUnXpk=
+open-cluster-management.io/sdk-go v0.13.1-0.20240515064508-7d68eaf5dd8f/go.mod h1:XBrldz+AqVBy9miOVNIu+6l8JXS18i795XbTqIqURJU=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
 rsc.io/quote/v3 v3.1.0/go.mod h1:yEA65RcK8LyAZtP9Kv3t0HmxON59tX3rD+tICJqUlj0=
 rsc.io/sampler v1.3.0/go.mod h1:T1hPZKmBbMNahiBKFy5HrXp6adAjACjK9JXDnKaTXpA=
