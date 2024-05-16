@@ -46,6 +46,11 @@ parameters:
     required: true
     value: "postgres:14.2"
 
+  - name: DB_SECRET_NAME
+    displayName: Database Secret Name
+    description: Name of the secret containing database connection information
+    value: "maestro-db"
+
 objects:
 
   - apiVersion: v1
@@ -102,17 +107,17 @@ objects:
                   valueFrom:
                     secretKeyRef:
                       key: database-user
-                      name: ${DATABASE_SERVICE_NAME}
+                      name: ${DATABASE_SERVICE_NAME}-creds
                 - name: POSTGRES_PASSWORD
                   valueFrom:
                     secretKeyRef:
                       key: database-password
-                      name: ${DATABASE_SERVICE_NAME}
+                      name: ${DATABASE_SERVICE_NAME}-creds
                 - name: POSTGRES_DB
                   valueFrom:
                     secretKeyRef:
                       key: database-name
-                      name: ${DATABASE_SERVICE_NAME}
+                      name: ${DATABASE_SERVICE_NAME}-creds
                 - name: PGDATA
                   value: /var/lib/pgsql/data/pgdata
               image: ${POSTGRES_IMAGE}
@@ -155,9 +160,19 @@ objects:
         template.openshift.io/expose-database_name: "{.data['database-name']}"
         template.openshift.io/expose-password: "{.data['database-password']}"
         template.openshift.io/expose-username: "{.data['database-user']}"
-      name: ${DATABASE_SERVICE_NAME}
+      name: ${DATABASE_SERVICE_NAME}-creds
     stringData:
       database-name: ${DATABASE_NAME}
       database-password: ${DATABASE_PASSWORD}
       database-user: ${DATABASE_USER}
 
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: ${DB_SECRET_NAME}
+    stringData:
+      db.host: ${DATABASE_SERVICE_NAME}
+      db.port: "5432"
+      db.name: ${DATABASE_NAME}
+      db.user: ${DATABASE_USER}
+      db.password: ${DATABASE_PASSWORD}
