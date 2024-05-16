@@ -93,7 +93,7 @@ func addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&agentOption.WorkloadSourceDriver, "message-broker-type", "mqtt", "Message broker type (default: mqtt)")
 	fs.StringVar(&agentOption.CloudEventsClientID, "agent-client-id",
 		agentOption.CloudEventsClientID, "The ID of the agent client, by default it is <consumer-id>-work-agent")
-	fs.StringSliceVar(&agentOption.CloudEventsClientCodecs, "agent-client-codec",
-		[]string{"manifest"}, "The codec of the agent client. The valid codecs are manifest and manifestbundle")
+	fs.StringSliceVar(&agentOption.CloudEventsClientCodecs, "agent-client-codecs",
+		[]string{"manifest"}, "The codecs of the agent client. The valid codecs are manifest and manifestbundle")
 
 }
