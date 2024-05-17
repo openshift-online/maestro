@@ -14,6 +14,19 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 )
 
+func ValidateResourceName(resource *api.Resource) error {
+	errs := field.ErrorList{}
+	for _, msg := range apivalidation.ValidateNamespaceName(resource.Name, false) {
+		errs = append(errs, field.Invalid(field.NewPath("resource").Child("name"), resource.Name, msg))
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+
+	return fmt.Errorf(errs.ToAggregate().Error())
+}
+
 func ValidateConsumer(consumer *api.Consumer) error {
 	errs := field.ErrorList{}
 	for _, msg := range apivalidation.ValidateNamespaceName(consumer.Name, false) {

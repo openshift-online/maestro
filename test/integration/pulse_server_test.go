@@ -63,7 +63,7 @@ func TestPulseServer(t *testing.T) {
 	consumer := h.CreateConsumer(clusterName)
 	res := h.CreateResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	lister := informer.Lister().ManifestWorks(consumer.Name)
@@ -75,6 +75,13 @@ func TestPulseServer(t *testing.T) {
 		list, err := lister.List(labels.Everything())
 		if err != nil {
 			return err
+		}
+
+		if len(list) == 0 {
+			// no work synced yet, resync it now
+			if _, err := agentWorkClient.List(ctx, metav1.ListOptions{}); err != nil {
+				return err
+			}
 		}
 
 		// ensure there is only one work was synced on the cluster

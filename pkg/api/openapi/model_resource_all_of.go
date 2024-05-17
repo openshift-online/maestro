@@ -20,6 +20,7 @@ var _ MappedNullable = &ResourceAllOf{}
 
 // ResourceAllOf struct for ResourceAllOf
 type ResourceAllOf struct {
+	Name         *string                `json:"name,omitempty"`
 	ConsumerName *string                `json:"consumer_name,omitempty"`
 	Version      *int32                 `json:"version,omitempty"`
 	CreatedAt    *time.Time             `json:"created_at,omitempty"`
@@ -43,6 +44,38 @@ func NewResourceAllOf() *ResourceAllOf {
 func NewResourceAllOfWithDefaults() *ResourceAllOf {
 	this := ResourceAllOf{}
 	return &this
+}
+
+// GetName returns the Name field value if set, zero value otherwise.
+func (o *ResourceAllOf) GetName() string {
+	if o == nil || IsNil(o.Name) {
+		var ret string
+		return ret
+	}
+	return *o.Name
+}
+
+// GetNameOk returns a tuple with the Name field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourceAllOf) GetNameOk() (*string, bool) {
+	if o == nil || IsNil(o.Name) {
+		return nil, false
+	}
+	return o.Name, true
+}
+
+// HasName returns a boolean if a field has been set.
+func (o *ResourceAllOf) HasName() bool {
+	if o != nil && !IsNil(o.Name) {
+		return true
+	}
+
+	return false
+}
+
+// SetName gets a reference to the given string and assigns it to the Name field.
+func (o *ResourceAllOf) SetName(v string) {
+	o.Name = &v
 }
 
 // GetConsumerName returns the ConsumerName field value if set, zero value otherwise.
@@ -247,6 +280,9 @@ func (o ResourceAllOf) MarshalJSON() ([]byte, error) {
 
 func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
+	if !IsNil(o.Name) {
+		toSerialize["name"] = o.Name
+	}
 	if !IsNil(o.ConsumerName) {
 		toSerialize["consumer_name"] = o.ConsumerName
 	}

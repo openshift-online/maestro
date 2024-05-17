@@ -7,6 +7,7 @@ Name | Type | Description | Notes
 **Id** | Pointer to **string** |  | [optional] 
 **Kind** | Pointer to **string** |  | [optional] 
 **Href** | Pointer to **string** |  | [optional] 
+**Name** | Pointer to **string** |  | [optional] 
 **ConsumerName** | Pointer to **string** |  | [optional] 
 **Version** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
@@ -107,6 +108,31 @@ SetHref sets Href field to given value.
 `func (o *Resource) HasHref() bool`
 
 HasHref returns a boolean if a field has been set.
+
+### GetName
+
+`func (o *Resource) GetName() string`
+
+GetName returns the Name field if non-nil, zero value otherwise.
+
+### GetNameOk
+
+`func (o *Resource) GetNameOk() (*string, bool)`
+
+GetNameOk returns a tuple with the Name field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetName
+
+`func (o *Resource) SetName(v string)`
+
+SetName sets Name field to given value.
+
+### HasName
+
+`func (o *Resource) HasName() bool`
+
+HasName returns a boolean if a field has been set.
 
 ### GetConsumerName
 

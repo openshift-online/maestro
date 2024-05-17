@@ -33,6 +33,11 @@ type Resource struct {
 	Type         ResourceType
 	Manifest     datatypes.JSONMap
 	Status       datatypes.JSONMap
+	// Name must be unique and not null, it can be treated as the resource external ID.
+	// The format of the name should be follow the RFC 1123 (same as the k8s namespace).
+	// When creating a resource, if its name is not specified, the resource id will be used as its name.
+	// Cannot be updated.
+	Name string
 }
 
 type ResourceStatus struct {
@@ -61,6 +66,13 @@ func (d *Resource) BeforeCreate(tx *gorm.DB) error {
 	// generate a new ID if it doesn't exist
 	if d.ID == "" {
 		d.ID = NewID()
+	}
+	if d.Name == "" {
+		d.Name = d.ID
+	}
+	// start the resource version from 1
+	if d.Version == 0 {
+		d.Version = 1
 	}
 	return nil
 }

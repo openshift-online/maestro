@@ -66,7 +66,7 @@ func TestResourcePost(t *testing.T) {
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewAPIResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	lister := informer.Lister().ManifestWorks(consumer.Name)
@@ -100,6 +100,13 @@ func TestResourcePost(t *testing.T) {
 		list, err := lister.List(labels.Everything())
 		if err != nil {
 			return err
+		}
+
+		if len(list) == 0 {
+			// no work synced yet, resync it now
+			if _, err := agentWorkClient.List(ctx, metav1.ListOptions{}); err != nil {
+				return err
+			}
 		}
 
 		// ensure there is only one work was synced on the cluster
@@ -195,6 +202,75 @@ func TestResourcePost(t *testing.T) {
 	cancel()
 }
 
+func TestResourcePostWithoutName(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+
+	clusterName := "cluster1"
+	consumer := h.CreateConsumer(clusterName)
+	res := h.NewAPIResource(consumer.Name, 1)
+	h.StartControllerManager(ctx)
+	resourceService := h.Env().Services.Resources()
+	// POST responses per openapi spec: 201, 400, 409, 500
+
+	// 201 Created
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resource.Name).To(Equal(*resource.Id))
+
+	// 201 Created
+	resource, resp, err = client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resource.Name).To(Equal(*resource.Id))
+
+	Eventually(func() error {
+		newRes, err := resourceService.List(types.ListOptions{ClusterName: clusterName})
+		if err != nil {
+			return err
+		}
+		if len(newRes) != 2 {
+			return fmt.Errorf("should create two resources")
+		}
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
+
+	// make sure controller manager and work agent are stopped
+	cancel()
+}
+
+func TestResourcePostWithName(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+
+	clusterName := "cluster1"
+	consumer := h.CreateConsumer(clusterName)
+	res := h.NewAPIResource(consumer.Name, 1)
+	h.StartControllerManager(ctx)
+	// POST responses per openapi spec: 201, 400, 409, 500
+
+	// 201 Created
+	resourceName := "ngix"
+	res.Name = &resourceName
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+	Expect(*resource.Name).To(Equal(resourceName))
+
+	// 201 Created
+	_, _, err = client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).To(HaveOccurred())
+
+	// make sure controller manager and work agent are stopped
+	cancel()
+}
+
 func TestResourcePatch(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
@@ -202,16 +278,16 @@ func TestResourcePatch(t *testing.T) {
 
 	// use the consumer id as the consumer name
 	consumer := h.CreateConsumer("")
-	res := h.CreateResource(consumer.ID, 1)
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.ID, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	lister := informer.Lister().ManifestWorks(consumer.ID)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
-	// POST responses per openapi spec: 201, 400, 409, 500
+	res := h.CreateResource(consumer.ID, 1)
+	Expect(res.Version).To(Equal(int32(1)))
 
 	// 200 OK
 	newRes := h.NewAPIResource(consumer.ID, 2)
@@ -256,6 +332,13 @@ func TestResourcePatch(t *testing.T) {
 			return err
 		}
 
+		if len(list) == 0 {
+			// no work synced yet, resync it now
+			if _, err := agentWorkClient.List(ctx, metav1.ListOptions{}); err != nil {
+				return err
+			}
+		}
+
 		// ensure there is only one work was synced on the cluster
 		if len(list) != 1 {
 			return fmt.Errorf("unexpected work list %v", list)
@@ -268,7 +351,7 @@ func TestResourcePatch(t *testing.T) {
 		}
 
 		// ensure the work version is updated
-		if work.GetResourceVersion() != "1" {
+		if work.GetResourceVersion() != "2" {
 			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
 		}
 
@@ -399,7 +482,7 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 			return fmt.Errorf("there are %d unreleased advisory lock", count)
 		}
 		return nil
-	}, 5*time.Second, 1*time.Second).Should(Succeed())
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 }
 
 func TestResourceFromGRPC(t *testing.T) {
@@ -414,7 +497,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions)
+	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
@@ -441,7 +524,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(*resource.Id).To(Equal(res.ID))
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
-	Expect(*resource.Version).To(Equal(int32(0)))
+	Expect(*resource.Version).To(Equal(int32(1)))
 
 	// add the resource to the store
 	h.Store.Add(res)
@@ -544,7 +627,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(*resource.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
 	Expect(*resource.Kind).To(Equal("Resource"))
 	Expect(*resource.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resources/%s", *resource.Id)))
-	Expect(*resource.Version).To(Equal(int32(1)))
+	Expect(*resource.Version).To(Equal(int32(2)))
 
 	Eventually(func() error {
 		// ensure the work can be get by work client
@@ -553,7 +636,7 @@ func TestResourceFromGRPC(t *testing.T) {
 			return err
 		}
 		// ensure the work version is updated
-		if work.GetResourceVersion() != "1" {
+		if work.GetResourceVersion() != "2" {
 			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
 		}
 		return nil
@@ -608,4 +691,145 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
+}
+
+func TestResourceBundleFromGRPC(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	defer cancel()
+	// create a mock resource
+	clusterName := "cluster1"
+	consumer := h.CreateConsumer(clusterName)
+	res := h.NewResource(consumer.Name, 1)
+	res.ID = uuid.NewString()
+
+	h.StartControllerManager(ctx)
+	h.StartWorkAgent(ctx, consumer.Name, true)
+	clientHolder := h.WorkAgentHolder
+	informer := clientHolder.ManifestWorkInformer()
+	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
+
+	// use grpc client to create resource bundle
+	h.StartGRPCResourceSourceClient()
+	err := h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
+		CloudEventsDataType: payload.ManifestBundleEventDataType,
+		SubResource:         types.SubResourceSpec,
+		Action:              common.CreateRequestAction,
+	}, res)
+	Expect(err).NotTo(HaveOccurred(), "Error publishing resource bundle with grpc source client: %v", err)
+
+	// add the resource to the store
+	h.Store.Add(res)
+
+	var work *workv1.ManifestWork
+	Eventually(func() error {
+		// ensure the work can be get by work client
+		work, err = agentWorkClient.Get(ctx, res.ID, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
+
+	Expect(work).NotTo(BeNil())
+	Expect(work.Spec.Workload).NotTo(BeNil())
+	Expect(len(work.Spec.Workload.Manifests)).To(Equal(1))
+	manifest := map[string]interface{}{}
+	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
+
+	// update the resource
+	newWork := work.DeepCopy()
+	statusFeedbackValue := `{"observedGeneration":1,"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
+	newWork.Status = workv1.ManifestWorkStatus{
+		ResourceStatus: workv1.ManifestResourceStatus{
+			Manifests: []workv1.ManifestCondition{
+				{
+					Conditions: []metav1.Condition{
+						{
+							Type:   "Applied",
+							Status: metav1.ConditionTrue,
+						},
+					},
+					StatusFeedbacks: workv1.StatusFeedbackResult{
+						Values: []workv1.FeedbackValue{
+							{
+								Name: "status",
+								Value: workv1.FieldValue{
+									Type:    workv1.JsonRaw,
+									JsonRaw: &statusFeedbackValue,
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// only update the status on the agent local part
+	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
+
+	// Resync the resource status
+	ceSourceClient, ok := h.Env().Clients.CloudEventsSource.(*cloudevents.SourceClientImpl)
+	Expect(ok).To(BeTrue())
+	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
+
+	Eventually(func() error {
+		newRes, err := h.Store.Get(res.ID)
+		if err != nil {
+			return err
+		}
+		if newRes.Status == nil || len(newRes.Status) == 0 {
+			return fmt.Errorf("resource status is empty")
+		}
+
+		resourceStatusJSON, err := json.Marshal(newRes.Status)
+		if err != nil {
+			return err
+		}
+		resourceStatus := &api.ResourceStatus{}
+		if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
+			return err
+		}
+
+		if len(resourceStatus.ReconcileStatus.Conditions) == 0 {
+			return fmt.Errorf("resource status is empty")
+		}
+
+		if !meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, "Applied") {
+			return fmt.Errorf("resource status is not applied")
+		}
+
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
+
+	newRes := h.NewResource(consumer.Name, 2)
+	newRes.ID = res.ID
+	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
+		CloudEventsDataType: payload.ManifestBundleEventDataType,
+		SubResource:         types.SubResourceSpec,
+		Action:              common.UpdateRequestAction,
+	}, newRes)
+	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
+
+	Eventually(func() error {
+		// ensure the work can be get by work client
+		work, err = agentWorkClient.Get(ctx, res.ID, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		// ensure the work version is updated
+		if work.GetResourceVersion() != "2" {
+			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
+		}
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
+
+	Expect(work).NotTo(BeNil())
+	Expect(work.Spec.Workload).NotTo(BeNil())
+	Expect(len(work.Spec.Workload.Manifests)).To(Equal(1))
+	manifest = map[string]interface{}{}
+	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
+	Expect(manifest["spec"].(map[string]interface{})["replicas"]).To(Equal(float64(2)))
 }

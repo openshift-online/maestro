@@ -289,8 +289,9 @@ objects:
             - /usr/local/bin/maestro
             - agent
             - --consumer-name=${CONSUMER_NAME}
-            - --mqtt-config-file=/secrets/mqtt/config.yaml
-            - --mqtt-client-id=${CONSUMER_NAME}-work-agent
+            - --message-broker-type=mqtt
+            - --message-broker-config-file=/secrets/mqtt/config.yaml
+            - --agent-client-id=${CONSUMER_NAME}-work-agent
           volumeMounts:
           - name: mqtt
             mountPath: /secrets/mqtt

@@ -15,9 +15,10 @@ import (
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
+	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
@@ -245,11 +246,24 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 	go helper.ControllerManager.Start(ctx)
 }
 
-func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mqttOptions *mqttoptions.MQTTOptions) {
+func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bundle bool) {
+	// initilize the mqtt options
+	mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
+	if err != nil {
+		glog.Fatalf("Unable to build MQTT options: %s", err.Error())
+	}
+
+	var workCodec generic.Codec[*workv1.ManifestWork]
+	if bundle {
+		workCodec = codec.NewManifestBundleCodec()
+	} else {
+		workCodec = codec.NewManifestCodec(nil)
+	}
+
 	clientHolder, err := work.NewClientHolderBuilder(mqttOptions).
 		WithClientID(clusterName).
 		WithClusterName(clusterName).
-		WithCodecs(codec.NewManifestCodec(nil)).
+		WithCodecs(workCodec).
 		NewAgentClientHolder(ctx)
 	if err != nil {
 		glog.Fatalf("Unable to create work agent holder: %s", err)
@@ -269,6 +283,7 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 		store,
 		resourceStatusHashGetter,
 		&ResourceCodec{},
+		&ResourceBundleCodec{},
 	)
 
 	if err != nil {

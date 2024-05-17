@@ -6,7 +6,6 @@ COPY . $SOURCE_DIR
 
 ENV GOFLAGS=""
 RUN make binary
-RUN pwd
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 

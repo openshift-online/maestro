@@ -286,7 +286,7 @@ objects:
             - --db-name-file=/secrets/rds/db.name
             - --db-rootcert=/secrets/rds/db.ca_cert
             - --db-sslmode=${DB_SSLMODE}
-            - --mqtt-config-file=/secrets/mqtt/config.yaml
+            - --message-broker-config-file=/secrets/mqtt/config.yaml
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
             - --ocm-client-id-file=/secrets/service/ocm-service.clientId
             - --ocm-client-secret-file=/secrets/service/ocm-service.clientSecret
@@ -306,7 +306,6 @@ objects:
             - --grpc-server-bindport=${GRPC_SERVER_BINDPORT}
             - --health-check-server-bindport=${HEALTH_CHECK_SERVER_BINDPORT}
             - --enable-health-check-https=${ENABLE_HTTPS}
-            - --db-sslmode=${DB_SSLMODE}
             - --db-max-open-connections=${DB_MAX_OPEN_CONNS}
             - --enable-authz=${ENABLE_AUTHZ}
             - --enable-db-debug=${ENABLE_DB_DEBUG}

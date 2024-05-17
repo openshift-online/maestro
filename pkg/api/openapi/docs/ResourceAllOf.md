@@ -4,6 +4,7 @@
 
 Name | Type | Description | Notes
 ------------ | ------------- | ------------- | -------------
+**Name** | Pointer to **string** |  | [optional] 
 **ConsumerName** | Pointer to **string** |  | [optional] 
 **Version** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
@@ -29,6 +30,31 @@ will change when the set of required properties is changed
 NewResourceAllOfWithDefaults instantiates a new ResourceAllOf object
 This constructor will only assign default values to properties that have it defined,
 but it doesn't guarantee that properties required by API are set
+
+### GetName
+
+`func (o *ResourceAllOf) GetName() string`
+
+GetName returns the Name field if non-nil, zero value otherwise.
+
+### GetNameOk
+
+`func (o *ResourceAllOf) GetNameOk() (*string, bool)`
+
+GetNameOk returns a tuple with the Name field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetName
+
+`func (o *ResourceAllOf) SetName(v string)`
+
+SetName sets Name field to given value.
+
+### HasName
+
+`func (o *ResourceAllOf) HasName() bool`
+
+HasName returns a boolean if a field has been set.
 
 ### GetConsumerName
 
