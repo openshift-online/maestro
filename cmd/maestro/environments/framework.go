@@ -7,14 +7,13 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/golang/glog"
-	"github.com/spf13/pflag"
-
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
+	"github.com/spf13/pflag"
 
-	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
 
 func init() {
@@ -173,11 +172,26 @@ func (e *Env) LoadClients() error {
 		glog.Infof("Using Mock CloudEvents Source Client")
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
-		cloudEventsSourceOptions := mqttoptions.NewSourceOptions(e.Config.MessageBroker.MQTTOptions, e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
-		e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+
+		_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
+			LoadConfig()
 		if err != nil {
-			glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
+			glog.Errorf("Unable to load configuration: %s", err.Error())
 			return err
+		}
+
+		cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
+			e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
+		if err != nil {
+			glog.Errorf("Unable to build cloudevent source options: %s", err.Error())
+			return err
+		}
+		if cloudEventsSourceOptions != nil {
+			e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+			if err != nil {
+				glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
+				return err
+			}
 		}
 	}
 
