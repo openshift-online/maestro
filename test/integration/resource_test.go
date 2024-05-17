@@ -66,7 +66,7 @@ func TestResourcePost(t *testing.T) {
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewAPIResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions, false)
+	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	lister := informer.Lister().ManifestWorks(consumer.Name)
@@ -280,7 +280,7 @@ func TestResourcePatch(t *testing.T) {
 	consumer := h.CreateConsumer("")
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.ID, h.Env().Config.MessageBroker.MQTTOptions, false)
+	h.StartWorkAgent(ctx, consumer.ID, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	lister := informer.Lister().ManifestWorks(consumer.ID)
@@ -497,7 +497,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions, false)
+	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
@@ -705,7 +705,7 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
-	h.StartWorkAgent(ctx, consumer.Name, h.Env().Config.MessageBroker.MQTTOptions, true)
+	h.StartWorkAgent(ctx, consumer.Name, true)
 	clientHolder := h.WorkAgentHolder
 	informer := clientHolder.ManifestWorkInformer()
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
