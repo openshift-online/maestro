@@ -109,7 +109,7 @@ func (o *AgentOptions) Run(ctx context.Context) error {
 
 	controllerContext := &controllercmd.ControllerContext{
 		KubeConfig:        kubeConfig,
-		EventRecorder:     events.NewLoggingEventRecorder("test"),
+		EventRecorder:     events.NewLoggingEventRecorder("maestro-agent"),
 		OperatorNamespace: namespace,
 	}
 
