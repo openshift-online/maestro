@@ -122,18 +122,47 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 }
 
 // EncodeManifest converts a resource manifest (map[string]interface{}) into a CloudEvent JSONMap representation.
-func EncodeManifest(manifest map[string]interface{}) (datatypes.JSONMap, error) {
+func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
 	if len(manifest) == 0 {
 		return nil, nil
+	}
+
+	delOption := &workv1.DeleteOption{
+		PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
+	}
+	if len(deleteOption) != 0 {
+		delOption = &workv1.DeleteOption{}
+		deleteOptionBytes, err := json.Marshal(deleteOption)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
+		}
+		err = json.Unmarshal(deleteOptionBytes, delOption)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal json to deleteOption: %v", err)
+		}
+	}
+
+	upStrategy := &workv1.UpdateStrategy{
+		Type: workv1.UpdateStrategyTypeServerSideApply,
+	}
+	if len(updateStrategy) != 0 {
+		upStrategy = &workv1.UpdateStrategy{}
+		updateStrategyBytes, err := json.Marshal(updateStrategy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal updateStrategy to json: %v", err)
+		}
+		err = json.Unmarshal(updateStrategyBytes, upStrategy)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal json to updateStrategy: %v", err)
+		}
+		fmt.Println("upStrategy", upStrategy)
 	}
 
 	// create a cloud event with the manifest as the data
 	evt := cetypes.NewEventBuilder("maestro", cetypes.CloudEventsType{}).NewEvent()
 	eventPayload := &workpayload.Manifest{
-		Manifest: unstructured.Unstructured{Object: manifest},
-		DeleteOption: &workv1.DeleteOption{
-			PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
-		},
+		Manifest:     unstructured.Unstructured{Object: manifest},
+		DeleteOption: delOption,
 		ConfigOption: &workpayload.ManifestConfigOption{
 			FeedbackRules: []workv1.FeedbackRule{
 				{
@@ -146,10 +175,7 @@ func EncodeManifest(manifest map[string]interface{}) (datatypes.JSONMap, error) 
 					},
 				},
 			},
-			UpdateStrategy: &workv1.UpdateStrategy{
-				// TODO support external configuration, e.g. configure this through manifest annotations
-				Type: workv1.UpdateStrategyTypeServerSideApply,
-			},
+			UpdateStrategy: upStrategy,
 		},
 	}
 

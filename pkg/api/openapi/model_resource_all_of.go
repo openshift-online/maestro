@@ -20,13 +20,15 @@ var _ MappedNullable = &ResourceAllOf{}
 
 // ResourceAllOf struct for ResourceAllOf
 type ResourceAllOf struct {
-	Name         *string                `json:"name,omitempty"`
-	ConsumerName *string                `json:"consumer_name,omitempty"`
-	Version      *int32                 `json:"version,omitempty"`
-	CreatedAt    *time.Time             `json:"created_at,omitempty"`
-	UpdatedAt    *time.Time             `json:"updated_at,omitempty"`
-	Manifest     map[string]interface{} `json:"manifest,omitempty"`
-	Status       map[string]interface{} `json:"status,omitempty"`
+	Name           *string                `json:"name,omitempty"`
+	ConsumerName   *string                `json:"consumer_name,omitempty"`
+	Version        *int32                 `json:"version,omitempty"`
+	CreatedAt      *time.Time             `json:"created_at,omitempty"`
+	UpdatedAt      *time.Time             `json:"updated_at,omitempty"`
+	Manifest       map[string]interface{} `json:"manifest,omitempty"`
+	DeleteOption   map[string]interface{} `json:"delete_option,omitempty"`
+	UpdateStrategy map[string]interface{} `json:"update_strategy,omitempty"`
+	Status         map[string]interface{} `json:"status,omitempty"`
 }
 
 // NewResourceAllOf instantiates a new ResourceAllOf object
@@ -238,6 +240,70 @@ func (o *ResourceAllOf) SetManifest(v map[string]interface{}) {
 	o.Manifest = v
 }
 
+// GetDeleteOption returns the DeleteOption field value if set, zero value otherwise.
+func (o *ResourceAllOf) GetDeleteOption() map[string]interface{} {
+	if o == nil || IsNil(o.DeleteOption) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.DeleteOption
+}
+
+// GetDeleteOptionOk returns a tuple with the DeleteOption field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourceAllOf) GetDeleteOptionOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.DeleteOption) {
+		return map[string]interface{}{}, false
+	}
+	return o.DeleteOption, true
+}
+
+// HasDeleteOption returns a boolean if a field has been set.
+func (o *ResourceAllOf) HasDeleteOption() bool {
+	if o != nil && !IsNil(o.DeleteOption) {
+		return true
+	}
+
+	return false
+}
+
+// SetDeleteOption gets a reference to the given map[string]interface{} and assigns it to the DeleteOption field.
+func (o *ResourceAllOf) SetDeleteOption(v map[string]interface{}) {
+	o.DeleteOption = v
+}
+
+// GetUpdateStrategy returns the UpdateStrategy field value if set, zero value otherwise.
+func (o *ResourceAllOf) GetUpdateStrategy() map[string]interface{} {
+	if o == nil || IsNil(o.UpdateStrategy) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.UpdateStrategy
+}
+
+// GetUpdateStrategyOk returns a tuple with the UpdateStrategy field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourceAllOf) GetUpdateStrategyOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.UpdateStrategy) {
+		return map[string]interface{}{}, false
+	}
+	return o.UpdateStrategy, true
+}
+
+// HasUpdateStrategy returns a boolean if a field has been set.
+func (o *ResourceAllOf) HasUpdateStrategy() bool {
+	if o != nil && !IsNil(o.UpdateStrategy) {
+		return true
+	}
+
+	return false
+}
+
+// SetUpdateStrategy gets a reference to the given map[string]interface{} and assigns it to the UpdateStrategy field.
+func (o *ResourceAllOf) SetUpdateStrategy(v map[string]interface{}) {
+	o.UpdateStrategy = v
+}
+
 // GetStatus returns the Status field value if set, zero value otherwise.
 func (o *ResourceAllOf) GetStatus() map[string]interface{} {
 	if o == nil || IsNil(o.Status) {
@@ -297,6 +363,12 @@ func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Manifest) {
 		toSerialize["manifest"] = o.Manifest
+	}
+	if !IsNil(o.DeleteOption) {
+		toSerialize["delete_option"] = o.DeleteOption
+	}
+	if !IsNil(o.UpdateStrategy) {
+		toSerialize["update_strategy"] = o.UpdateStrategy
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status

@@ -13,6 +13,8 @@ Name | Type | Description | Notes
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
+**DeleteOption** | Pointer to **map[string]interface{}** |  | [optional] 
+**UpdateStrategy** | Pointer to **map[string]interface{}** |  | [optional] 
 **Status** | Pointer to **map[string]interface{}** |  | [optional] 
 
 ## Methods
@@ -258,6 +260,56 @@ SetManifest sets Manifest field to given value.
 `func (o *Resource) HasManifest() bool`
 
 HasManifest returns a boolean if a field has been set.
+
+### GetDeleteOption
+
+`func (o *Resource) GetDeleteOption() map[string]interface{}`
+
+GetDeleteOption returns the DeleteOption field if non-nil, zero value otherwise.
+
+### GetDeleteOptionOk
+
+`func (o *Resource) GetDeleteOptionOk() (*map[string]interface{}, bool)`
+
+GetDeleteOptionOk returns a tuple with the DeleteOption field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetDeleteOption
+
+`func (o *Resource) SetDeleteOption(v map[string]interface{})`
+
+SetDeleteOption sets DeleteOption field to given value.
+
+### HasDeleteOption
+
+`func (o *Resource) HasDeleteOption() bool`
+
+HasDeleteOption returns a boolean if a field has been set.
+
+### GetUpdateStrategy
+
+`func (o *Resource) GetUpdateStrategy() map[string]interface{}`
+
+GetUpdateStrategy returns the UpdateStrategy field if non-nil, zero value otherwise.
+
+### GetUpdateStrategyOk
+
+`func (o *Resource) GetUpdateStrategyOk() (*map[string]interface{}, bool)`
+
+GetUpdateStrategyOk returns a tuple with the UpdateStrategy field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetUpdateStrategy
+
+`func (o *Resource) SetUpdateStrategy(v map[string]interface{})`
+
+SetUpdateStrategy sets UpdateStrategy field to given value.
+
+### HasUpdateStrategy
+
+`func (o *Resource) HasUpdateStrategy() bool`
+
+HasUpdateStrategy returns a boolean if a field has been set.
 
 ### GetStatus
 

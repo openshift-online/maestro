@@ -19,8 +19,10 @@ var _ MappedNullable = &ResourcePatchRequest{}
 
 // ResourcePatchRequest struct for ResourcePatchRequest
 type ResourcePatchRequest struct {
-	Version  *int32                 `json:"version,omitempty"`
-	Manifest map[string]interface{} `json:"manifest,omitempty"`
+	Version        *int32                 `json:"version,omitempty"`
+	Manifest       map[string]interface{} `json:"manifest,omitempty"`
+	DeleteOption   map[string]interface{} `json:"delete_option,omitempty"`
+	UpdateStrategy map[string]interface{} `json:"update_strategy,omitempty"`
 }
 
 // NewResourcePatchRequest instantiates a new ResourcePatchRequest object
@@ -104,6 +106,70 @@ func (o *ResourcePatchRequest) SetManifest(v map[string]interface{}) {
 	o.Manifest = v
 }
 
+// GetDeleteOption returns the DeleteOption field value if set, zero value otherwise.
+func (o *ResourcePatchRequest) GetDeleteOption() map[string]interface{} {
+	if o == nil || IsNil(o.DeleteOption) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.DeleteOption
+}
+
+// GetDeleteOptionOk returns a tuple with the DeleteOption field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourcePatchRequest) GetDeleteOptionOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.DeleteOption) {
+		return map[string]interface{}{}, false
+	}
+	return o.DeleteOption, true
+}
+
+// HasDeleteOption returns a boolean if a field has been set.
+func (o *ResourcePatchRequest) HasDeleteOption() bool {
+	if o != nil && !IsNil(o.DeleteOption) {
+		return true
+	}
+
+	return false
+}
+
+// SetDeleteOption gets a reference to the given map[string]interface{} and assigns it to the DeleteOption field.
+func (o *ResourcePatchRequest) SetDeleteOption(v map[string]interface{}) {
+	o.DeleteOption = v
+}
+
+// GetUpdateStrategy returns the UpdateStrategy field value if set, zero value otherwise.
+func (o *ResourcePatchRequest) GetUpdateStrategy() map[string]interface{} {
+	if o == nil || IsNil(o.UpdateStrategy) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.UpdateStrategy
+}
+
+// GetUpdateStrategyOk returns a tuple with the UpdateStrategy field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourcePatchRequest) GetUpdateStrategyOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.UpdateStrategy) {
+		return map[string]interface{}{}, false
+	}
+	return o.UpdateStrategy, true
+}
+
+// HasUpdateStrategy returns a boolean if a field has been set.
+func (o *ResourcePatchRequest) HasUpdateStrategy() bool {
+	if o != nil && !IsNil(o.UpdateStrategy) {
+		return true
+	}
+
+	return false
+}
+
+// SetUpdateStrategy gets a reference to the given map[string]interface{} and assigns it to the UpdateStrategy field.
+func (o *ResourcePatchRequest) SetUpdateStrategy(v map[string]interface{}) {
+	o.UpdateStrategy = v
+}
+
 func (o ResourcePatchRequest) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -119,6 +185,12 @@ func (o ResourcePatchRequest) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Manifest) {
 		toSerialize["manifest"] = o.Manifest
+	}
+	if !IsNil(o.DeleteOption) {
+		toSerialize["delete_option"] = o.DeleteOption
+	}
+	if !IsNil(o.UpdateStrategy) {
+		toSerialize["update_strategy"] = o.UpdateStrategy
 	}
 	return toSerialize, nil
 }

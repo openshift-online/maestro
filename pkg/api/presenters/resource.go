@@ -9,7 +9,7 @@ import (
 
 // ConvertResource converts a resource from the API to the openapi representation.
 func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
-	manifest, err := ConvertResourceManifest(resource.Manifest)
+	manifest, err := ConvertResourceManifest(resource.Manifest, resource.DeleteOption, resource.UpdateStrategy)
 	if err != nil {
 		return nil, err
 	}
@@ -26,8 +26,8 @@ func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
 }
 
 // ConvertResourceManifest converts a resource manifest from the openapi representation to the API.
-func ConvertResourceManifest(manifest map[string]interface{}) (datatypes.JSONMap, error) {
-	return api.EncodeManifest(manifest)
+func ConvertResourceManifest(manifest, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
+	return api.EncodeManifest(manifest, deleteOption, updateStrategy)
 }
 
 // PresentResource converts a resource from the API to the openapi representation.

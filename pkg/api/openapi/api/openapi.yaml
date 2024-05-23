@@ -774,12 +774,18 @@ components:
       - $ref: '#/components/schemas/ResourceList_allOf'
     ResourcePatchRequest:
       example:
+        delete_option: "{}"
+        update_strategy: "{}"
         manifest: "{}"
         version: 0
       properties:
         version:
           type: integer
         manifest:
+          type: object
+        delete_option:
+          type: object
+        update_strategy:
           type: object
       type: object
     Consumer:
@@ -833,6 +839,10 @@ components:
           format: date-time
           type: string
         manifest:
+          type: object
+        delete_option:
+          type: object
+        update_strategy:
           type: object
         status:
           type: object

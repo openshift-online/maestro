@@ -173,6 +173,12 @@ ocm post /api/maestro/v1/resources << EOF
         }
       }
     }
+  },
+  "update_strategy": {
+    "type": "Orphan"
+  },
+  "delete_option": {
+    "propagationPolicy": "CreateOnly"
   }
 }
 EOF
