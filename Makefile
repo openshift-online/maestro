@@ -22,8 +22,8 @@ environment:=${USER}
 namespace ?= maestro-${USER}
 agent_namespace ?= maestro-agent-${USER}
 
-# a tool for managing containers and images, etc. You can set it as docker
-container_tool ?= podman
+# a tool for managing containers and images, etc. Podman or Docker
+container_tool ?= $(shell command -v podman >/dev/null 2>&1 && echo podman || (command -v docker >/dev/null 2>&1 && echo docker))
 
 # In the development environment we are pushing the image directly to the image
 # registry inside the development cluster. That registry has a different name
