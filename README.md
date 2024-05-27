@@ -321,7 +321,13 @@ Login Succeeded!
 
 Deploy maestro:
 
-We will push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman.
+Before deploying maestro to the Openshift cluster, we will first build image. By default, the container tool is `podman`, but you can override it to use `docker` when necessary.
+```shell
+$ export container_tool=docker
+```
+
+Then we will push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman. You can also specific the image information with the environment variables `external_image_registry`, `image_repository` and `image_tag`
+
 
 ```shell
 $ make deploy
