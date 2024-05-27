@@ -121,7 +121,7 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 	return res, nil
 }
 
-// EncodeManifest converts a resource manifest (map[string]interface{}) into a CloudEvent JSONMap representation.
+// EncodeManifest converts resource manifest, deleteOption and updateStrategy (map[string]interface{}) into a CloudEvent JSONMap representation.
 func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
 	if len(manifest) == 0 {
 		return nil, nil
@@ -193,23 +193,65 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 }
 
 // DecodeManifest converts a CloudEvent JSONMap representation of a resource manifest
-// into resource manifest (map[string]interface{}).
-func DecodeManifest(manifest datatypes.JSONMap) (map[string]interface{}, error) {
+// into resource manifest, deleteOption and updateStrategy (map[string]interface{}).
+func DecodeManifest(manifest datatypes.JSONMap) (map[string]interface{}, map[string]interface{}, map[string]interface{}, error) {
 	if len(manifest) == 0 {
-		return nil, nil
+		return nil, nil, nil, nil
 	}
 
 	evt, err := JSONMAPToCloudEvent(manifest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
 	}
 
 	eventPayload := &workpayload.Manifest{}
 	if err := evt.DataAs(eventPayload); err != nil {
-		return nil, fmt.Errorf("failed to decode cloudevent payload as resource manifest: %v", err)
+		return nil, nil, nil, fmt.Errorf("failed to decode cloudevent payload as resource manifest: %v", err)
 	}
 
-	return eventPayload.Manifest.Object, nil
+	deleteOptionObj := &map[string]interface{}{}
+	if eventPayload.DeleteOption != nil {
+		deleteOptionJsonData, err := json.Marshal(eventPayload.DeleteOption)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
+		}
+		if err := json.Unmarshal(deleteOptionJsonData, deleteOptionObj); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal deleteOption to cloudevent: %v", err)
+		}
+	}
+
+	updateStrategyObj := &map[string]interface{}{}
+	if eventPayload.ConfigOption != nil && eventPayload.ConfigOption.UpdateStrategy != nil {
+		updateStrategyJsonData, err := json.Marshal(eventPayload.ConfigOption.UpdateStrategy)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to marshal updateStrategy to json: %v", err)
+		}
+		if err := json.Unmarshal(updateStrategyJsonData, updateStrategyObj); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal updateStrategy to cloudevent: %v", err)
+		}
+	}
+
+	return eventPayload.Manifest.Object, *deleteOptionObj, *updateStrategyObj, nil
+}
+
+// DecodeDeleteOption converts a CloudEvent JSONMap representation of a resoure deleteOption
+// into resource deleteOption (map[string]interface{}).
+func DecodeDeleteOption(deleteOption datatypes.JSONMap) (map[string]interface{}, error) {
+	if len(deleteOption) == 0 {
+		return nil, nil
+	}
+
+	jsonData, err := deleteOption.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
+	}
+
+	obj := &map[string]interface{}{}
+	if err := json.Unmarshal(jsonData, obj); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal deleteOption to cloudevent: %v", err)
+	}
+
+	return *obj, nil
 }
 
 // DecodeManifestBundle converts a CloudEvent JSONMap representation of a list of resource manifest

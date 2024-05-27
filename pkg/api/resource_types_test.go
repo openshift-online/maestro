@@ -53,34 +53,46 @@ func TestEncodeManifest(t *testing.T) {
 
 func TestDecodeManifest(t *testing.T) {
 	cases := []struct {
-		name             string
-		input            datatypes.JSONMap
-		expected         map[string]interface{}
-		expectedErrorMsg string
+		name                   string
+		input                  datatypes.JSONMap
+		expectedManifest       map[string]interface{}
+		expectedDeleteOption   map[string]interface{}
+		expectedUpdateStrategy map[string]interface{}
+		expectedErrorMsg       string
 	}{
 		{
-			name:             "empty",
-			input:            datatypes.JSONMap{},
-			expected:         nil,
-			expectedErrorMsg: "",
+			name:                   "empty",
+			input:                  datatypes.JSONMap{},
+			expectedManifest:       nil,
+			expectedDeleteOption:   nil,
+			expectedUpdateStrategy: nil,
+			expectedErrorMsg:       "",
 		},
 		{
-			name:     "valid",
-			input:    newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifest\":{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}}}"),
-			expected: newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
+			name:                   "valid",
+			input:                  newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"configOption\":{\"updateStrategy\": {\"type\": \"CreateOnly\"}},\"deleteOption\": {\"propagationPolicy\": \"Orphan\"},\"manifest\":{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}}}"),
+			expectedManifest:       newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
+			expectedDeleteOption:   newJSONMap(t, "{\"propagationPolicy\": \"Orphan\"}"),
+			expectedUpdateStrategy: newJSONMap(t, "{\"type\": \"CreateOnly\"}"),
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotManifest, err := DecodeManifest(c.input)
+			gotManifest, gotDeleteOption, gotUpdateStrategy, err := DecodeManifest(c.input)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
 				}
 				return
 			}
-			if !equality.Semantic.DeepDerivative(c.expected, gotManifest) {
-				t.Errorf("expected %#v but got: %#v", c.expected, gotManifest)
+			if !equality.Semantic.DeepDerivative(c.expectedManifest, gotManifest) {
+				t.Errorf("expected %#v but got: %#v", c.expectedManifest, gotManifest)
+			}
+			if !equality.Semantic.DeepDerivative(c.expectedDeleteOption, gotDeleteOption) {
+				t.Errorf("expected %#v but got: %#v", c.expectedDeleteOption, gotDeleteOption)
+			}
+			if !equality.Semantic.DeepDerivative(c.expectedUpdateStrategy, gotUpdateStrategy) {
+				t.Errorf("expected %#v but got: %#v", c.expectedUpdateStrategy, gotUpdateStrategy)
 			}
 		})
 	}
