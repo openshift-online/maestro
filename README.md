@@ -321,9 +321,7 @@ Login Succeeded!
 
 Deploy maestro:
 
-We will push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman. You can also customize the image with the environment variables `external_image_registry`, `image_repository` and `image_tag`. 
-
-> Note: The meastro image pulled during deploying comes from the `internal_image_registry`, be sure to specify the correct value for the registry.
+We will push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman.
 
 ```shell
 $ make deploy
