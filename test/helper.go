@@ -18,7 +18,7 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-	mqttoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
@@ -246,7 +246,13 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 	go helper.ControllerManager.Start(ctx)
 }
 
-func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, mqttOptions *mqttoptions.MQTTOptions, bundle bool) {
+func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bundle bool) {
+	// initilize the mqtt options
+	mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
+	if err != nil {
+		glog.Fatalf("Unable to build MQTT options: %s", err.Error())
+	}
+
 	var workCodec generic.Codec[*workv1.ManifestWork]
 	if bundle {
 		workCodec = codec.NewManifestBundleCodec()

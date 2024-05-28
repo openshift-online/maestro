@@ -17,9 +17,9 @@ parameters:
 - name: AGENT_NAMESPACE
   description: namespace of maestro agent
 
-- name: CONSUMER_NAME
-  displayName: Treat CONSUMER_NAME as cluster name
-  required: true
+- name: AGENT_SA
+  description: name of the agent service account
+  default: maestro
 
 - name: IMAGE_REGISTRY
   displayName: Image Registry
@@ -32,27 +32,6 @@ parameters:
 - name: IMAGE_TAG
   displayName: Image tag
   value: latest
-
-- name: MQTT_HOST
-  description: Hostname for the mqtt broker.
-
-- name: MQTT_PORT
-  description: Port for the mqtt broker.
-
-- name: MQTT_USER
-  description: User for the mqtt broker.
-
-- name: MQTT_PASSWORD
-  description: Password for the mqtt broker.
-
-- name: MQTT_ROOT_CERT
-  description: Root Certificate for the mqtt broker.
-
-- name: MQTT_CLENT_CERT
-  description: Client certificate to access the mqtt broker.
-
-- name: MQTT_CLENT_KEY
-  description: Client private key to access the mqtt broker.
 
 objects:
 - apiVersion: apiextensions.k8s.io/v1
@@ -177,7 +156,7 @@ objects:
     name: maestro-agent:agent
   subjects:
     - kind: ServiceAccount
-      name: maestro-agent-sa
+      name: ${AGENT_SA}
       namespace: ${AGENT_NAMESPACE}
 
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -192,7 +171,7 @@ objects:
     name: cluster-admin
   subjects:
     - kind: ServiceAccount
-      name: maestro-agent-sa
+      name: ${AGENT_SA}
       namespace: ${AGENT_NAMESPACE}
 
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -205,7 +184,7 @@ objects:
     name: maestro-agent:execution
   subjects:
     - kind: ServiceAccount
-      name: maestro-agent-sa
+      name: ${AGENT_SA}
       namespace: ${AGENT_NAMESPACE}
 
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -236,7 +215,7 @@ objects:
     name: maestro-agent:agent
   subjects:
     - kind: ServiceAccount
-      name: maestro-agent-sa
+      name: ${AGENT_SA}
       namespace: ${AGENT_NAMESPACE}
 
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -250,7 +229,7 @@ objects:
     name: maestro-agent:agent:extension-apiserver
   subjects:
     - kind: ServiceAccount
-      name: maestro-agent-sa
+      name: ${AGENT_SA}
       namespace: ${AGENT_NAMESPACE}
 
 - apiVersion: rbac.authorization.k8s.io/v1
@@ -280,7 +259,7 @@ objects:
         labels:
           app: maestro-agent
       spec:
-        serviceAccountName: maestro-agent-sa
+        serviceAccountName: ${AGENT_SA}
         containers:
         - name: maestro-agent
           image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
@@ -288,37 +267,29 @@ objects:
           command:
             - /usr/local/bin/maestro
             - agent
-            - --consumer-name=${CONSUMER_NAME}
+            - --consumer-name=$(CONSUMER_NAME)
             - --message-broker-type=mqtt
             - --message-broker-config-file=/secrets/mqtt/config.yaml
-            - --agent-client-id=${CONSUMER_NAME}-work-agent
+            - --agent-client-id=$(CONSUMER_NAME)-work-agent
+          env:
+          - name: CONSUMER_NAME
+            valueFrom:
+              secretKeyRef:
+                name: maestro-mqtt
+                key: consumer-name.cfg
           volumeMounts:
           - name: mqtt
             mountPath: /secrets/mqtt
+          - name: mqtt-creds
+            mountPath: /secrets/mqtt-creds
+            readOnly: true
         volumes:
         - name: mqtt
           secret:
-            secretName: maestro-agent-mqtt
-
-- apiVersion: v1
-  kind: Secret
-  metadata:
-    name: maestro-agent-mqtt
-  stringData:
-    config.yaml: |
-      brokerHost: ${MQTT_HOST}:${MQTT_PORT}
-      username: ${MQTT_USER}
-      password: ${MQTT_PASSWORD}
-      caFile: ${MQTT_ROOT_CERT}
-      clientCertFile: ${MQTT_CLENT_CERT}
-      clientKeyFile: ${MQTT_CLENT_KEY}
-      topics:
-        sourceEvents: sources/maestro/consumers/${CONSUMER_NAME}/sourceevents
-        agentEvents: sources/maestro/consumers/${CONSUMER_NAME}/agentevents
-
-- kind: ServiceAccount
-  apiVersion: v1
-  metadata:
-    name: maestro-agent-sa
-    labels:
-      app: maestro-agent
+            secretName: maestro-mqtt
+        - name: mqtt-creds
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: "maestro"
