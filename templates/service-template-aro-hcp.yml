@@ -243,7 +243,8 @@ objects:
             - --db-name-file=/secrets/db/db.name
             - --db-rootcert=/secrets/db/db.ca_cert
             - --db-sslmode=${DB_SSLMODE}
-            - --mqtt-config-file=/secrets/mqtt/config.yaml
+            - --message-broker-config-file=/secrets/mqtt/config.yaml
+            - --message-broker-type=mqtt
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
             - --enable-jwt=${ENABLE_JWT}
             - --enable-https=${ENABLE_HTTPS}
