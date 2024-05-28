@@ -1,11 +1,42 @@
 # Maestro
+
 Maestro is a system to leverage [CloudEvents](https://cloudevents.io/) to transport Kubernetes resources to the target clusters, and then transport the resource status back. The resources are stored in a database and the status is updated in the database as well. The system is composed of two parts: the Maestro server and the Maestro agent.
 - The Maestro server is responsible for storing the resources and their status. And sending the resources to the message broker in the CloudEvents format. The Maestro server provides Resful APIs and gRPC APIs to manage the resources.
 - Maestro agent is responsible for receiving the resources and applying them to the target clusters. And reporting back the status of the resources.
 
 ## Architecture
+
 Taking MQTT as an example:
+
 ![Maestro Architecture](./arch.png)
+
+## Why
+
+Maestro was created to address several critical challenges associated with managing Kubernetes clusters at scale.
+Traditional Kubernetes native and custom resources rely heavily on etcd,
+which has well-known limitations in terms of scalability and performance.
+As the number of clusters increases, the strain on etcd can lead to significant issues,
+making it difficult to achieve high-scale Kubernetes cluster management.
+To overcome these challenges, Maestro introduces a system that leverages a traditional relational database for storing relevant data,
+providing a more scalable and efficient solution.
+
+### Motivations
+
+**Scalability**: Kubernetes-based solutions often face scalability issues due to the limitations of etcd.
+Maestro aims to overcome these issues by decoupling resource management from the etcd store,
+allowing for more efficient handling of a large number of clusters.
+This approach supports the goal of managing up to 200,000+ clusters without linear scaling of the infrastructure.
+
+**Cost Effectiveness**: Running a central orchestrator in a Kubernetes-based environment can be costly.
+Maestro reduces infrastructure and maintenance costs by leveraging a relational database and optimized content delivery mechanisms.
+
+**Improve Feedback Loop**: Traditional Kubernetes solutions have limitations in the feedback loop,
+making it difficult to observe the state of resources effectively.
+Maestro addresses this by providing a robust feedback loop mechanism,
+ensuring that resource status is continuously updated and monitored.
+
+**Improve Security Architecture**: Maestro enhances security by eliminating the need for kubeconfigs,
+reducing the need for direct access to clusters.
 
 ## Run for the first time
 
