@@ -53,7 +53,7 @@ func ValidateManifest(resType api.ResourceType, manifest datatypes.JSONMap) erro
 		}
 		return ValidateObject(obj)
 	case api.ResourceTypeBundle:
-		objs, err := api.DecodeManifestBundle(manifest)
+		objs, err := api.DecodeManifestBundleToObjects(manifest)
 		if err != nil {
 			return fmt.Errorf("failed to decode manifest bundle: %v", err)
 		}
@@ -118,11 +118,11 @@ func ValidateManifestUpdate(resType api.ResourceType, new, old datatypes.JSONMap
 		}
 		return ValidateObjectUpdate(newObj, oldObj)
 	case api.ResourceTypeBundle:
-		newObjs, err := api.DecodeManifestBundle(new)
+		newObjs, err := api.DecodeManifestBundleToObjects(new)
 		if err != nil {
 			return fmt.Errorf("failed to decode new manifest bundle: %v", err)
 		}
-		oldObjs, err := api.DecodeManifestBundle(old)
+		oldObjs, err := api.DecodeManifestBundleToObjects(old)
 		if err != nil {
 			return fmt.Errorf("failed to decode old manifest bundle: %v", err)
 		}

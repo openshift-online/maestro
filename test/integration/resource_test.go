@@ -387,6 +387,7 @@ func TestResourcePaging(t *testing.T) {
 	// Paging
 	consumer := h.CreateConsumer("cluster1")
 	_ = h.CreateResourceList(consumer.Name, 20)
+	_ = h.CreateResourceBundleList(consumer.Name, 20)
 
 	list, _, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
@@ -421,6 +422,64 @@ func TestResourceListSearch(t *testing.T) {
 	Expect(len(list.Items)).To(Equal(1))
 	Expect(list.Total).To(Equal(int32(1)))
 	Expect(*list.Items[0].Id).To(Equal(resources[0].ID))
+}
+
+func TestResourceBundleGet(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// 401 using no JWT token
+	_, _, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), "foo").Execute()
+	Expect(err).To(HaveOccurred(), "Expected 401 but got nil error")
+
+	// GET responses per openapi spec: 200 and 404,
+	_, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, "foo").Execute()
+	Expect(err).To(HaveOccurred(), "Expected 404")
+	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+
+	consumer := h.CreateConsumer("cluster1")
+	resourceBundle := h.CreateResourceBundle("resource1", consumer.Name, 1)
+
+	resBundle, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceBundle.ID).Execute()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+	Expect(*resBundle.Id).To(Equal(resourceBundle.ID), "found object does not match test object")
+	Expect(*resBundle.Name).To(Equal(resourceBundle.Name))
+	Expect(*resBundle.Kind).To(Equal("ResourceBundle"))
+	Expect(*resBundle.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resource-bundles/%s", resourceBundle.ID)))
+	Expect(*resBundle.CreatedAt).To(BeTemporally("~", resourceBundle.CreatedAt))
+	Expect(*resBundle.UpdatedAt).To(BeTemporally("~", resourceBundle.UpdatedAt))
+	Expect(*resBundle.Version).To(Equal(resourceBundle.Version))
+}
+
+func TestResourceBundleListSearch(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	consumer := h.CreateConsumer("cluster1")
+	resourceBundles := h.CreateResourceBundleList(consumer.Name, 20)
+	_ = h.CreateResourceList(consumer.Name, 20)
+
+	search := fmt.Sprintf("name = '%s' and consumer_name = '%s'", resourceBundles[0].Name, consumer.Name)
+	list, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	Expect(list.Kind).To(Equal("ResourceBundleList"))
+	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
+	Expect(len(list.Items)).To(Equal(1))
+	Expect(list.Total).To(Equal(int32(1)))
+	Expect(*list.Items[0].Id).To(Equal(resourceBundles[0].ID))
+	Expect(*list.Items[0].Name).To(Equal(resourceBundles[0].Name))
+
+	search = fmt.Sprintf("consumer_name = '%s'", consumer.Name)
+	list, _, err = client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	Expect(list.Kind).To(Equal("ResourceBundleList"))
+	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
+	Expect(len(list.Items)).To(Equal(20))
+	Expect(list.Total).To(Equal(int32(20)))
 }
 
 func TestUpdateResourceWithRacingRequests(t *testing.T) {
@@ -694,7 +753,7 @@ func TestResourceFromGRPC(t *testing.T) {
 }
 
 func TestResourceBundleFromGRPC(t *testing.T) {
-	h, _ := test.RegisterIntegration(t)
+	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 	defer cancel()
@@ -832,4 +891,23 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	manifest = map[string]interface{}{}
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 	Expect(manifest["spec"].(map[string]interface{})["replicas"]).To(Equal(float64(2)))
+
+	// get the resource bundle with restful API
+	resBundle, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, res.ID).Execute()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusOK))
+
+	Expect(*resBundle.Id).To(Equal(res.ID), "found object does not match test object")
+	Expect(*resBundle.Name).To(Equal(res.ID))
+	Expect(*resBundle.Kind).To(Equal("ResourceBundle"))
+	Expect(*resBundle.Href).To(Equal(fmt.Sprintf("/api/maestro/v1/resource-bundles/%s", res.ID)))
+	Expect(*resBundle.Version).To(Equal(int32(2)))
+
+	// list search resource bundle with restful API
+	search := fmt.Sprintf("consumer_name = '%s'", consumer.Name)
+	list, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	Expect(list.Kind).To(Equal("ResourceBundleList"))
+	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
+	Expect(len(list.Items)).To(Equal(1))
+	Expect(list.Total).To(Equal(int32(1)))
 }

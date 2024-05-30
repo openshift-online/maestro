@@ -82,6 +82,8 @@ Class | Method | HTTP request | Description
 *DefaultApi* | [**ApiMaestroV1ConsumersIdGet**](docs/DefaultApi.md#apimaestrov1consumersidget) | **Get** /api/maestro/v1/consumers/{id} | Get an consumer by id
 *DefaultApi* | [**ApiMaestroV1ConsumersIdPatch**](docs/DefaultApi.md#apimaestrov1consumersidpatch) | **Patch** /api/maestro/v1/consumers/{id} | Update an consumer
 *DefaultApi* | [**ApiMaestroV1ConsumersPost**](docs/DefaultApi.md#apimaestrov1consumerspost) | **Post** /api/maestro/v1/consumers | Create a new consumer
+*DefaultApi* | [**ApiMaestroV1ResourceBundlesGet**](docs/DefaultApi.md#apimaestrov1resourcebundlesget) | **Get** /api/maestro/v1/resource-bundles | Returns a list of resource bundles
+*DefaultApi* | [**ApiMaestroV1ResourceBundlesIdGet**](docs/DefaultApi.md#apimaestrov1resourcebundlesidget) | **Get** /api/maestro/v1/resource-bundles/{id} | Get an resource bundle by id
 *DefaultApi* | [**ApiMaestroV1ResourcesGet**](docs/DefaultApi.md#apimaestrov1resourcesget) | **Get** /api/maestro/v1/resources | Returns a list of resources
 *DefaultApi* | [**ApiMaestroV1ResourcesIdDelete**](docs/DefaultApi.md#apimaestrov1resourcesiddelete) | **Delete** /api/maestro/v1/resources/{id} | Delete a resource
 *DefaultApi* | [**ApiMaestroV1ResourcesIdGet**](docs/DefaultApi.md#apimaestrov1resourcesidget) | **Get** /api/maestro/v1/resources/{id} | Get an resource by id
@@ -104,6 +106,10 @@ Class | Method | HTTP request | Description
  - [ObjectReference](docs/ObjectReference.md)
  - [Resource](docs/Resource.md)
  - [ResourceAllOf](docs/ResourceAllOf.md)
+ - [ResourceBundle](docs/ResourceBundle.md)
+ - [ResourceBundleAllOf](docs/ResourceBundleAllOf.md)
+ - [ResourceBundleList](docs/ResourceBundleList.md)
+ - [ResourceBundleListAllOf](docs/ResourceBundleListAllOf.md)
  - [ResourceList](docs/ResourceList.md)
  - [ResourceListAllOf](docs/ResourceListAllOf.md)
  - [ResourcePatchRequest](docs/ResourcePatchRequest.md)

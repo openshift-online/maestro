@@ -98,50 +98,6 @@ func TestDecodeManifest(t *testing.T) {
 	}
 }
 
-func TestDecodeManifestBundle(t *testing.T) {
-	cases := []struct {
-		name             string
-		input            datatypes.JSONMap
-		expected         []map[string]interface{}
-		expectedErrorMsg string
-	}{
-		{
-			name:             "empty",
-			input:            datatypes.JSONMap{},
-			expected:         nil,
-			expectedErrorMsg: "",
-		},
-		{
-			name:  "valid",
-			input: newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}"),
-			expected: []map[string]interface{}{
-				newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}"),
-				newJSONMap(t, "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}"),
-			},
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			gotManifests, err := DecodeManifestBundle(c.input)
-			if err != nil {
-				if err.Error() != c.expectedErrorMsg {
-					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
-				}
-				return
-			}
-			if len(gotManifests) != len(c.expected) {
-				t.Errorf("expected %d resource in manifest bundle but got: %d", len(c.expected), len(gotManifests))
-				return
-			}
-			for i, expected := range c.expected {
-				if !equality.Semantic.DeepDerivative(expected, gotManifests[i]) {
-					t.Errorf("expected %#v but got: %#v", expected, gotManifests[i])
-				}
-			}
-		})
-	}
-}
-
 func TestDecodeStatus(t *testing.T) {
 	cases := []struct {
 		name             string
