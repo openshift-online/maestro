@@ -1,10 +1,12 @@
 package presenters
 
 import (
+	"gorm.io/datatypes"
+
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/maestro/pkg/constants"
 	"github.com/openshift-online/maestro/pkg/util"
-	"gorm.io/datatypes"
 )
 
 // ConvertResource converts a resource from the API to the openapi representation.
@@ -20,8 +22,10 @@ func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
 		},
 		ConsumerName: util.NilToEmptyString(resource.ConsumerName),
 		Version:      util.NilToEmptyInt32(resource.Version),
-		Type:         api.ResourceTypeSingle,
-		Manifest:     manifest,
+		// Set the default source ID for RESTful API calls and do not allow modification
+		Source:   constants.DefaultSourceID,
+		Type:     api.ResourceTypeSingle,
+		Manifest: manifest,
 	}, nil
 }
 
