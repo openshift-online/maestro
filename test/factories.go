@@ -58,7 +58,7 @@ func (helper *Helper) NewAPIResource(consumerName string, replicas int) openapi.
 
 func (helper *Helper) NewResource(consumerName string, replicas int) *api.Resource {
 	testResource := helper.NewAPIResource(consumerName, replicas)
-	testManifest, err := api.EncodeManifest(testResource.Manifest)
+	testManifest, err := api.EncodeManifest(testResource.Manifest, testResource.DeleteOption, testResource.UpdateStrategy)
 	if err != nil {
 		helper.T.Errorf("error encoding manifest: %q", err)
 	}

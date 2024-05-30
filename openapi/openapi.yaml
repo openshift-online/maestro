@@ -509,6 +509,10 @@ components:
             format: date-time
           manifest:
             type: object
+          delete_option:
+            type: object
+          update_strategy:
+            type: object
           status:
             type: object
     ResourceList:
@@ -526,6 +530,10 @@ components:
         version:
           type: integer
         manifest:
+          type: object
+        delete_option:
+          type: object
+        update_strategy:
           type: object
     Consumer:
       allOf:
