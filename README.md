@@ -339,6 +339,220 @@ ocm get /api/maestro/v1/resources
 }
 ```
 
+#### Create/Get resource bundle with multiple resources
+
+1. Enable gRPC server by passing `--enable-grpc-server=true` to the maestro server start command, for example:
+
+```shell
+$ oc -n maestro patch deploy/maestro --type=json -p='[{"op": "add", "path": "/spec/template/spec/containers/0/command/-", "value": "--enable-grpc-server=true"}]'
+```
+
+2. Port-forward the gRPC service to your local machine, for example:
+
+```shell
+$ oc -n maestro port-forward svc/maestro-grpc 8090 &
+```
+
+3. Create a resource bundle with multiple resources using the gRPC client, for example:
+
+```shell
+go run ./examples/grpcclient.go -cloudevents_json_file ./examples/cloudevent-bundle.json -grpc_server localhost:8090
+```
+
+4. Get the resource bundle with multiple resources, for example:
+
+```shell
+ocm get /api/maestro/v1/resource-bundles
+{
+  "items": [
+    {
+      "consumer_name": "cluster1",
+      "created_at": "2024-05-30T05:03:08.493083Z",
+      "delete_option": {
+        "propagationPolicy": "Foreground"
+      },
+      "href": "/api/maestro/v1/resource-bundles/68ebf474-6709-48bb-b760-386181268060",
+      "id": "68ebf474-6709-48bb-b760-386181268060",
+      "kind": "ResourceBundle",
+      "manifest_configs": [
+        {
+          "feedbackRules": [
+            {
+              "jsonPaths": [
+                {
+                  "name": "status",
+                  "path": ".status"
+                }
+              ],
+              "type": "JSONPaths"
+            }
+          ],
+          "resourceIdentifier": {
+            "group": "apps",
+            "name": "web",
+            "namespace": "default",
+            "resource": "deployments"
+          },
+          "updateStrategy": {
+            "type": "ServerSideApply"
+          }
+        }
+      ],
+      "manifests": [
+        {
+          "apiVersion": "v1",
+          "kind": "ConfigMap",
+          "metadata": {
+            "name": "web",
+            "namespace": "default"
+          }
+        },
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "web",
+            "namespace": "default"
+          },
+          "spec": {
+            "replicas": 1,
+            "selector": {
+              "matchLabels": {
+                "app": "web"
+              }
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "web"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "nginxinc/nginx-unprivileged",
+                    "name": "nginx"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "name": "68ebf474-6709-48bb-b760-386181268060",
+      "status": {
+        "ObservedVersion": 1,
+        "SequenceID": "1796044690592632832",
+        "conditions": [
+          {
+            "lastTransitionTime": "2024-05-30T05:03:08Z",
+            "message": "Apply manifest work complete",
+            "reason": "AppliedManifestWorkComplete",
+            "status": "True",
+            "type": "Applied"
+          },
+          {
+            "lastTransitionTime": "2024-05-30T05:03:08Z",
+            "message": "All resources are available",
+            "reason": "ResourcesAvailable",
+            "status": "True",
+            "type": "Available"
+          }
+        ],
+        "resourceStatus": [
+          {
+            "conditions": [
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Apply manifest complete",
+                "reason": "AppliedManifestComplete",
+                "status": "True",
+                "type": "Applied"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Resource is available",
+                "reason": "ResourceAvailable",
+                "status": "True",
+                "type": "Available"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "",
+                "reason": "NoStatusFeedbackSynced",
+                "status": "True",
+                "type": "StatusFeedbackSynced"
+              }
+            ],
+            "resourceMeta": {
+              "group": "",
+              "kind": "ConfigMap",
+              "name": "web",
+              "namespace": "default",
+              "ordinal": 0,
+              "resource": "configmaps",
+              "version": "v1"
+            },
+            "statusFeedback": {}
+          },
+          {
+            "conditions": [
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Apply manifest complete",
+                "reason": "AppliedManifestComplete",
+                "status": "True",
+                "type": "Applied"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Resource is available",
+                "reason": "ResourceAvailable",
+                "status": "True",
+                "type": "Available"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "",
+                "reason": "StatusFeedbackSynced",
+                "status": "True",
+                "type": "StatusFeedbackSynced"
+              }
+            ],
+            "resourceMeta": {
+              "group": "apps",
+              "kind": "Deployment",
+              "name": "web",
+              "namespace": "default",
+              "ordinal": 1,
+              "resource": "deployments",
+              "version": "v1"
+            },
+            "statusFeedback": {
+              "values": [
+                {
+                  "fieldValue": {
+                    "jsonRaw": "{\"availableReplicas\":1,\"conditions\":[{\"lastTransitionTime\":\"2024-05-30T05:03:13Z\",\"lastUpdateTime\":\"2024-05-30T05:03:13Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2024-05-30T05:03:08Z\",\"lastUpdateTime\":\"2024-05-30T05:03:13Z\",\"message\":\"ReplicaSet \\\"web-dcffc4f85\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"}],\"observedGeneration\":1,\"readyReplicas\":1,\"replicas\":1,\"updatedReplicas\":1}",
+                    "type": "JsonRaw"
+                  },
+                  "name": "status"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "updated_at": "2024-05-30T05:03:17.796496Z",
+      "version": 1
+    }
+  ],
+  "kind": "ResourceBundleList",
+  "page": 1,
+  "size": 1,
+  "total": 1
+}
+```
+
 #### Run in OpenShift
 
 Take OpenShift Local as an example to deploy the maestro. If you want to deploy maestro in an OpenShift cluster, you need to set the `external_apps_domain` environment variable to point your cluster.
