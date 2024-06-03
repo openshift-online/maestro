@@ -30,6 +30,17 @@ func (d *resourceDaoMock) Get(ctx context.Context, id string) (*api.Resource, er
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (d *resourceDaoMock) GetBundle(ctx context.Context, id string) (*api.Resource, error) {
+	for _, resource := range d.resources {
+		if resource.ID == id {
+			if resource.Type == api.ResourceTypeBundle {
+				return resource, nil
+			}
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (d *resourceDaoMock) Create(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	d.resources = append(d.resources, resource)
 	return resource, nil
