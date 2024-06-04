@@ -1,4 +1,4 @@
-# Resource
+# ResourceBundle
 
 ## Properties
 
@@ -12,327 +12,327 @@ Name | Type | Description | Notes
 **Version** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
-**Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
+**Manifests** | Pointer to **[]map[string]interface{}** |  | [optional] 
 **DeleteOption** | Pointer to **map[string]interface{}** |  | [optional] 
-**UpdateStrategy** | Pointer to **map[string]interface{}** |  | [optional] 
+**ManifestConfigs** | Pointer to **[]map[string]interface{}** |  | [optional] 
 **Status** | Pointer to **map[string]interface{}** |  | [optional] 
 
 ## Methods
 
-### NewResource
+### NewResourceBundle
 
-`func NewResource() *Resource`
+`func NewResourceBundle() *ResourceBundle`
 
-NewResource instantiates a new Resource object
+NewResourceBundle instantiates a new ResourceBundle object
 This constructor will assign default values to properties that have it defined,
 and makes sure properties required by API are set, but the set of arguments
 will change when the set of required properties is changed
 
-### NewResourceWithDefaults
+### NewResourceBundleWithDefaults
 
-`func NewResourceWithDefaults() *Resource`
+`func NewResourceBundleWithDefaults() *ResourceBundle`
 
-NewResourceWithDefaults instantiates a new Resource object
+NewResourceBundleWithDefaults instantiates a new ResourceBundle object
 This constructor will only assign default values to properties that have it defined,
 but it doesn't guarantee that properties required by API are set
 
 ### GetId
 
-`func (o *Resource) GetId() string`
+`func (o *ResourceBundle) GetId() string`
 
 GetId returns the Id field if non-nil, zero value otherwise.
 
 ### GetIdOk
 
-`func (o *Resource) GetIdOk() (*string, bool)`
+`func (o *ResourceBundle) GetIdOk() (*string, bool)`
 
 GetIdOk returns a tuple with the Id field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetId
 
-`func (o *Resource) SetId(v string)`
+`func (o *ResourceBundle) SetId(v string)`
 
 SetId sets Id field to given value.
 
 ### HasId
 
-`func (o *Resource) HasId() bool`
+`func (o *ResourceBundle) HasId() bool`
 
 HasId returns a boolean if a field has been set.
 
 ### GetKind
 
-`func (o *Resource) GetKind() string`
+`func (o *ResourceBundle) GetKind() string`
 
 GetKind returns the Kind field if non-nil, zero value otherwise.
 
 ### GetKindOk
 
-`func (o *Resource) GetKindOk() (*string, bool)`
+`func (o *ResourceBundle) GetKindOk() (*string, bool)`
 
 GetKindOk returns a tuple with the Kind field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetKind
 
-`func (o *Resource) SetKind(v string)`
+`func (o *ResourceBundle) SetKind(v string)`
 
 SetKind sets Kind field to given value.
 
 ### HasKind
 
-`func (o *Resource) HasKind() bool`
+`func (o *ResourceBundle) HasKind() bool`
 
 HasKind returns a boolean if a field has been set.
 
 ### GetHref
 
-`func (o *Resource) GetHref() string`
+`func (o *ResourceBundle) GetHref() string`
 
 GetHref returns the Href field if non-nil, zero value otherwise.
 
 ### GetHrefOk
 
-`func (o *Resource) GetHrefOk() (*string, bool)`
+`func (o *ResourceBundle) GetHrefOk() (*string, bool)`
 
 GetHrefOk returns a tuple with the Href field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetHref
 
-`func (o *Resource) SetHref(v string)`
+`func (o *ResourceBundle) SetHref(v string)`
 
 SetHref sets Href field to given value.
 
 ### HasHref
 
-`func (o *Resource) HasHref() bool`
+`func (o *ResourceBundle) HasHref() bool`
 
 HasHref returns a boolean if a field has been set.
 
 ### GetName
 
-`func (o *Resource) GetName() string`
+`func (o *ResourceBundle) GetName() string`
 
 GetName returns the Name field if non-nil, zero value otherwise.
 
 ### GetNameOk
 
-`func (o *Resource) GetNameOk() (*string, bool)`
+`func (o *ResourceBundle) GetNameOk() (*string, bool)`
 
 GetNameOk returns a tuple with the Name field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetName
 
-`func (o *Resource) SetName(v string)`
+`func (o *ResourceBundle) SetName(v string)`
 
 SetName sets Name field to given value.
 
 ### HasName
 
-`func (o *Resource) HasName() bool`
+`func (o *ResourceBundle) HasName() bool`
 
 HasName returns a boolean if a field has been set.
 
 ### GetConsumerName
 
-`func (o *Resource) GetConsumerName() string`
+`func (o *ResourceBundle) GetConsumerName() string`
 
 GetConsumerName returns the ConsumerName field if non-nil, zero value otherwise.
 
 ### GetConsumerNameOk
 
-`func (o *Resource) GetConsumerNameOk() (*string, bool)`
+`func (o *ResourceBundle) GetConsumerNameOk() (*string, bool)`
 
 GetConsumerNameOk returns a tuple with the ConsumerName field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetConsumerName
 
-`func (o *Resource) SetConsumerName(v string)`
+`func (o *ResourceBundle) SetConsumerName(v string)`
 
 SetConsumerName sets ConsumerName field to given value.
 
 ### HasConsumerName
 
-`func (o *Resource) HasConsumerName() bool`
+`func (o *ResourceBundle) HasConsumerName() bool`
 
 HasConsumerName returns a boolean if a field has been set.
 
 ### GetVersion
 
-`func (o *Resource) GetVersion() int32`
+`func (o *ResourceBundle) GetVersion() int32`
 
 GetVersion returns the Version field if non-nil, zero value otherwise.
 
 ### GetVersionOk
 
-`func (o *Resource) GetVersionOk() (*int32, bool)`
+`func (o *ResourceBundle) GetVersionOk() (*int32, bool)`
 
 GetVersionOk returns a tuple with the Version field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetVersion
 
-`func (o *Resource) SetVersion(v int32)`
+`func (o *ResourceBundle) SetVersion(v int32)`
 
 SetVersion sets Version field to given value.
 
 ### HasVersion
 
-`func (o *Resource) HasVersion() bool`
+`func (o *ResourceBundle) HasVersion() bool`
 
 HasVersion returns a boolean if a field has been set.
 
 ### GetCreatedAt
 
-`func (o *Resource) GetCreatedAt() time.Time`
+`func (o *ResourceBundle) GetCreatedAt() time.Time`
 
 GetCreatedAt returns the CreatedAt field if non-nil, zero value otherwise.
 
 ### GetCreatedAtOk
 
-`func (o *Resource) GetCreatedAtOk() (*time.Time, bool)`
+`func (o *ResourceBundle) GetCreatedAtOk() (*time.Time, bool)`
 
 GetCreatedAtOk returns a tuple with the CreatedAt field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetCreatedAt
 
-`func (o *Resource) SetCreatedAt(v time.Time)`
+`func (o *ResourceBundle) SetCreatedAt(v time.Time)`
 
 SetCreatedAt sets CreatedAt field to given value.
 
 ### HasCreatedAt
 
-`func (o *Resource) HasCreatedAt() bool`
+`func (o *ResourceBundle) HasCreatedAt() bool`
 
 HasCreatedAt returns a boolean if a field has been set.
 
 ### GetUpdatedAt
 
-`func (o *Resource) GetUpdatedAt() time.Time`
+`func (o *ResourceBundle) GetUpdatedAt() time.Time`
 
 GetUpdatedAt returns the UpdatedAt field if non-nil, zero value otherwise.
 
 ### GetUpdatedAtOk
 
-`func (o *Resource) GetUpdatedAtOk() (*time.Time, bool)`
+`func (o *ResourceBundle) GetUpdatedAtOk() (*time.Time, bool)`
 
 GetUpdatedAtOk returns a tuple with the UpdatedAt field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetUpdatedAt
 
-`func (o *Resource) SetUpdatedAt(v time.Time)`
+`func (o *ResourceBundle) SetUpdatedAt(v time.Time)`
 
 SetUpdatedAt sets UpdatedAt field to given value.
 
 ### HasUpdatedAt
 
-`func (o *Resource) HasUpdatedAt() bool`
+`func (o *ResourceBundle) HasUpdatedAt() bool`
 
 HasUpdatedAt returns a boolean if a field has been set.
 
-### GetManifest
+### GetManifests
 
-`func (o *Resource) GetManifest() map[string]interface{}`
+`func (o *ResourceBundle) GetManifests() []map[string]interface{}`
 
-GetManifest returns the Manifest field if non-nil, zero value otherwise.
+GetManifests returns the Manifests field if non-nil, zero value otherwise.
 
-### GetManifestOk
+### GetManifestsOk
 
-`func (o *Resource) GetManifestOk() (*map[string]interface{}, bool)`
+`func (o *ResourceBundle) GetManifestsOk() (*[]map[string]interface{}, bool)`
 
-GetManifestOk returns a tuple with the Manifest field if it's non-nil, zero value otherwise
+GetManifestsOk returns a tuple with the Manifests field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
-### SetManifest
+### SetManifests
 
-`func (o *Resource) SetManifest(v map[string]interface{})`
+`func (o *ResourceBundle) SetManifests(v []map[string]interface{})`
 
-SetManifest sets Manifest field to given value.
+SetManifests sets Manifests field to given value.
 
-### HasManifest
+### HasManifests
 
-`func (o *Resource) HasManifest() bool`
+`func (o *ResourceBundle) HasManifests() bool`
 
-HasManifest returns a boolean if a field has been set.
+HasManifests returns a boolean if a field has been set.
 
 ### GetDeleteOption
 
-`func (o *Resource) GetDeleteOption() map[string]interface{}`
+`func (o *ResourceBundle) GetDeleteOption() map[string]interface{}`
 
 GetDeleteOption returns the DeleteOption field if non-nil, zero value otherwise.
 
 ### GetDeleteOptionOk
 
-`func (o *Resource) GetDeleteOptionOk() (*map[string]interface{}, bool)`
+`func (o *ResourceBundle) GetDeleteOptionOk() (*map[string]interface{}, bool)`
 
 GetDeleteOptionOk returns a tuple with the DeleteOption field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetDeleteOption
 
-`func (o *Resource) SetDeleteOption(v map[string]interface{})`
+`func (o *ResourceBundle) SetDeleteOption(v map[string]interface{})`
 
 SetDeleteOption sets DeleteOption field to given value.
 
 ### HasDeleteOption
 
-`func (o *Resource) HasDeleteOption() bool`
+`func (o *ResourceBundle) HasDeleteOption() bool`
 
 HasDeleteOption returns a boolean if a field has been set.
 
-### GetUpdateStrategy
+### GetManifestConfigs
 
-`func (o *Resource) GetUpdateStrategy() map[string]interface{}`
+`func (o *ResourceBundle) GetManifestConfigs() []map[string]interface{}`
 
-GetUpdateStrategy returns the UpdateStrategy field if non-nil, zero value otherwise.
+GetManifestConfigs returns the ManifestConfigs field if non-nil, zero value otherwise.
 
-### GetUpdateStrategyOk
+### GetManifestConfigsOk
 
-`func (o *Resource) GetUpdateStrategyOk() (*map[string]interface{}, bool)`
+`func (o *ResourceBundle) GetManifestConfigsOk() (*[]map[string]interface{}, bool)`
 
-GetUpdateStrategyOk returns a tuple with the UpdateStrategy field if it's non-nil, zero value otherwise
+GetManifestConfigsOk returns a tuple with the ManifestConfigs field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
-### SetUpdateStrategy
+### SetManifestConfigs
 
-`func (o *Resource) SetUpdateStrategy(v map[string]interface{})`
+`func (o *ResourceBundle) SetManifestConfigs(v []map[string]interface{})`
 
-SetUpdateStrategy sets UpdateStrategy field to given value.
+SetManifestConfigs sets ManifestConfigs field to given value.
 
-### HasUpdateStrategy
+### HasManifestConfigs
 
-`func (o *Resource) HasUpdateStrategy() bool`
+`func (o *ResourceBundle) HasManifestConfigs() bool`
 
-HasUpdateStrategy returns a boolean if a field has been set.
+HasManifestConfigs returns a boolean if a field has been set.
 
 ### GetStatus
 
-`func (o *Resource) GetStatus() map[string]interface{}`
+`func (o *ResourceBundle) GetStatus() map[string]interface{}`
 
 GetStatus returns the Status field if non-nil, zero value otherwise.
 
 ### GetStatusOk
 
-`func (o *Resource) GetStatusOk() (*map[string]interface{}, bool)`
+`func (o *ResourceBundle) GetStatusOk() (*map[string]interface{}, bool)`
 
 GetStatusOk returns a tuple with the Status field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
 ### SetStatus
 
-`func (o *Resource) SetStatus(v map[string]interface{})`
+`func (o *ResourceBundle) SetStatus(v map[string]interface{})`
 
 SetStatus sets Status field to given value.
 
 ### HasStatus
 
-`func (o *Resource) HasStatus() bool`
+`func (o *ResourceBundle) HasStatus() bool`
 
 HasStatus returns a boolean if a field has been set.
 

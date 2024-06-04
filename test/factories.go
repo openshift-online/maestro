@@ -5,9 +5,17 @@ import (
 	"encoding/json"
 	"fmt"
 
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/db"
+	"gorm.io/datatypes"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	workv1 "open-cluster-management.io/api/work/v1"
+	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
 var testManifestJSON = `
@@ -58,7 +66,7 @@ func (helper *Helper) NewAPIResource(consumerName string, replicas int) openapi.
 
 func (helper *Helper) NewResource(consumerName string, replicas int) *api.Resource {
 	testResource := helper.NewAPIResource(consumerName, replicas)
-	testManifest, err := api.EncodeManifest(testResource.Manifest)
+	testManifest, err := api.EncodeManifest(testResource.Manifest, testResource.DeleteOption, testResource.UpdateStrategy)
 	if err != nil {
 		helper.T.Errorf("error encoding manifest: %q", err)
 	}
@@ -88,6 +96,105 @@ func (helper *Helper) CreateResource(consumerName string, replicas int) *api.Res
 func (helper *Helper) CreateResourceList(consumerName string, count int) (resources []*api.Resource) {
 	for i := 1; i <= count; i++ {
 		resources = append(resources, helper.CreateResource(consumerName, 1))
+	}
+	return resources
+}
+
+// EncodeManifestBundle converts resource manifests into a CloudEvent JSONMap representation.
+func (helper *Helper) EncodeManifestBundle(manifest map[string]interface{}) (datatypes.JSONMap, error) {
+	if len(manifest) == 0 {
+		return nil, nil
+	}
+
+	delOption := &workv1.DeleteOption{
+		PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
+	}
+
+	upStrategy := &workv1.UpdateStrategy{
+		Type: workv1.UpdateStrategyTypeServerSideApply,
+	}
+
+	// create a cloud event with the manifest as the data
+	evt := cetypes.NewEventBuilder("maestro", cetypes.CloudEventsType{}).NewEvent()
+	eventPayload := &workpayload.ManifestBundle{
+		Manifests: []workv1.Manifest{
+			{
+				RawExtension: runtime.RawExtension{
+					Object: &unstructured.Unstructured{Object: manifest},
+				},
+			},
+		},
+		DeleteOption: delOption,
+		ManifestConfigs: []workv1.ManifestConfigOption{
+			{
+				FeedbackRules: []workv1.FeedbackRule{
+					{
+						Type: workv1.JSONPathsType,
+						JsonPaths: []workv1.JsonPath{
+							{
+								Name: "status",
+								Path: ".status",
+							},
+						},
+					},
+				},
+				UpdateStrategy: upStrategy,
+				ResourceIdentifier: workv1.ResourceIdentifier{
+					Group:     "apps",
+					Resource:  "deployments",
+					Name:      "nginx",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+
+	if err := evt.SetData(cloudevents.ApplicationJSON, eventPayload); err != nil {
+		return nil, fmt.Errorf("failed to set cloud event data: %v", err)
+	}
+
+	// convert cloudevent to JSONMap
+	manifest, err := api.CloudEventToJSONMap(&evt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert cloudevent to resource manifest: %v", err)
+	}
+
+	return manifest, nil
+}
+
+func (helper *Helper) NewResourceBundle(name, consumerName string, replicas int) *api.Resource {
+	testResource := helper.NewAPIResource(consumerName, replicas)
+	testManifest, err := helper.EncodeManifestBundle(testResource.Manifest)
+	if err != nil {
+		helper.T.Errorf("error encoding manifest bundle: %q", err)
+	}
+
+	resource := &api.Resource{
+		Name:         name,
+		ConsumerName: consumerName,
+		Type:         api.ResourceTypeBundle,
+		Manifest:     testManifest,
+		Version:      1,
+	}
+
+	return resource
+}
+
+func (helper *Helper) CreateResourceBundle(name, consumerName string, replicas int) *api.Resource {
+	resourceService := helper.Env().Services.Resources()
+	resourceBundle := helper.NewResourceBundle(name, consumerName, replicas)
+
+	res, err := resourceService.Create(context.Background(), resourceBundle)
+	if err != nil {
+		helper.T.Errorf("error creating resource bundle: %q", err)
+	}
+
+	return res
+}
+
+func (helper *Helper) CreateResourceBundleList(consumerName string, count int) (resources []*api.Resource) {
+	for i := 1; i <= count; i++ {
+		resources = append(resources, helper.CreateResourceBundle(fmt.Sprintf("resource%d", i), consumerName, 1))
 	}
 	return resources
 }

@@ -103,5 +103,11 @@ var _ = Describe("Server Side Apply", func() {
 
 			return nil
 		}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+		// cleanup the job
+		resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(context.Background(), resourceID).Execute()
+		Expect(err).ShouldNot(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
 	})
 })

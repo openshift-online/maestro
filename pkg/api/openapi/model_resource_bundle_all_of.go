@@ -15,41 +15,41 @@ import (
 	"time"
 )
 
-// checks if the ResourceAllOf type satisfies the MappedNullable interface at compile time
-var _ MappedNullable = &ResourceAllOf{}
+// checks if the ResourceBundleAllOf type satisfies the MappedNullable interface at compile time
+var _ MappedNullable = &ResourceBundleAllOf{}
 
-// ResourceAllOf struct for ResourceAllOf
-type ResourceAllOf struct {
-	Name           *string                `json:"name,omitempty"`
-	ConsumerName   *string                `json:"consumer_name,omitempty"`
-	Version        *int32                 `json:"version,omitempty"`
-	CreatedAt      *time.Time             `json:"created_at,omitempty"`
-	UpdatedAt      *time.Time             `json:"updated_at,omitempty"`
-	Manifest       map[string]interface{} `json:"manifest,omitempty"`
-	DeleteOption   map[string]interface{} `json:"delete_option,omitempty"`
-	UpdateStrategy map[string]interface{} `json:"update_strategy,omitempty"`
-	Status         map[string]interface{} `json:"status,omitempty"`
+// ResourceBundleAllOf struct for ResourceBundleAllOf
+type ResourceBundleAllOf struct {
+	Name            *string                  `json:"name,omitempty"`
+	ConsumerName    *string                  `json:"consumer_name,omitempty"`
+	Version         *int32                   `json:"version,omitempty"`
+	CreatedAt       *time.Time               `json:"created_at,omitempty"`
+	UpdatedAt       *time.Time               `json:"updated_at,omitempty"`
+	Manifests       []map[string]interface{} `json:"manifests,omitempty"`
+	DeleteOption    map[string]interface{}   `json:"delete_option,omitempty"`
+	ManifestConfigs []map[string]interface{} `json:"manifest_configs,omitempty"`
+	Status          map[string]interface{}   `json:"status,omitempty"`
 }
 
-// NewResourceAllOf instantiates a new ResourceAllOf object
+// NewResourceBundleAllOf instantiates a new ResourceBundleAllOf object
 // This constructor will assign default values to properties that have it defined,
 // and makes sure properties required by API are set, but the set of arguments
 // will change when the set of required properties is changed
-func NewResourceAllOf() *ResourceAllOf {
-	this := ResourceAllOf{}
+func NewResourceBundleAllOf() *ResourceBundleAllOf {
+	this := ResourceBundleAllOf{}
 	return &this
 }
 
-// NewResourceAllOfWithDefaults instantiates a new ResourceAllOf object
+// NewResourceBundleAllOfWithDefaults instantiates a new ResourceBundleAllOf object
 // This constructor will only assign default values to properties that have it defined,
 // but it doesn't guarantee that properties required by API are set
-func NewResourceAllOfWithDefaults() *ResourceAllOf {
-	this := ResourceAllOf{}
+func NewResourceBundleAllOfWithDefaults() *ResourceBundleAllOf {
+	this := ResourceBundleAllOf{}
 	return &this
 }
 
 // GetName returns the Name field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetName() string {
+func (o *ResourceBundleAllOf) GetName() string {
 	if o == nil || IsNil(o.Name) {
 		var ret string
 		return ret
@@ -59,7 +59,7 @@ func (o *ResourceAllOf) GetName() string {
 
 // GetNameOk returns a tuple with the Name field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetNameOk() (*string, bool) {
+func (o *ResourceBundleAllOf) GetNameOk() (*string, bool) {
 	if o == nil || IsNil(o.Name) {
 		return nil, false
 	}
@@ -67,7 +67,7 @@ func (o *ResourceAllOf) GetNameOk() (*string, bool) {
 }
 
 // HasName returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasName() bool {
+func (o *ResourceBundleAllOf) HasName() bool {
 	if o != nil && !IsNil(o.Name) {
 		return true
 	}
@@ -76,12 +76,12 @@ func (o *ResourceAllOf) HasName() bool {
 }
 
 // SetName gets a reference to the given string and assigns it to the Name field.
-func (o *ResourceAllOf) SetName(v string) {
+func (o *ResourceBundleAllOf) SetName(v string) {
 	o.Name = &v
 }
 
 // GetConsumerName returns the ConsumerName field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetConsumerName() string {
+func (o *ResourceBundleAllOf) GetConsumerName() string {
 	if o == nil || IsNil(o.ConsumerName) {
 		var ret string
 		return ret
@@ -91,7 +91,7 @@ func (o *ResourceAllOf) GetConsumerName() string {
 
 // GetConsumerNameOk returns a tuple with the ConsumerName field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetConsumerNameOk() (*string, bool) {
+func (o *ResourceBundleAllOf) GetConsumerNameOk() (*string, bool) {
 	if o == nil || IsNil(o.ConsumerName) {
 		return nil, false
 	}
@@ -99,7 +99,7 @@ func (o *ResourceAllOf) GetConsumerNameOk() (*string, bool) {
 }
 
 // HasConsumerName returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasConsumerName() bool {
+func (o *ResourceBundleAllOf) HasConsumerName() bool {
 	if o != nil && !IsNil(o.ConsumerName) {
 		return true
 	}
@@ -108,12 +108,12 @@ func (o *ResourceAllOf) HasConsumerName() bool {
 }
 
 // SetConsumerName gets a reference to the given string and assigns it to the ConsumerName field.
-func (o *ResourceAllOf) SetConsumerName(v string) {
+func (o *ResourceBundleAllOf) SetConsumerName(v string) {
 	o.ConsumerName = &v
 }
 
 // GetVersion returns the Version field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetVersion() int32 {
+func (o *ResourceBundleAllOf) GetVersion() int32 {
 	if o == nil || IsNil(o.Version) {
 		var ret int32
 		return ret
@@ -123,7 +123,7 @@ func (o *ResourceAllOf) GetVersion() int32 {
 
 // GetVersionOk returns a tuple with the Version field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetVersionOk() (*int32, bool) {
+func (o *ResourceBundleAllOf) GetVersionOk() (*int32, bool) {
 	if o == nil || IsNil(o.Version) {
 		return nil, false
 	}
@@ -131,7 +131,7 @@ func (o *ResourceAllOf) GetVersionOk() (*int32, bool) {
 }
 
 // HasVersion returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasVersion() bool {
+func (o *ResourceBundleAllOf) HasVersion() bool {
 	if o != nil && !IsNil(o.Version) {
 		return true
 	}
@@ -140,12 +140,12 @@ func (o *ResourceAllOf) HasVersion() bool {
 }
 
 // SetVersion gets a reference to the given int32 and assigns it to the Version field.
-func (o *ResourceAllOf) SetVersion(v int32) {
+func (o *ResourceBundleAllOf) SetVersion(v int32) {
 	o.Version = &v
 }
 
 // GetCreatedAt returns the CreatedAt field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetCreatedAt() time.Time {
+func (o *ResourceBundleAllOf) GetCreatedAt() time.Time {
 	if o == nil || IsNil(o.CreatedAt) {
 		var ret time.Time
 		return ret
@@ -155,7 +155,7 @@ func (o *ResourceAllOf) GetCreatedAt() time.Time {
 
 // GetCreatedAtOk returns a tuple with the CreatedAt field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetCreatedAtOk() (*time.Time, bool) {
+func (o *ResourceBundleAllOf) GetCreatedAtOk() (*time.Time, bool) {
 	if o == nil || IsNil(o.CreatedAt) {
 		return nil, false
 	}
@@ -163,7 +163,7 @@ func (o *ResourceAllOf) GetCreatedAtOk() (*time.Time, bool) {
 }
 
 // HasCreatedAt returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasCreatedAt() bool {
+func (o *ResourceBundleAllOf) HasCreatedAt() bool {
 	if o != nil && !IsNil(o.CreatedAt) {
 		return true
 	}
@@ -172,12 +172,12 @@ func (o *ResourceAllOf) HasCreatedAt() bool {
 }
 
 // SetCreatedAt gets a reference to the given time.Time and assigns it to the CreatedAt field.
-func (o *ResourceAllOf) SetCreatedAt(v time.Time) {
+func (o *ResourceBundleAllOf) SetCreatedAt(v time.Time) {
 	o.CreatedAt = &v
 }
 
 // GetUpdatedAt returns the UpdatedAt field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetUpdatedAt() time.Time {
+func (o *ResourceBundleAllOf) GetUpdatedAt() time.Time {
 	if o == nil || IsNil(o.UpdatedAt) {
 		var ret time.Time
 		return ret
@@ -187,7 +187,7 @@ func (o *ResourceAllOf) GetUpdatedAt() time.Time {
 
 // GetUpdatedAtOk returns a tuple with the UpdatedAt field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetUpdatedAtOk() (*time.Time, bool) {
+func (o *ResourceBundleAllOf) GetUpdatedAtOk() (*time.Time, bool) {
 	if o == nil || IsNil(o.UpdatedAt) {
 		return nil, false
 	}
@@ -195,7 +195,7 @@ func (o *ResourceAllOf) GetUpdatedAtOk() (*time.Time, bool) {
 }
 
 // HasUpdatedAt returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasUpdatedAt() bool {
+func (o *ResourceBundleAllOf) HasUpdatedAt() bool {
 	if o != nil && !IsNil(o.UpdatedAt) {
 		return true
 	}
@@ -204,44 +204,44 @@ func (o *ResourceAllOf) HasUpdatedAt() bool {
 }
 
 // SetUpdatedAt gets a reference to the given time.Time and assigns it to the UpdatedAt field.
-func (o *ResourceAllOf) SetUpdatedAt(v time.Time) {
+func (o *ResourceBundleAllOf) SetUpdatedAt(v time.Time) {
 	o.UpdatedAt = &v
 }
 
-// GetManifest returns the Manifest field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetManifest() map[string]interface{} {
-	if o == nil || IsNil(o.Manifest) {
-		var ret map[string]interface{}
+// GetManifests returns the Manifests field value if set, zero value otherwise.
+func (o *ResourceBundleAllOf) GetManifests() []map[string]interface{} {
+	if o == nil || IsNil(o.Manifests) {
+		var ret []map[string]interface{}
 		return ret
 	}
-	return o.Manifest
+	return o.Manifests
 }
 
-// GetManifestOk returns a tuple with the Manifest field value if set, nil otherwise
+// GetManifestsOk returns a tuple with the Manifests field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetManifestOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.Manifest) {
-		return map[string]interface{}{}, false
+func (o *ResourceBundleAllOf) GetManifestsOk() ([]map[string]interface{}, bool) {
+	if o == nil || IsNil(o.Manifests) {
+		return nil, false
 	}
-	return o.Manifest, true
+	return o.Manifests, true
 }
 
-// HasManifest returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasManifest() bool {
-	if o != nil && !IsNil(o.Manifest) {
+// HasManifests returns a boolean if a field has been set.
+func (o *ResourceBundleAllOf) HasManifests() bool {
+	if o != nil && !IsNil(o.Manifests) {
 		return true
 	}
 
 	return false
 }
 
-// SetManifest gets a reference to the given map[string]interface{} and assigns it to the Manifest field.
-func (o *ResourceAllOf) SetManifest(v map[string]interface{}) {
-	o.Manifest = v
+// SetManifests gets a reference to the given []map[string]interface{} and assigns it to the Manifests field.
+func (o *ResourceBundleAllOf) SetManifests(v []map[string]interface{}) {
+	o.Manifests = v
 }
 
 // GetDeleteOption returns the DeleteOption field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetDeleteOption() map[string]interface{} {
+func (o *ResourceBundleAllOf) GetDeleteOption() map[string]interface{} {
 	if o == nil || IsNil(o.DeleteOption) {
 		var ret map[string]interface{}
 		return ret
@@ -251,7 +251,7 @@ func (o *ResourceAllOf) GetDeleteOption() map[string]interface{} {
 
 // GetDeleteOptionOk returns a tuple with the DeleteOption field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetDeleteOptionOk() (map[string]interface{}, bool) {
+func (o *ResourceBundleAllOf) GetDeleteOptionOk() (map[string]interface{}, bool) {
 	if o == nil || IsNil(o.DeleteOption) {
 		return map[string]interface{}{}, false
 	}
@@ -259,7 +259,7 @@ func (o *ResourceAllOf) GetDeleteOptionOk() (map[string]interface{}, bool) {
 }
 
 // HasDeleteOption returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasDeleteOption() bool {
+func (o *ResourceBundleAllOf) HasDeleteOption() bool {
 	if o != nil && !IsNil(o.DeleteOption) {
 		return true
 	}
@@ -268,44 +268,44 @@ func (o *ResourceAllOf) HasDeleteOption() bool {
 }
 
 // SetDeleteOption gets a reference to the given map[string]interface{} and assigns it to the DeleteOption field.
-func (o *ResourceAllOf) SetDeleteOption(v map[string]interface{}) {
+func (o *ResourceBundleAllOf) SetDeleteOption(v map[string]interface{}) {
 	o.DeleteOption = v
 }
 
-// GetUpdateStrategy returns the UpdateStrategy field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetUpdateStrategy() map[string]interface{} {
-	if o == nil || IsNil(o.UpdateStrategy) {
-		var ret map[string]interface{}
+// GetManifestConfigs returns the ManifestConfigs field value if set, zero value otherwise.
+func (o *ResourceBundleAllOf) GetManifestConfigs() []map[string]interface{} {
+	if o == nil || IsNil(o.ManifestConfigs) {
+		var ret []map[string]interface{}
 		return ret
 	}
-	return o.UpdateStrategy
+	return o.ManifestConfigs
 }
 
-// GetUpdateStrategyOk returns a tuple with the UpdateStrategy field value if set, nil otherwise
+// GetManifestConfigsOk returns a tuple with the ManifestConfigs field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetUpdateStrategyOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.UpdateStrategy) {
-		return map[string]interface{}{}, false
+func (o *ResourceBundleAllOf) GetManifestConfigsOk() ([]map[string]interface{}, bool) {
+	if o == nil || IsNil(o.ManifestConfigs) {
+		return nil, false
 	}
-	return o.UpdateStrategy, true
+	return o.ManifestConfigs, true
 }
 
-// HasUpdateStrategy returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasUpdateStrategy() bool {
-	if o != nil && !IsNil(o.UpdateStrategy) {
+// HasManifestConfigs returns a boolean if a field has been set.
+func (o *ResourceBundleAllOf) HasManifestConfigs() bool {
+	if o != nil && !IsNil(o.ManifestConfigs) {
 		return true
 	}
 
 	return false
 }
 
-// SetUpdateStrategy gets a reference to the given map[string]interface{} and assigns it to the UpdateStrategy field.
-func (o *ResourceAllOf) SetUpdateStrategy(v map[string]interface{}) {
-	o.UpdateStrategy = v
+// SetManifestConfigs gets a reference to the given []map[string]interface{} and assigns it to the ManifestConfigs field.
+func (o *ResourceBundleAllOf) SetManifestConfigs(v []map[string]interface{}) {
+	o.ManifestConfigs = v
 }
 
 // GetStatus returns the Status field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetStatus() map[string]interface{} {
+func (o *ResourceBundleAllOf) GetStatus() map[string]interface{} {
 	if o == nil || IsNil(o.Status) {
 		var ret map[string]interface{}
 		return ret
@@ -315,7 +315,7 @@ func (o *ResourceAllOf) GetStatus() map[string]interface{} {
 
 // GetStatusOk returns a tuple with the Status field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetStatusOk() (map[string]interface{}, bool) {
+func (o *ResourceBundleAllOf) GetStatusOk() (map[string]interface{}, bool) {
 	if o == nil || IsNil(o.Status) {
 		return map[string]interface{}{}, false
 	}
@@ -323,7 +323,7 @@ func (o *ResourceAllOf) GetStatusOk() (map[string]interface{}, bool) {
 }
 
 // HasStatus returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasStatus() bool {
+func (o *ResourceBundleAllOf) HasStatus() bool {
 	if o != nil && !IsNil(o.Status) {
 		return true
 	}
@@ -332,11 +332,11 @@ func (o *ResourceAllOf) HasStatus() bool {
 }
 
 // SetStatus gets a reference to the given map[string]interface{} and assigns it to the Status field.
-func (o *ResourceAllOf) SetStatus(v map[string]interface{}) {
+func (o *ResourceBundleAllOf) SetStatus(v map[string]interface{}) {
 	o.Status = v
 }
 
-func (o ResourceAllOf) MarshalJSON() ([]byte, error) {
+func (o ResourceBundleAllOf) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
 		return []byte{}, err
@@ -344,7 +344,7 @@ func (o ResourceAllOf) MarshalJSON() ([]byte, error) {
 	return json.Marshal(toSerialize)
 }
 
-func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
+func (o ResourceBundleAllOf) ToMap() (map[string]interface{}, error) {
 	toSerialize := map[string]interface{}{}
 	if !IsNil(o.Name) {
 		toSerialize["name"] = o.Name
@@ -361,14 +361,14 @@ func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.UpdatedAt) {
 		toSerialize["updated_at"] = o.UpdatedAt
 	}
-	if !IsNil(o.Manifest) {
-		toSerialize["manifest"] = o.Manifest
+	if !IsNil(o.Manifests) {
+		toSerialize["manifests"] = o.Manifests
 	}
 	if !IsNil(o.DeleteOption) {
 		toSerialize["delete_option"] = o.DeleteOption
 	}
-	if !IsNil(o.UpdateStrategy) {
-		toSerialize["update_strategy"] = o.UpdateStrategy
+	if !IsNil(o.ManifestConfigs) {
+		toSerialize["manifest_configs"] = o.ManifestConfigs
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status
@@ -376,38 +376,38 @@ func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
 	return toSerialize, nil
 }
 
-type NullableResourceAllOf struct {
-	value *ResourceAllOf
+type NullableResourceBundleAllOf struct {
+	value *ResourceBundleAllOf
 	isSet bool
 }
 
-func (v NullableResourceAllOf) Get() *ResourceAllOf {
+func (v NullableResourceBundleAllOf) Get() *ResourceBundleAllOf {
 	return v.value
 }
 
-func (v *NullableResourceAllOf) Set(val *ResourceAllOf) {
+func (v *NullableResourceBundleAllOf) Set(val *ResourceBundleAllOf) {
 	v.value = val
 	v.isSet = true
 }
 
-func (v NullableResourceAllOf) IsSet() bool {
+func (v NullableResourceBundleAllOf) IsSet() bool {
 	return v.isSet
 }
 
-func (v *NullableResourceAllOf) Unset() {
+func (v *NullableResourceBundleAllOf) Unset() {
 	v.value = nil
 	v.isSet = false
 }
 
-func NewNullableResourceAllOf(val *ResourceAllOf) *NullableResourceAllOf {
-	return &NullableResourceAllOf{value: val, isSet: true}
+func NewNullableResourceBundleAllOf(val *ResourceBundleAllOf) *NullableResourceBundleAllOf {
+	return &NullableResourceBundleAllOf{value: val, isSet: true}
 }
 
-func (v NullableResourceAllOf) MarshalJSON() ([]byte, error) {
+func (v NullableResourceBundleAllOf) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.value)
 }
 
-func (v *NullableResourceAllOf) UnmarshalJSON(src []byte) error {
+func (v *NullableResourceBundleAllOf) UnmarshalJSON(src []byte) error {
 	v.isSet = true
 	return json.Unmarshal(src, &v.value)
 }

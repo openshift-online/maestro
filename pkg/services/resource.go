@@ -19,6 +19,7 @@ import (
 
 type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
+	GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError)
@@ -51,6 +52,14 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 	resource, err := s.resourceDao.Get(ctx, id)
 	if err != nil {
 		return nil, handleGetError("Resource", "id", id, err)
+	}
+	return resource, nil
+}
+
+func (s *sqlResourceService) GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
+	resource, err := s.resourceDao.GetBundle(ctx, id)
+	if err != nil {
+		return nil, handleGetError("Resource Bundle", "id", id, err)
 	}
 	return resource, nil
 }

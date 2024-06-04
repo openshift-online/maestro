@@ -43,7 +43,8 @@ func ValidateConsumer(consumer *api.Consumer) error {
 func ValidateManifest(resType api.ResourceType, manifest datatypes.JSONMap) error {
 	switch resType {
 	case api.ResourceTypeSingle:
-		obj, err := api.DecodeManifest(manifest)
+		// TODO: validate the deleteOption and updateStrategy
+		obj, _, _, err := api.DecodeManifest(manifest)
 		if err != nil {
 			return fmt.Errorf("failed to decode manifest: %v", err)
 		}
@@ -52,7 +53,7 @@ func ValidateManifest(resType api.ResourceType, manifest datatypes.JSONMap) erro
 		}
 		return ValidateObject(obj)
 	case api.ResourceTypeBundle:
-		objs, err := api.DecodeManifestBundle(manifest)
+		objs, err := api.DecodeManifestBundleToObjects(manifest)
 		if err != nil {
 			return fmt.Errorf("failed to decode manifest bundle: %v", err)
 		}
@@ -104,11 +105,11 @@ func ValidateObject(obj datatypes.JSONMap) error {
 func ValidateManifestUpdate(resType api.ResourceType, new, old datatypes.JSONMap) error {
 	switch resType {
 	case api.ResourceTypeSingle:
-		newObj, err := api.DecodeManifest(new)
+		newObj, _, _, err := api.DecodeManifest(new)
 		if err != nil {
 			return fmt.Errorf("failed to decode new manifest: %v", err)
 		}
-		oldObj, err := api.DecodeManifest(old)
+		oldObj, _, _, err := api.DecodeManifest(old)
 		if err != nil {
 			return fmt.Errorf("failed to decode old manifest: %v", err)
 		}
@@ -117,11 +118,11 @@ func ValidateManifestUpdate(resType api.ResourceType, new, old datatypes.JSONMap
 		}
 		return ValidateObjectUpdate(newObj, oldObj)
 	case api.ResourceTypeBundle:
-		newObjs, err := api.DecodeManifestBundle(new)
+		newObjs, err := api.DecodeManifestBundleToObjects(new)
 		if err != nil {
 			return fmt.Errorf("failed to decode new manifest bundle: %v", err)
 		}
-		oldObjs, err := api.DecodeManifestBundle(old)
+		oldObjs, err := api.DecodeManifestBundleToObjects(old)
 		if err != nil {
 			return fmt.Errorf("failed to decode old manifest bundle: %v", err)
 		}
