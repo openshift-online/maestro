@@ -23,9 +23,9 @@ func (codec *BundleCodec) EventDataType() cetypes.CloudEventsDataType {
 }
 
 func (codec *BundleCodec) Encode(source string, eventType cetypes.CloudEventsType, res *api.Resource) (*cloudevents.Event, error) {
-	evt, err := api.JSONMAPToCloudEvent(res.Manifest)
+	evt, err := api.JSONMAPToCloudEvent(res.Payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
+		return nil, fmt.Errorf("failed to convert resource payload to cloudevent: %v", err)
 	}
 
 	evt.SetSource(source)

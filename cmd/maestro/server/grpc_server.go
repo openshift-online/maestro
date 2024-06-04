@@ -226,11 +226,11 @@ func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resour
 		resource.Meta.DeletedAt.Time = deletionTimestamp
 	}
 
-	manifest, err := api.CloudEventToJSONMap(evt)
+	payload, err := api.CloudEventToJSONMap(evt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert cloudevent to resource manifest: %v", err)
+		return nil, fmt.Errorf("failed to convert cloudevent to resource payload: %v", err)
 	}
-	resource.Manifest = manifest
+	resource.Payload = payload
 
 	switch eventDataType {
 	case workpayload.ManifestEventDataType:
