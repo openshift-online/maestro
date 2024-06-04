@@ -70,15 +70,15 @@ func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			manifest, err := presenters.ConvertResourceManifest(patch.Manifest, patch.DeleteOption, patch.UpdateStrategy)
+			payload, err := presenters.ConvertResourceManifest(patch.Manifest, patch.DeleteOption, patch.UpdateStrategy)
 			if err != nil {
 				return nil, errors.GeneralError("failed to convert resource manifest: %s", err)
 			}
 			resource, serviceErr := h.resource.Update(ctx, &api.Resource{
-				Meta:     api.Meta{ID: id},
-				Version:  *patch.Version,
-				Type:     api.ResourceTypeSingle,
-				Manifest: manifest,
+				Meta:    api.Meta{ID: id},
+				Version: *patch.Version,
+				Type:    api.ResourceTypeSingle,
+				Payload: payload,
 			})
 			if serviceErr != nil {
 				return nil, serviceErr

@@ -18,8 +18,8 @@ func addResources() *gormigrate.Migration {
 		// "Single" resource type for RESTful API calls,
 		// "Bundle" resource type mainly for gRPC calls.
 		Type string `gorm:"index"`
-		// Manifest holds the resource manifest in CloudEvent format (JSON representation).
-		Manifest datatypes.JSON `gorm:"type:json"`
+		// Payload is CloudEvent payload with CloudEvent format (JSON representation).
+		Payload datatypes.JSON `gorm:"type:json"`
 		// Status represents the resource status in CloudEvent format (JSON representation).
 		Status datatypes.JSON `gorm:"type:json"`
 	}

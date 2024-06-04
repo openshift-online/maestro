@@ -70,7 +70,7 @@ func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource)
 			return nil, errors.Validation("the name in the resource is invalid, %v", err)
 		}
 	}
-	if err := ValidateManifest(resource.Type, resource.Manifest); err != nil {
+	if err := ValidateManifest(resource.Type, resource.Payload); err != nil {
 		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
 	}
 
@@ -113,17 +113,17 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 	}
 
 	// New manifest is not changed, the update action is not needed.
-	if reflect.DeepEqual(resource.Manifest, found.Manifest) {
+	if reflect.DeepEqual(resource.Payload, found.Payload) {
 		return found, nil
 	}
 
-	if err := ValidateManifestUpdate(resource.Type, resource.Manifest, found.Manifest); err != nil {
+	if err := ValidateManifestUpdate(resource.Type, resource.Payload, found.Payload); err != nil {
 		return nil, errors.Validation("the new manifest in the resource is invalid, %v", err)
 	}
 
 	// Increase the current resource version and update its manifest.
 	found.Version = found.Version + 1
-	found.Manifest = resource.Manifest
+	found.Payload = resource.Payload
 
 	updated, err := s.resourceDao.Update(ctx, found)
 	if err != nil {

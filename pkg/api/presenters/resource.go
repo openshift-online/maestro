@@ -14,7 +14,7 @@ import (
 
 // ConvertResource converts a resource from the API to the openapi representation.
 func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
-	manifest, err := ConvertResourceManifest(resource.Manifest, resource.DeleteOption, resource.UpdateStrategy)
+	payload, err := ConvertResourceManifest(resource.Manifest, resource.DeleteOption, resource.UpdateStrategy)
 	if err != nil {
 		return nil, err
 	}
@@ -26,9 +26,9 @@ func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
 		ConsumerName: util.NilToEmptyString(resource.ConsumerName),
 		Version:      util.NilToEmptyInt32(resource.Version),
 		// Set the default source ID for RESTful API calls and do not allow modification
-		Source:   constants.DefaultSourceID,
-		Type:     api.ResourceTypeSingle,
-		Manifest: manifest,
+		Source:  constants.DefaultSourceID,
+		Type:    api.ResourceTypeSingle,
+		Payload: payload,
 	}, nil
 }
 
@@ -39,7 +39,7 @@ func ConvertResourceManifest(manifest, deleteOption, updateStrategy map[string]i
 
 // PresentResource converts a resource from the API to the openapi representation.
 func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
-	manifest, deleteOption, updateStrategy, err := api.DecodeManifest(resource.Manifest)
+	manifest, deleteOption, updateStrategy, err := api.DecodeManifest(resource.Payload)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 
 // PresentResourceBundle converts a resource from the API to the openapi representation.
 func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, error) {
-	manifestBundle, err := api.DecodeManifestBundle(resource.Manifest)
+	manifestBundle, err := api.DecodeManifestBundle(resource.Payload)
 	if err != nil {
 		return nil, err
 	}

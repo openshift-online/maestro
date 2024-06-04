@@ -41,7 +41,7 @@ func (c *ResourceCodec) Encode(source string, eventType types.CloudEventsType, r
 		return &evt, nil
 	}
 
-	manifest, _, _, err := api.DecodeManifest(resource.Manifest)
+	manifest, _, _, err := api.DecodeManifest(resource.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode manifest: %v", err)
 	}
@@ -153,7 +153,7 @@ func (c *ResourceBundleCodec) Encode(source string, eventType types.CloudEventsT
 		return &evt, nil
 	}
 
-	manifest, _, _, err := api.DecodeManifest(resource.Manifest)
+	manifest, _, _, err := api.DecodeManifest(resource.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode manifest: %v", err)
 	}
