@@ -71,7 +71,7 @@ func TestDecodeManifestBundle(t *testing.T) {
 			}
 			if c.expected != nil && got != nil {
 				if !equality.Semantic.DeepDerivative(c.expected.Manifests[1], got.Manifests[1]) {
-					t.Errorf("==== expected Manifests %s but got: %s", c.expected.Manifests[1].RawExtension.Raw, got.Manifests[1].RawExtension.Raw)
+					t.Errorf("expected Manifests %s but got: %s", c.expected.Manifests[1].RawExtension.Raw, got.Manifests[1].RawExtension.Raw)
 				}
 			}
 			if !equality.Semantic.DeepDerivative(c.expected, got) {

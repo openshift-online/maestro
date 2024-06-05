@@ -48,7 +48,7 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 		return nil, err
 	}
 	reference := PresentReference(resource.ID, resource)
-	return &openapi.Resource{
+	res := &openapi.Resource{
 		Id:             reference.Id,
 		Kind:           reference.Kind,
 		Href:           reference.Href,
@@ -61,7 +61,14 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 		DeleteOption:   deleteOption,
 		UpdateStrategy: updateStrategy,
 		Status:         status,
-	}, nil
+	}
+
+	// set the deletedAt field if the resource has been marked as deleted
+	if !resource.DeletedAt.Time.IsZero() {
+		res.DeletedAt = openapi.PtrTime(resource.DeletedAt.Time)
+	}
+
+	return res, nil
 }
 
 // PresentResourceBundle converts a resource from the API to the openapi representation.
@@ -115,7 +122,7 @@ func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, err
 		}
 		manifestConfigs = append(manifestConfigs, m)
 	}
-	return &openapi.ResourceBundle{
+	res := &openapi.ResourceBundle{
 		Id:              reference.Id,
 		Kind:            reference.Kind,
 		Href:            reference.Href,
@@ -128,5 +135,12 @@ func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, err
 		DeleteOption:    deleteOption,
 		ManifestConfigs: manifestConfigs,
 		Status:          status,
-	}, nil
+	}
+
+	// set the deletedAt field if the resource has been marked as deleted
+	if !resource.DeletedAt.Time.IsZero() {
+		res.DeletedAt = openapi.PtrTime(resource.DeletedAt.Time)
+	}
+
+	return res, nil
 }

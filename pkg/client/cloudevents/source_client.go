@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/logger"
@@ -107,8 +106,10 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 		return err
 	}
 
-	// mark the resource as deleting
-	resource.Meta.DeletedAt.Time = time.Now()
+	// ensure the resource has been marked as deleting
+	if resource.Meta.DeletedAt.Time.IsZero() {
+		return fmt.Errorf("resource %s has not been marked as deleting", resource.ID)
+	}
 	logger.Infof("Publishing resource %s for db row delete", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),

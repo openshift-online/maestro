@@ -9,6 +9,7 @@ Name | Type | Description | Notes
 **Version** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
+**DeletedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
 **DeleteOption** | Pointer to **map[string]interface{}** |  | [optional] 
 **UpdateStrategy** | Pointer to **map[string]interface{}** |  | [optional] 
@@ -157,6 +158,31 @@ SetUpdatedAt sets UpdatedAt field to given value.
 `func (o *ResourceAllOf) HasUpdatedAt() bool`
 
 HasUpdatedAt returns a boolean if a field has been set.
+
+### GetDeletedAt
+
+`func (o *ResourceAllOf) GetDeletedAt() time.Time`
+
+GetDeletedAt returns the DeletedAt field if non-nil, zero value otherwise.
+
+### GetDeletedAtOk
+
+`func (o *ResourceAllOf) GetDeletedAtOk() (*time.Time, bool)`
+
+GetDeletedAtOk returns a tuple with the DeletedAt field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetDeletedAt
+
+`func (o *ResourceAllOf) SetDeletedAt(v time.Time)`
+
+SetDeletedAt sets DeletedAt field to given value.
+
+### HasDeletedAt
+
+`func (o *ResourceAllOf) HasDeletedAt() bool`
+
+HasDeletedAt returns a boolean if a field has been set.
 
 ### GetManifest
 

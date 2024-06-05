@@ -12,6 +12,7 @@ Name | Type | Description | Notes
 **Version** | Pointer to **int32** |  | [optional] 
 **CreatedAt** | Pointer to **time.Time** |  | [optional] 
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
+**DeletedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifests** | Pointer to **[]map[string]interface{}** |  | [optional] 
 **DeleteOption** | Pointer to **map[string]interface{}** |  | [optional] 
 **ManifestConfigs** | Pointer to **[]map[string]interface{}** |  | [optional] 
@@ -235,6 +236,31 @@ SetUpdatedAt sets UpdatedAt field to given value.
 `func (o *ResourceBundle) HasUpdatedAt() bool`
 
 HasUpdatedAt returns a boolean if a field has been set.
+
+### GetDeletedAt
+
+`func (o *ResourceBundle) GetDeletedAt() time.Time`
+
+GetDeletedAt returns the DeletedAt field if non-nil, zero value otherwise.
+
+### GetDeletedAtOk
+
+`func (o *ResourceBundle) GetDeletedAtOk() (*time.Time, bool)`
+
+GetDeletedAtOk returns a tuple with the DeletedAt field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetDeletedAt
+
+`func (o *ResourceBundle) SetDeletedAt(v time.Time)`
+
+SetDeletedAt sets DeletedAt field to given value.
+
+### HasDeletedAt
+
+`func (o *ResourceBundle) HasDeletedAt() bool`
+
+HasDeletedAt returns a boolean if a field has been set.
 
 ### GetManifests
 
