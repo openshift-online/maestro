@@ -65,7 +65,7 @@ func TestPulseServer(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
-	informer := clientHolder.ManifestWorkInformer()
+	informer := h.WorkAgentInformer
 	lister := informer.Lister().ManifestWorks(consumer.Name)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()

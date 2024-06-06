@@ -15,6 +15,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
+	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
@@ -75,6 +76,7 @@ type Helper struct {
 	PulseServer       *server.PulseServer
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
+	WorkAgentInformer workv1informers.ManifestWorkInformer
 	TimeFunc          TimeFunc
 	JWTPrivateKey     *rsa.PrivateKey
 	JWTCA             *rsa.PublicKey
@@ -260,17 +262,19 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 		workCodec = codec.NewManifestCodec(nil)
 	}
 
-	clientHolder, err := work.NewClientHolderBuilder(mqttOptions).
+	clientHolder, informer, err := work.NewClientHolderBuilder(mqttOptions).
 		WithClientID(clusterName).
 		WithClusterName(clusterName).
 		WithCodecs(workCodec).
-		NewAgentClientHolder(ctx)
+		NewAgentClientHolderWithInformer(ctx)
 	if err != nil {
 		glog.Fatalf("Unable to create work agent holder: %s", err)
 	}
 
-	go clientHolder.ManifestWorkInformer().Informer().Run(ctx.Done())
+	go informer.Informer().Run(ctx.Done())
+
 	helper.WorkAgentHolder = clientHolder
+	helper.WorkAgentInformer = informer
 }
 
 func (helper *Helper) StartGRPCResourceSourceClient() {
