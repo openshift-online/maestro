@@ -7,6 +7,7 @@
     "resourceid": "68ebf474-6709-48bb-b760-386181268064",
     "resourceversion": 1,
     "datacontenttype": "application/json",
+    "foo": "bar",
     "data": {
         "manifests": [
             {

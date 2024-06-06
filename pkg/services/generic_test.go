@@ -2,13 +2,14 @@ package services
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 
 	"github.com/onsi/gomega/types"
-	"github.com/yaacov/tree-search-language/pkg/tsl"
+	"github.com/yaacov/tree-search-language/v5/pkg/tsl"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/config"
@@ -77,5 +78,30 @@ func TestSQLTranslation(t *testing.T) {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(sql).To(Equal(sqlReal))
 		Expect(values).To(valuesReal)
+	}
+}
+
+func TestCovertToJsonbQuery(t *testing.T) {
+	RegisterTestingT(t)
+	tests := []map[string]interface{}{
+		// {
+		// 	"search": "payload.data.manifest.metadata.labels.foo = 'bar'",
+		// 	"error":  "maestro-21: resources.manifest is not a valid field name",
+		// },
+		{
+			"search":   "resources.payload.data.manifest.metadata.labels.foo",
+			"value":    "bar",
+			"expected": "resources.payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels' ->> 'foo'",
+		},
+		{
+			"search":   "resources.payload.data.manifests.metadata.labels.foo",
+			"value":    "bar",
+			"expected": "resources.payload -> 'data' -> 'manifests' @> '[{\"metadata\":{\"labels\":{\"foo\":\"bar\"}}}]'",
+		},
+	}
+	for _, test := range tests {
+		output, _, err := covertToJsonbQuery(strings.Split(test["search"].(string), "."), tsl.Node{Left: test["value"]})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(output).To(Equal(test["expected"]))
 	}
 }

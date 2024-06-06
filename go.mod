@@ -30,7 +30,7 @@ require (
 	github.com/segmentio/ksuid v1.0.2
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
-	github.com/yaacov/tree-search-language v0.0.0-20190923184055-1c2dad2e354b
+	github.com/yaacov/tree-search-language/v5 v5.2.12
 	google.golang.org/grpc v1.62.1
 	google.golang.org/protobuf v1.33.0
 	gopkg.in/resty.v1 v1.12.0

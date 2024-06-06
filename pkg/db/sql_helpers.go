@@ -7,7 +7,7 @@ import (
 
 	"github.com/jinzhu/inflection"
 	"github.com/openshift-online/maestro/pkg/errors"
-	"github.com/yaacov/tree-search-language/pkg/tsl"
+	"github.com/yaacov/tree-search-language/v5/pkg/tsl"
 	"gorm.io/gorm"
 )
 

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	e "errors"
 	"fmt"
 	"reflect"
@@ -10,15 +11,16 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/Masterminds/squirrel"
-	"github.com/yaacov/tree-search-language/pkg/tsl"
-	"github.com/yaacov/tree-search-language/pkg/walkers/ident"
-	sqlFilter "github.com/yaacov/tree-search-language/pkg/walkers/sql"
+	"github.com/yaacov/tree-search-language/v5/pkg/tsl"
+	"github.com/yaacov/tree-search-language/v5/pkg/walkers/ident"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/errors"
 	"github.com/openshift-online/maestro/pkg/logger"
+	identworker "github.com/openshift-online/maestro/pkg/walkers/ident"
+	sqlworker "github.com/openshift-online/maestro/pkg/walkers/sql"
 )
 
 type GenericService interface {
@@ -268,7 +270,8 @@ func zeroSlice(i interface{}, cap int64) *errors.ServiceError {
 func (s *sqlGenericService) treeWalkForRelatedTables(listCtx *listContext, tslTree tsl.Node, dao *dao.GenericDao) (tsl.Node, *errors.ServiceError) {
 	resourceTable := (*dao).GetTableName()
 
-	walkFn := func(field string) (string, error) {
+	walkFn := func(tslLeftTree interface{}, node tsl.Node) (string, bool, error) {
+		field := tslLeftTree.(string)
 		fieldParts := strings.Split(field, ".")
 		if len(fieldParts) > 1 && fieldParts[0] != resourceTable {
 			fieldName := fieldParts[0]
@@ -277,22 +280,87 @@ func (s *sqlGenericService) treeWalkForRelatedTables(listCtx *listContext, tslTr
 				if relation, ok := (*dao).GetTableRelation(fieldName); ok {
 					listCtx.joins[fieldName] = relation
 				} else {
-					return field, fmt.Errorf("%s is not a related resource of %s", fieldName, listCtx.resourceType)
+					return field, false, fmt.Errorf("%s is not a related resource of %s", fieldName, listCtx.resourceType)
 				}
 			}
 			//replace by table name
 			fieldParts[0] = listCtx.joins[fieldName].ForeignTableName
-			return strings.Join(fieldParts, "."), nil
 		}
-		return field, nil
+		if len(fieldParts) == 2 {
+			return strings.Join(fieldParts, "."), false, nil
+		} else if len(fieldParts) > 2 {
+			return covertToJsonbQuery(fieldParts, node)
+		}
+		return field, false, nil
 	}
 
-	tslTree, err := ident.Walk(tslTree, walkFn)
+	tslTree, err := identworker.Walk(tslTree, tsl.Node{}, walkFn)
 	if err != nil {
 		return tslTree, errors.BadRequest(err.Error())
 	}
 
 	return tslTree, nil
+}
+
+// covertToJsonbQuery is to convert the field to jsonb query
+// this method handles 2 cases:
+// 1. support jsonb string query. for example: covert resources.payload.data.manifest.metadata.labels.foo = 'bar' to
+// resources.payload-> 'data' -> 'manifest' -> 'metadata' ->> 'name' = 'bar'
+// 2. support jsonb object query. for example: covert resources.payload.data.manifests.metadata.labels.foo = 'bar' to
+// resources.payload->'data'->'manifests' @> '[{"metadata":{"labels":{"foo": "bar"}}}]';
+// fieldParts[0] is a table name
+// fieldParts[1] is a colume name
+func covertToJsonbQuery(fieldParts []string, node tsl.Node) (string, bool, error) {
+	tmpField := fieldParts[0] + "." + fieldParts[1]
+
+	if fieldParts[3] == "manifests" {
+		// handle jsonb object query
+		jsonObj, err := convertToJSONStructure(fieldParts[4:], node.Left.(string))
+		if err != nil {
+			return "", false, err
+		}
+		return fmt.Sprintf("%s -> '%s' -> '%s' @> '%s'", tmpField, fieldParts[2], fieldParts[3], jsonObj), true, nil
+	}
+
+	tmpJsonbFieldParts := strings.Join(fieldParts[2:], "' -> '")
+	lastIndex := strings.LastIndex(tmpJsonbFieldParts, "->")
+
+	if lastIndex == -1 {
+		// Return or handle error if no "->" found in the JSONB parts
+		return "", false, nil
+	}
+
+	jsonbQuery := fmt.Sprintf("%s->> %s", tmpJsonbFieldParts[:lastIndex], tmpJsonbFieldParts[lastIndex+3:])
+	return fmt.Sprintf("%s -> '%s'", tmpField, jsonbQuery), false, nil
+}
+
+// convertToJSONStructure converts string array to json object
+// for example: ["metadata", "labels", "foo", "bar"] to [{"metadata":{"labels":{"foo": "bar"}}}]
+func convertToJSONStructure(fieldParts []string, value string) (string, error) {
+	// Build the nested map
+	current := make(map[string]interface{})
+	nested := current
+	for i, part := range fieldParts {
+		if i == len(fieldParts)-1 {
+			// Last part, set the value
+			nested[part] = value
+		} else {
+			// Intermediate part, create a new map
+			next := make(map[string]interface{})
+			nested[part] = next
+			nested = next
+		}
+	}
+
+	// Wrap the result in an array
+	result := []interface{}{current}
+
+	// Convert to JSON
+	jsonBytes, err := json.Marshal(result)
+	if err != nil {
+		return "", err
+	}
+	return string(jsonBytes), nil
 }
 
 // prepend table name to these "free" identifiers since they could cause "ambiguous" errors
@@ -326,7 +394,7 @@ func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl
 	}
 
 	// Convert the search tree into SQL [Squirrel] filter
-	sqlizer, err := sqlFilter.Walk(tslTree)
+	sqlizer, err := sqlworker.Walk(tslTree)
 	if err != nil {
 		return tslTree, nil, errors.BadRequest(err.Error())
 	}
