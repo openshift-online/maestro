@@ -5,10 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -16,84 +13,61 @@ import (
 	"k8s.io/component-base/version"
 	"k8s.io/klog/v2"
 	ocmfeature "open-cluster-management.io/api/feature"
-	"open-cluster-management.io/ocm/pkg/common/options"
+	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/work/spoke"
 )
 
 var (
-	commonOptions = options.NewAgentOptions()
+	commonOptions = commonoptions.NewAgentOptions()
 	agentOption   = spoke.NewWorkloadAgentOptions()
 )
 
 // by default uses 1M as the limit for state feedback
-var maxJSONRawLength int32 = 1024 * 1024
+const maxJSONRawLength int32 = 1024 * 1024
 
 func NewAgentCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "agent",
-		Short: "Start the maestro agent",
-		Long:  "Start the maestro agent.",
-		Run:   runAgent,
-	}
+	agentOption.MaxJSONRawLength = maxJSONRawLength
+	agentOption.CloudEventsClientCodecs = []string{"manifest", "manifestbundle"}
+	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
+	cmdConfig := commonOptions.CommoOpts.
+		NewControllerCommandConfig("work-agent", version.Get(), cfg.RunWorkloadAgent)
+
+	cmd := cmdConfig.NewCommandWithContext(context.TODO())
+	cmd.Use = "agent"
+	cmd.Short = "Start the Maestro Agent"
+	cmd.Long = "Start the Maestro Agent"
 
 	// check if the flag is already registered to avoid duplicate flag define error
 	if flag.CommandLine.Lookup("alsologtostderr") != nil {
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	}
+
 	// add klog flags
 	klog.InitFlags(nil)
 
-	fs := cmd.PersistentFlags()
-	fs.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
-	fs.AddGoFlagSet(flag.CommandLine)
-	commonOptions.CommoOpts.AddFlags(fs)
-	addFlags(fs)
+	flags := cmd.Flags()
+	flags.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
+	flags.AddGoFlagSet(flag.CommandLine)
+
+	// add common flags
+	// commonOptions.AddFlags(flags)
+	// features.SpokeMutableFeatureGate.AddFlag(flags)
+	// add agent flags
+	agentOption.AddFlags(flags)
+	// add alias flags
+	addFlags(flags)
+
 	utilruntime.Must(features.SpokeMutableFeatureGate.Add(ocmfeature.DefaultSpokeWorkFeatureGates))
 	utilruntime.Must(features.SpokeMutableFeatureGate.Set(fmt.Sprintf("%s=true", ocmfeature.RawFeedbackJsonString)))
 
 	return cmd
 }
 
-func runAgent(cmd *cobra.Command, args []string) {
-	ctx, cancel := context.WithCancel(context.Background())
-
-	stopCh := make(chan os.Signal, 1)
-	signal.Notify(stopCh, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		defer cancel()
-		<-stopCh
-	}()
-
-	// use mqtt as the default driver
-	agentOption.MaxJSONRawLength = maxJSONRawLength
-	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
-	cmdConfig := commonOptions.CommoOpts.
-		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent)
-	cmdConfig.DisableLeaderElection = true
-
-	if err := cmdConfig.StartController(ctx); err != nil {
-		glog.Fatalf("error running command: %v", err)
-	}
-}
-
+// addFlags overrides cluster name and leader leader election flags from the agentOption
 func addFlags(fs *pflag.FlagSet) {
-	// workloadAgentOptions
-	fs.Int32Var(&maxJSONRawLength, "max-json-raw-length",
-		maxJSONRawLength, "The maximum size of the JSON raw string returned from status feedback")
-	fs.DurationVar(&agentOption.StatusSyncInterval, "status-sync-interval",
-		agentOption.StatusSyncInterval, "Interval to sync resource status to hub")
-	fs.DurationVar(&agentOption.AppliedManifestWorkEvictionGracePeriod, "resource-eviction-grace-period",
-		agentOption.AppliedManifestWorkEvictionGracePeriod, "Grace period for resource eviction")
 	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-name",
 		commonOptions.SpokeClusterName, "Name of the consumer")
-	// message broker config file
-	fs.StringVar(&agentOption.WorkloadSourceConfig, "message-broker-config-file",
-		agentOption.WorkloadSourceConfig, "The config file path of the message broker, it can be mqtt broker or kafka broker")
-	fs.StringVar(&agentOption.WorkloadSourceDriver, "message-broker-type", "mqtt", "Message broker type (default: mqtt)")
-	fs.StringVar(&agentOption.CloudEventsClientID, "agent-client-id",
-		agentOption.CloudEventsClientID, "The ID of the agent client, by default it is <consumer-id>-work-agent")
-	fs.StringSliceVar(&agentOption.CloudEventsClientCodecs, "agent-client-codecs",
-		[]string{"manifest"}, "The codecs of the agent client. The valid codecs are manifest and manifestbundle")
-
+	fs.BoolVar(&commonOptions.CommoOpts.CmdConfig.DisableLeaderElection, "disable-leader-election",
+		true, "Disable leader election.")
 }

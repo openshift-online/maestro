@@ -268,9 +268,9 @@ objects:
             - /usr/local/bin/maestro
             - agent
             - --consumer-name=$(CONSUMER_NAME)
-            - --message-broker-type=mqtt
-            - --message-broker-config-file=/secrets/mqtt/config.yaml
-            - --agent-client-id=$(CONSUMER_NAME)-work-agent
+            - --workload-source-driver=mqtt
+            - --workload-source-config=/secrets/mqtt/config.yaml
+            - --cloudevents-client-id=$(CONSUMER_NAME)-work-agent
           env:
           - name: CONSUMER_NAME
             valueFrom:
