@@ -241,6 +241,7 @@ objects:
             - /usr/local/bin/maestro
             - server
             - --client-id=maestro-$(POD_NAME)
+            - --subscription-type=broadcast
             - --db-host-file=/secrets/db/db.host
             - --db-port-file=/secrets/db/db.port
             - --db-user-file=/secrets/db/db.user
@@ -248,6 +249,7 @@ objects:
             - --db-name-file=/secrets/db/db.name
             - --db-rootcert=/secrets/db/db.ca_cert
             - --db-sslmode=${DB_SSLMODE}
+            - --db-max-open-connections=${DB_MAX_OPEN_CONNS}
             - --message-broker-config-file=/secrets/mqtt/config.yaml
             - --message-broker-type=mqtt
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
@@ -259,8 +261,6 @@ objects:
             - --grpc-server-bindport=${GRPC_SERVER_BINDPORT}
             - --health-check-server-bindport=${HEALTH_CHECK_SERVER_BINDPORT}
             - --enable-health-check-https=${ENABLE_HTTPS}
-            - --db-sslmode=${DB_SSLMODE}
-            - --db-max-open-connections=${DB_MAX_OPEN_CONNS}
             - --enable-authz=${ENABLE_AUTHZ}
             - --enable-db-debug=${ENABLE_DB_DEBUG}
             - --enable-metrics-https=${ENABLE_METRICS_HTTPS}
