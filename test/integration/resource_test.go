@@ -68,7 +68,7 @@ func TestResourcePost(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
-	informer := clientHolder.ManifestWorkInformer()
+	informer := h.WorkAgentInformer
 	lister := informer.Lister().ManifestWorks(consumer.Name)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()
@@ -282,7 +282,7 @@ func TestResourcePatch(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, false)
 	clientHolder := h.WorkAgentHolder
-	informer := clientHolder.ManifestWorkInformer()
+	informer := h.WorkAgentInformer
 	lister := informer.Lister().ManifestWorks(consumer.ID)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
@@ -558,7 +558,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
-	informer := clientHolder.ManifestWorkInformer()
+	informer := h.WorkAgentInformer
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
 	// use grpc client to create resource
@@ -766,7 +766,7 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, true)
 	clientHolder := h.WorkAgentHolder
-	informer := clientHolder.ManifestWorkInformer()
+	informer := h.WorkAgentInformer
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
 	// use grpc client to create resource bundle
