@@ -84,7 +84,7 @@ func (s *PulseServer) Start(ctx context.Context) {
 }
 
 func (s *PulseServer) pulse(ctx context.Context) {
-	log.V(4).Infof("Updating heartbeat for maestro instance: %s", s.instanceID)
+	log.V(10).Infof("Updating heartbeat for maestro instance: %s", s.instanceID)
 	instance := &api.ServerInstance{
 		Meta: api.Meta{
 			ID:        s.instanceID,
@@ -98,7 +98,7 @@ func (s *PulseServer) pulse(ctx context.Context) {
 }
 
 func (s *PulseServer) checkInstances(ctx context.Context) {
-	log.V(4).Infof("Checking liveness of maestro instances")
+	log.V(10).Infof("Checking liveness of maestro instances")
 	// lock the Instance with a fail-fast advisory lock context.
 	// this allows concurrent processing of many instances by one or more maestro instances exclusively.
 	lockOwnerID, acquired, err := s.lockFactory.NewNonBlockingLock(ctx, "maestro-instances-pulse-check", db.Instances)
@@ -148,7 +148,8 @@ func (s *PulseServer) checkInstances(ctx context.Context) {
 // It runs asynchronously in the background until the provided context is canceled.
 func (s *PulseServer) startSubscription(ctx context.Context) {
 	s.sourceClient.Subscribe(ctx, func(action types.ResourceAction, resource *api.Resource) error {
-		log.V(1).Infof("received action %s for resource %s", action, resource.ID)
+		log.V(4).Infof("received action %s for resource %s", action, resource.ID)
+
 		switch action {
 		case types.StatusModified:
 			found, svcErr := s.resourceService.Get(ctx, resource.ID)
@@ -192,18 +193,21 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 					return svcErr
 				}
 
+				log.V(4).Infof("Broadcast:: the resource %s is deleted", resource.ID)
+				resource.Payload = found.Payload
 				s.eventBroadcaster.Broadcast(resource)
 				return nil
 			}
 			// update the resource status
-			_, updated, svcErr := s.resourceService.UpdateStatus(ctx, resource)
+			updatedResource, updated, svcErr := s.resourceService.UpdateStatus(ctx, resource)
 			if svcErr != nil {
 				return svcErr
 			}
 
 			// broadcast the resource status updated only when the resource is updated
 			if updated {
-				s.eventBroadcaster.Broadcast(resource)
+				log.V(4).Infof("Broadcast:: the resource %s is updated", resource.ID)
+				s.eventBroadcaster.Broadcast(updatedResource)
 			}
 		default:
 			return fmt.Errorf("unsupported action %s", action)

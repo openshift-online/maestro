@@ -19,22 +19,35 @@ type ResourceBundleStatus struct {
 
 // DecodeManifestBundle converts a CloudEvent JSONMap representation of a list of resource manifest
 // into manifest bundle payload.
-func DecodeManifestBundle(manifest datatypes.JSONMap) (*workpayload.ManifestBundle, error) {
+func DecodeManifestBundle(manifest datatypes.JSONMap) (map[string]any, *workpayload.ManifestBundle, error) {
 	if len(manifest) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	evt, err := JSONMAPToCloudEvent(manifest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
+		return nil, nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
+	}
+
+	metaData := map[string]any{}
+	extensions := evt.Extensions()
+	if meta, ok := extensions["metadata"]; ok {
+		metaJson, err := cloudeventstypes.ToString(meta)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		if err := json.Unmarshal([]byte(metaJson), &metaData); err != nil {
+			return nil, nil, err
+		}
 	}
 
 	eventPayload := &workpayload.ManifestBundle{}
 	if err := evt.DataAs(eventPayload); err != nil {
-		return nil, fmt.Errorf("failed to decode cloudevent payload as resource manifest bundle: %v", err)
+		return nil, nil, fmt.Errorf("failed to decode cloudevent payload as resource manifest bundle: %v", err)
 	}
 
-	return eventPayload, nil
+	return metaData, eventPayload, nil
 }
 
 // DecodeManifestBundleToObjects converts a CloudEvent JSONMap representation of a list of resource manifest
@@ -44,7 +57,7 @@ func DecodeManifestBundleToObjects(manifest datatypes.JSONMap) ([]map[string]int
 		return nil, nil
 	}
 
-	eventPayload, err := DecodeManifestBundle(manifest)
+	_, eventPayload, err := DecodeManifestBundle(manifest)
 	if err != nil {
 		return nil, err
 	}

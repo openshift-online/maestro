@@ -12,6 +12,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.15.3-0.20240329120647-e6a74efbacbf
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/docker/go-healthcheck v0.1.0
+	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/getsentry/sentry-go v0.20.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.0
@@ -37,13 +38,14 @@ require (
 	gorm.io/datatypes v1.2.0
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
+	k8s.io/api v0.29.4
 	k8s.io/apimachinery v0.29.4
 	k8s.io/client-go v0.29.4
 	k8s.io/component-base v0.29.3
 	k8s.io/klog/v2 v2.120.1
 	open-cluster-management.io/api v0.13.1-0.20240605083248-f9e7f50520fc
 	open-cluster-management.io/ocm v0.13.1-0.20240612012446-8e792c14d8f4
-	open-cluster-management.io/sdk-go v0.13.1-0.20240606075054-7671bb086504
+	open-cluster-management.io/sdk-go v0.13.1-0.20240607073142-990fcdba50a6
 )
 
 require (
@@ -66,7 +68,6 @@ require (
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/eclipse/paho.golang v0.11.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
-	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
@@ -149,7 +150,6 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.4.7 // indirect
-	k8s.io/api v0.29.4 // indirect
 	k8s.io/apiextensions-apiserver v0.29.3 // indirect
 	k8s.io/apiserver v0.29.3 // indirect
 	k8s.io/kms v0.29.3 // indirect

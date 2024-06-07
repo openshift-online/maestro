@@ -56,7 +56,7 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 		return err
 	}
 
-	logger.Infof("Publishing resource %s for db row insert", resource.ID)
+	logger.V(4).Infof("Publishing resource %s for db row insert", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
@@ -81,7 +81,7 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 		return err
 	}
 
-	logger.Infof("Publishing resource %s for db row update", resource.ID)
+	logger.V(4).Infof("Publishing resource %s for db row update", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
@@ -110,7 +110,7 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	if resource.Meta.DeletedAt.Time.IsZero() {
 		return fmt.Errorf("resource %s has not been marked as deleting", resource.ID)
 	}
-	logger.Infof("Publishing resource %s for db row delete", resource.ID)
+	logger.V(4).Infof("Publishing resource %s for db row delete", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
@@ -134,7 +134,7 @@ func (s *SourceClientImpl) Subscribe(ctx context.Context, handlers ...cegeneric.
 func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error {
 	logger := logger.NewOCMLogger(ctx)
 
-	logger.Infof("Resyncing resource status from consumers")
+	logger.V(4).Infof("Resyncing resource status from consumers %v", consumers)
 
 	for _, consumer := range consumers {
 		if err := s.CloudEventSourceClient.Resync(ctx, consumer); err != nil {

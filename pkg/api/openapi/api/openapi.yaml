@@ -1047,6 +1047,8 @@ components:
         deleted_at:
           format: date-time
           type: string
+        metadata:
+          type: object
         manifests:
           items:
             type: object

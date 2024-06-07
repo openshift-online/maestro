@@ -30,6 +30,8 @@ nodes:
   extraPortMappings:
   - containerPort: 30080
     hostPort: 30080
+  - containerPort: 30090
+    hostPort: 30090
 EOF
 export KUBECONFIG=${PWD}/test/e2e/.kubeconfig
 
@@ -60,6 +62,7 @@ kubectl $1 apply -f ./test/e2e/setup/service-ca/
 # 4. deploy maestro into maestro namespace
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
+export ENABLE_GRPC=true
 kubectl create namespace $namespace || true
 make template \
 	deploy-secrets \
@@ -70,6 +73,9 @@ make template \
 # expose the maestro server via nodeport
 kubectl patch service maestro -n $namespace -p '{"spec":{"type":"NodePort", "ports":  [{"nodePort": 30080, "port": 8000, "targetPort": 8000}]}}' --type merge
 
+# expose the maestro grpc server via nodeport
+kubectl patch service maestro-grpc -n $namespace -p '{"spec":{"type":"NodePort", "ports":  [{"nodePort": 30090, "port": 8090, "targetPort": 8090}]}}' --type merge
+
 # 5. create a consumer
 export external_host_ip="127.0.0.1"
 echo $external_host_ip > ./test/e2e/.external_host_ip
@@ -78,7 +84,7 @@ kubectl wait deployment maestro -n $namespace --for condition=Available=True --t
 sleep 5 # wait 5 seconds for the service ready
 
 # the consumer name is not specified, the consumer id will be used as the consumer name
-export consumer_name=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq '.id')
+export consumer_name=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq -r '.id')
 echo $consumer_name > ./test/e2e/.consumer_name
 
 # 6. deploy maestro agent into maestro-agent namespace
