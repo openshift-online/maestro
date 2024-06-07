@@ -31,7 +31,7 @@ func NewAgentCommand() *cobra.Command {
 	agentOption.CloudEventsClientCodecs = []string{"manifest", "manifestbundle"}
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
 	cmdConfig := commonOptions.CommoOpts.
-		NewControllerCommandConfig("work-agent", version.Get(), cfg.RunWorkloadAgent)
+		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent)
 
 	cmd := cmdConfig.NewCommandWithContext(context.TODO())
 	cmd.Use = "agent"
