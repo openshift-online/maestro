@@ -2,6 +2,7 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -175,7 +176,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("patch the nginx resource", func() {
+		It("patch the nginx resource without causing any changes", func() {
 
 			newRes := helper.NewAPIResource(consumer_name, 2)
 			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(context.Background(), *resource.Id).
@@ -203,13 +204,15 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				nginx, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
+				data, _ := json.Marshal(nginx)
+				fmt.Println(string(data))
 				return fmt.Errorf("nginx deployment still exists")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
