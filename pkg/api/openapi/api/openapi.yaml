@@ -1001,6 +1001,9 @@ components:
         updated_at:
           format: date-time
           type: string
+        deleted_at:
+          format: date-time
+          type: string
         manifest:
           type: object
         delete_option:
@@ -1039,6 +1042,9 @@ components:
           format: date-time
           type: string
         updated_at:
+          format: date-time
+          type: string
+        deleted_at:
           format: date-time
           type: string
         manifests:

@@ -28,6 +28,7 @@ type ResourceBundle struct {
 	Version         *int32                   `json:"version,omitempty"`
 	CreatedAt       *time.Time               `json:"created_at,omitempty"`
 	UpdatedAt       *time.Time               `json:"updated_at,omitempty"`
+	DeletedAt       *time.Time               `json:"deleted_at,omitempty"`
 	Manifests       []map[string]interface{} `json:"manifests,omitempty"`
 	DeleteOption    map[string]interface{}   `json:"delete_option,omitempty"`
 	ManifestConfigs []map[string]interface{} `json:"manifest_configs,omitempty"`
@@ -307,6 +308,38 @@ func (o *ResourceBundle) SetUpdatedAt(v time.Time) {
 	o.UpdatedAt = &v
 }
 
+// GetDeletedAt returns the DeletedAt field value if set, zero value otherwise.
+func (o *ResourceBundle) GetDeletedAt() time.Time {
+	if o == nil || IsNil(o.DeletedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.DeletedAt
+}
+
+// GetDeletedAtOk returns a tuple with the DeletedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourceBundle) GetDeletedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.DeletedAt) {
+		return nil, false
+	}
+	return o.DeletedAt, true
+}
+
+// HasDeletedAt returns a boolean if a field has been set.
+func (o *ResourceBundle) HasDeletedAt() bool {
+	if o != nil && !IsNil(o.DeletedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetDeletedAt gets a reference to the given time.Time and assigns it to the DeletedAt field.
+func (o *ResourceBundle) SetDeletedAt(v time.Time) {
+	o.DeletedAt = &v
+}
+
 // GetManifests returns the Manifests field value if set, zero value otherwise.
 func (o *ResourceBundle) GetManifests() []map[string]interface{} {
 	if o == nil || IsNil(o.Manifests) {
@@ -468,6 +501,9 @@ func (o ResourceBundle) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.UpdatedAt) {
 		toSerialize["updated_at"] = o.UpdatedAt
+	}
+	if !IsNil(o.DeletedAt) {
+		toSerialize["deleted_at"] = o.DeletedAt
 	}
 	if !IsNil(o.Manifests) {
 		toSerialize["manifests"] = o.Manifests

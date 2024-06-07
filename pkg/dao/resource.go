@@ -14,7 +14,7 @@ type ResourceDao interface {
 	GetBundle(ctx context.Context, id string) (*api.Resource, error)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string, unscoped bool) error
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
@@ -34,7 +34,7 @@ func NewResourceDao(sessionFactory *db.SessionFactory) ResourceDao {
 func (d *sqlResourceDao) Get(ctx context.Context, id string) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	var resource api.Resource
-	if err := g2.Take(&resource, "id = ?", id).Error; err != nil {
+	if err := g2.Unscoped().Take(&resource, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &resource, nil
@@ -43,7 +43,7 @@ func (d *sqlResourceDao) Get(ctx context.Context, id string) (*api.Resource, err
 func (d *sqlResourceDao) GetBundle(ctx context.Context, id string) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	var resource api.Resource
-	if err := g2.Take(&resource, "id = ? AND type = ?", id, api.ResourceTypeBundle).Error; err != nil {
+	if err := g2.Unscoped().Take(&resource, "id = ? AND type = ?", id, api.ResourceTypeBundle).Error; err != nil {
 		return nil, err
 	}
 	return &resource, nil
@@ -67,8 +67,12 @@ func (d *sqlResourceDao) Update(ctx context.Context, resource *api.Resource) (*a
 	return resource, nil
 }
 
-func (d *sqlResourceDao) Delete(ctx context.Context, id string) error {
+func (d *sqlResourceDao) Delete(ctx context.Context, id string, unscoped bool) error {
 	g2 := (*d.sessionFactory).New(ctx)
+	if unscoped {
+		// Unscoped is used to permanently delete the record
+		g2 = g2.Unscoped()
+	}
 	if err := g2.Omit(clause.Associations).Delete(&api.Resource{Meta: api.Meta{ID: id}}).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return err
@@ -79,7 +83,7 @@ func (d *sqlResourceDao) Delete(ctx context.Context, id string) error {
 func (d *sqlResourceDao) FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
-	if err := g2.Where("id in (?)", ids).Find(&resources).Error; err != nil {
+	if err := g2.Unscoped().Where("id in (?)", ids).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil
@@ -88,7 +92,7 @@ func (d *sqlResourceDao) FindByIDs(ctx context.Context, ids []string) (api.Resou
 func (d *sqlResourceDao) FindBySource(ctx context.Context, source string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
-	if err := g2.Where("source = ?", source).Find(&resources).Error; err != nil {
+	if err := g2.Unscoped().Where("source = ?", source).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil
@@ -97,7 +101,7 @@ func (d *sqlResourceDao) FindBySource(ctx context.Context, source string) (api.R
 func (d *sqlResourceDao) FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
-	if err := g2.Where("consumer_name = ?", consumerName).Find(&resources).Error; err != nil {
+	if err := g2.Unscoped().Where("consumer_name = ?", consumerName).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil
@@ -106,7 +110,7 @@ func (d *sqlResourceDao) FindByConsumerName(ctx context.Context, consumerName st
 func (d *sqlResourceDao) All(ctx context.Context) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
-	if err := g2.Find(&resources).Error; err != nil {
+	if err := g2.Unscoped().Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil
