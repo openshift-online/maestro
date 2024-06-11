@@ -24,6 +24,7 @@ type ConsumerAllOf struct {
 	Labels    *map[string]string `json:"labels,omitempty"`
 	CreatedAt *time.Time         `json:"created_at,omitempty"`
 	UpdatedAt *time.Time         `json:"updated_at,omitempty"`
+	DeletedAt *time.Time         `json:"deleted_at,omitempty"`
 }
 
 // NewConsumerAllOf instantiates a new ConsumerAllOf object
@@ -171,6 +172,38 @@ func (o *ConsumerAllOf) SetUpdatedAt(v time.Time) {
 	o.UpdatedAt = &v
 }
 
+// GetDeletedAt returns the DeletedAt field value if set, zero value otherwise.
+func (o *ConsumerAllOf) GetDeletedAt() time.Time {
+	if o == nil || IsNil(o.DeletedAt) {
+		var ret time.Time
+		return ret
+	}
+	return *o.DeletedAt
+}
+
+// GetDeletedAtOk returns a tuple with the DeletedAt field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ConsumerAllOf) GetDeletedAtOk() (*time.Time, bool) {
+	if o == nil || IsNil(o.DeletedAt) {
+		return nil, false
+	}
+	return o.DeletedAt, true
+}
+
+// HasDeletedAt returns a boolean if a field has been set.
+func (o *ConsumerAllOf) HasDeletedAt() bool {
+	if o != nil && !IsNil(o.DeletedAt) {
+		return true
+	}
+
+	return false
+}
+
+// SetDeletedAt gets a reference to the given time.Time and assigns it to the DeletedAt field.
+func (o *ConsumerAllOf) SetDeletedAt(v time.Time) {
+	o.DeletedAt = &v
+}
+
 func (o ConsumerAllOf) MarshalJSON() ([]byte, error) {
 	toSerialize, err := o.ToMap()
 	if err != nil {
@@ -192,6 +225,9 @@ func (o ConsumerAllOf) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.UpdatedAt) {
 		toSerialize["updated_at"] = o.UpdatedAt
+	}
+	if !IsNil(o.DeletedAt) {
+		toSerialize["deleted_at"] = o.DeletedAt
 	}
 	return toSerialize, nil
 }

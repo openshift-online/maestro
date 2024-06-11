@@ -670,6 +670,9 @@ components:
             updated_at:
               type: string
               format: date-time
+            deleted_at:
+              type: string
+              format: date-time
     ConsumerList:
       allOf:
         - $ref: '#/components/schemas/List'

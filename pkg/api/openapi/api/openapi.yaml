@@ -1075,6 +1075,9 @@ components:
         updated_at:
           format: date-time
           type: string
+        deleted_at:
+          format: date-time
+          type: string
       type: object
       example: null
     ConsumerList_allOf:
