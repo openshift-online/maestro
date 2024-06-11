@@ -84,6 +84,11 @@ parameters:
   description: HTTP server bind port
   value: "8000"
 
+- nane: ENABLE_GRPC_SERVER
+  displayName: Enable gRPC Server
+  description: Enable gRPC server
+  value: "true"
+
 - name: GRPC_SERVER_BINDPORT
   displayName: gRPC Server Bindport
   description: gRPC server bind port
@@ -248,6 +253,7 @@ objects:
             - --enable-ocm-mock=${ENABLE_OCM_MOCK}
             - --enable-jwt=${ENABLE_JWT}
             - --enable-https=${ENABLE_HTTPS}
+            - --enable-grpc-server=${ENABLE_GRPC_SERVER}
             - --server-hostname=${HTTP_SERVER_HOSTNAME}
             - --http-server-bindport=${HTTP_SERVER_BINDPORT}
             - --grpc-server-bindport=${GRPC_SERVER_BINDPORT}
