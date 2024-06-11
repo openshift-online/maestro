@@ -31,7 +31,7 @@ func NewConsumerDao(sessionFactory *db.SessionFactory) ConsumerDao {
 func (d *sqlConsumerDao) Get(ctx context.Context, id string) (*api.Consumer, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	var consumer api.Consumer
-	if err := g2.Take(&consumer, "id = ?", id).Error; err != nil {
+	if err := g2.Unscoped().Take(&consumer, "id = ?", id).Error; err != nil {
 		return nil, err
 	}
 	return &consumer, nil

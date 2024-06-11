@@ -19,7 +19,7 @@ func ConvertConsumer(consumer openapi.Consumer) *api.Consumer {
 
 func PresentConsumer(consumer *api.Consumer) openapi.Consumer {
 	reference := PresentReference(consumer.ID, consumer)
-	return openapi.Consumer{
+	converted := openapi.Consumer{
 		Id:        reference.Id,
 		Kind:      reference.Kind,
 		Href:      reference.Href,
@@ -28,4 +28,8 @@ func PresentConsumer(consumer *api.Consumer) openapi.Consumer {
 		CreatedAt: openapi.PtrTime(consumer.CreatedAt),
 		UpdatedAt: openapi.PtrTime(consumer.UpdatedAt),
 	}
+	if !consumer.DeletedAt.Time.IsZero() {
+		converted.DeletedAt = openapi.PtrTime(consumer.DeletedAt.Time)
+	}
+	return converted
 }

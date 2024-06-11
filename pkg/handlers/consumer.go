@@ -84,7 +84,7 @@ func (h consumerHandler) List(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var consumers = []api.Consumer{}
+			consumers := []api.Consumer{}
 			paging, err := h.generic.List(ctx, "username", listArgs, &consumers)
 			if err != nil {
 				return nil, err
@@ -132,10 +132,15 @@ func (h consumerHandler) Get(w http.ResponseWriter, r *http.Request) {
 	handleGet(w, r, cfg)
 }
 
+// Delete will softly delete the consumer(hard deletion is restricted by the foreign key in resources table)
 func (h consumerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
-			return nil, errors.NotImplemented("delete")
+			id := mux.Vars(r)["id"]
+			if err := h.consumer.Delete(r.Context(), id); err != nil {
+				return nil, err
+			}
+			return nil, nil
 		},
 	}
 	handleDelete(w, r, cfg, http.StatusNoContent)
