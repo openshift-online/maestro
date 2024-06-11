@@ -36,17 +36,29 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*resource.Id).ShouldNot(BeEmpty())
+			Expect(*resource.Version).To(Equal(int32(1)))
 
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				deploy, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
 				if err != nil {
 					return err
+				}
+				if *deploy.Spec.Replicas != 1 {
+					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("patch the nginx resource", func() {
+		It("get the nginx resource from the maestro api", func() {
+			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), *resource.Id).Execute()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(*gotResource.Id).To(Equal(*resource.Id))
+			Expect(*gotResource.Version).To(Equal(*resource.Version))
+		})
+
+		It("patch the nginx resource with the maestro api", func() {
 
 			newRes := helper.NewAPIResource(consumer_name, 2)
 			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(context.Background(), *resource.Id).
@@ -60,10 +72,10 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				if err != nil {
 					return err
 				}
-				if *deploy.Spec.Replicas == 2 {
-					return nil
+				if *deploy.Spec.Replicas != 2 {
+					return fmt.Errorf("unexpected replicas, expected 2, got %d", *deploy.Spec.Replicas)
 				}
-				return fmt.Errorf("replicas is not 2")
+				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
@@ -98,9 +110,12 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				deploy, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
 				if err != nil {
 					return err
+				}
+				if *deploy.Spec.Replicas != 1 {
+					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
@@ -112,16 +127,16 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
+			// ensure the "nginx" deployment in the "default" namespace is not deleted
 			Consistently(func() error {
-				// Attempt to retrieve the "nginx" deployment in the "default" namespace
 				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
-				// If an error occurs
 				if err != nil {
-					// Return any other errors directly
-					return err
+					if errors.IsNotFound(err) {
+						return fmt.Errorf("nginx deployment is deleted")
+					}
 				}
 				return nil
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 30*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the nginx deployment", func() {
@@ -155,9 +170,12 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				deploy, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
 				if err != nil {
 					return err
+				}
+				if *deploy.Spec.Replicas != 1 {
+					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
@@ -175,13 +193,13 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Consistently(func() error {
 				deploy, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
 				if err != nil {
-					return err
-				}
-				if *deploy.Spec.Replicas == 1 {
 					return nil
 				}
-				return fmt.Errorf("replicas is not 1")
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+				if *deploy.Spec.Replicas != 1 {
+					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
+				}
+				return nil
+			}, 30*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the nginx resource", func() {
@@ -207,8 +225,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 		It("create a sample deployment in the target cluster", func() {
 			nginxDeploy := &appsv1.Deployment{}
-			json.Unmarshal(helper.GetTestNginxJSON(1), nginxDeploy)
-			_, err := kubeClient.AppsV1().Deployments("default").Create(context.Background(), nginxDeploy, metav1.CreateOptions{})
+			err := json.Unmarshal(helper.GetTestNginxJSON(1), nginxDeploy)
+			Expect(err).ShouldNot(HaveOccurred())
+			_, err = kubeClient.AppsV1().Deployments("default").Create(context.Background(), nginxDeploy, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -246,7 +265,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 						return nil
 					}
 				}
-				return fmt.Errorf("contentStatus should be empty")
+				return fmt.Errorf("contentStatus should not be empty")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 

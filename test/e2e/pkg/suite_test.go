@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"log"
 	"net/http"
 	"testing"
 	"time"
@@ -15,9 +16,13 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
+	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
@@ -31,10 +36,12 @@ var (
 	consumer_name     string
 	kubeClient        *kubernetes.Clientset
 	apiClient         *openapi.APIClient
+	grpcConn          *grpc.ClientConn
+	grpcClient        pbv1.CloudEventServiceClient
 	helper            *test.Helper
 	T                 *testing.T
 	workClient        *work.ClientHolder
-	grpcOptions       *grpc.GRPCOptions
+	grpcOptions       *grpcoptions.GRPCOptions
 	cancel            context.CancelFunc
 	ctx               context.Context
 	sourceID          string
@@ -84,6 +91,13 @@ var _ = BeforeSuite(func() {
 	}
 	apiClient = openapi.NewAPIClient(cfg)
 
+	var err error
+	grpcConn, err = grpc.Dial(grpcServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("fail to dial grpc server: %v", err)
+	}
+	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
+
 	// validate the kubeconfig file
 	restConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
@@ -102,7 +116,7 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.Background())
 
 	sourceID = "sourceclient-test" + rand.String(5)
-	grpcOptions = grpc.NewGRPCOptions()
+	grpcOptions = grpcoptions.NewGRPCOptions()
 	grpcOptions.URL = grpcServerAddress
 
 	workClient, err = work.NewClientHolderBuilder(grpcOptions).
@@ -116,5 +130,6 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
+	grpcConn.Close()
 	cancel()
 })
