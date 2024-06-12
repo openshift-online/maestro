@@ -1175,8 +1175,12 @@ k8s.io/utils v0.0.0-20240310230437-4693a0247e57 h1:gbqbevonBh57eILzModw6mrkbwM0g
 k8s.io/utils v0.0.0-20240310230437-4693a0247e57/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 open-cluster-management.io/api v0.13.1-0.20240521030453-9d94703b9eba h1:UsXnD4/N7pxYupPgoLvTq8wO73V72vD2D2ZkDd4iws0=
 open-cluster-management.io/api v0.13.1-0.20240521030453-9d94703b9eba/go.mod h1:yrNuMMpciXjXPnj2yznb6LTyrGliiTrFZAJDp/Ck3c4=
+open-cluster-management.io/api v0.13.1-0.20240605083248-f9e7f50520fc h1:tcfncubZRFphYtDXBE7ApBNlSnj1RNazhW+8F01XYYg=
+open-cluster-management.io/api v0.13.1-0.20240605083248-f9e7f50520fc/go.mod h1:ltijKJhDifrPH0csvCUmFt5lzaERv+BBfh6X3l83rT0=
 open-cluster-management.io/ocm v0.13.1-0.20240606073633-61a74bb348a4 h1:waZV6MKK01jRUmUyLyLRLZUjCdaCvs/AJwqQPNcEHoo=
 open-cluster-management.io/ocm v0.13.1-0.20240606073633-61a74bb348a4/go.mod h1:em/6OHu/z7vkwoQanhC3i3lA8bQiKuBQlik6cyk3E5o=
+open-cluster-management.io/ocm v0.13.1-0.20240612012446-8e792c14d8f4 h1:Z3gwbMUZmblGTHFx6iOO1zlCJc2FJcAJsa2RASTKDqA=
+open-cluster-management.io/ocm v0.13.1-0.20240612012446-8e792c14d8f4/go.mod h1:RuYCuKuVJzNxRBkSoQnxyJxyUqOyCH388DlR/QDr7rE=
 open-cluster-management.io/sdk-go v0.13.1-0.20240606075054-7671bb086504 h1:65KSUUpUapTbaeMx+MuxCqXRyrR3KGtOSFuoJwoXmMA=
 open-cluster-management.io/sdk-go v0.13.1-0.20240606075054-7671bb086504/go.mod h1:muWzHWsgK8IsopltwTnsBjf4DN9IcC9rF0G2uEq/Pjw=
 rsc.io/binaryregexp v0.2.0/go.mod h1:qTv7/COck+e2FymRvadv62gMdZztPaShugOCi3I+8D8=
