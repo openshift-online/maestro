@@ -61,7 +61,7 @@ func (d *sqlInstanceDao) Replace(ctx context.Context, instance *api.ServerInstan
 
 func (d *sqlInstanceDao) UpSert(ctx context.Context, instance *api.ServerInstance) (*api.ServerInstance, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Omit(clause.Associations).Save(instance).Error; err != nil {
+	if err := g2.Unscoped().Omit(clause.Associations).Save(instance).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}
