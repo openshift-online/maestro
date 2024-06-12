@@ -31,7 +31,7 @@ type Resource struct {
 	Source       string
 	ConsumerName string
 	Type         ResourceType
-	Manifest     datatypes.JSONMap
+	Payload      datatypes.JSONMap
 	Status       datatypes.JSONMap
 	// Name must be unique and not null, it can be treated as the resource external ID.
 	// The format of the name should be follow the RFC 1123 (same as the k8s namespace).

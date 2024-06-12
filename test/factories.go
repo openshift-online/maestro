@@ -66,7 +66,7 @@ func (helper *Helper) NewAPIResource(consumerName string, replicas int) openapi.
 
 func (helper *Helper) NewResource(consumerName string, replicas int) *api.Resource {
 	testResource := helper.NewAPIResource(consumerName, replicas)
-	testManifest, err := api.EncodeManifest(testResource.Manifest, testResource.DeleteOption, testResource.UpdateStrategy)
+	testPayload, err := api.EncodeManifest(testResource.Manifest, testResource.DeleteOption, testResource.UpdateStrategy)
 	if err != nil {
 		helper.T.Errorf("error encoding manifest: %q", err)
 	}
@@ -74,7 +74,7 @@ func (helper *Helper) NewResource(consumerName string, replicas int) *api.Resour
 	resource := &api.Resource{
 		ConsumerName: consumerName,
 		Type:         api.ResourceTypeSingle,
-		Manifest:     testManifest,
+		Payload:      testPayload,
 		Version:      1,
 	}
 
@@ -164,7 +164,7 @@ func (helper *Helper) EncodeManifestBundle(manifest map[string]interface{}) (dat
 
 func (helper *Helper) NewResourceBundle(name, consumerName string, replicas int) *api.Resource {
 	testResource := helper.NewAPIResource(consumerName, replicas)
-	testManifest, err := helper.EncodeManifestBundle(testResource.Manifest)
+	testPayload, err := helper.EncodeManifestBundle(testResource.Manifest)
 	if err != nil {
 		helper.T.Errorf("error encoding manifest bundle: %q", err)
 	}
@@ -173,7 +173,7 @@ func (helper *Helper) NewResourceBundle(name, consumerName string, replicas int)
 		Name:         name,
 		ConsumerName: consumerName,
 		Type:         api.ResourceTypeBundle,
-		Manifest:     testManifest,
+		Payload:      testPayload,
 		Version:      1,
 	}
 
