@@ -73,7 +73,7 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 
 // PresentResourceBundle converts a resource from the API to the openapi representation.
 func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, error) {
-	manifestBundle, err := api.DecodeManifestBundle(resource.Payload)
+	metadata, manifestBundle, err := api.DecodeManifestBundle(resource.Payload)
 	if err != nil {
 		return nil, err
 	}
@@ -122,6 +122,7 @@ func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, err
 		}
 		manifestConfigs = append(manifestConfigs, m)
 	}
+
 	res := &openapi.ResourceBundle{
 		Id:              reference.Id,
 		Kind:            reference.Kind,
@@ -131,6 +132,7 @@ func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, err
 		Version:         openapi.PtrInt32(resource.Version),
 		CreatedAt:       openapi.PtrTime(resource.CreatedAt),
 		UpdatedAt:       openapi.PtrTime(resource.UpdatedAt),
+		Metadata:        metadata,
 		Manifests:       manifests,
 		DeleteOption:    deleteOption,
 		ManifestConfigs: manifestConfigs,

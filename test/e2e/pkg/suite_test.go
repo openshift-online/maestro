@@ -19,13 +19,14 @@ import (
 )
 
 var (
-	apiServerAddress string
-	kubeconfig       string
-	consumer_name    string
-	kubeClient       *kubernetes.Clientset
-	apiClient        *openapi.APIClient
-	helper           *test.Helper
-	T                *testing.T
+	apiServerAddress  string
+	grpcServerAddress string
+	kubeconfig        string
+	consumer_name     string
+	kubeClient        *kubernetes.Clientset
+	apiClient         *openapi.APIClient
+	helper            *test.Helper
+	T                 *testing.T
 )
 
 func TestE2E(t *testing.T) {
@@ -37,6 +38,7 @@ func TestE2E(t *testing.T) {
 func init() {
 	klog.SetOutput(GinkgoWriter)
 	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro API server address")
+	flag.StringVar(&grpcServerAddress, "grpc-server", "", "Maestro gRPC server address")
 	flag.StringVar(&consumer_name, "consumer_name", "", "Consumer name is used to identify the consumer")
 	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig file")
 }

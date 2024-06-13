@@ -77,6 +77,8 @@ ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
 ENABLE_OCM_MOCK ?= false
 
+ENABLE_GRPC ?= false
+
 # Enable set images
 POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
 MQTT_IMAGE ?= docker.io/library/eclipse-mosquitto:2.0.18
@@ -298,6 +300,7 @@ cmds:
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_NAME=$(consumer_name)" \
 		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
+		--param="ENABLE_GRPC=$(ENABLE_GRPC)" \
 	> "templates/$*-template.json"
 
 
@@ -409,5 +412,7 @@ e2e-test/teardown:
 e2e-test: e2e-test/teardown e2e-test/setup
 	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- -consumer_name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
-	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 -kubeconfig=${PWD}/test/e2e/.kubeconfig
+	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
+	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \
+	-kubeconfig=${PWD}/test/e2e/.kubeconfig
 .PHONY: e2e-test

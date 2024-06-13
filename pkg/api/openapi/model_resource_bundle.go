@@ -29,6 +29,7 @@ type ResourceBundle struct {
 	CreatedAt       *time.Time               `json:"created_at,omitempty"`
 	UpdatedAt       *time.Time               `json:"updated_at,omitempty"`
 	DeletedAt       *time.Time               `json:"deleted_at,omitempty"`
+	Metadata        map[string]interface{}   `json:"metadata,omitempty"`
 	Manifests       []map[string]interface{} `json:"manifests,omitempty"`
 	DeleteOption    map[string]interface{}   `json:"delete_option,omitempty"`
 	ManifestConfigs []map[string]interface{} `json:"manifest_configs,omitempty"`
@@ -340,6 +341,38 @@ func (o *ResourceBundle) SetDeletedAt(v time.Time) {
 	o.DeletedAt = &v
 }
 
+// GetMetadata returns the Metadata field value if set, zero value otherwise.
+func (o *ResourceBundle) GetMetadata() map[string]interface{} {
+	if o == nil || IsNil(o.Metadata) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.Metadata
+}
+
+// GetMetadataOk returns a tuple with the Metadata field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourceBundle) GetMetadataOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.Metadata) {
+		return map[string]interface{}{}, false
+	}
+	return o.Metadata, true
+}
+
+// HasMetadata returns a boolean if a field has been set.
+func (o *ResourceBundle) HasMetadata() bool {
+	if o != nil && !IsNil(o.Metadata) {
+		return true
+	}
+
+	return false
+}
+
+// SetMetadata gets a reference to the given map[string]interface{} and assigns it to the Metadata field.
+func (o *ResourceBundle) SetMetadata(v map[string]interface{}) {
+	o.Metadata = v
+}
+
 // GetManifests returns the Manifests field value if set, zero value otherwise.
 func (o *ResourceBundle) GetManifests() []map[string]interface{} {
 	if o == nil || IsNil(o.Manifests) {
@@ -504,6 +537,9 @@ func (o ResourceBundle) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.DeletedAt) {
 		toSerialize["deleted_at"] = o.DeletedAt
+	}
+	if !IsNil(o.Metadata) {
+		toSerialize["metadata"] = o.Metadata
 	}
 	if !IsNil(o.Manifests) {
 		toSerialize["manifests"] = o.Manifests

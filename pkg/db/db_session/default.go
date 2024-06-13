@@ -106,7 +106,7 @@ func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id s
 			return
 		case n := <-l.Notify:
 			if n != nil {
-				logger.Infof("Received data from channel [%s] : %s", n.Channel, n.Extra)
+				logger.V(4).Infof("Received event from channel [%s] : %s", n.Channel, n.Extra)
 				callback(n.Extra)
 			}
 		case <-time.After(10 * time.Second):

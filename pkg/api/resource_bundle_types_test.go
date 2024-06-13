@@ -62,7 +62,7 @@ func TestDecodeManifestBundle(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := DecodeManifestBundle(c.input)
+			_, got, err := DecodeManifestBundle(c.input)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
