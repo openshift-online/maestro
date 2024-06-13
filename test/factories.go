@@ -52,9 +52,39 @@ var testManifestJSON = `
 }
 `
 
+var testReadOnlyManifestJSON = `
+{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+	  "name": "nginx",
+	  "namespace": "default"
+	},
+	"update_strategy": {
+	  "type": "ReadOnly"
+	}
+}
+`
+
 func (helper *Helper) NewAPIResource(consumerName string, replicas int) openapi.Resource {
 	testManifest := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
+		helper.T.Errorf("error unmarshalling test manifest: %q", err)
+	}
+
+	return openapi.Resource{
+		Manifest:     testManifest,
+		ConsumerName: &consumerName,
+	}
+}
+
+func (helper *Helper) GetTestNginxJSON(replicas int) []byte {
+	return []byte(fmt.Sprintf(testManifestJSON, replicas))
+}
+
+func (helper *Helper) NewReadOnlyAPIResource(consumerName string) openapi.Resource {
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprint(testReadOnlyManifestJSON)), &testManifest); err != nil {
 		helper.T.Errorf("error unmarshalling test manifest: %q", err)
 	}
 
