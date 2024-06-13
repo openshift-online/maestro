@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"testing"
@@ -31,47 +30,37 @@ import (
 var (
 	apiServerAddress  string
 	grpcServerAddress string
-	kubeconfig        string
-	consumer_name     string
-	kubeClient        *kubernetes.Clientset
-	apiClient         *openapi.APIClient
-	grpcConn          *grpc.ClientConn
 	grpcClient        pbv1.CloudEventServiceClient
-	helper            *test.Helper
-	T                 *testing.T
 	workClient        workv1client.WorkV1Interface
+	apiClient         *openapi.APIClient
+	sourceID          string
+	grpcConn          *grpc.ClientConn
 	grpcOptions       *grpcoptions.GRPCOptions
+	consumer          *ConsumerOptions
+	helper            *test.Helper
 	cancel            context.CancelFunc
 	ctx               context.Context
-	sourceID          string
 )
 
 func TestE2E(t *testing.T) {
+	helper = &test.Helper{T: t}
 	RegisterFailHandler(Fail)
-	T = t
 	RunSpecs(t, "End-to-End Test Suite")
 }
 
 func init() {
+	consumer = &ConsumerOptions{}
 	klog.SetOutput(GinkgoWriter)
 	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro API server address")
 	flag.StringVar(&grpcServerAddress, "grpc-server", "", "Maestro gRPC server address")
-	flag.StringVar(&consumer_name, "consumer_name", "", "Consumer name is used to identify the consumer")
-	flag.StringVar(&kubeconfig, "kubeconfig", "", "Path to kubeconfig file")
+	flag.StringVar(&consumer.Name, "consumer-name", "", "Consumer name is used to identify the consumer")
+	flag.StringVar(&consumer.KubeConfig, "consumer-kubeconfig", "", "Path to kubeconfig file")
 }
 
 var _ = BeforeSuite(func() {
-	// initialize the help
-	helper = &test.Helper{
-		T: T,
-	}
-	// initialize the api client
-	tlsConfig := &tls.Config{
-		//nolint:gosec
-		InsecureSkipVerify: true,
-	}
-	tr := &http.Transport{TLSClientConfig: tlsConfig}
+	ctx, cancel = context.WithCancel(context.Background())
 
+	// initialize the api client
 	cfg := &openapi.Configuration{
 		DefaultHeader: make(map[string]string),
 		UserAgent:     "OpenAPI-Generator/1.0.0/go",
@@ -84,8 +73,11 @@ var _ = BeforeSuite(func() {
 		},
 		OperationServers: map[string]openapi.ServerConfigurations{},
 		HTTPClient: &http.Client{
-			Transport: tr,
-			Timeout:   10 * time.Second,
+			Transport: &http.Transport{TLSClientConfig: &tls.Config{
+				//nolint:gosec
+				InsecureSkipVerify: true,
+			}},
+			Timeout: 10 * time.Second,
 		},
 	}
 	apiClient = openapi.NewAPIClient(cfg)
@@ -96,23 +88,6 @@ var _ = BeforeSuite(func() {
 		log.Fatalf("fail to dial grpc server: %v", err)
 	}
 	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
-
-	// validate the kubeconfig file
-	restConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		panic(fmt.Sprintf("failed to build kubeconfig: %v", err))
-	}
-	kubeClient, err = kubernetes.NewForConfig(restConfig)
-	if err != nil {
-		panic(fmt.Sprintf("failed to create kube client: %v", err))
-	}
-
-	// validate the consumer_id
-	if consumer_name == "" {
-		panic("consumer_id is not provided")
-	}
-
-	ctx, cancel = context.WithCancel(context.Background())
 
 	sourceID = "sourceclient-test" + rand.String(5)
 	grpcOptions = grpcoptions.NewGRPCOptions()
@@ -125,9 +100,22 @@ var _ = BeforeSuite(func() {
 		sourceID,
 	)
 	Expect(err).ShouldNot(HaveOccurred())
+
+	// validate the consumer kubeconfig and name
+	restConfig, err := clientcmd.BuildConfigFromFlags("", consumer.KubeConfig)
+	Expect(err).To(Succeed())
+	consumer.ClientSet, err = kubernetes.NewForConfig(restConfig)
+	Expect(err).To(Succeed())
+	Expect(consumer.Name).NotTo(BeEmpty(), "consumer name is not provided")
 })
 
 var _ = AfterSuite(func() {
 	grpcConn.Close()
 	cancel()
 })
+
+type ConsumerOptions struct {
+	Name       string
+	KubeConfig string
+	ClientSet  *kubernetes.Clientset
+}

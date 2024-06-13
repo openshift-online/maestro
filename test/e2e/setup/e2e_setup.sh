@@ -180,7 +180,8 @@ echo $external_host_ip > ./test/e2e/.external_host_ip
 sleep 5 # wait 5 seconds for the service ready
 
 # the consumer name is not specified, the consumer id will be used as the consumer name
-export consumer_name=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq -r '.id')
+export consumer_name=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq '.id')
+consumer_name=$(echo "$consumer_name" | sed 's/"//g')
 echo $consumer_name > ./test/e2e/.consumer_name
 
 # 7. deploy maestro agent into maestro-agent namespace

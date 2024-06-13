@@ -36,26 +36,26 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 		var initWorkBName string
 
 		BeforeEach(func() {
-			watcherCtx, watcherCancel = context.WithCancel(context.Background())
+			watcherCtx, watcherCancel = context.WithCancel(ctx)
 
 			// prepare two works firstly
 			initWorkAName = "init-work-a-" + rand.String(5)
 			work := NewManifestWorkWithLabels(initWorkAName, map[string]string{"app": "test"})
 
-			_, err := workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			initWorkBName = "init-work-b" + rand.String(5)
 			work = NewManifestWorkWithLabels(initWorkBName, map[string]string{"app": "test"})
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
-			err := workClient.ManifestWorks(consumer_name).Delete(ctx, initWorkAName, metav1.DeleteOptions{})
+			err := workClient.ManifestWorks(consumer.Name).Delete(ctx, initWorkAName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, initWorkBName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, initWorkBName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -80,34 +80,34 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("start watching")
-			watcher, err := watcherClient.ManifestWorks(consumer_name).Watch(watcherCtx, metav1.ListOptions{})
+			watcher, err := watcherClient.ManifestWorks(consumer.Name).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			result := StartWatch(watcherCtx, watcher)
 
 			By("create a work by work client")
 			workName := "work-" + rand.String(5)
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("update a work by work client")
-			work, err := workClient.ManifestWorks(consumer_name).Get(ctx, workName, metav1.GetOptions{})
+			work, err := workClient.ManifestWorks(consumer.Name).Get(ctx, workName, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			newWork := work.DeepCopy()
 			newWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
 			patchData, err := ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
-			_, err = workClient.ManifestWorks(consumer_name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the work status is updated by agent
 			<-time.After(5 * time.Second)
 
 			By("delete the work by work client")
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -129,8 +129,8 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			allConsumerWatcherResult := StartWatch(watcherCtx, allConsumerWatcher)
 
-			By("start watching works from consumer" + consumer_name)
-			consumerWatcher, err := watcherClient.ManifestWorks(consumer_name).Watch(watcherCtx, metav1.ListOptions{})
+			By("start watching works from consumer" + consumer.Name)
+			consumerWatcher, err := watcherClient.ManifestWorks(consumer.Name).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			consumerWatcherResult := StartWatch(watcherCtx, consumerWatcher)
 
@@ -141,14 +141,14 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			By("create a work by work client")
 			workName := "work-" + rand.String(5)
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("delete the work by work client")
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -177,7 +177,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("start watching with label app=test")
-			watcher, err := watcherClient.ManifestWorks(consumer_name).Watch(watcherCtx, metav1.ListOptions{
+			watcher, err := watcherClient.ManifestWorks(consumer.Name).Watch(watcherCtx, metav1.ListOptions{
 				LabelSelector: "app=test",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -186,14 +186,14 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			By("create a work by work client")
 			workName := "work-" + rand.String(5)
 			work := NewManifestWorkWithLabels(workName, map[string]string{"app": "test"})
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("delete the work by work client")
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -213,44 +213,44 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			// prepare works firstly
 			workName = "work-" + rand.String(5)
 			work := NewManifestWork(workName)
-			_, err := workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			prodWorkName = "work-prod" + rand.String(5)
 			work = NewManifestWorkWithLabels(prodWorkName, map[string]string{"app": "nginx", "env": "prod"})
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkAName = "work-test-a-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkAName, map[string]string{"app": "nginx", "env": "test", "val": "a"})
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkBName = "work-test-b-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkBName, map[string]string{"app": "nginx", "env": "test", "val": "b"})
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkCName = "work-test-c-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkCName, map[string]string{"app": "nginx", "env": "test", "val": "c"})
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
-			err := workClient.ManifestWorks(consumer_name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err := workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, prodWorkName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, prodWorkName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, testWorkAName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, testWorkAName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, testWorkBName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, testWorkBName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer_name).Delete(ctx, testWorkCName, metav1.DeleteOptions{})
+			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, testWorkCName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -281,7 +281,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works by consumer name")
-			works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{})
+			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
@@ -291,42 +291,42 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
 
 			By("list works with nonexistent labels")
-			works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{
+			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
 				LabelSelector: "nonexistent=true",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
 
 			By("list works with app label")
-			works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{
+			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
 				LabelSelector: "app=nginx",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works without test env")
-			works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{
+			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
 				LabelSelector: "app=nginx,env!=test",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName)).ShouldNot(HaveOccurred())
 
 			By("list works in prod and test env")
-			works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{
+			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
 				LabelSelector: "env in (prod, test)",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works in test env and val not in a and b")
-			works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{
+			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
 				LabelSelector: "env=test,val notin (a,b)",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works with val label")
-			works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{
+			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
 				LabelSelector: "val",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -334,7 +334,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			// TODO support does not exist
 			// By("list works without val label")
-			// works, err = workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{
+			// works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
 			// 	LabelSelector: "!val",
 			// })
 			// Expect(err).ShouldNot(HaveOccurred())
@@ -421,7 +421,7 @@ func AssertWatchResult(result *WatchedResult) error {
 }
 
 func AssertWorkNotFound(name string) error {
-	_, err := workClient.ManifestWorks(consumer_name).Get(ctx, name, metav1.GetOptions{})
+	_, err := workClient.ManifestWorks(consumer.Name).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		return nil
 	}
