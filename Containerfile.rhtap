@@ -1,4 +1,4 @@
-FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_1.20 AS builder
+FROM brew.registry.redhat.io/rh-osbs/openshift-golang-builder:rhel_8_1.21 AS builder
 
 ENV SOURCE_DIR=/maestro
 WORKDIR $SOURCE_DIR
@@ -23,7 +23,7 @@ COPY --from=builder \
 
 EXPOSE 8000
 
-ENTRYPOINT ["/usr/local/bin/maestro", "serve"]
+ENTRYPOINT ["/usr/local/bin/maestro", "server"]
 
 LABEL name="maestro" \
       vendor="Red Hat, Inc." \
