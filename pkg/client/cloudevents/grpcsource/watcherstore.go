@@ -107,8 +107,15 @@ func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWo
 func (m *RESTFulAPIWatcherStore) List(opts metav1.ListOptions) ([]*workv1.ManifestWork, error) {
 	works := []*workv1.ManifestWork{}
 
+	var size int32 = -1
+	if opts.Limit > 0 {
+		size = int32(opts.Limit)
+	}
+
 	apiRequest := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
-		Search(fmt.Sprintf("source = '%s'", m.sourceID))
+		Search(fmt.Sprintf("source = '%s'", m.sourceID)).
+		Page(1). // TODO consider how to support this
+		Size(size)
 
 	// TODO filter works by labels
 
