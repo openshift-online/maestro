@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -16,11 +17,13 @@ import (
 	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/work/spoke"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/cert"
 )
 
 var (
-	commonOptions = commonoptions.NewAgentOptions()
-	agentOption   = spoke.NewWorkloadAgentOptions()
+	commonOptions       = commonoptions.NewAgentOptions()
+	agentOption         = spoke.NewWorkloadAgentOptions()
+	certRefreshDuration = 5 * time.Minute
 )
 
 // by default uses 1M as the limit for state feedback
@@ -37,6 +40,10 @@ func NewAgentCommand() *cobra.Command {
 	cmd.Use = "agent"
 	cmd.Short = "Start the Maestro Agent"
 	cmd.Long = "Start the Maestro Agent"
+	cmd.PreRun = func(cmd *cobra.Command, args []string) {
+		// set the certificate refresh duration for the MQTT broker
+		cert.CertCallbackRefreshDuration = certRefreshDuration
+	}
 
 	// check if the flag is already registered to avoid duplicate flag define error
 	if flag.CommandLine.Lookup("alsologtostderr") != nil {
@@ -70,4 +77,6 @@ func addFlags(fs *pflag.FlagSet) {
 		commonOptions.SpokeClusterName, "Name of the consumer")
 	fs.BoolVar(&commonOptions.CommoOpts.CmdConfig.DisableLeaderElection, "disable-leader-election",
 		true, "Disable leader election.")
+	fs.DurationVar(&certRefreshDuration, "cert-refresh-duration",
+		certRefreshDuration, "Client certificate refresh duration for MQTT broker.")
 }

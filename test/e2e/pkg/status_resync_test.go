@@ -139,7 +139,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return fmt.Errorf("unexpected status, expected testKubeClient, got %s", string(statusJSON))
 				}
 				return nil
-			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the nginx resource", func() {
