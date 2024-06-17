@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -21,7 +20,6 @@ import (
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
@@ -29,32 +27,10 @@ import (
 
 var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 	Context("Watch work status with gRPC source ManifestWork client", func() {
-		var ctx context.Context
-		var cancel context.CancelFunc
-
-		var sourceID string
-		var grpcOptions *grpc.GRPCOptions
-
 		var watchedWorks []*workv1.ManifestWork
 
 		BeforeEach(func() {
-			ctx, cancel = context.WithCancel(context.Background())
-
-			sourceID = "sourceclient-test" + rand.String(5)
-
 			watchedWorks = []*workv1.ManifestWork{}
-
-			grpcOptions = grpc.NewGRPCOptions()
-			grpcOptions.URL = grpcServerAddress
-
-			workClient, err := work.NewClientHolderBuilder(grpcOptions).
-				WithClientID(fmt.Sprintf("%s-watcher", sourceID)).
-				WithSourceID(sourceID).
-				WithCodecs(codec.NewManifestBundleCodec()).
-				WithWorkClientWatcherStore(grpcsource.NewRESTFullAPIWatcherStore(apiClient, sourceID)).
-				WithResyncEnabled(false).
-				NewSourceClientHolder(ctx)
-			Expect(err).ShouldNot(HaveOccurred())
 
 			watcher, err := workClient.ManifestWorks(consumer_name).Watch(ctx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -84,10 +60,6 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			}()
 		})
 
-		AfterEach(func() {
-			cancel()
-		})
-
 		It("The work status should be watched", func() {
 			workClient, err := work.NewClientHolderBuilder(grpcOptions).
 				WithClientID(fmt.Sprintf("%s-client", sourceID)).
@@ -102,6 +74,9 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			workName := "work-" + rand.String(5)
 			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for few seconds to ensure the creation is finished
+			<-time.After(5 * time.Second)
 
 			By("list the works")
 			works, err := workClient.ManifestWorks(consumer_name).List(ctx, metav1.ListOptions{})
