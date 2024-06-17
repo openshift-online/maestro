@@ -129,6 +129,16 @@ func TestValidateJsonbSearch(t *testing.T) {
 			"search": "payload -> 'data' -> 'manifests' @> '[{\"metadata\":{\"labels\":{\"foo\":\";drop table xx;\"}}}]'",
 			"error":  "the search json is invalid",
 		},
+		{
+			"name":   "invalid search without field name",
+			"search": "->>",
+			"error":  "the search field name is invalid",
+		},
+		{
+			"name":   "invalid search with two ->> symbols",
+			"search": "payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels'->> 'foo' = 'bar' AND 'labels'->> 'foo'",
+			"error":  "the search value is invalid",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test["name"].(string), func(t *testing.T) {
