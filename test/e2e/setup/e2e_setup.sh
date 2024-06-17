@@ -95,7 +95,6 @@ step certificate create "maestro-mqtt-ca" ${certDir}/ca.crt ${certDir}/ca.key --
 step certificate create "maestro-mqtt-broker" ${certDir}/server.crt ${certDir}/server.key -san maestro-mqtt -san maestro-mqtt.maestro --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
 step certificate create "maestro-server-client" ${certDir}/server-client.crt ${certDir}/server-client.key --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
 step certificate create "maestro-agent-client" ${certDir}/agent-client.crt ${certDir}/agent-client.key --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
-step certificate create "maestro-invalid-client" ${certDir}/invalid-client.crt ${certDir}/invalid-client.key --profile leaf --not-after 1m --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
 
 # apply the mosquitto configmap
 cat << EOF | kubectl -n $namespace apply -f -
@@ -139,7 +138,6 @@ EOF
 
 # create secret containing the client certs to mqtt broker and patch the maestro deployment
 kubectl create secret generic maestro-server-certs -n $namespace --from-file=ca.crt=${certDir}/ca.crt --from-file=client.crt=${certDir}/server-client.crt --from-file=client.key=${certDir}/server-client.key
-kubectl create secret generic maestro-server-invalid-certs -n $namespace --from-file=ca.crt=${certDir}/ca.crt --from-file=client.crt=${certDir}/invalid-client.crt --from-file=client.key=${certDir}/invalid-client.key
 kubectl patch deploy/maestro -n $namespace --type='json' -p='[{"op": "add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
@@ -178,8 +176,7 @@ EOF
 
 # create secret containing the client certs to mqtt broker and patch the maestro-agent deployment
 kubectl create secret generic maestro-agent-certs -n ${agent_namespace} --from-file=ca.crt=${certDir}/ca.crt --from-file=client.crt=${certDir}/agent-client.crt --from-file=client.key=${certDir}/agent-client.key
-kubectl create secret generic maestro-agent-invalid-certs -n ${agent_namespace} --from-file=ca.crt=${certDir}/ca.crt --from-file=client.crt=${certDir}/invalid-client.crt --from-file=client.key=${certDir}/invalid-client.key
-kubectl patch deploy/maestro-agent -n ${agent_namespace} --type='json' -p='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-agent-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--cert-refresh-duration=5s"}]'
+kubectl patch deploy/maestro-agent -n ${agent_namespace} --type='json' -p='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-agent-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}}]'
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s
 
 # remove the certs

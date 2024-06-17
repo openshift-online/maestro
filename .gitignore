@@ -19,10 +19,6 @@
 # Ignore temporary *.swp files
 *.swp
 
-# Ignore certificate and key files
-*.crt
-*.key
-
 # Ignore test databases
 /db.sqlite.test.*
 
