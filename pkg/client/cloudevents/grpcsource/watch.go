@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/klog/v2"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -17,16 +18,18 @@ type workWatcher struct {
 	done    chan struct{}
 	stopped bool
 
-	namespace string
+	namespace     string
+	labelSelector labels.Selector
 }
 
 var _ watch.Interface = &workWatcher{}
 
-func newWorkWatcher(namespace string) *workWatcher {
+func newWorkWatcher(namespace string, labelSelector labels.Selector) *workWatcher {
 	return &workWatcher{
-		result:    make(chan watch.Event),
-		done:      make(chan struct{}),
-		namespace: namespace,
+		result:        make(chan watch.Event),
+		done:          make(chan struct{}),
+		namespace:     namespace,
+		labelSelector: labelSelector,
 	}
 }
 
@@ -65,6 +68,11 @@ func (w *workWatcher) Receive(evt watch.Event) {
 
 	if w.namespace != metav1.NamespaceAll && w.namespace != work.Namespace {
 		klog.V(4).Infof("ignore the work %s/%s for the watcher %s", work.Namespace, work.Name, w.namespace)
+		return
+	}
+
+	if !w.labelSelector.Matches(labels.Set(work.GetLabels())) {
+		klog.V(4).Infof("ignore the label unmatched work %s/%s for the watcher %s", work.Namespace, work.Name, w.namespace)
 		return
 	}
 

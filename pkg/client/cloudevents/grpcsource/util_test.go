@@ -6,6 +6,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -126,6 +127,81 @@ func TestToManifestWork(t *testing.T) {
 
 			if !equality.Semantic.DeepEqual(c.expected, work) {
 				t.Errorf("expected %v, but got %v", c.expected, work)
+			}
+		})
+	}
+}
+
+func TestToLabelSearch(t *testing.T) {
+	cases := []struct {
+		name                string
+		opts                v1.ListOptions
+		expectedSelectable  bool
+		expectedLabelSearch string
+	}{
+		{
+			name:                "no label selector",
+			opts:                v1.ListOptions{},
+			expectedSelectable:  false,
+			expectedLabelSearch: "",
+		},
+		{
+			name:                "selector everything",
+			opts:                v1.ListOptions{LabelSelector: labels.Everything().String()},
+			expectedSelectable:  false,
+			expectedLabelSearch: "",
+		},
+		{
+			name:                "one equals selector",
+			opts:                v1.ListOptions{LabelSelector: "a=b"},
+			expectedSelectable:  true,
+			expectedLabelSearch: `payload->'metadata'->'labels'@>'{"a":"b"}'`,
+		},
+		{
+			name:                "multiple equals selector",
+			opts:                v1.ListOptions{LabelSelector: "a=b,c==d"},
+			expectedSelectable:  true,
+			expectedLabelSearch: `payload->'metadata'->'labels'@>'{"a":"b","c":"d"}'`,
+		},
+		{
+			name:                "multiple not equals selector",
+			opts:                v1.ListOptions{LabelSelector: "a!=b,c!=d"},
+			expectedSelectable:  true,
+			expectedLabelSearch: `payload->'metadata'->'labels'->>'a'<>'b' and payload->'metadata'->'labels'->>'c'<>'d'`,
+		},
+		{
+			name:                "exist selector",
+			opts:                v1.ListOptions{LabelSelector: "a"},
+			expectedSelectable:  true,
+			expectedLabelSearch: `payload->'metadata'->'labels'->>'a'<>null`,
+		},
+		{
+			name:                "in selector",
+			opts:                v1.ListOptions{LabelSelector: "env in (a)"},
+			expectedSelectable:  true,
+			expectedLabelSearch: `payload->'metadata'->'labels'->>'env'in('a')`,
+		},
+		{
+			name:                "not in selector",
+			opts:                v1.ListOptions{LabelSelector: "env notin (a)"},
+			expectedSelectable:  true,
+			expectedLabelSearch: `payload->'metadata'->'labels'->>'env'<>'a'`,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			_, labelSearch, selectable, err := ToLabelSearch(c.opts)
+			if c.expectedSelectable != selectable {
+				t.Errorf("expected %v, but got %v", c.expectedSelectable, selectable)
+			}
+
+			if c.expectedLabelSearch != labelSearch {
+				t.Errorf("expected %s, but got %s", c.expectedLabelSearch, labelSearch)
+			}
+
+			if err != nil {
+				t.Errorf("expected error %v", err)
 			}
 		})
 	}
