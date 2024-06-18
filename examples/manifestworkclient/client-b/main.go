@@ -23,8 +23,6 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 const sourceID = "mw-client-example"
@@ -67,13 +65,12 @@ func main() {
 	grpcOptions := grpc.NewGRPCOptions()
 	grpcOptions.URL = *grpcServerAddr
 
-	workClient, err := work.NewClientHolderBuilder(grpcOptions).
-		WithClientID(fmt.Sprintf("%s-client-b", sourceID)).
-		WithSourceID(sourceID).
-		WithCodecs(codec.NewManifestBundleCodec()).
-		WithWorkClientWatcherStore(grpcsource.NewRESTFullAPIWatcherStore(maestroAPIClient, sourceID)).
-		WithResyncEnabled(false).
-		NewSourceClientHolder(ctx)
+	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
+		ctx,
+		maestroAPIClient,
+		grpcOptions,
+		sourceID,
+	)
 	if err != nil {
 		log.Fatal(err)
 	}

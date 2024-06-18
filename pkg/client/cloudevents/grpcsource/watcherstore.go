@@ -4,14 +4,19 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/klog/v2"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -28,54 +33,74 @@ import (
 type RESTFulAPIWatcherStore struct {
 	sync.RWMutex
 
-	result         chan watch.Event
-	done           chan struct{}
-	watcherStopped bool
-
 	sourceID  string
 	apiClient *openapi.APIClient
+
+	watchers  map[string]*workWatcher
+	workQueue cache.Queue
 }
 
 var _ store.WorkClientWatcherStore = &RESTFulAPIWatcherStore{}
 
-func NewRESTFullAPIWatcherStore(apiClient *openapi.APIClient, sourceID string) *RESTFulAPIWatcherStore {
-	return &RESTFulAPIWatcherStore{
-		result:         make(chan watch.Event),
-		done:           make(chan struct{}),
-		watcherStopped: false,
-
+func newRESTFulAPIWatcherStore(ctx context.Context, apiClient *openapi.APIClient, sourceID string) *RESTFulAPIWatcherStore {
+	s := &RESTFulAPIWatcherStore{
 		sourceID:  sourceID,
 		apiClient: apiClient,
+		watchers:  make(map[string]*workWatcher),
+		workQueue: cache.NewFIFO(func(obj interface{}) (string, error) {
+			work, ok := obj.(*workv1.ManifestWork)
+			if !ok {
+				return "", fmt.Errorf("unknown object type %T", obj)
+			}
+
+			// ensure there is only one object in the queue for a work
+			return string(work.UID), nil
+		}),
 	}
+
+	// start a goroutine to send works to the watcher
+	go wait.Until(s.process, time.Second, ctx.Done())
+
+	return s
 }
 
-// ResultChan implements watch interface.
-func (m *RESTFulAPIWatcherStore) ResultChan() <-chan watch.Event {
-	return m.result
-}
-
-// Stop implements watch interface.
-func (m *RESTFulAPIWatcherStore) Stop() {
-	// Call Close() exactly once by locking and setting a flag.
-	m.Lock()
-	defer m.Unlock()
-	// closing a closed channel always panics, therefore check before closing
-	select {
-	case <-m.done:
-		close(m.result)
-	default:
-		m.watcherStopped = true
-		close(m.done)
+// GetWatcher returns a watcher to the source work client with a specified namespace (consumer name).
+// Using `metav1.NamespaceAll` to specify all namespaces.
+func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+	// Only list works from maestro server with the given namespace when a watcher is required
+	search := []string{fmt.Sprintf("source = '%s'", m.sourceID)}
+	if namespace != metav1.NamespaceAll {
+		search = append(search, fmt.Sprintf("consumer_name = '%s'", namespace))
 	}
+
+	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
+		Search(strings.Join(search, " and ")).
+		Page(1).
+		Size(-1).
+		Execute()
+	if err != nil {
+		return nil, err
+	}
+
+	watcher := m.registerWatcher(namespace)
+
+	// save the works to a queue
+	for _, rb := range rbs.Items {
+		work, err := ToManifestWork(&rb)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := m.workQueue.Add(work); err != nil {
+			return nil, err
+		}
+	}
+
+	return watcher, nil
 }
 
 // HandleReceivedWork sends the received works to the watch channel
 func (m *RESTFulAPIWatcherStore) HandleReceivedWork(action types.ResourceAction, work *workv1.ManifestWork) error {
-	if m.isWatcherStopped() {
-		// watcher is stopped, do nothing.
-		return nil
-	}
-
 	switch action {
 	case types.StatusModified:
 		watchType := watch.Modified
@@ -83,13 +108,14 @@ func (m *RESTFulAPIWatcherStore) HandleReceivedWork(action types.ResourceAction,
 			watchType = watch.Deleted
 		}
 
-		m.result <- watch.Event{Type: watchType, Object: work}
+		m.sendWatchEvent(watch.Event{Type: watchType, Object: work})
 		return nil
 	default:
 		return fmt.Errorf("unknown resource action %s", action)
 	}
 }
 
+// Get a work from maestro server with its namespace and name
 func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, error) {
 	id := utils.UID(m.sourceID, namespace, name)
 	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(context.Background(), id).Execute()
@@ -104,22 +130,30 @@ func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWo
 	return ToManifestWork(rb)
 }
 
-func (m *RESTFulAPIWatcherStore) List(opts metav1.ListOptions) ([]*workv1.ManifestWork, error) {
+// List works from maestro server with a specified namespace and list options.
+// Using `metav1.NamespaceAll` to specify all namespace
+func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions) ([]*workv1.ManifestWork, error) {
 	works := []*workv1.ManifestWork{}
+
+	// TODO consider how to support configuring page
+	var page int32 = 1
 
 	var size int32 = -1
 	if opts.Limit > 0 {
 		size = int32(opts.Limit)
 	}
 
-	apiRequest := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
-		Search(fmt.Sprintf("source = '%s'", m.sourceID)).
-		Page(1). // TODO consider how to support this
-		Size(size)
-
 	// TODO filter works by labels
+	search := []string{fmt.Sprintf("source = '%s'", m.sourceID)}
+	if namespace != metav1.NamespaceAll {
+		search = append(search, fmt.Sprintf("consumer_name = '%s'", namespace))
+	}
 
-	rbs, _, err := apiRequest.Execute()
+	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
+		Search(strings.Join(search, " and ")).
+		Page(page).
+		Size(size).
+		Execute()
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +171,7 @@ func (m *RESTFulAPIWatcherStore) List(opts metav1.ListOptions) ([]*workv1.Manife
 }
 
 func (m *RESTFulAPIWatcherStore) ListAll() ([]*workv1.ManifestWork, error) {
-	return m.List(metav1.ListOptions{})
+	return m.List(metav1.NamespaceAll, metav1.ListOptions{})
 }
 
 func (m *RESTFulAPIWatcherStore) Add(work *workv1.ManifestWork) error {
@@ -159,9 +193,106 @@ func (m *RESTFulAPIWatcherStore) HasInitiated() bool {
 	return true
 }
 
-func (m *RESTFulAPIWatcherStore) isWatcherStopped() bool {
+func (m *RESTFulAPIWatcherStore) Sync() error {
 	m.RLock()
 	defer m.RUnlock()
 
-	return m.watcherStopped
+	if len(m.watchers) == 0 {
+		// there are no watchers, do nothing
+		return nil
+	}
+
+	hasAll := false
+	namespaces := []string{}
+	for namespace := range m.watchers {
+		if namespace == metav1.NamespaceAll {
+			hasAll = true
+			break
+		}
+
+		namespaces = append(namespaces, fmt.Sprintf("consumer_name = '%s'", namespace))
+	}
+
+	search := []string{fmt.Sprintf("source = '%s'", m.sourceID)}
+	if !hasAll {
+		search = append(search, namespaces...)
+	}
+
+	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
+		Search(strings.Join(search, " or ")).
+		Page(1).
+		Size(-1).
+		Execute()
+	if err != nil {
+		return err
+	}
+
+	// save the works to a queue
+	for _, rb := range rbs.Items {
+		work, err := ToManifestWork(&rb)
+		if err != nil {
+			return err
+		}
+
+		if err := m.workQueue.Add(work); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// process drains the work queue and send the work to the watch channel.
+func (m *RESTFulAPIWatcherStore) process() {
+	for {
+		// this will be blocked until the work queue has works
+		obj, err := m.workQueue.Pop(func(interface{}, bool) error {
+			// do nothing
+			return nil
+		})
+		if err != nil {
+			if err == cache.ErrFIFOClosed {
+				return
+			}
+
+			klog.Warningf("failed to pop the %v requeue it, %v", obj, err)
+			// this is the safe way to re-enqueue.
+			if err := m.workQueue.AddIfNotPresent(obj); err != nil {
+				klog.Errorf("failed to requeue the obj %v, %v", obj, err)
+				return
+			}
+		}
+
+		work, ok := obj.(*workv1.ManifestWork)
+		if !ok {
+			klog.Errorf("unknown the object type %T from the event queue", obj)
+			return
+		}
+
+		m.sendWatchEvent(watch.Event{Type: watch.Modified, Object: work})
+	}
+}
+
+func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string) watch.Interface {
+	m.Lock()
+	defer m.Unlock()
+
+	watcher, ok := m.watchers[namespace]
+	if ok {
+		return watcher
+	}
+
+	watcher = newWorkWatcher(namespace)
+	m.watchers[namespace] = watcher
+	return watcher
+}
+
+func (m *RESTFulAPIWatcherStore) sendWatchEvent(evt watch.Event) {
+	m.RLock()
+	defer m.RUnlock()
+
+	for _, w := range m.watchers {
+		// this will be blocked until this work is consumed
+		w.Receive(evt)
+	}
 }

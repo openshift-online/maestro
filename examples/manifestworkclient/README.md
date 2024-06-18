@@ -1,24 +1,21 @@
 # gRPC Source ManifestWork Client
 
-This example shows how to build a source ManifestWork client with `RESTFullAPIWatcherStore` and watch/create/get/update/delete works by the client.
+This example shows how to build a source ManifestWork client with Maestro gRPC service and watch/create/get/update/delete works by this client.
 
 ## Build the client
-
-Using sdk-go to build a source ManifestWork client with `RESTFullAPIWatcherStore`
 
 ```golang
 sourceID := "mw-client-example"
 
-workClient, err := work.NewClientHolderBuilder(grpcOptions).
-    WithClientID(fmt.Sprintf("%s-client", sourceID)).
-    WithSourceID(sourceID).
-    WithCodecs(codec.NewManifestBundleCodec()).
-    WithWorkClientWatcherStore(grpcsource.NewRESTFullAPIWatcherStore(ctx, maestroAPIClient, sourceID)).
-    WithResyncEnabled(false).
-    NewSourceClientHolder(ctx)
+workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
+	ctx,
+	maestroAPIClient,
+	maestroGRPCOptions,
+	sourceID,
+)
 
 if err != nil {
-    log.Fatal(err)
+		log.Fatal(err)
 }
 
 // watch/create/patch/get/delete/list by workClient

@@ -30,7 +30,7 @@ func NewAgentCommand() *cobra.Command {
 	agentOption.MaxJSONRawLength = maxJSONRawLength
 	agentOption.CloudEventsClientCodecs = []string{"manifest", "manifestbundle"}
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
-	cmdConfig := commonOptions.CommoOpts.
+	cmdConfig := commonOptions.CommonOpts.
 		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent)
 
 	cmd := cmdConfig.NewCommandWithContext(context.TODO())
@@ -68,6 +68,6 @@ func NewAgentCommand() *cobra.Command {
 func addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-name",
 		commonOptions.SpokeClusterName, "Name of the consumer")
-	fs.BoolVar(&commonOptions.CommoOpts.CmdConfig.DisableLeaderElection, "disable-leader-election",
+	fs.BoolVar(&commonOptions.CommonOpts.CmdConfig.DisableLeaderElection, "disable-leader-election",
 		true, "Disable leader election.")
 }

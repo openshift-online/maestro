@@ -15,14 +15,18 @@ import (
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
+
+	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
 	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
+
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/store"
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/golang-jwt/jwt/v4"
@@ -262,14 +266,25 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 		workCodec = codec.NewManifestCodec(nil)
 	}
 
-	clientHolder, informer, err := work.NewClientHolderBuilder(mqttOptions).
+	watcherStore := store.NewAgentInformerWatcherStore()
+
+	clientHolder, err := work.NewClientHolderBuilder(mqttOptions).
 		WithClientID(clusterName).
 		WithClusterName(clusterName).
 		WithCodecs(workCodec).
-		NewAgentClientHolderWithInformer(ctx)
+		WithWorkClientWatcherStore(watcherStore).
+		NewAgentClientHolder(ctx)
 	if err != nil {
 		glog.Fatalf("Unable to create work agent holder: %s", err)
 	}
+
+	factory := workinformers.NewSharedInformerFactoryWithOptions(
+		clientHolder.WorkInterface(),
+		5*time.Minute,
+		workinformers.WithNamespace(clusterName),
+	)
+	informer := factory.Work().V1().ManifestWorks()
+	watcherStore.SetStore(informer.Informer().GetStore())
 
 	go informer.Informer().Run(ctx.Done())
 

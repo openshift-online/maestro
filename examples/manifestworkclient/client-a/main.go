@@ -21,8 +21,6 @@ import (
 
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 const sourceID = "mw-client-example"
@@ -31,6 +29,7 @@ var (
 	maestroServerAddr = flag.String("maestro-server", "https://127.0.0.1:30080", "The Maestro server address")
 	grpcServerAddr    = flag.String("grpc-server", "127.0.0.1:30090", "The GRPC server address")
 	consumerName      = flag.String("consumer-name", "", "The Consumer Name")
+	printWorkDetails  = flag.Bool("print-work-details", false, "Print work details")
 )
 
 func main() {
@@ -71,13 +70,12 @@ func main() {
 	grpcOptions := grpc.NewGRPCOptions()
 	grpcOptions.URL = *grpcServerAddr
 
-	workClient, err := work.NewClientHolderBuilder(grpcOptions).
-		WithClientID(fmt.Sprintf("%s-client-a", sourceID)).
-		WithSourceID(sourceID).
-		WithCodecs(codec.NewManifestBundleCodec()).
-		WithWorkClientWatcherStore(grpcsource.NewRESTFullAPIWatcherStore(maestroAPIClient, sourceID)).
-		WithResyncEnabled(false).
-		NewSourceClientHolder(ctx)
+	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
+		ctx,
+		maestroAPIClient,
+		grpcOptions,
+		sourceID,
+	)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -99,11 +97,9 @@ func main() {
 				}
 				switch event.Type {
 				case watch.Modified:
-					fmt.Printf("watched work (uid=%s) is modified\n", event.Object.(*workv1.ManifestWork).UID)
-					PrintWork(event.Object.(*workv1.ManifestWork))
+					Print(event, *printWorkDetails)
 				case watch.Deleted:
-					fmt.Printf("watched work (uid=%s) is deleted\n", event.Object.(*workv1.ManifestWork).UID)
-					PrintWork(event.Object.(*workv1.ManifestWork))
+					Print(event, *printWorkDetails)
 				}
 			}
 		}
@@ -112,10 +108,15 @@ func main() {
 	<-ctx.Done()
 }
 
-func PrintWork(work *workv1.ManifestWork) {
-	workJson, err := json.MarshalIndent(work, "", "  ")
-	if err != nil {
-		log.Fatal(err)
+func Print(event watch.Event, printDetails bool) {
+	work := event.Object.(*workv1.ManifestWork)
+	fmt.Printf("watched work (uid=%s) is %s\n", work.UID, event.Type)
+
+	if printDetails {
+		workJson, err := json.MarshalIndent(work, "", "  ")
+		if err != nil {
+			log.Fatal(err)
+		}
+		fmt.Printf("%s\n", string(workJson))
 	}
-	fmt.Printf("%s\n", string(workJson))
 }
