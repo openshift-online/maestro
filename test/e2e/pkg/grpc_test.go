@@ -127,13 +127,13 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("resource not Available")
 				}
 
-				availableReplicas, ok := resourceStatus.ContentStatus["availableReplicas"]
+				replicas, ok := resourceStatus.ContentStatus["replicas"]
 				if !ok {
-					return fmt.Errorf("available replicas not found in content status")
+					return fmt.Errorf("replicas not found in content status")
 				}
 
-				if availableReplicas.(float64) != float64(1) {
-					return fmt.Errorf("unexpected available replicas, expected 1, got %d", availableReplicas)
+				if replicas.(float64) != float64(1) {
+					return fmt.Errorf("unexpected replicas, expected 1, got %d", replicas)
 				}
 
 				return nil
@@ -192,13 +192,13 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("resource not Available")
 				}
 
-				availableReplicas, ok := resourceStatus.ContentStatus["availableReplicas"]
+				replicas, ok := resourceStatus.ContentStatus["replicas"]
 				if !ok {
-					return fmt.Errorf("available replicas not found in content status")
+					return fmt.Errorf("replicas not found in content status")
 				}
 
-				if availableReplicas.(float64) != float64(2) {
-					return fmt.Errorf("unexpected available replicas, expected 2, got %d", availableReplicas)
+				if replicas.(float64) != float64(2) {
+					return fmt.Errorf("unexpected replicas, expected 2, got %d", replicas)
 				}
 
 				return nil
@@ -376,13 +376,13 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("failed to convert status feedback value to content status: %v", err)
 				}
 
-				availableReplicas, ok := contentStatus["availableReplicas"]
+				replicas, ok := contentStatus["replicas"]
 				if !ok {
-					return fmt.Errorf("available replicas not found in content status")
+					return fmt.Errorf("replicas not found in content status")
 				}
 
-				if availableReplicas.(float64) != float64(1) {
-					return fmt.Errorf("unexpected available replicas, expected 1, got %d", availableReplicas)
+				if replicas.(float64) != float64(1) {
+					return fmt.Errorf("unexpected replicas, expected 1, got %d", replicas)
 				}
 
 				return nil
@@ -456,13 +456,13 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("failed to convert status feedback value to content status: %v", err)
 				}
 
-				availableReplicas, ok := contentStatus["availableReplicas"]
+				replicas, ok := contentStatus["replicas"]
 				if !ok {
-					return fmt.Errorf("available replicas not found in content status")
+					return fmt.Errorf("replicas not found in content status")
 				}
 
-				if availableReplicas.(float64) != float64(2) {
-					return fmt.Errorf("unexpected available replicas, expected 2, got %d", availableReplicas)
+				if replicas.(float64) != float64(2) {
+					return fmt.Errorf("unexpected replicas, expected 2, got %d", replicas)
 				}
 
 				return nil

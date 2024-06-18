@@ -83,6 +83,38 @@ make template \
 	deploy-mqtt \
 	deploy-service
 
+cat << EOF | kubectl -n $namespace apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro-mqtt-server
+  namespace: maestro
+spec:
+  ports:
+  - name: mosquitto
+    port: 1883
+    protocol: TCP
+    targetPort: 1883
+  selector:
+    name: maestro-mqtt
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro-mqtt-agent
+  namespace: maestro
+spec:
+  ports:
+  - name: mosquitto
+    port: 1883
+    protocol: TCP
+    targetPort: 1883
+  selector:
+    name: maestro-mqtt
+  type: ClusterIP
+EOF
+
 # expose the maestro server via nodeport
 kubectl patch service maestro -n $namespace -p '{"spec":{"type":"NodePort", "ports":  [{"nodePort": 30080, "port": 8000, "targetPort": 8000}]}}' --type merge
 
@@ -92,7 +124,7 @@ kubectl patch service maestro-grpc -n $namespace -p '{"spec":{"type":"NodePort",
 # 5. create a self-signed certificate for mqtt
 certDir=$(mktemp -d)
 step certificate create "maestro-mqtt-ca" ${certDir}/ca.crt ${certDir}/ca.key --profile root-ca --no-password --insecure
-step certificate create "maestro-mqtt-broker" ${certDir}/server.crt ${certDir}/server.key -san maestro-mqtt -san maestro-mqtt.maestro --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
+step certificate create "maestro-mqtt-broker" ${certDir}/server.crt ${certDir}/server.key -san maestro-mqtt -san maestro-mqtt.maestro -san maestro-mqtt-server -san maestro-mqtt-server.maestro -san maestro-mqtt-agent -san maestro-mqtt-agent.maestro --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
 step certificate create "maestro-server-client" ${certDir}/server-client.crt ${certDir}/server-client.key --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
 step certificate create "maestro-agent-client" ${certDir}/agent-client.crt ${certDir}/agent-client.key --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
 
@@ -127,7 +159,7 @@ metadata:
   name: maestro-mqtt
 stringData:
   config.yaml: |
-    brokerHost: maestro-mqtt.maestro:1883
+    brokerHost: maestro-mqtt-server.maestro:1883
     caFile: /secrets/mqtt-certs/ca.crt
     clientCertFile: /secrets/mqtt-certs/client.crt
     clientKeyFile: /secrets/mqtt-certs/client.key
@@ -165,7 +197,7 @@ metadata:
   name: maestro-agent-mqtt
 stringData:
   config.yaml: |
-    brokerHost: maestro-mqtt.maestro:1883
+    brokerHost: maestro-mqtt-agent.maestro:1883
     caFile: /secrets/mqtt-certs/ca.crt
     clientCertFile: /secrets/mqtt-certs/client.crt
     clientKeyFile: /secrets/mqtt-certs/client.key

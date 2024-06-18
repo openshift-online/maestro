@@ -53,6 +53,75 @@ var testManifestJSON = `
 }
 `
 
+var testManifestJSONWithSA = `
+{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+	  "name": "nginx",
+	  "namespace": "default"
+	},
+	"spec": {
+	  "replicas": %d,
+	  "selector": {
+		"matchLabels": {
+		  "app": "nginx"
+		}
+	  },
+	  "template": {
+		"metadata": {
+		  "labels": {
+			"app": "nginx"
+		  }
+		},
+		"spec": {
+		  "serviceAccount": "%s",
+		  "containers": [
+			{
+			  "image": "nginxinc/nginx-unprivileged",
+			  "name": "nginx"
+			}
+		  ]
+		}
+	  }
+	}
+}
+`
+
+var testManifestIndexJSON = `
+{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+	  "name": "nginx-%d",
+	  "namespace": "default"
+	},
+	"spec": {
+	  "replicas": %d,
+	  "selector": {
+		"matchLabels": {
+		  "app": "nginx"
+		}
+	  },
+	  "template": {
+		"metadata": {
+		  "labels": {
+			"app": "nginx"
+		  }
+		},
+		"spec": {
+		  "containers": [
+			{
+			  "image": "nginxinc/nginx-unprivileged",
+			  "name": "nginx"
+			}
+		  ]
+		}
+	  }
+	}
+}
+`
+
 var testReadOnlyManifestJSON = `
 {
 	"apiVersion": "apps/v1",
@@ -70,6 +139,30 @@ var testReadOnlyManifestJSON = `
 func (helper *Helper) NewAPIResource(consumerName string, replicas int) openapi.Resource {
 	testManifest := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
+		helper.T.Errorf("error unmarshalling test manifest: %q", err)
+	}
+
+	return openapi.Resource{
+		Manifest:     testManifest,
+		ConsumerName: &consumerName,
+	}
+}
+
+func (helper *Helper) NewAPIResourceWithSA(consumerName string, replicas int, sa string) openapi.Resource {
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSONWithSA, replicas, sa)), &testManifest); err != nil {
+		helper.T.Errorf("error unmarshalling test manifest: %q", err)
+	}
+
+	return openapi.Resource{
+		Manifest:     testManifest,
+		ConsumerName: &consumerName,
+	}
+}
+
+func (helper *Helper) NewAPIResourceWithIndex(consumerName string, replicas, index int) openapi.Resource {
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestIndexJSON, index, replicas)), &testManifest); err != nil {
 		helper.T.Errorf("error unmarshalling test manifest: %q", err)
 	}
 

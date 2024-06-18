@@ -136,7 +136,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					}
 				}
 				return nil
-			}, 30*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
+			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the nginx deployment", func() {
@@ -199,7 +199,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 30*time.Second, 2*time.Second).ShouldNot(HaveOccurred())
+			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the nginx resource", func() {

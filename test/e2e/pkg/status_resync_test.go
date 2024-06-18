@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -19,12 +20,13 @@ import (
 var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), func() {
 
 	var resource *openapi.Resource
+	var maestroServerReplicas int
 
-	Context("Resource resync resource status", func() {
+	Context("Resource resync resource status after maestro server restarts", func() {
 
-		It("post the nginx resource to the maestro api", func() {
+		It("post the nginx resource with non-default service account to the maestro api", func() {
 
-			res := helper.NewAPIResource(consumer_name, 1)
+			res := helper.NewAPIResourceWithSA(consumer_name, 1, "nginx")
 			var resp *http.Response
 			var err error
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(context.Background()).Resource(res).Execute()
@@ -49,15 +51,30 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(*gotResource.Id).To(Equal(*resource.Id))
 			Expect(*gotResource.Version).To(Equal(*resource.Version))
 
-			statusJSON, err := json.Marshal(gotResource.Status)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(strings.Contains(string(statusJSON), "testKubeClient")).To(BeFalse())
+			Eventually(func() error {
+				gotResource, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), *resource.Id).Execute()
+				if err != nil {
+					return err
+				}
+				statusJSON, err := json.Marshal(gotResource.Status)
+				if err != nil {
+					return err
+				}
+				if !strings.Contains(string(statusJSON), "error looking up service account default/nginx") {
+					return fmt.Errorf("unexpected status, expected error looking up service account default/nginx, got %s", string(statusJSON))
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("shut down maestro server", func() {
 
-			// patch marstro server replicas to 0
-			deploy, err := kubeClient.AppsV1().Deployments("maestro").Patch(context.Background(), "maestro", types.MergePatchType, []byte(`{"spec":{"replicas":0}}`), metav1.PatchOptions{
+			deploy, err := kubeClient.AppsV1().Deployments("maestro").Get(context.Background(), "maestro", metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			maestroServerReplicas = int(*deploy.Spec.Replicas)
+
+			// patch maestro server replicas to 0
+			deploy, err = kubeClient.AppsV1().Deployments("maestro").Patch(context.Background(), "maestro", types.MergePatchType, []byte(`{"spec":{"replicas":0}}`), metav1.PatchOptions{
 				FieldManager: "testKubeClient",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -78,23 +95,28 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("patch the resource in the cluster", func() {
+		It("create default/nginx serviceaccount", func() {
 
-			deploy, err := kubeClient.AppsV1().Deployments("default").Patch(context.Background(), "nginx", types.MergePatchType, []byte(`{"spec":{"replicas":0}}`), metav1.PatchOptions{
-				FieldManager: "testKubeClient",
-			})
+			_, err := kubeClient.CoreV1().ServiceAccounts("default").Create(context.Background(), &corev1.ServiceAccount{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "nginx",
+				},
+			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(*deploy.Spec.Replicas).To(Equal(int32(0)))
+
+			// delete the nginx deployment to tigger recreating
+			err = kubeClient.AppsV1().Deployments("default").Delete(context.Background(), "nginx", metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("start maestro server", func() {
 
-			// patch marstro server replicas to 1
-			deploy, err := kubeClient.AppsV1().Deployments("maestro").Patch(context.Background(), "maestro", types.MergePatchType, []byte(`{"spec":{"replicas":1}}`), metav1.PatchOptions{
+			// patch maestro server replicas to 1
+			deploy, err := kubeClient.AppsV1().Deployments("maestro").Patch(context.Background(), "maestro", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, maestroServerReplicas)), metav1.PatchOptions{
 				FieldManager: "testKubeClient",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(*deploy.Spec.Replicas).To(Equal(int32(1)))
+			Expect(*deploy.Spec.Replicas).To(Equal(int32(maestroServerReplicas)))
 
 			// ensure maestro server pod is up and running
 			Eventually(func() error {
@@ -104,39 +126,37 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 				if err != nil {
 					return err
 				}
-				if len(pods.Items) == 0 {
-					return fmt.Errorf("unable to find maestro server pod")
+				if len(pods.Items) != maestroServerReplicas {
+					return fmt.Errorf("unexpected maestro server pod count, expected %d, got %d", maestroServerReplicas, len(pods.Items))
 				}
-				if pods.Items[0].Status.Phase != "Running" {
-					return fmt.Errorf("maestro server pod not in running state")
+				for _, pod := range pods.Items {
+					if pod.Status.Phase != "Running" {
+						return fmt.Errorf("maestro server pod not in running state")
+					}
+					if pod.Status.ContainerStatuses[0].State.Running == nil {
+						return fmt.Errorf("maestro server container not in running state")
+					}
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the resource status is resynced", func() {
+
 			Eventually(func() error {
-				gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), *resource.Id).Execute()
+				gotResource, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), *resource.Id).Execute()
 				if err != nil {
 					return err
 				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected status code, expected 200, got %d", resp.StatusCode)
+				if _, ok := gotResource.Status["ContentStatus"]; !ok {
+					return fmt.Errorf("unexpected status, expected contains ContentStatus, got %v", gotResource.Status)
 				}
-				if *gotResource.Id != *resource.Id {
-					return fmt.Errorf("unexpected resource id, expected %s, got %s", *resource.Id, *gotResource.Id)
-				}
-				if *gotResource.Version != *resource.Version {
-					return fmt.Errorf("unexpected resource version, expected %d, got %d", *resource.Version, *gotResource.Version)
-				}
-
 				statusJSON, err := json.Marshal(gotResource.Status)
 				if err != nil {
 					return err
 				}
-				// TODO: add a better check if the status is resynced
-				if !strings.Contains(string(statusJSON), "testKubeClient") {
-					return fmt.Errorf("unexpected status, expected testKubeClient, got %s", string(statusJSON))
+				if strings.Contains(string(statusJSON), "error looking up service account default/nginx") {
+					return fmt.Errorf("unexpected status, should not contain error looking up service account default/nginx, got %s", string(statusJSON))
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
@@ -158,8 +178,10 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 				}
 				return fmt.Errorf("nginx deployment still exists")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			err = kubeClient.CoreV1().ServiceAccounts("default").Delete(context.Background(), "nginx", metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 	})
-
 })
