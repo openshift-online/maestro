@@ -79,3 +79,74 @@ func TestSQLTranslation(t *testing.T) {
 		Expect(values).To(valuesReal)
 	}
 }
+
+func TestValidateJsonbSearch(t *testing.T) {
+	RegisterTestingT(t)
+	tests := []map[string]interface{}{
+		{
+			"name":   "valid ->> search",
+			"search": "payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels' ->> 'foo' = 'bar'",
+		},
+		{
+			"name":   "invalid field name with SQL injection",
+			"search": "payload -> 'data; drop db;' -> 'manifest' -> 'metadata' -> 'labels' ->> 'foo' = 'bar'",
+			"error":  "the search field name is invalid",
+		},
+		{
+			"name":   "invalid name with SQL injection",
+			"search": "payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels' ->> 'foo;drop db' = 'bar'",
+			"error":  "the search name is invalid",
+		},
+		{
+			"name":   "invalid value",
+			"search": "payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels' ->> 'foo' = '###'",
+			"error":  "the search value is invalid",
+		},
+		{
+			"name":   "emtpty value is valid",
+			"search": "payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels' ->> 'foo' = ",
+		},
+		{
+			"name":   "complex labels",
+			"search": "payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels' ->> 'example.com/version'",
+		},
+		{
+			"name":   "valid @> search",
+			"search": "payload -> 'data' -> 'manifests' @> '[{\"metadata\":{\"labels\":{\"foo\":\"bar\"}}}]'",
+		},
+		{
+			"name":   "invalid json object, must be an array",
+			"search": "payload -> 'data' -> 'manifests' @> '{\"metadata\":{\"labels\":{\"foo\":\"bar\"}}}'",
+			"error":  "the search json is invalid",
+		},
+		{
+			"name":   "invalid json object, missed }",
+			"search": "payload -> 'data' -> 'manifests' @> '[{\"metadata\":{\"labels\":{\"foo\":\"bar\"}}]'",
+			"error":  "the search json is invalid",
+		},
+		{
+			"name":   "invalid json object with SQL injection",
+			"search": "payload -> 'data' -> 'manifests' @> '[{\"metadata\":{\"labels\":{\"foo\":\";drop table xx;\"}}}]'",
+			"error":  "the search json is invalid",
+		},
+		{
+			"name":   "invalid search without field name",
+			"search": "->>",
+			"error":  "the search field name is invalid",
+		},
+		{
+			"name":   "invalid search with two ->> symbols",
+			"search": "payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels'->> 'foo' = 'bar' AND 'labels'->> 'foo'",
+			"error":  "the search value is invalid",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test["name"].(string), func(t *testing.T) {
+			search := test["search"].(string)
+			err := validateJSONBSearch(search)
+			if err != nil {
+				Expect(err.Error()).To(ContainSubstring(test["error"].(string)))
+			}
+		})
+	}
+}
