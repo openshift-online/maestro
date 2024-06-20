@@ -2,18 +2,17 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	e "errors"
 	"fmt"
 	"reflect"
 	"strings"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/openshift-online/ocm-common/pkg/utils/parser/sql_parser"
 	"github.com/yaacov/tree-search-language/pkg/tsl"
 	"github.com/yaacov/tree-search-language/pkg/walkers/ident"
 	sqlFilter "github.com/yaacov/tree-search-language/pkg/walkers/sql"
 	"gorm.io/gorm"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -156,12 +155,12 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	}
 
 	if isJSONBSearch(listCtx.args.Search) {
-		// focus on jsonb, ignore type = 'Single' or 'Bundle'
-		jsonbSearch, _, _ := strings.Cut(listCtx.args.Search, "and type=")
-		if err := validateJSONBSearch(jsonbSearch); err != nil {
-			return false, errors.BadRequest("failed to validate search query: %v", err)
+		parser := sql_parser.NewSQLParser()
+		sql, values, err := parser.Parse(listCtx.args.Search)
+		if err != nil {
+			return false, errors.BadRequest("failed to parse the search query: %v", err)
 		}
-		(*d).Where(listCtx.args.Search, nil)
+		(*d).Where(sql, values.([]interface{}))
 		return true, nil
 	}
 
@@ -350,60 +349,4 @@ func isJSONBSearch(search string) bool {
 		return true
 	}
 	return false
-}
-
-func validateJSONBSearch(search string) error {
-	// handle ->> search. for example: payload -> 'data' -> 'manifest' -> 'metadata' -> 'labels' ->> 'foo' = 'bar'
-	if strings.Contains(search, "->>") {
-		jsonbStr := stringSplitwithTrim(search, "->>")
-		if err := isValidFields(stringSplitwithTrim(jsonbStr[0], "->")); err != nil {
-			return fmt.Errorf("the search field name is invalid: %v", err)
-		}
-		labelStr := stringSplitwithTrim(jsonbStr[1], "=")
-		if err := validation.IsQualifiedName(labelStr[0]); err != nil {
-			return fmt.Errorf("the search name is invalid: %v", err)
-		}
-		if len(labelStr) > 1 {
-			if err := validation.IsValidLabelValue(labelStr[1]); err != nil {
-				return fmt.Errorf("the search value is invalid: %v", err)
-			}
-		}
-	}
-	// handle @> search. for example: payload -> 'data' -> 'manifests' @> '[{\"metadata\":{\"labels\":{\"foo\":\"bar\"}}}]'
-	if strings.Contains(search, "@>") {
-		jsonbStr := stringSplitwithTrim(search, "@>")
-		if err := isValidFields(stringSplitwithTrim(jsonbStr[0], "->")); err != nil {
-			return fmt.Errorf("the search field name is invalid: %v", err)
-		}
-		// validate the value is a valid json object
-		if !isValidJSONObject(jsonbStr[1]) {
-			return fmt.Errorf("the search json is invalid")
-		}
-	}
-	return nil
-}
-
-func isValidFields(fields []string) []string {
-	for _, field := range fields {
-		if err := validation.IsQualifiedName(field); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func isValidJSONObject(s string) bool {
-	var js []map[string]interface{}
-	err := json.Unmarshal([]byte(s), &js)
-	return err == nil
-}
-
-// stringSplitwithTrim trims space and single quotes
-func stringSplitwithTrim(s string, sep string) []string {
-	slices := strings.Split(s, sep)
-	for i := range slices {
-		slices[i] = strings.ReplaceAll(slices[i], "'", "")
-		slices[i] = strings.TrimSpace(slices[i])
-	}
-	return slices
 }
