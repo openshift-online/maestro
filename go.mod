@@ -26,7 +26,7 @@ require (
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
 	github.com/onsi/ginkgo/v2 v2.17.1
 	github.com/onsi/gomega v1.32.0
-	github.com/openshift-online/ocm-common v0.0.0-20240611095658-2ad1e6fae94d
+	github.com/openshift-online/ocm-common v0.0.0-20240620110211-2ecfa6ec5707
 	github.com/openshift-online/ocm-sdk-go v0.1.421
 	github.com/prometheus/client_golang v1.18.0
 	github.com/segmentio/ksuid v1.0.2
@@ -48,8 +48,6 @@ require (
 	open-cluster-management.io/ocm v0.13.1-0.20240612012446-8e792c14d8f4
 	open-cluster-management.io/sdk-go v0.13.1-0.20240607073142-990fcdba50a6
 )
-
-replace github.com/openshift-online/ocm-common => github.com/ziccardi/ocm-common v0.0.0-20240619140356-177492f621b3
 
 require (
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
