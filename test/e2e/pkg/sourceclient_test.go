@@ -9,8 +9,6 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -20,9 +18,7 @@ import (
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 var _ = Describe("gRPC Source ManifestWork Client Test", func() {
@@ -61,18 +57,10 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 		})
 
 		It("The work status should be watched", func() {
-			workClient, err := work.NewClientHolderBuilder(grpcOptions).
-				WithClientID(fmt.Sprintf("%s-client", sourceID)).
-				WithSourceID(sourceID).
-				WithCodecs(codec.NewManifestBundleCodec()).
-				WithWorkClientWatcherStore(grpcsource.NewRESTFullAPIWatcherStore(apiClient, sourceID)).
-				WithResyncEnabled(false).
-				NewSourceClientHolder(ctx)
-			Expect(err).ShouldNot(HaveOccurred())
 
 			By("create a work")
 			workName := "work-" + rand.String(5)
-			_, err = workClient.ManifestWorks(consumer_name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
+			_, err := workClient.ManifestWorks(consumer_name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished

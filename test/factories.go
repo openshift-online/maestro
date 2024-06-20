@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/openshift-online/maestro/pkg/api"
@@ -52,6 +53,75 @@ var testManifestJSON = `
 }
 `
 
+var testManifestJSONWithSA = `
+{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+	  "name": "nginx",
+	  "namespace": "default"
+	},
+	"spec": {
+	  "replicas": %d,
+	  "selector": {
+		"matchLabels": {
+		  "app": "nginx"
+		}
+	  },
+	  "template": {
+		"metadata": {
+		  "labels": {
+			"app": "nginx"
+		  }
+		},
+		"spec": {
+		  "serviceAccount": "%s",
+		  "containers": [
+			{
+			  "image": "nginxinc/nginx-unprivileged",
+			  "name": "nginx"
+			}
+		  ]
+		}
+	  }
+	}
+}
+`
+
+var testManifestIndexJSON = `
+{
+	"apiVersion": "apps/v1",
+	"kind": "Deployment",
+	"metadata": {
+	  "name": "nginx-%d",
+	  "namespace": "default"
+	},
+	"spec": {
+	  "replicas": %d,
+	  "selector": {
+		"matchLabels": {
+		  "app": "nginx"
+		}
+	  },
+	  "template": {
+		"metadata": {
+		  "labels": {
+			"app": "nginx"
+		  }
+		},
+		"spec": {
+		  "containers": [
+			{
+			  "image": "nginxinc/nginx-unprivileged",
+			  "name": "nginx"
+			}
+		  ]
+		}
+	  }
+	}
+}
+`
+
 var testReadOnlyManifestJSON = `
 {
 	"apiVersion": "apps/v1",
@@ -69,6 +139,30 @@ var testReadOnlyManifestJSON = `
 func (helper *Helper) NewAPIResource(consumerName string, replicas int) openapi.Resource {
 	testManifest := map[string]interface{}{}
 	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
+		helper.T.Errorf("error unmarshalling test manifest: %q", err)
+	}
+
+	return openapi.Resource{
+		Manifest:     testManifest,
+		ConsumerName: &consumerName,
+	}
+}
+
+func (helper *Helper) NewAPIResourceWithSA(consumerName string, replicas int, sa string) openapi.Resource {
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSONWithSA, replicas, sa)), &testManifest); err != nil {
+		helper.T.Errorf("error unmarshalling test manifest: %q", err)
+	}
+
+	return openapi.Resource{
+		Manifest:     testManifest,
+		ConsumerName: &consumerName,
+	}
+}
+
+func (helper *Helper) NewAPIResourceWithIndex(consumerName string, replicas, index int) openapi.Resource {
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestIndexJSON, index, replicas)), &testManifest); err != nil {
 		helper.T.Errorf("error unmarshalling test manifest: %q", err)
 	}
 
@@ -248,4 +342,126 @@ func (helper *Helper) CreateConsumerList(count int) (consumers []*api.Consumer) 
 		consumers = append(consumers, helper.CreateConsumer(fmt.Sprintf("consumer-%d", i)))
 	}
 	return consumers
+}
+
+// ManifestToEvent converts a manifest into a CloudEvent representation with manifest data.
+func (helper *Helper) ManifestToEvent(replicas int, source, action, consumerName, resourceID string,
+	resourceVersion int64, deleting bool) (*cloudevents.Event, error) {
+
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
+		return nil, fmt.Errorf("error unmarshalling test manifest: %v", err)
+	}
+
+	eventType := cetypes.CloudEventsType{
+		CloudEventsDataType: workpayload.ManifestEventDataType,
+		SubResource:         cetypes.SubResourceSpec,
+		Action:              cetypes.EventAction(action),
+	}
+	evtBuilder := cetypes.NewEventBuilder(source, eventType).
+		WithClusterName(consumerName).
+		WithResourceID(resourceID).
+		WithResourceVersion(resourceVersion)
+	if deleting {
+		evtBuilder.WithDeletionTimestamp(time.Now())
+	}
+	evt := evtBuilder.NewEvent()
+
+	eventPayload := &workpayload.Manifest{
+		Manifest: unstructured.Unstructured{Object: testManifest},
+		DeleteOption: &workv1.DeleteOption{
+			PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
+		},
+		ConfigOption: &workpayload.ManifestConfigOption{
+			FeedbackRules: []workv1.FeedbackRule{
+				{
+					Type: workv1.JSONPathsType,
+					JsonPaths: []workv1.JsonPath{
+						{
+							Name: "status",
+							Path: ".status",
+						},
+					},
+				},
+			},
+			UpdateStrategy: &workv1.UpdateStrategy{
+				Type: workv1.UpdateStrategyTypeServerSideApply,
+			},
+		},
+	}
+
+	if err := evt.SetData(cloudevents.ApplicationJSON, eventPayload); err != nil {
+		return nil, fmt.Errorf("failed to set cloud event data: %v", err)
+	}
+
+	return &evt, nil
+}
+
+// ManifestsToBundleEvent converts a list of manifests into a CloudEvent representation with manifest bundle data.
+func (helper *Helper) ManifestsToBundleEvent(replicas int, source, action, consumerName, resourceID string,
+	resourceVersion int64, deleting bool) (*cloudevents.Event, error) {
+
+	testManifest := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, replicas)), &testManifest); err != nil {
+		return nil, fmt.Errorf("error unmarshalling test manifest: %v", err)
+	}
+
+	eventType := cetypes.CloudEventsType{
+		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
+		SubResource:         cetypes.SubResourceSpec,
+		Action:              cetypes.EventAction(action),
+	}
+
+	// create a cloud event with the manifest as the data
+	evtBuilder := cetypes.NewEventBuilder(source, eventType).
+		WithClusterName(consumerName).
+		WithResourceID(resourceID).
+		WithResourceVersion(resourceVersion)
+	if deleting {
+		evtBuilder.WithDeletionTimestamp(time.Now())
+	}
+	evt := evtBuilder.NewEvent()
+
+	eventPayload := &workpayload.ManifestBundle{
+		Manifests: []workv1.Manifest{
+			{
+				RawExtension: runtime.RawExtension{
+					Object: &unstructured.Unstructured{Object: testManifest},
+				},
+			},
+		},
+		DeleteOption: &workv1.DeleteOption{
+			PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
+		},
+		ManifestConfigs: []workv1.ManifestConfigOption{
+			{
+				FeedbackRules: []workv1.FeedbackRule{
+					{
+						Type: workv1.JSONPathsType,
+						JsonPaths: []workv1.JsonPath{
+							{
+								Name: "status",
+								Path: ".status",
+							},
+						},
+					},
+				},
+				UpdateStrategy: &workv1.UpdateStrategy{
+					Type: workv1.UpdateStrategyTypeServerSideApply,
+				},
+				ResourceIdentifier: workv1.ResourceIdentifier{
+					Group:     "apps",
+					Resource:  "deployments",
+					Name:      "nginx",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+
+	if err := evt.SetData(cloudevents.ApplicationJSON, eventPayload); err != nil {
+		return nil, fmt.Errorf("failed to set cloud event data: %v", err)
+	}
+
+	return &evt, nil
 }
