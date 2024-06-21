@@ -17,9 +17,9 @@ import (
 // SourceClient is an interface for publishing resource events to consumers
 // subscribing to and resyncing resource status from consumers.
 type SourceClient interface {
-	OnCreate(ctx context.Context, id string) error
-	OnUpdate(ctx context.Context, id string) error
-	OnDelete(ctx context.Context, id string) error
+	OnCreate(ctx context.Context, eventID, resourceID string) error
+	OnUpdate(ctx context.Context, eventID, resourceID string) error
+	OnDelete(ctx context.Context, eventID, resourceID string) error
 	Subscribe(ctx context.Context, handlers ...cegeneric.ResourceHandler[*api.Resource])
 	Resync(ctx context.Context, consumers []string) error
 	ReconnectedChan() <-chan struct{}
@@ -49,10 +49,10 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 	}, nil
 }
 
-func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
+func (s *SourceClientImpl) OnCreate(ctx context.Context, eventID, resourceID string) error {
 	logger := logger.NewOCMLogger(ctx)
 
-	resource, err := s.ResourceService.Get(ctx, id)
+	resource, err := s.ResourceService.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
@@ -74,10 +74,10 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
+func (s *SourceClientImpl) OnUpdate(ctx context.Context, eventID, resourceID string) error {
 	logger := logger.NewOCMLogger(ctx)
 
-	resource, err := s.ResourceService.Get(ctx, id)
+	resource, err := s.ResourceService.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
@@ -99,10 +99,10 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 	return nil
 }
 
-func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
+func (s *SourceClientImpl) OnDelete(ctx context.Context, eventID, resourceID string) error {
 	logger := logger.NewOCMLogger(ctx)
 
-	resource, err := s.ResourceService.Get(ctx, id)
+	resource, err := s.ResourceService.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}

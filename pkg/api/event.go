@@ -9,16 +9,17 @@ import (
 type EventType string
 
 const (
-	CreateEventType EventType = "Create"
-	UpdateEventType EventType = "Update"
-	DeleteEventType EventType = "Delete"
+	CreateEventType       EventType = "Create"
+	UpdateEventType       EventType = "Update"
+	DeleteEventType       EventType = "Delete"
+	StatusUpdateEventType EventType = "StatusUpdate"
 )
 
 type Event struct {
 	Meta
 	Source         string     // MyTable
 	SourceID       string     // primary key of MyTable
-	EventType      EventType  // Add|Update|Delete
+	EventType      EventType  // Add|Update|Delete|StatusUpdate
 	ReconciledDate *time.Time `json:"gorm:null"`
 }
 
