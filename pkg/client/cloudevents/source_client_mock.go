@@ -160,3 +160,7 @@ func (s *SourceClientMock) Subscribe(ctx context.Context, handlers ...cegeneric.
 func (s *SourceClientMock) Resync(ctx context.Context, consumers []string) error {
 	return nil
 }
+
+func (s *SourceClientMock) ReconnectedChan() <-chan struct{} {
+	return nil
+}

@@ -57,9 +57,29 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 	// start a goroutine to periodically check the instances and consumers.
 	go wait.UntilWithContext(ctx, d.check, 5*time.Second)
 
+	// start a goroutine to resync current consumers for this source when the client is reconnected
+	go d.resyncOnReconnect(ctx)
+
 	// wait until context is canceled
 	<-ctx.Done()
 	d.workQueue.ShutDown()
+}
+
+// resyncOnReconnect listens for the client reconnected signal and resyncs current consumers for this source.
+func (d *HashDispatcher) resyncOnReconnect(ctx context.Context) {
+	log := logger.NewOCMLogger(ctx)
+	// receive client reconnect signal and resync current consumers for this source
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-d.sourceClient.ReconnectedChan():
+			// when receiving a client reconnected signal, we resync current consumers for this source
+			if err := d.sourceClient.Resync(ctx, d.consumerSet.ToSlice()); err != nil {
+				log.Error(fmt.Sprintf("failed to resync resourcs status for consumers (%s), %v", d.consumerSet.ToSlice(), err))
+			}
+		}
+	}
 }
 
 // Dispatch checks if the provided consumer ID is owned by the current maestro instance.

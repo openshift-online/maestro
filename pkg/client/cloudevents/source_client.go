@@ -22,6 +22,7 @@ type SourceClient interface {
 	OnDelete(ctx context.Context, id string) error
 	Subscribe(ctx context.Context, handlers ...cegeneric.ResourceHandler[*api.Resource])
 	Resync(ctx context.Context, consumers []string) error
+	ReconnectedChan() <-chan struct{}
 }
 
 type SourceClientImpl struct {
@@ -143,6 +144,10 @@ func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error
 	}
 
 	return nil
+}
+
+func (s *SourceClientImpl) ReconnectedChan() <-chan struct{} {
+	return s.CloudEventSourceClient.ReconnectedChan()
 }
 
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {
