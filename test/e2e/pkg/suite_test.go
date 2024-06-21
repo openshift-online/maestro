@@ -16,9 +16,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -40,7 +39,7 @@ var (
 	grpcClient        pbv1.CloudEventServiceClient
 	helper            *test.Helper
 	T                 *testing.T
-	workClient        *work.ClientHolder
+	workClient        workv1client.WorkV1Interface
 	grpcOptions       *grpcoptions.GRPCOptions
 	cancel            context.CancelFunc
 	ctx               context.Context
@@ -119,13 +118,12 @@ var _ = BeforeSuite(func() {
 	grpcOptions = grpcoptions.NewGRPCOptions()
 	grpcOptions.URL = grpcServerAddress
 
-	workClient, err = work.NewClientHolderBuilder(grpcOptions).
-		WithClientID(fmt.Sprintf("%s-watcher", sourceID)).
-		WithSourceID(sourceID).
-		WithCodecs(codec.NewManifestBundleCodec()).
-		WithWorkClientWatcherStore(grpcsource.NewRESTFullAPIWatcherStore(apiClient, sourceID)).
-		WithResyncEnabled(false).
-		NewSourceClientHolder(ctx)
+	workClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
+		ctx,
+		apiClient,
+		grpcOptions,
+		sourceID,
+	)
 	Expect(err).ShouldNot(HaveOccurred())
 })
 
