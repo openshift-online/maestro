@@ -28,17 +28,17 @@ type exampleController struct {
 	deleteCounter int
 }
 
-func (d *exampleController) OnAdd(ctx context.Context, id string) error {
+func (d *exampleController) OnAdd(ctx context.Context, eventID, sourceID string) error {
 	d.addCounter++
 	return nil
 }
 
-func (d *exampleController) OnUpdate(ctx context.Context, id string) error {
+func (d *exampleController) OnUpdate(ctx context.Context, eventID, sourceID string) error {
 	d.updateCounter++
 	return nil
 }
 
-func (d *exampleController) OnDelete(ctx context.Context, id string) error {
+func (d *exampleController) OnDelete(ctx context.Context, eventID, sourceID string) error {
 	d.deleteCounter++
 	return nil
 }

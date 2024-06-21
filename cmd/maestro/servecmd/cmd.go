@@ -43,7 +43,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	metricsServer := server.NewMetricsServer()
 	healthcheckServer := server.NewHealthCheckServer()
 	pulseServer := server.NewPulseServer(eventBroadcaster)
-	controllersServer := server.NewControllersServer()
+	controllersServer := server.NewControllersServer(pulseServer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

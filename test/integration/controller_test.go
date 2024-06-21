@@ -27,14 +27,14 @@ func TestControllerRacing(t *testing.T) {
 	// the event with create type. Due to the event lock, each create event
 	// should be only processed once.
 	var proccessedEvent []string
-	onUpsert := func(ctx context.Context, id string) error {
+	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
 		events, err := dao.All(ctx)
 		if err != nil {
 			return err
 		}
 
 		for _, evt := range events {
-			if evt.SourceID != id {
+			if evt.SourceID != resourceID {
 				continue
 			}
 			if evt.EventType != api.CreateEventType {
@@ -44,7 +44,7 @@ func TestControllerRacing(t *testing.T) {
 			if evt.ReconciledDate != nil {
 				continue
 			}
-			proccessedEvent = append(proccessedEvent, id)
+			proccessedEvent = append(proccessedEvent, resourceID)
 		}
 
 		return nil
@@ -100,7 +100,7 @@ func TestControllerReconcile(t *testing.T) {
 	processedTimes := 0
 	// this handler will return an error at the first time to simulate an error happened when handing an event,
 	// and then, the controller will requeue this event, at that time, we handle this event successfully.
-	onUpsert := func(ctx context.Context, id string) error {
+	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
 		processedTimes = processedTimes + 1
 		if processedTimes == 1 {
 			return fmt.Errorf("failed to process the event")
@@ -196,9 +196,9 @@ func TestControllerSync(t *testing.T) {
 	}
 
 	var proccessedEvents []string
-	onUpsert := func(ctx context.Context, id string) error {
+	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
 		// we just record the processed event
-		proccessedEvents = append(proccessedEvents, id)
+		proccessedEvents = append(proccessedEvents, resourceID)
 		return nil
 	}
 
