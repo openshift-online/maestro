@@ -20,6 +20,7 @@ import (
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 var log = logger.NewOCMLogger(context.Background())
@@ -28,16 +29,16 @@ var log = logger.NewOCMLogger(context.Background())
 // checking the liveness of Maestro instances, triggering status resync based on
 // instances' status and other conditions.
 type PulseServer struct {
-	instanceID       string
-	pulseInterval    int64
-	instanceDao      dao.InstanceDao
-	eventInstanceDao dao.EventInstanceDao
-	lockFactory      db.LockFactory
-	eventBroadcaster *event.EventBroadcaster
-	resourceService  services.ResourceService
-	eventService     services.EventService
-	sourceClient     cloudevents.SourceClient
-	statusDispatcher dispatcher.Dispatcher
+	instanceID         string
+	pulseInterval      int64
+	instanceDao        dao.InstanceDao
+	eventInstanceDao   dao.EventInstanceDao
+	lockFactory        db.LockFactory
+	eventBroadcaster   *event.EventBroadcaster
+	resourceService    services.ResourceService
+	statusEventService services.StatusEventService
+	sourceClient       cloudevents.SourceClient
+	statusDispatcher   dispatcher.Dispatcher
 }
 
 func NewPulseServer(eventBroadcaster *event.EventBroadcaster) *PulseServer {
@@ -52,16 +53,16 @@ func NewPulseServer(eventBroadcaster *event.EventBroadcaster) *PulseServer {
 	}
 	sessionFactory := env().Database.SessionFactory
 	return &PulseServer{
-		instanceID:       env().Config.MessageBroker.ClientID,
-		pulseInterval:    env().Config.PulseServer.PulseInterval,
-		instanceDao:      dao.NewInstanceDao(&sessionFactory),
-		eventInstanceDao: dao.NewEventInstanceDao(&sessionFactory),
-		lockFactory:      db.NewAdvisoryLockFactory(sessionFactory),
-		eventBroadcaster: eventBroadcaster,
-		resourceService:  env().Services.Resources(),
-		eventService:     env().Services.Events(),
-		sourceClient:     env().Clients.CloudEventsSource,
-		statusDispatcher: statusDispatcher,
+		instanceID:         env().Config.MessageBroker.ClientID,
+		pulseInterval:      env().Config.PulseServer.PulseInterval,
+		instanceDao:        dao.NewInstanceDao(&sessionFactory),
+		eventInstanceDao:   dao.NewEventInstanceDao(&sessionFactory),
+		lockFactory:        db.NewAdvisoryLockFactory(sessionFactory),
+		eventBroadcaster:   eventBroadcaster,
+		resourceService:    env().Services.Resources(),
+		statusEventService: env().Services.StatusEvents(),
+		sourceClient:       env().Clients.CloudEventsSource,
+		statusDispatcher:   statusDispatcher,
 	}
 }
 
@@ -170,8 +171,9 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 				return fmt.Errorf("unmatched consumer name %s for resource %s", resource.ConsumerName, resource.ID)
 			}
 
-			// set the resource source back for broadcast
+			// set the resource source and type back for broadcast
 			resource.Source = found.Source
+			resource.Type = found.Type
 
 			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 				// the resource is not owned by the current instance, skip
@@ -179,62 +181,64 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 				return nil
 			}
 
-			// // convert the resource status to cloudevent
-			// evt, err := api.JSONMAPToCloudEvent(resource.Status)
-			// if err != nil {
-			// 	return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
-			// }
-
-			// // decode the cloudevent data as manifest status
-			// statusPayload := &workpayload.ManifestStatus{}
-			// if err := evt.DataAs(statusPayload); err != nil {
-			// 	return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
-			// }
-
-			// // if the resource has been deleted from agent, delete it from maestro
-			// if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
-			// 	if svcErr := s.resourceService.Delete(ctx, resource.ID); svcErr != nil {
-			// 		return svcErr
-			// 	}
-
-			// 	log.V(4).Infof("Broadcast:: the resource %s is deleted", resource.ID)
-			// 	resource.Payload = found.Payload
-			// 	s.eventBroadcaster.Broadcast(resource)
-			// 	return nil
-			// }
-			// update the resource status
-			_, updated, svcErr := s.resourceService.UpdateStatus(ctx, resource)
-			if svcErr != nil {
-				return fmt.Errorf("failed to update resource status %s: %s", resource.ID, svcErr.Error())
+			specEvent, err := api.JSONMAPToCloudEvent(found.Payload)
+			if err != nil {
+				return fmt.Errorf("failed to convert resource spec to cloudevent: %v", err)
 			}
 
-			// // broadcast the resource status updated only when the resource is updated
-			// if updated {
-			// 	log.V(4).Infof("Broadcast:: the resource %s is updated", resource.ID)
-			// 	s.eventBroadcaster.Broadcast(updatedResource)
-			// }
-			if updated {
-				evt, sErr := s.eventService.Create(ctx, &api.Event{
-					Source:    "Resources",
-					SourceID:  resource.ID,
-					EventType: api.StatusUpdateEventType,
+			// convert the resource status to cloudevent
+			statusEvent, err := api.JSONMAPToCloudEvent(resource.Status)
+			if err != nil {
+				return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
+			}
+
+			// set work meta from spec event to status event
+			if workMeta, ok := specEvent.Extensions()[codec.ExtensionWorkMeta]; ok {
+				statusEvent.SetExtension(codec.ExtensionWorkMeta, workMeta)
+			}
+
+			resource.Status, err = api.CloudEventToJSONMap(statusEvent)
+			if err != nil {
+				return fmt.Errorf("failed to convert resource status cloudevent to json: %v", err)
+			}
+
+			// decode the cloudevent data as manifest status
+			statusPayload := &workpayload.ManifestStatus{}
+			if err := statusEvent.DataAs(statusPayload); err != nil {
+				return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
+			}
+
+			// if the resource has been deleted from agent, create status event and delete it from maestro
+			if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
+				_, sErr := s.statusEventService.Create(ctx, &api.StatusEvent{
+					ResourceID:      resource.ID,
+					ResourceSource:  resource.Source,
+					ResourceType:    resource.Type,
+					Status:          resource.Status,
+					StatusEventType: api.StatusDeleteEventType,
 				})
 				if sErr != nil {
-					return fmt.Errorf("failed to create event for resource status update %s: %s", resource.ID, sErr.Error())
+					return fmt.Errorf("failed to create status event for resource status delete %s: %s", resource.ID, sErr.Error())
 				}
-				instances, err := s.instanceDao.All(ctx)
-				if err != nil {
-					return fmt.Errorf("failed to get all maestro instances: %s", err)
+				if svcErr := s.resourceService.Delete(ctx, resource.ID); svcErr != nil {
+					return fmt.Errorf("failed to delete resource %s: %s", resource.ID, svcErr.Error())
 				}
-				eventInstanceList := make([]*api.EventInstance, len(instances))
-				for i, instance := range instances {
-					eventInstanceList[i] = &api.EventInstance{
-						EventID:    evt.ID,
-						InstanceID: instance.ID,
+			} else {
+				// update the resource status
+				_, updated, svcErr := s.resourceService.UpdateStatus(ctx, resource)
+				if svcErr != nil {
+					return fmt.Errorf("failed to update resource status %s: %s", resource.ID, svcErr.Error())
+				}
+
+				// create the status event only when the resource is updated
+				if updated {
+					_, sErr := s.statusEventService.Create(ctx, &api.StatusEvent{
+						ResourceID:      resource.ID,
+						StatusEventType: api.StatusUpdateEventType,
+					})
+					if sErr != nil {
+						return fmt.Errorf("failed to create status event for resource status update %s: %s", resource.ID, sErr.Error())
 					}
-				}
-				if err := s.eventInstanceDao.CreateList(ctx, eventInstanceList); err != nil {
-					return fmt.Errorf("failed to create event instances for resource status update %s: %s", resource.ID, err.Error())
 				}
 			}
 		default:
@@ -245,52 +249,44 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 	})
 }
 
-// On StatusUpdate does three things:
-// 1. Broadcast the resource status update to subscribers
-// 2. Mark the event instance as done
-// 3. If the resource has been deleted from agent, delete it from maestro if all event instances are done
+// On StatusUpdate will be called on each new status event inserted into db.
+// It does two things:
+// 1. build the resource status and broadcast it to subscribers
+// 2. add the event instance record to mark the event has been processed by the current instance
 func (s *PulseServer) OnStatusUpdate(ctx context.Context, eventID, resourceID string) error {
-	resource, sErr := s.resourceService.Get(ctx, resourceID)
+	statusEvent, sErr := s.statusEventService.Get(ctx, eventID)
 	if sErr != nil {
-		return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
+		return fmt.Errorf("failed to get status event %s: %s", eventID, sErr.Error())
 	}
 
-	// broadcast the resource status updated to subscribers
+	var resource *api.Resource
+	// check if the status event is delete event
+	if statusEvent.StatusEventType == api.StatusDeleteEventType {
+		// build resource with resource id and delete status
+		resource = &api.Resource{
+			Meta: api.Meta{
+				ID: resourceID,
+			},
+			Source: statusEvent.ResourceSource,
+			Type:   statusEvent.ResourceType,
+			Status: statusEvent.Status,
+		}
+	} else {
+		resource, sErr = s.resourceService.Get(ctx, resourceID)
+		if sErr != nil {
+			return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
+		}
+	}
+
+	// broadcast the resource status to subscribers
+	log.V(4).Infof("Broadcast the resource status %s", resource.ID)
 	s.eventBroadcaster.Broadcast(resource)
 
-	// mark the event instance as done
-	if err := s.eventInstanceDao.MarkAsDone(ctx, eventID, s.instanceID); err != nil {
-		return fmt.Errorf("failed to mark event instance (%s, %s) as done for resource status update %s: %s", eventID, s.instanceID, resourceID, err.Error())
-	}
+	// add the event instance record
+	_, err := s.eventInstanceDao.Create(ctx, &api.EventInstance{
+		EventID:    eventID,
+		InstanceID: s.instanceID,
+	})
 
-	// convert the resource status to cloudevent
-	cloudevt, err := api.JSONMAPToCloudEvent(resource.Status)
-	if err != nil {
-		return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
-	}
-
-	// decode the cloudevent data as manifest status
-	statusPayload := &workpayload.ManifestStatus{}
-	if err := cloudevt.DataAs(statusPayload); err != nil {
-		return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
-	}
-
-	// if the resource has been deleted from agent, delete it from maestro
-	deleted := false
-	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
-		deleted = true
-	}
-	if deleted {
-		count, err := s.eventInstanceDao.GetUnhandleEventInstances(ctx, eventID)
-		if err != nil {
-			return fmt.Errorf("failed to get unhandled event instances for event %s: %s", eventID, err.Error())
-		}
-		if count == 0 {
-			if sErr := s.resourceService.Delete(ctx, resourceID); sErr != nil {
-				return fmt.Errorf("failed to delete resource %s: %s", resourceID, sErr.Error())
-			}
-		}
-	}
-
-	return nil
+	return err
 }
