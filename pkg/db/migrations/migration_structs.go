@@ -32,6 +32,7 @@ var MigrationList = []*gormigrate.Migration{
 	addConsumers(),
 	dropDinosaurs(),
 	addServerInstances(),
+	addStatusEvents(),
 	addEventInstances(),
 }
 

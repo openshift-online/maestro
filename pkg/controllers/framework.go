@@ -45,7 +45,7 @@ var logger = maestrologger.NewOCMLogger(context.Background())
 // events sync will help us to handle unexpected errors (e.g. sever restart), it ensures we will not miss any events
 var defaultEventsSyncPeriod = 10 * time.Hour
 
-type ControllerHandlerFunc func(ctx context.Context, eventID, sourceID string) error
+type ControllerHandlerFunc func(ctx context.Context, id string) error
 
 type ControllerConfig struct {
 	Source   string
@@ -120,6 +120,11 @@ func (km *KindControllerManager) handleEvent(id string) error {
 		return fmt.Errorf("error obtaining the event lock: %v", err)
 	}
 
+	if !acquired {
+		logger.Infof("Event %s is processed by another worker, continue to process the next", id)
+		return nil
+	}
+
 	reqContext := context.WithValue(ctx, EventID, id)
 
 	event, svcErr := km.events.Get(reqContext, id)
@@ -129,11 +134,6 @@ func (km *KindControllerManager) handleEvent(id string) error {
 			return nil
 		}
 		return fmt.Errorf("error getting event with id(%s): %s", id, svcErr)
-	}
-
-	if !acquired && event.EventType != api.StatusUpdateEventType {
-		logger.Infof("Event %s is processed by another worker, continue to process the next", id)
-		return nil
 	}
 
 	if event.ReconciledDate != nil {
@@ -153,20 +153,18 @@ func (km *KindControllerManager) handleEvent(id string) error {
 	}
 
 	for _, fn := range handlerFns {
-		err := fn(reqContext, id, event.SourceID)
+		err := fn(reqContext, event.SourceID)
 		if err != nil {
-			return fmt.Errorf("error handling event %s, %s, %s: %s", event.Source, event.EventType, id, err)
+			return fmt.Errorf("error handing event %s, %s, %s: %s", event.Source, event.EventType, id, err)
 		}
 	}
 
 	// all handlers successfully executed
-	if event.EventType != api.StatusUpdateEventType {
-		now := time.Now()
-		event.ReconciledDate = &now
-		_, svcErr = km.events.Replace(reqContext, event)
-		if svcErr != nil {
-			return fmt.Errorf("error updating event with id(%s): %s", id, svcErr)
-		}
+	now := time.Now()
+	event.ReconciledDate = &now
+	_, svcErr = km.events.Replace(reqContext, event)
+	if svcErr != nil {
+		return fmt.Errorf("error updating event with id(%s): %s", id, svcErr)
 	}
 	return nil
 }

@@ -15,7 +15,7 @@ func addEvents() *gormigrate.Migration {
 		// SourceID must be an indexable key for querying, *not* a json data payload.
 		// an indexed column of data json data would explode
 		SourceID       string     `gorm:"index"` // primary key of MyTable
-		EventType      string     // Add|Update|Delete|StatusUpdate, any string
+		EventType      string     // Add|Update|Delete, any string
 		ReconciledDate *time.Time `gorm:"null;index"`
 	}
 

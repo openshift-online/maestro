@@ -39,8 +39,8 @@ func NewSourceClientMock(resourceService services.ResourceService) SourceClient 
 	}
 }
 
-func (s *SourceClientMock) OnCreate(ctx context.Context, eventID, resourceID string) error {
-	resource, serviceErr := s.ResourceService.Get(ctx, resourceID)
+func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
+	resource, serviceErr := s.ResourceService.Get(ctx, id)
 	if serviceErr != nil {
 		return fmt.Errorf("failed to get resource: %v", serviceErr)
 	}
@@ -78,8 +78,8 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, eventID, resourceID str
 	return nil
 }
 
-func (s *SourceClientMock) OnUpdate(ctx context.Context, eventID, resourceID string) error {
-	resource, serviceErr := s.ResourceService.Get(ctx, resourceID)
+func (s *SourceClientMock) OnUpdate(ctx context.Context, id string) error {
+	resource, serviceErr := s.ResourceService.Get(ctx, id)
 	if serviceErr != nil {
 		return fmt.Errorf("failed to get resource: %v", serviceErr)
 	}
@@ -136,8 +136,8 @@ func (s *SourceClientMock) OnUpdate(ctx context.Context, eventID, resourceID str
 	return nil
 }
 
-func (s *SourceClientMock) OnDelete(ctx context.Context, eventID, resourceID string) error {
-	resource, serviceErr := s.ResourceService.Get(ctx, resourceID)
+func (s *SourceClientMock) OnDelete(ctx context.Context, id string) error {
+	resource, serviceErr := s.ResourceService.Get(ctx, id)
 	if serviceErr != nil {
 		return fmt.Errorf("failed to get resource: %v", serviceErr)
 	}
