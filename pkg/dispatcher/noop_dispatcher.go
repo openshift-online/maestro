@@ -6,6 +6,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/logger"
 )
 
 var _ Dispatcher = &NoopDispatcher{}
@@ -28,6 +29,36 @@ func NewNoopDispatcher(consumerDao dao.ConsumerDao, sourceClient cloudevents.Sou
 
 // Start is a no-op implementation.
 func (d *NoopDispatcher) Start(ctx context.Context) {
+	// handle client reconnected signal and resync status from consumers for this source
+	d.resyncOnReconnect(ctx)
+}
+
+// resyncOnReconnect listens for client reconnected signal and resyncs all consumers for this source.
+func (d *NoopDispatcher) resyncOnReconnect(ctx context.Context) {
+	log := logger.NewOCMLogger(ctx)
+	// receive client reconnect signal and resync current consumers for this source
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-d.sourceClient.ReconnectedChan():
+			// when receiving a client reconnected signal, we resync all consumers for this source
+			// TODO: optimize this to only resync resource status for necessary consumers
+			consumerIDs := []string{}
+			consumers, err := d.consumerDao.All(ctx)
+			if err != nil {
+				log.Error(fmt.Sprintf("failed to get all consumers: %v", err))
+				continue
+			}
+
+			for _, c := range consumers {
+				consumerIDs = append(consumerIDs, c.ID)
+			}
+			if err := d.sourceClient.Resync(ctx, consumerIDs); err != nil {
+				log.Error(fmt.Sprintf("failed to resync resourcs status for consumers (%s), %v", consumerIDs, err))
+			}
+		}
+	}
 }
 
 // Dispatch always returns true, indicating that the current maestro instance should process the resource status update.
