@@ -177,19 +177,17 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 	})
 
 	Context("Resource resync resource status after maestro server reconnects", func() {
-
 		It("post the nginx resource with non-default service account to the maestro api", func() {
-
-			res := helper.NewAPIResourceWithSA(consumer_name, 1, "nginx")
+			res := helper.NewAPIResourceWithSA(consumer.Name, 1, "nginx")
 			var resp *http.Response
 			var err error
-			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(context.Background()).Resource(res).Execute()
+			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -199,14 +197,14 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), *resource.Id).Execute()
+			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resource.Id).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(*gotResource.Id).To(Equal(*resource.Id))
 			Expect(*gotResource.Version).To(Equal(*resource.Version))
 
 			Eventually(func() error {
-				gotResource, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), *resource.Id).Execute()
+				gotResource, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resource.Id).Execute()
 				if err != nil {
 					return err
 				}
@@ -222,14 +220,12 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 		})
 
 		It("delete the mqtt-broker service for server", func() {
-
-			err := kubeClient.CoreV1().Services("maestro").Delete(context.Background(), "maestro-mqtt-server", metav1.DeleteOptions{})
+			err := consumer.ClientSet.CoreV1().Services("maestro").Delete(ctx, "maestro-mqtt-server", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("create default/nginx serviceaccount", func() {
-
-			_, err := kubeClient.CoreV1().ServiceAccounts("default").Create(context.Background(), &corev1.ServiceAccount{
+			_, err := consumer.ClientSet.CoreV1().ServiceAccounts("default").Create(ctx, &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "nginx",
 				},
@@ -237,24 +233,23 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// delete the nginx deployment to tigger recreating
-			err = kubeClient.AppsV1().Deployments("default").Delete(context.Background(), "nginx", metav1.DeleteOptions{})
+			err = consumer.ClientSet.AppsV1().Deployments("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("Rollout the mqtt-broker", func() {
-
-			deploy, err := kubeClient.AppsV1().Deployments("maestro").Get(context.Background(), "maestro-mqtt", metav1.GetOptions{})
+			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro").Get(ctx, "maestro-mqtt", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			mqttReplicas = int(*deploy.Spec.Replicas)
-			deploy, err = kubeClient.AppsV1().Deployments("maestro").Patch(context.Background(), "maestro-mqtt", types.MergePatchType, []byte(`{"spec":{"replicas":0}}`), metav1.PatchOptions{
-				FieldManager: "testKubeClient",
+			deploy, err = consumer.ClientSet.AppsV1().Deployments("maestro").Patch(ctx, "maestro-mqtt", types.MergePatchType, []byte(`{"spec":{"replicas":0}}`), metav1.PatchOptions{
+				FieldManager: "testConsumer.ClientSet",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(*deploy.Spec.Replicas).To(Equal(int32(0)))
 
 			// ensure no running mqtt-broker pods
 			Eventually(func() error {
-				pods, err := kubeClient.CoreV1().Pods("maestro").List(context.Background(), metav1.ListOptions{
+				pods, err := consumer.ClientSet.CoreV1().Pods("maestro").List(ctx, metav1.ListOptions{
 					LabelSelector: "name=maestro-mqtt",
 				})
 				if err != nil {
@@ -267,15 +262,15 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			// patch mqtt-broker replicas to mqttReplicas
-			deploy, err = kubeClient.AppsV1().Deployments("maestro").Patch(context.Background(), "maestro-mqtt", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, mqttReplicas)), metav1.PatchOptions{
-				FieldManager: "testKubeClient",
+			deploy, err = consumer.ClientSet.AppsV1().Deployments("maestro").Patch(ctx, "maestro-mqtt", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, mqttReplicas)), metav1.PatchOptions{
+				FieldManager: "testConsumer.ClientSet",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(*deploy.Spec.Replicas).To(Equal(int32(mqttReplicas)))
 
 			// ensure mqtt-broker pod is up and running
 			Eventually(func() error {
-				pods, err := kubeClient.CoreV1().Pods("maestro").List(context.Background(), metav1.ListOptions{
+				pods, err := consumer.ClientSet.CoreV1().Pods("maestro").List(ctx, metav1.ListOptions{
 					LabelSelector: "name=maestro-mqtt",
 				})
 				if err != nil {
@@ -297,7 +292,6 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 		})
 
 		It("recreate the mqtt-broker service for server", func() {
-
 			mqttServerService := &corev1.Service{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "maestro-mqtt-server",
@@ -319,14 +313,13 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 				},
 			}
 
-			_, err := kubeClient.CoreV1().Services("maestro").Create(context.Background(), mqttServerService, metav1.CreateOptions{})
+			_, err := consumer.ClientSet.CoreV1().Services("maestro").Create(ctx, mqttServerService, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the resource status is resynced", func() {
-
 			Eventually(func() error {
-				gotResource, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), *resource.Id).Execute()
+				gotResource, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resource.Id).Execute()
 				if err != nil {
 					return err
 				}
@@ -345,13 +338,12 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 		})
 
 		It("delete the nginx resource", func() {
-
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(context.Background(), *resource.Id).Execute()
+			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := kubeClient.AppsV1().Deployments("default").Get(context.Background(), "nginx", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -361,9 +353,8 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 				return fmt.Errorf("nginx deployment still exists")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			err = kubeClient.CoreV1().ServiceAccounts("default").Delete(context.Background(), "nginx", metav1.DeleteOptions{})
+			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
-
 	})
 })
