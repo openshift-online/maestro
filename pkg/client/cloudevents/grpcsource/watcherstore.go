@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
@@ -68,13 +69,22 @@ func newRESTFulAPIWatcherStore(ctx context.Context, apiClient *openapi.APIClient
 // Using `metav1.NamespaceAll` to specify all namespaces.
 func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
 	// Only list works from maestro server with the given namespace when a watcher is required
-	search := []string{fmt.Sprintf("source = '%s'", m.sourceID)}
+	labelSelector, labelSearch, selectable, err := ToLabelSearch(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	searches := []string{fmt.Sprintf("source='%s'", m.sourceID)}
 	if namespace != metav1.NamespaceAll {
-		search = append(search, fmt.Sprintf("consumer_name = '%s'", namespace))
+		searches = append(searches, fmt.Sprintf("consumer_name='%s'", namespace))
+	}
+
+	if selectable {
+		searches = append(searches, labelSearch)
 	}
 
 	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
-		Search(strings.Join(search, " and ")).
+		Search(strings.Join(searches, " and ")).
 		Page(1).
 		Size(-1).
 		Execute()
@@ -82,7 +92,7 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 		return nil, err
 	}
 
-	watcher := m.registerWatcher(namespace)
+	watcher := m.registerWatcher(namespace, labelSelector)
 
 	// save the works to a queue
 	for _, rb := range rbs.Items {
@@ -143,14 +153,25 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 		size = int32(opts.Limit)
 	}
 
-	// TODO filter works by labels
-	search := []string{fmt.Sprintf("source = '%s'", m.sourceID)}
-	if namespace != metav1.NamespaceAll {
-		search = append(search, fmt.Sprintf("consumer_name = '%s'", namespace))
+	_, labelSearch, selectable, err := ToLabelSearch(opts)
+	if err != nil {
+		return nil, err
 	}
 
+	searches := []string{fmt.Sprintf("source='%s'", m.sourceID)}
+	if namespace != metav1.NamespaceAll {
+		searches = append(searches, fmt.Sprintf("consumer_name='%s'", namespace))
+	}
+
+	if selectable {
+		searches = append(searches, labelSearch)
+	}
+
+	search := strings.Join(searches, " and ")
+	klog.V(4).Infof("list works with search=%s", search)
+
 	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
-		Search(strings.Join(search, " and ")).
+		Search(search).
 		Page(page).
 		Size(size).
 		Execute()
@@ -210,10 +231,10 @@ func (m *RESTFulAPIWatcherStore) Sync() error {
 			break
 		}
 
-		namespaces = append(namespaces, fmt.Sprintf("consumer_name = '%s'", namespace))
+		namespaces = append(namespaces, fmt.Sprintf("consumer_name='%s'", namespace))
 	}
 
-	search := []string{fmt.Sprintf("source = '%s'", m.sourceID)}
+	search := []string{fmt.Sprintf("source='%s'", m.sourceID)}
 	if !hasAll {
 		search = append(search, namespaces...)
 	}
@@ -273,7 +294,7 @@ func (m *RESTFulAPIWatcherStore) process() {
 	}
 }
 
-func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string) watch.Interface {
+func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string, labelSelector labels.Selector) watch.Interface {
 	m.Lock()
 	defer m.Unlock()
 
@@ -282,7 +303,7 @@ func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string) watch.Interfa
 		return watcher
 	}
 
-	watcher = newWorkWatcher(namespace)
+	watcher = newWorkWatcher(namespace, labelSelector)
 	m.watchers[namespace] = watcher
 	return watcher
 }

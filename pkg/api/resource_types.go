@@ -16,6 +16,7 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 type ResourceType string
@@ -93,9 +94,35 @@ type ResourcePatchRequest struct{}
 
 // JSONMAPToCloudEvent converts a JSONMap (resource manifest or status) to a CloudEvent
 func JSONMAPToCloudEvent(res datatypes.JSONMap) (*cloudevents.Event, error) {
-	resJSON, err := res.MarshalJSON()
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal JSONMAP to cloudevent JSON: %v", err)
+	var err error
+	var resJSON []byte
+
+	if metadata, ok := res[codec.ExtensionWorkMeta]; ok {
+		// cloudevents require its extension value as string, so we need convert the metadata object
+		// to string back
+
+		// ensure the original resource will be not changed
+		resCopy := datatypes.JSONMap{}
+		for key, value := range res {
+			resCopy[key] = value
+		}
+
+		metaJson, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, err
+		}
+
+		resCopy[codec.ExtensionWorkMeta] = string(metaJson)
+
+		resJSON, err = resCopy.MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal JSONMAP to cloudevent JSON: %v", err)
+		}
+	} else {
+		resJSON, err = res.MarshalJSON()
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal JSONMAP to cloudevent JSON: %v", err)
+		}
 	}
 
 	evt := &cloudevents.Event{}
@@ -116,6 +143,17 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 	var res datatypes.JSONMap
 	if err := res.UnmarshalJSON(evtJSON); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal cloudevent JSON to JSONMAP: %v", err)
+	}
+
+	if metadata, ok := res[codec.ExtensionWorkMeta]; ok {
+		// cloudevents treat its extension value as string, so we need convert metadata extension
+		// to an object for supporting to query the resources with metadata
+		objectMeta := map[string]any{}
+
+		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", metadata)), &objectMeta); err != nil {
+			return nil, err
+		}
+		res[codec.ExtensionWorkMeta] = objectMeta
 	}
 
 	return res, nil
