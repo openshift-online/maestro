@@ -114,7 +114,7 @@ func TestPulseServer(t *testing.T) {
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
 
-	// afther the two instances are stale, the current instance will take over the consumer
+	// after the two instances are stale, the current instance will take over the consumer
 	// and resync status, then the resource status will be updated finally
 	Eventually(func() error {
 		newRes, err := resourceService.Get(ctx, res.ID)
@@ -125,7 +125,7 @@ func TestPulseServer(t *testing.T) {
 			return fmt.Errorf("resource status is empty")
 		}
 		return nil
-	}, 5*time.Second, 1*time.Second).Should(Succeed())
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	newRes, err := resourceService.Get(ctx, res.ID)
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)

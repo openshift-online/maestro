@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -59,17 +58,17 @@ var _ = Describe("Server Side Apply", func() {
 
 		res := openapi.Resource{
 			Manifest:     manifest,
-			ConsumerName: &consumer_name,
+			ConsumerName: &consumer.Name,
 		}
 
-		created, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(context.Background()).Resource(res).Execute()
+		created, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 		Expect(*created.Id).ShouldNot(BeEmpty())
 
 		resourceID := *created.Id
 		Eventually(func() error {
-			found, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(context.Background(), resourceID).Execute()
+			found, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resourceID).Execute()
 			if err != nil {
 				return err
 			}
@@ -105,9 +104,8 @@ var _ = Describe("Server Side Apply", func() {
 		}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 		// cleanup the job
-		resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(context.Background(), resourceID).Execute()
+		resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, resourceID).Execute()
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-
 	})
 })
