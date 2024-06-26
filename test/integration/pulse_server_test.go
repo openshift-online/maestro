@@ -61,6 +61,18 @@ func TestPulseServer(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
+
+	// insert a new instance with the same name to consumer name "cluster1"
+	// to make sure the consumer is hashed to the new instance firstly.
+	// after the new instance is stale after 3*pulseInterval (3s), the current
+	// instance will take over the consumer and resync the resource status.
+	_, err = instanceDao.UpSert(ctx, &api.ServerInstance{
+		Meta: api.Meta{
+			ID: "cluster1",
+		},
+	})
+	Expect(err).NotTo(HaveOccurred())
+
 	res := h.CreateResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
@@ -114,7 +126,7 @@ func TestPulseServer(t *testing.T) {
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
 
-	// after the two instances are stale, the current instance will take over the consumer
+	// after the instance ("cluster") is stale, the current instance ("maestro") will take over the consumer
 	// and resync status, then the resource status will be updated finally
 	Eventually(func() error {
 		newRes, err := resourceService.Get(ctx, res.ID)
