@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -31,6 +32,8 @@ func ToManifestWork(rb *openapi.ResourceBundle) (*workv1.ManifestWork, error) {
 		return nil, err
 	}
 	work.ObjectMeta = objectMeta
+	// use the maestro resource version as the work resource version
+	work.ObjectMeta.ResourceVersion = fmt.Sprintf("%d", *rb.Version)
 
 	// get spec from resource
 	manifests := []workv1.Manifest{}
@@ -168,6 +171,56 @@ func ToLabelSearch(opts metav1.ListOptions) (labels.Selector, string, bool, erro
 	labelSearch = append(labelSearch, existsKeys...)
 	labelSearch = append(labelSearch, doesNotExistKeys...)
 	return labelSelector, strings.Join(labelSearch, " and "), true, nil
+}
+
+// ToWorkPatch returns a merge patch between an existing work and a new work.
+// The patch will keep the resource version of an existing work, and only patch a work of
+// labels, annotations, finalizers, owner references and spec.
+func ToWorkPatch(existingWork, newWork *workv1.ManifestWork) ([]byte, error) {
+	existingWork = existingWork.DeepCopy()
+
+	if existingWork.ResourceVersion == "" {
+		return nil, fmt.Errorf("the existing work resource version is not found")
+	}
+
+	if existingWork.ResourceVersion == "0" {
+		return nil, fmt.Errorf("the existing work resource version cannot be zero")
+	}
+
+	oldData, err := json.Marshal(&workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:          existingWork.Labels,
+			Annotations:     existingWork.Annotations,
+			Finalizers:      existingWork.Finalizers,
+			OwnerReferences: existingWork.OwnerReferences,
+		},
+		Spec: existingWork.Spec,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	newData, err := json.Marshal(&workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			UID:             existingWork.UID,
+			ResourceVersion: existingWork.ResourceVersion,
+			Labels:          newWork.Labels,
+			Annotations:     newWork.Annotations,
+			Finalizers:      newWork.Finalizers,
+			OwnerReferences: newWork.OwnerReferences,
+		},
+		Spec: newWork.Spec,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
+	if err != nil {
+		return nil, err
+	}
+
+	return patchBytes, nil
 }
 
 func marshal(obj map[string]any) ([]byte, error) {

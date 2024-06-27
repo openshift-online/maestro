@@ -1,11 +1,13 @@
 package grpcsource
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 
@@ -13,6 +15,8 @@ import (
 )
 
 func TestToManifestWork(t *testing.T) {
+	var version int32 = 1
+
 	workload, err := marshal(map[string]interface{}{"a": "b"})
 	if err != nil {
 		t.Fatal(err)
@@ -30,6 +34,7 @@ func TestToManifestWork(t *testing.T) {
 					"name":      "test",
 					"namespace": "testns",
 				},
+				Version: &version,
 				Manifests: []map[string]interface{}{
 					{"a": "b"},
 				},
@@ -39,8 +44,9 @@ func TestToManifestWork(t *testing.T) {
 			},
 			expected: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
-					Name:      "test",
-					Namespace: "testns",
+					Name:            "test",
+					Namespace:       "testns",
+					ResourceVersion: "1",
 				},
 				Spec: workv1.ManifestWorkSpec{
 					Workload: workv1.ManifestsTemplate{
@@ -62,6 +68,7 @@ func TestToManifestWork(t *testing.T) {
 					"name":      "test",
 					"namespace": "testns",
 				},
+				Version: &version,
 				Manifests: []map[string]interface{}{
 					{"a": "b"},
 				},
@@ -85,8 +92,9 @@ func TestToManifestWork(t *testing.T) {
 			},
 			expected: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
-					Name:      "test",
-					Namespace: "testns",
+					Name:            "test",
+					Namespace:       "testns",
+					ResourceVersion: "1",
 				},
 				Spec: workv1.ManifestWorkSpec{
 					Workload: workv1.ManifestsTemplate{
@@ -202,6 +210,75 @@ func TestToLabelSearch(t *testing.T) {
 
 			if err != nil {
 				t.Errorf("expected error %v", err)
+			}
+		})
+	}
+}
+
+func TestToWorkPatch(t *testing.T) {
+	cases := []struct {
+		name            string
+		existingWork    *workv1.ManifestWork
+		newWork         *workv1.ManifestWork
+		expectedVersion string
+		expectedError   bool
+	}{
+		{
+			name:          "no resourceVersion",
+			existingWork:  &workv1.ManifestWork{},
+			expectedError: true,
+		},
+		{
+			name: "resourceVersion is zero",
+			existingWork: &workv1.ManifestWork{
+				ObjectMeta: v1.ObjectMeta{
+					ResourceVersion: "0",
+				},
+			},
+			expectedError: true,
+		},
+		{
+			name: "should use existing resource version",
+			existingWork: &workv1.ManifestWork{
+				ObjectMeta: v1.ObjectMeta{
+					ResourceVersion: "1",
+				},
+			},
+			newWork: &workv1.ManifestWork{
+				ObjectMeta: v1.ObjectMeta{
+					ResourceVersion: "2",
+				},
+			},
+			expectedVersion: "1",
+			expectedError:   false,
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			jsonData, err := ToWorkPatch(c.existingWork, c.newWork)
+			if c.expectedError {
+				if err == nil {
+					t.Errorf("expected error, but failed")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Errorf("unexpected error %v", err)
+			}
+
+			metadata := map[string]any{}
+			if err := json.Unmarshal(jsonData, &metadata); err != nil {
+				t.Fatal(err)
+			}
+
+			obj := unstructured.Unstructured{
+				Object: metadata,
+			}
+			version := obj.GetResourceVersion()
+			if version != c.expectedVersion {
+				t.Errorf("expected %s, but got %s", c.expectedVersion, version)
 			}
 		})
 	}
