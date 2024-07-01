@@ -48,10 +48,11 @@ type Handlers struct {
 }
 
 type Services struct {
-	Resources ResourceServiceLocator
-	Generic   GenericServiceLocator
-	Events    EventServiceLocator
-	Consumers ConsumerServiceLocator
+	Resources    ResourceServiceLocator
+	Generic      GenericServiceLocator
+	Events       EventServiceLocator
+	StatusEvents StatusEventServiceLocator
+	Consumers    ConsumerServiceLocator
 }
 
 type Clients struct {
