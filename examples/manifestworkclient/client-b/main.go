@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"flag"
 	"log"
 	"net/http"
@@ -11,7 +10,6 @@ import (
 
 	"fmt"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 
@@ -92,7 +90,7 @@ func main() {
 
 	newWork := work.DeepCopy()
 	newWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
-	patchData, err := ToWorkPatch(work, newWork)
+	patchData, err := grpcsource.ToWorkPatch(work, newWork)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -130,25 +128,6 @@ func NewManifestWork(name string) *workv1.ManifestWork {
 			},
 		},
 	}
-}
-
-func ToWorkPatch(old, new *workv1.ManifestWork) ([]byte, error) {
-	oldData, err := json.Marshal(old)
-	if err != nil {
-		return nil, err
-	}
-
-	newData, err := json.Marshal(new)
-	if err != nil {
-		return nil, err
-	}
-
-	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		return nil, err
-	}
-
-	return patchBytes, nil
 }
 
 func NewManifest(name string) workv1.Manifest {

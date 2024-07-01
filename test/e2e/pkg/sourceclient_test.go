@@ -2,12 +2,10 @@ package e2e_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
-	jsonpatch "github.com/evanphx/json-patch"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
@@ -28,6 +26,54 @@ import (
 )
 
 var _ = Describe("gRPC Source ManifestWork Client Test", func() {
+	Context("Update an obsolete work", func() {
+		var workName string
+
+		BeforeEach(func() {
+			workName = "work-" + rand.String(5)
+			work := NewManifestWork(workName)
+			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for few seconds to ensure the creation is finished
+			<-time.After(5 * time.Second)
+		})
+
+		AfterEach(func() {
+			err := workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				return AssertWorkNotFound(workName)
+			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+
+		})
+
+		It("Should return an error when updating an obsolete work", func() {
+			By("update a work by work client")
+			work, err := workClient.ManifestWorks(consumer.Name).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			newWork := work.DeepCopy()
+			newWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
+			patchData, err := grpcsource.ToWorkPatch(work, newWork)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("update the work by work client again")
+			obsoleteWork := work.DeepCopy()
+			obsoleteWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
+			patchData, err = grpcsource.ToWorkPatch(work, obsoleteWork)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			Expect(err).Should(HaveOccurred())
+			Expect(strings.Contains(err.Error(), "the resource version is not the latest")).Should(BeTrue())
+		})
+	})
+
 	Context("Watch work status with gRPC source ManifestWork client", func() {
 		var watcherCtx context.Context
 		var watcherCancel context.CancelFunc
@@ -98,8 +144,9 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			newWork := work.DeepCopy()
 			newWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
-			patchData, err := ToWorkPatch(work, newWork)
+			patchData, err := grpcsource.ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
+
 			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -471,25 +518,6 @@ func NewManifestWorkWithLabels(name string, labels map[string]string) *workv1.Ma
 	work := NewManifestWork(name)
 	work.Labels = labels
 	return work
-}
-
-func ToWorkPatch(old, new *workv1.ManifestWork) ([]byte, error) {
-	oldData, err := json.Marshal(old)
-	if err != nil {
-		return nil, err
-	}
-
-	newData, err := json.Marshal(new)
-	if err != nil {
-		return nil, err
-	}
-
-	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
-	if err != nil {
-		return nil, err
-	}
-
-	return patchBytes, nil
 }
 
 func NewManifest(name string) workv1.Manifest {
