@@ -34,6 +34,14 @@ func NewEventServiceLocator(env *Env) EventServiceLocator {
 	}
 }
 
+type StatusEventServiceLocator func() services.StatusEventService
+
+func NewStatusEventServiceLocator(env *Env) StatusEventServiceLocator {
+	return func() services.StatusEventService {
+		return services.NewStatusEventService(dao.NewStatusEventDao(&env.Database.SessionFactory))
+	}
+}
+
 type ConsumerServiceLocator func() services.ConsumerService
 
 func NewConsumerServiceLocator(env *Env) ConsumerServiceLocator {
