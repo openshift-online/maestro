@@ -259,11 +259,6 @@ func encode(resource *api.Resource) (*ce.Event, error) {
 		return api.JSONMAPToCloudEvent(resource.Status)
 	}
 
-	specEvt, err := api.JSONMAPToCloudEvent(resource.Payload)
-	if err != nil {
-		return nil, err
-	}
-
 	statusEvt, err := api.JSONMAPToCloudEvent(resource.Status)
 	if err != nil {
 		return nil, err
@@ -279,23 +274,35 @@ func encode(resource *api.Resource) (*ce.Event, error) {
 		evt.SetExtension(key, val)
 	}
 
-	// set work meta back
-	if workMeta, ok := specEvt.Extensions()[codec.ExtensionWorkMeta]; ok {
+	// set work meta back from status event
+	if workMeta, ok := statusEvt.Extensions()[codec.ExtensionWorkMeta]; ok {
 		evt.SetExtension(codec.ExtensionWorkMeta, workMeta)
 	}
 
-	// set payloads
+	// manifest bundle status from the resource status
 	manifestBundleStatus := &workpayload.ManifestBundleStatus{}
 	if err := statusEvt.DataAs(manifestBundleStatus); err != nil {
 		return nil, err
 	}
 
-	// set work spec back
-	manifestBundle := &workpayload.ManifestBundle{}
-	if err := specEvt.DataAs(manifestBundle); err != nil {
-		return nil, err
+	if len(resource.Payload) > 0 {
+		specEvt, err := api.JSONMAPToCloudEvent(resource.Payload)
+		if err != nil {
+			return nil, err
+		}
+
+		// set work meta back from spec event
+		if workMeta, ok := specEvt.Extensions()[codec.ExtensionWorkMeta]; ok {
+			evt.SetExtension(codec.ExtensionWorkMeta, workMeta)
+		}
+
+		// set work spec back from spec event
+		manifestBundle := &workpayload.ManifestBundle{}
+		if err := specEvt.DataAs(manifestBundle); err != nil {
+			return nil, err
+		}
+		manifestBundleStatus.ManifestBundle = manifestBundle
 	}
-	manifestBundleStatus.ManifestBundle = manifestBundle
 
 	if err := evt.SetData(ce.ApplicationJSON, manifestBundleStatus); err != nil {
 		return nil, err

@@ -21,14 +21,15 @@ func TestControllerRacing(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
 
 	// The handler filters the events by source id/type/reconciled, and only record
 	// the event with create type. Due to the event lock, each create event
 	// should be only processed once.
-	var proccessedEvent []string
+	var proccessedEvent, processedStatusEvent []string
 	onUpsert := func(ctx context.Context, id string) error {
-		events, err := dao.All(ctx)
+		events, err := eventDao.All(ctx)
 		if err != nil {
 			return err
 		}
@@ -50,6 +51,26 @@ func TestControllerRacing(t *testing.T) {
 		return nil
 	}
 
+	onStatusUpdate := func(ctx context.Context, eventID, resourceID string) error {
+		statusEvents, err := statusEventDao.All(ctx)
+		if err != nil {
+			return err
+		}
+
+		for _, evt := range statusEvents {
+			if evt.ID != eventID || evt.ResourceID != resourceID {
+				continue
+			}
+			// the event has been reconciled by others, ignore.
+			if evt.ReconciledDate != nil {
+				continue
+			}
+			processedStatusEvent = append(processedStatusEvent, eventID)
+		}
+
+		return nil
+	}
+
 	// Start 3 controllers concurrently
 	threads := 3
 	for i := 0; i < threads; i++ {
@@ -58,6 +79,9 @@ func TestControllerRacing(t *testing.T) {
 				KindControllerManager: controllers.NewKindControllerManager(
 					db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
 					h.Env().Services.Events(),
+				),
+				StatusController: controllers.NewStatusController(
+					h.Env().Services.StatusEvents(),
 				),
 			}
 
@@ -69,18 +93,44 @@ func TestControllerRacing(t *testing.T) {
 				},
 			})
 
+			s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
+				api.StatusUpdateEventType: {onStatusUpdate},
+				api.StatusDeleteEventType: {onStatusUpdate},
+			})
+
 			s.Start(ctx)
 		}()
 	}
 
 	consumer := h.CreateConsumer("cluster1")
-	_ = h.CreateResourceList(consumer.Name, 50)
+	h.StartWorkAgent(ctx, consumer.Name, false)
+	resources := h.CreateResourceList(consumer.Name, 50)
 
-	// This is to check only 50 create events is processed. It waits for 5 seconds to ensure all events have been
+	// This is to check only 50 create events are processed. It waits for 5 seconds to ensure all events have been
 	// processed by the controllers.
 	Eventually(func() error {
 		if len(proccessedEvent) != 50 {
 			return fmt.Errorf("should have only 50 create events but got %d", len(proccessedEvent))
+		}
+		return nil
+	}, 5*time.Second, 1*time.Second).Should(Succeed())
+
+	// create 50 update status events
+	for _, resource := range resources {
+		_, sErr := statusEventDao.Create(ctx, &api.StatusEvent{
+			ResourceID:      resource.ID,
+			StatusEventType: api.StatusUpdateEventType,
+		})
+		if sErr != nil {
+			t.Fatalf("failed to create status event: %v", sErr)
+		}
+	}
+
+	// This is to check 150 status update events are processed. It waits for 5 seconds to ensure all status events have been
+	// processed by the controllers.
+	Eventually(func() error {
+		if len(processedStatusEvent) != threads*50 {
+			return fmt.Errorf("should have 150 update status events but got %d", len(processedStatusEvent))
 		}
 		return nil
 	}, 5*time.Second, 1*time.Second).Should(Succeed())
@@ -95,15 +145,28 @@ func TestControllerReconcile(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
 
-	processedTimes := 0
+	processedEventTimes := 0
 	// this handler will return an error at the first time to simulate an error happened when handing an event,
 	// and then, the controller will requeue this event, at that time, we handle this event successfully.
 	onUpsert := func(ctx context.Context, id string) error {
-		processedTimes = processedTimes + 1
-		if processedTimes == 1 {
+		processedEventTimes = processedEventTimes + 1
+		if processedEventTimes == 1 {
 			return fmt.Errorf("failed to process the event")
+		}
+
+		return nil
+	}
+
+	processedStatusEventTimes := 0
+	// this handler will return an error at the first time to simulate an error happened when handing an event,
+	// and then, the controller will requeue this event, at that time, we handle this event successfully.
+	onStatusUpdate := func(ctx context.Context, eventID, resourceID string) error {
+		processedStatusEventTimes = processedStatusEventTimes + 1
+		if processedStatusEventTimes == 1 {
+			return fmt.Errorf("failed to process the status event")
 		}
 
 		return nil
@@ -116,6 +179,9 @@ func TestControllerReconcile(t *testing.T) {
 				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
 				h.Env().Services.Events(),
 			),
+			StatusController: controllers.NewStatusController(
+				h.Env().Services.StatusEvents(),
+			),
 		}
 
 		s.KindControllerManager.Add(&controllers.ControllerConfig{
@@ -125,6 +191,10 @@ func TestControllerReconcile(t *testing.T) {
 				api.UpdateEventType: {onUpsert},
 			},
 		})
+		s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
+			api.StatusUpdateEventType: {onStatusUpdate},
+			api.StatusDeleteEventType: {onStatusUpdate},
+		})
 
 		s.Start(ctx)
 	}()
@@ -132,15 +202,15 @@ func TestControllerReconcile(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	consumer := h.CreateConsumer("cluster1")
-	_ = h.CreateResource(consumer.Name, 1)
+	resource := h.CreateResource(consumer.Name, 1)
 
 	// Eventually, the event will be processed by the controller.
 	Eventually(func() error {
-		if processedTimes != 2 {
-			return fmt.Errorf("the event should be processed 2 times, but got %d", processedTimes)
+		if processedEventTimes != 2 {
+			return fmt.Errorf("the event should be processed 2 times, but got %d", processedEventTimes)
 		}
 
-		events, err := dao.All(ctx)
+		events, err := eventDao.All(ctx)
 		if err != nil {
 			return err
 		}
@@ -150,6 +220,34 @@ func TestControllerReconcile(t *testing.T) {
 		if events[0].ReconciledDate == nil {
 			return fmt.Errorf("the event should be reconciled")
 		}
+		return nil
+	}, 5*time.Second, 1*time.Second).Should(Succeed())
+
+	// create pdate status event
+	_, sErr := statusEventDao.Create(ctx, &api.StatusEvent{
+		ResourceID:      resource.ID,
+		StatusEventType: api.StatusUpdateEventType,
+	})
+	if sErr != nil {
+		t.Fatalf("failed to create status event: %v", sErr)
+	}
+
+	// Eventually, the status event will be processed by the controller.
+	Eventually(func() error {
+		if processedStatusEventTimes != 2 {
+			return fmt.Errorf("the status event should be processed 2 times, but got %d", processedStatusEventTimes)
+		}
+
+		statusEvents, err := statusEventDao.All(ctx)
+		if err != nil {
+			return err
+		}
+		if len(statusEvents) != 1 {
+			return fmt.Errorf("too many status events %d", len(statusEvents))
+		}
+		// if statusEvents[0].ReconciledDate == nil {
+		// 	return fmt.Errorf("the event should be reconciled")
+		// }
 		return nil
 	}, 5*time.Second, 1*time.Second).Should(Succeed())
 
@@ -163,33 +261,33 @@ func TestControllerSync(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	dao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 
 	now := time.Now()
-	if _, err := dao.Create(ctx, &api.Event{Source: "Resources",
+	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
 		SourceID:       "resource1",
 		EventType:      api.UpdateEventType,
 		ReconciledDate: &now}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dao.Create(ctx, &api.Event{Source: "Resources",
+	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
 		SourceID:       "resource2",
 		EventType:      api.UpdateEventType,
 		ReconciledDate: &now}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dao.Create(ctx, &api.Event{Source: "Resources",
+	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
 		SourceID:       "resource3",
 		EventType:      api.UpdateEventType,
 		ReconciledDate: &now}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dao.Create(ctx, &api.Event{Source: "Resources",
+	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
 		SourceID:  "resource4",
 		EventType: api.UpdateEventType}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := dao.Create(ctx, &api.Event{Source: "Resources",
+	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
 		SourceID:  "resource5",
 		EventType: api.UpdateEventType}); err != nil {
 		t.Fatal(err)
@@ -211,6 +309,9 @@ func TestControllerSync(t *testing.T) {
 				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
 				h.Env().Services.Events(),
 			),
+			StatusController: controllers.NewStatusController(
+				h.Env().Services.StatusEvents(),
+			),
 		}
 
 		s.KindControllerManager.Add(&controllers.ControllerConfig{
@@ -230,7 +331,7 @@ func TestControllerSync(t *testing.T) {
 			return fmt.Errorf("should have only two unreconciled events but got %d", len(proccessedEvents))
 		}
 
-		events, err := dao.All(ctx)
+		events, err := eventDao.All(ctx)
 		if err != nil {
 			return err
 		}

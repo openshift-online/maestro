@@ -140,6 +140,7 @@ func (e *Env) LoadServices() {
 	e.Services.Generic = NewGenericServiceLocator(e)
 	e.Services.Resources = NewResourceServiceLocator(e)
 	e.Services.Events = NewEventServiceLocator(e)
+	e.Services.StatusEvents = NewStatusEventServiceLocator(e)
 	e.Services.Consumers = NewConsumerServiceLocator(e)
 }
 

@@ -215,9 +215,10 @@ func (helper *Helper) sendShutdownSignal() error {
 func (helper *Helper) startPulseServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.PulseInterval = 1
 	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
+	helper.PulseServer = server.NewPulseServer(helper.EventBroadcaster)
 	go func() {
 		glog.V(10).Info("Test pulse server started")
-		server.NewPulseServer(helper.EventBroadcaster).Start(ctx)
+		helper.PulseServer.Start(ctx)
 		glog.V(10).Info("Test pulse server stopped")
 	}()
 }
@@ -237,6 +238,9 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 			db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory),
 			helper.Env().Services.Events(),
 		),
+		StatusController: controllers.NewStatusController(
+			helper.Env().Services.StatusEvents(),
+		),
 	}
 
 	helper.ControllerManager.KindControllerManager.Add(&controllers.ControllerConfig{
@@ -246,6 +250,10 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 			api.UpdateEventType: {sourceClient.OnUpdate},
 			api.DeleteEventType: {sourceClient.OnDelete},
 		},
+	})
+	helper.ControllerManager.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
+		api.StatusUpdateEventType: {helper.PulseServer.OnStatusUpdate},
+		api.StatusDeleteEventType: {helper.PulseServer.OnStatusUpdate},
 	})
 
 	// start controller manager
@@ -474,6 +482,8 @@ func (helper *Helper) CleanDB() error {
 	// TODO: this list should not be static or otherwise not hard-coded here.
 	for _, table := range []string{
 		"events",
+		"status_events",
+		"event_instances",
 		"resources",
 		"consumers",
 		"server_instances",

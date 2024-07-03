@@ -76,8 +76,10 @@ CLIENT_SECRET ?= maestro
 ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
 ENABLE_OCM_MOCK ?= false
-
 ENABLE_GRPC ?= false
+
+# default replicas for maestro server
+REPLICAS ?= 1
 
 # Enable set images
 POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
@@ -265,6 +267,7 @@ cmds:
 		--ignore-unknown-parameters="true" \
 		--param="ENVIRONMENT=$(OCM_ENV)" \
 		--param="GLOG_V=$(glog_v)" \
+		--param="REPLICAS=$(REPLICAS)" \
 		--param="DATABASE_HOST=$(db_host)" \
 		--param="DATABASE_NAME=$(db_name)" \
 		--param="DATABASE_PASSWORD=$(db_password)" \
