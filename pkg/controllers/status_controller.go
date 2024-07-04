@@ -51,35 +51,35 @@ func (sc *StatusController) Run(stopCh <-chan struct{}) {
 	logger.Infof("Shutting down status event controller")
 }
 
-func (sm *StatusController) runWorker() {
+func (sc *StatusController) runWorker() {
 	// hot loop until we're told to stop. processNextEvent will automatically wait until there's work available, so
 	// we don't worry about secondary waits
-	for sm.processNextEvent() {
+	for sc.processNextEvent() {
 	}
 }
 
 // processNextEvent deals with one key off the queue.
-func (sm *StatusController) processNextEvent() bool {
+func (sc *StatusController) processNextEvent() bool {
 	// pull the next status event item from queue.
 	// events queue blocks until it can return an item to be processed
-	key, quit := sm.eventsQueue.Get()
+	key, quit := sc.eventsQueue.Get()
 	if quit {
 		// the current queue is shutdown and becomes empty, quit this process
 		return false
 	}
-	defer sm.eventsQueue.Done(key)
+	defer sc.eventsQueue.Done(key)
 
-	if err := sm.handleStatusEvent(key.(string)); err != nil {
+	if err := sc.handleStatusEvent(key.(string)); err != nil {
 		logger.Error(fmt.Sprintf("Failed to handle the event %v, %v ", key, err))
 
 		// we failed to handle the status event, we should requeue the item to work on later
 		// this method will add a backoff to avoid hotlooping on particular items
-		sm.eventsQueue.AddRateLimited(key)
+		sc.eventsQueue.AddRateLimited(key)
 		return true
 	}
 
 	// we handle the status event successfully, tell the queue to stop tracking history for this status event
-	sm.eventsQueue.Forget(key)
+	sc.eventsQueue.Forget(key)
 	return true
 }
 

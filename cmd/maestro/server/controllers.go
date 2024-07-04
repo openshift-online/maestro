@@ -17,6 +17,9 @@ func NewControllersServer(pulseServer *PulseServer, eventHub *EventHub) *Control
 			db.NewAdvisoryLockFactory(env().Database.SessionFactory),
 			env().Services.Events(),
 		),
+		SpecController: controllers.NewSpecController(
+			env().Services.Events(),
+		),
 		StatusController: controllers.NewStatusController(
 			env().Services.StatusEvents(),
 		),
@@ -26,15 +29,16 @@ func NewControllersServer(pulseServer *PulseServer, eventHub *EventHub) *Control
 	s.KindControllerManager.Add(&controllers.ControllerConfig{
 		Source: "Resources",
 		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-			// TODO: in multiple maestro replicas case, eventHub for each replica needs
-			// to broadcast the event to subscribers. Bit current KindControllerManager has lock
-			// to block other replicas to handle the same event.
-			api.CreateEventType: {sourceClient.OnCreate, eventHub.OnCreate},
-			api.UpdateEventType: {sourceClient.OnUpdate, eventHub.OnUpdate},
-			api.DeleteEventType: {sourceClient.OnDelete, eventHub.OnDelete},
+			api.CreateEventType: {sourceClient.OnCreate},
+			api.UpdateEventType: {sourceClient.OnUpdate},
+			api.DeleteEventType: {sourceClient.OnDelete},
 		},
 	})
-
+	s.SpecController.Add(map[api.EventType][]controllers.SpecHandlerFunc{
+		api.CreateEventType: {eventHub.OnCreate},
+		api.UpdateEventType: {eventHub.OnUpdate},
+		api.DeleteEventType: {eventHub.OnDelete},
+	})
 	s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
 		api.StatusUpdateEventType: {pulseServer.OnStatusUpdate},
 		api.StatusDeleteEventType: {pulseServer.OnStatusUpdate},
@@ -45,6 +49,7 @@ func NewControllersServer(pulseServer *PulseServer, eventHub *EventHub) *Control
 
 type ControllersServer struct {
 	KindControllerManager *controllers.KindControllerManager
+	SpecController        *controllers.SpecController
 	StatusController      *controllers.StatusController
 
 	DB db.SessionFactory
@@ -56,11 +61,15 @@ func (s ControllersServer) Start(ctx context.Context) {
 
 	log.Infof("Kind controller handling events")
 	go s.KindControllerManager.Run(ctx.Done())
+	log.Infof("Spec controller handling events")
+	go s.SpecController.Run(ctx.Done())
 	log.Infof("Status controller handling events")
 	go s.StatusController.Run(ctx.Done())
 
 	log.Infof("Kind controller listening for events")
 	go env().Database.SessionFactory.NewListener(ctx, "events", s.KindControllerManager.AddEvent)
+	log.Infof("Spec controller listening for spec events")
+	go env().Database.SessionFactory.NewListener(ctx, "events", s.SpecController.AddSpecEvent)
 	log.Infof("Status controller listening for status events")
 	go env().Database.SessionFactory.NewListener(ctx, "status_events", s.StatusController.AddStatusEvent)
 
