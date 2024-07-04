@@ -10,7 +10,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 )
 
-func NewControllersServer(pulseServer *PulseServer) *ControllersServer {
+func NewControllersServer(pulseServer *PulseServer, eventHub *EventHub) *ControllersServer {
 
 	s := &ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
@@ -26,9 +26,12 @@ func NewControllersServer(pulseServer *PulseServer) *ControllersServer {
 	s.KindControllerManager.Add(&controllers.ControllerConfig{
 		Source: "Resources",
 		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-			api.CreateEventType: {sourceClient.OnCreate},
-			api.UpdateEventType: {sourceClient.OnUpdate},
-			api.DeleteEventType: {sourceClient.OnDelete},
+			// TODO: in multiple maestro replicas case, eventHub for each replica needs
+			// to broadcast the event to subscribers. Bit current KindControllerManager has lock
+			// to block other replicas to handle the same event.
+			api.CreateEventType: {sourceClient.OnCreate, eventHub.OnCreate},
+			api.UpdateEventType: {sourceClient.OnUpdate, eventHub.OnUpdate},
+			api.DeleteEventType: {sourceClient.OnDelete, eventHub.OnDelete},
 		},
 	})
 

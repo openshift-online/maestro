@@ -165,3 +165,5 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
+
+replace open-cluster-management.io/sdk-go => github.com/morvencao/ocm-sdk-go v0.0.0-20240703064920-7fbc467f8c1d

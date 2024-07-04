@@ -289,32 +289,24 @@ objects:
             - /usr/local/bin/maestro
             - agent
             - --consumer-name=${CONSUMER_NAME}
-            - --workload-source-driver=mqtt
-            - --workload-source-config=/secrets/mqtt/config.yaml
+            - --workload-source-driver=grpc
+            - --workload-source-config=/secrets/grpc/config.yaml
             - --cloudevents-client-id=${CONSUMER_NAME}-work-agent
           volumeMounts:
-          - name: mqtt
-            mountPath: /secrets/mqtt
+          - name: grpc
+            mountPath: /secrets/grpc
         volumes:
-        - name: mqtt
+        - name: grpc
           secret:
-            secretName: maestro-agent-mqtt
+            secretName: maestro-agent-grpc
 
 - apiVersion: v1
   kind: Secret
   metadata:
-    name: maestro-agent-mqtt
+    name: maestro-agent-grpc
   stringData:
     config.yaml: |
-      brokerHost: ${MQTT_HOST}:${MQTT_PORT}
-      username: ${MQTT_USER}
-      password: ${MQTT_PASSWORD}
-      caFile: ${MQTT_ROOT_CERT}
-      clientCertFile: ${MQTT_CLENT_CERT}
-      clientKeyFile: ${MQTT_CLENT_KEY}
-      topics:
-        sourceEvents: sources/maestro/consumers/${CONSUMER_NAME}/sourceevents
-        agentEvents: sources/maestro/consumers/${CONSUMER_NAME}/agentevents
+      url: maestro-grpc-broker.maestro:8091
 
 - kind: ServiceAccount
   apiVersion: v1

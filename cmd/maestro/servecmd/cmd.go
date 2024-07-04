@@ -35,15 +35,16 @@ func runServer(cmd *cobra.Command, args []string) {
 		glog.Fatalf("Unable to initialize environment: %s", err.Error())
 	}
 
-	// Create event broadcaster to broadcast resource status update events to subscribers
+	// Create event broadcaster to broadcast resource and resoource status events to subscribers
 	eventBroadcaster := event.NewEventBroadcaster()
+	eventHub := server.NewEventHub(eventBroadcaster)
 
 	// Create the servers
 	apiserver := server.NewAPIServer(eventBroadcaster)
 	metricsServer := server.NewMetricsServer()
 	healthcheckServer := server.NewHealthCheckServer()
 	pulseServer := server.NewPulseServer(eventBroadcaster)
-	controllersServer := server.NewControllersServer(pulseServer)
+	controllersServer := server.NewControllersServer(pulseServer, eventHub)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -75,6 +76,9 @@ func runServer(cmd *cobra.Command, args []string) {
 	go healthcheckServer.Start()
 	go pulseServer.Start(ctx)
 	go controllersServer.Start(ctx)
+	if environments.Environment().Config.GRPCServer.EnableGRPCBroker {
+		go server.NewGRPCBroker(eventBroadcaster).Start(ctx)
+	}
 
 	<-ctx.Done()
 }

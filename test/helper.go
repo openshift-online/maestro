@@ -303,7 +303,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 func (helper *Helper) StartGRPCResourceSourceClient() {
 	store := NewStore()
 	grpcOptions := grpcoptions.NewGRPCOptions()
-	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BindPort)
+	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.ServerBindPort)
 	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
 		helper.Ctx,
 		grpcoptions.NewSourceOptions(grpcOptions, "maestro"),
