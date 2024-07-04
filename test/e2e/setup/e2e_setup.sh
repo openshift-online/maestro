@@ -152,8 +152,26 @@ kubectl create secret generic maestro-mqtt-certs -n $namespace --from-file=ca.cr
 kubectl patch deploy/maestro-mqtt -n $namespace --type='json' -p='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mosquitto-certs","secret":{"secretName":"maestro-mqtt-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mosquitto-certs","mountPath":"/mosquitto/certs"}}]'
 kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
 
-# apply the maestro-mqtt secret
-cat << EOF | kubectl -n $namespace apply -f -
+maestroServerPatch='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
+if [ -n "${ENABLE_BROADCAST_SUBSCRIPTION}" ] && [ "${ENABLE_BROADCAST_SUBSCRIPTION}" = "true" ]; then
+    maestroServerPatch='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--subscription-type=broadcast"},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
+    cat << EOF | kubectl -n $namespace apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maestro-mqtt
+stringData:
+  config.yaml: |
+    brokerHost: maestro-mqtt-server.maestro:1883
+    caFile: /secrets/mqtt-certs/ca.crt
+    clientCertFile: /secrets/mqtt-certs/client.crt
+    clientKeyFile: /secrets/mqtt-certs/client.key
+    topics:
+      sourceEvents: sources/maestro/consumers/+/sourceevents
+      agentEvents: sources/maestro/consumers/+/agentevents
+EOF
+else
+    cat << EOF | kubectl -n $namespace apply -f -
 apiVersion: v1
 kind: Secret
 metadata:
@@ -168,10 +186,11 @@ stringData:
       sourceEvents: sources/maestro/consumers/+/sourceevents
       agentEvents: \$share/statussubscribers/sources/maestro/consumers/+/agentevents
 EOF
+fi
 
 # create secret containing the client certs to mqtt broker and patch the maestro deployment
 kubectl create secret generic maestro-server-certs -n $namespace --from-file=ca.crt=${certDir}/ca.crt --from-file=client.crt=${certDir}/server-client.crt --from-file=client.key=${certDir}/server-client.key
-kubectl patch deploy/maestro -n $namespace --type='json' -p='[{"op": "add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
+kubectl patch deploy/maestro -n $namespace --type='json' -p=${maestroServerPatch}
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
 # 6. create a consumer
