@@ -106,7 +106,7 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			// delete the consumer
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
+			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *resourceConsumer.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 		})
