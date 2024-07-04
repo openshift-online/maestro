@@ -5,6 +5,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
+	"gorm.io/gorm"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"
@@ -20,9 +21,10 @@ type ConsumerService interface {
 	FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, *errors.ServiceError)
 }
 
-func NewConsumerService(lockFactory db.LockFactory, consumerDao dao.ConsumerDao, events EventService) ConsumerService {
+func NewConsumerService(lockFactory db.LockFactory, consumerDao dao.ConsumerDao, resourceDao dao.ResourceDao, events EventService) ConsumerService {
 	return &sqlConsumerService{
 		consumerDao: consumerDao,
+		resourceDao: resourceDao,
 	}
 }
 
@@ -30,6 +32,7 @@ var _ ConsumerService = &sqlConsumerService{}
 
 type sqlConsumerService struct {
 	consumerDao dao.ConsumerDao
+	resourceDao dao.ResourceDao
 }
 
 func (s *sqlConsumerService) Get(ctx context.Context, id string) (*api.Consumer, *errors.ServiceError) {
@@ -63,6 +66,20 @@ func (s *sqlConsumerService) Replace(ctx context.Context, consumer *api.Consumer
 }
 
 func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.ServiceError {
+	consumer, err := s.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	_, e := s.resourceDao.FirstByConsumerName(ctx, consumer.Name)
+	if e == nil {
+		return errors.Forbidden("Resources associated with the consumer: %s", consumer.Name)
+	}
+
+	if e != gorm.ErrRecordNotFound {
+		return handleGetError("Resource", "consumer_name", consumer.Name, e)
+	}
+
+	// e is record not found
 	if err := s.consumerDao.Delete(ctx, id); err != nil {
 		return handleDeleteError("Consumer", errors.GeneralError("Unable to delete consumer: %s", err))
 	}

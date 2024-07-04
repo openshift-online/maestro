@@ -81,3 +81,7 @@ func (d *resourceDaoMock) FindBySource(ctx context.Context, source string) (api.
 func (d *resourceDaoMock) All(ctx context.Context) (api.ResourceList, error) {
 	return d.resources, nil
 }
+
+func (d *resourceDaoMock) FirstByConsumerName(ctx context.Context, consumerName string) (api.Resource, error) {
+	return *d.resources[0], errors.NotImplemented("Resource").AsError()
+}

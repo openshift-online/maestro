@@ -137,6 +137,78 @@ func TestConsumerPatch(t *testing.T) {
 	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
 }
 
+func TestConsumerDelete(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// POST responses per openapi spec: 201, 409, 500
+	c := openapi.Consumer{
+		Name: openapi.PtrString("bazqux"),
+	}
+
+	// 201 Created
+	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*consumer.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
+
+	// 200 Got
+	got, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusOK))
+	Expect(*got.Id).To(Equal(*consumer.Id))
+	Expect(*got.Name).To(Equal(*consumer.Name))
+
+	// 204 Deleted
+	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
+	// 404 Not Found
+	_, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+	Expect(err.Error()).To(ContainSubstring("Not Found"))
+	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+}
+
+func TestConsumerDeleteForbidden(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// create a consumser
+	c := openapi.Consumer{
+		Name: openapi.PtrString("jamie"),
+	}
+	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
+	Expect(err).To(Succeed())
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*consumer.Id).NotTo(BeEmpty())
+
+	// attach resource to the consumer
+	res := h.NewAPIResource(*consumer.Name, 1)
+	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+	Expect(err).To(Succeed())
+	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+	Expect(*resource.Id).ShouldNot(BeEmpty())
+	Expect(*resource.Version).To(Equal(int32(1)))
+
+	// 403 forbid deletion
+	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
+	Expect(err).To(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
+
+	// delete the resource
+	resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
+	Expect(err).To(Succeed())
+	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
+	// delete the consumer
+	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
+	Expect(err).To(Succeed())
+	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+}
+
 func TestConsumerPaging(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 

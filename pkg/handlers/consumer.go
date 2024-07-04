@@ -17,12 +17,14 @@ var _ RestHandler = consumerHandler{}
 
 type consumerHandler struct {
 	consumer services.ConsumerService
+	resource services.ResourceService
 	generic  services.GenericService
 }
 
-func NewConsumerHandler(consumer services.ConsumerService, generic services.GenericService) *consumerHandler {
+func NewConsumerHandler(consumer services.ConsumerService, resource services.ResourceService, generic services.GenericService) *consumerHandler {
 	return &consumerHandler{
 		consumer: consumer,
+		resource: resource,
 		generic:  generic,
 	}
 }

@@ -23,7 +23,7 @@ func (s *apiServer) routes() *mux.Router {
 	}
 
 	resourceHandler := handlers.NewResourceHandler(services.Resources(), services.Generic())
-	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Generic())
+	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Resources(), services.Generic())
 	errorsHandler := handlers.NewErrorsHandler()
 
 	var authMiddleware auth.JWTMiddleware

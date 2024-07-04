@@ -49,6 +49,7 @@ func NewConsumerServiceLocator(env *Env) ConsumerServiceLocator {
 		return services.NewConsumerService(
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			dao.NewConsumerDao(&env.Database.SessionFactory),
+			dao.NewResourceDao(&env.Database.SessionFactory),
 			env.Services.Events(),
 		)
 	}
