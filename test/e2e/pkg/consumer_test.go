@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"fmt"
 	"net/http"
 	"reflect"
 
@@ -23,7 +22,7 @@ var _ = Describe("Consumer", Ordered, func() {
 
 	Context("Consumer CRUD Tests", func() {
 		It("create consumer", func() {
-			// create a consumser without resource
+			// create a consumer without resource
 			created, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumer).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
@@ -35,7 +34,7 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
 
-			// create a consumser associates with resource
+			// create a consumer associates with resource
 			created, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(resourceConsumer).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
@@ -59,7 +58,6 @@ var _ = Describe("Consumer", Ordered, func() {
 
 			got := false
 			for _, c := range consumerList.Items {
-				fmt.Println("got the consumer:", *c.Name, *c.Id)
 				if *c.Name == *consumer.Name {
 					got = true
 				}
@@ -95,17 +93,16 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 			// delete the consumer associated with resource
-			// 403 forbid deletion
 			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *resourceConsumer.Id).Execute()
 			Expect(err).To(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
+			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
 
 			// delete the resource
 			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-			// delete the consumer
+			// delete the associated consumer
 			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *resourceConsumer.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
