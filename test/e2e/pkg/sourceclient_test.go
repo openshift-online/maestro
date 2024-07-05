@@ -30,7 +30,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 		var workName string
 
 		BeforeEach(func() {
-			workName = "work-" + rand.String(5)
+			workName = "work-" + rand.String(6)
 			work := NewManifestWork(workName)
 			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -46,7 +46,6 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
 			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
-
 		})
 
 		It("Should return an error when updating an obsolete work", func() {
