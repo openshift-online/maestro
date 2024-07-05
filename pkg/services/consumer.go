@@ -76,7 +76,7 @@ func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.Serv
 	}
 
 	if e != gorm.ErrRecordNotFound {
-		return handleGetError("Resource", "consumer_name", consumer.Name, e)
+		return errors.GeneralError("Unable to get resources by consumer: %s", e)
 	}
 
 	// e is record not found
