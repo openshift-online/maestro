@@ -13,7 +13,7 @@ type ConsumerDao interface {
 	Get(ctx context.Context, id string) (*api.Consumer, error)
 	Create(ctx context.Context, consumer *api.Consumer) (*api.Consumer, error)
 	Replace(ctx context.Context, consumer *api.Consumer) (*api.Consumer, error)
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string, unscoped bool) error
 	FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, error)
 	All(ctx context.Context) (api.ConsumerList, error)
 }
@@ -55,8 +55,12 @@ func (d *sqlConsumerDao) Replace(ctx context.Context, consumer *api.Consumer) (*
 	return consumer, nil
 }
 
-func (d *sqlConsumerDao) Delete(ctx context.Context, id string) error {
+func (d *sqlConsumerDao) Delete(ctx context.Context, id string, unscoped bool) error {
 	g2 := (*d.sessionFactory).New(ctx)
+	if unscoped {
+		// Unscoped is used to permanently delete the record
+		g2 = g2.Unscoped()
+	}
 	if err := g2.Omit(clause.Associations).Delete(&api.Consumer{Meta: api.Meta{ID: id}}).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return err

@@ -38,7 +38,7 @@ func (d *consumerDaoMock) Replace(ctx context.Context, consumer *api.Consumer) (
 	return nil, errors.NotImplemented("Consumer").AsError()
 }
 
-func (d *consumerDaoMock) Delete(ctx context.Context, id string) error {
+func (d *consumerDaoMock) Delete(ctx context.Context, id string, unscoped bool) error {
 	return errors.NotImplemented("Consumer").AsError()
 }
 

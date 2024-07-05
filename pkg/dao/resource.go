@@ -19,7 +19,7 @@ type ResourceDao interface {
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
-	FirstByConsumerName(ctx context.Context, name string) (api.Resource, error)
+	FirstByConsumerName(ctx context.Context, name string, unscoped bool) (api.Resource, error)
 }
 
 var _ ResourceDao = &sqlResourceDao{}
@@ -117,8 +117,13 @@ func (d *sqlResourceDao) All(ctx context.Context) (api.ResourceList, error) {
 	return resources, nil
 }
 
-func (d *sqlResourceDao) FirstByConsumerName(ctx context.Context, consumerName string) (api.Resource, error) {
+// FirstByConsumerName will take the first item of the resources. Currently leverage it to determine whether the result exists in the table.
+func (d *sqlResourceDao) FirstByConsumerName(ctx context.Context, consumerName string, unscoped bool) (api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
+	if unscoped {
+		// Unscoped is used to find the deleting resources
+		g2 = g2.Unscoped()
+	}
 	resource := api.Resource{}
 	err := g2.Where("consumer_name = ?", consumerName).First(&resource).Error
 	return resource, err

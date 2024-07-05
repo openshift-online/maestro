@@ -198,15 +198,15 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
 
-	// delete the resource
+	// delete the resource(marked as deleted)
 	resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
 	Expect(err).To(Succeed())
 	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-	// delete the consumer
+	// still forbid deletion for the deleting resource
 	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
-	Expect(err).To(Succeed())
-	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+	Expect(err).To(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
 }
 
 func TestConsumerPaging(t *testing.T) {
