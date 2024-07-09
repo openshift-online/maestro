@@ -288,16 +288,14 @@ func TestConsumerDeleting(t *testing.T) {
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 		Expect(err).To(Succeed())
 
-		if consumerStatusCode == http.StatusForbidden {
-			// at least one resource on the consumer
-			fmt.Println("consumer", consumerName, "associated resources", len(resourceList.Items))
-			Expect(resourceList.Items).NotTo(BeEmpty(), resourceList.Items)
-		} else if consumerStatusCode == http.StatusNoContent {
+		if consumerStatusCode == http.StatusNoContent {
 			// no resource is assocaited with the consumer
 			fmt.Println("consumer", consumerName, "deleted successfully!")
 			Expect(resourceList.Items).To(BeEmpty())
 		} else {
-			fmt.Println("unexpected consumer statusCode", consumerStatusCode)
+			// at least one resource on the consumer, the statusCode should be 403 or 500
+			fmt.Printf("failed to delete consumer(%s), associated with resource(%d), statusCode: %d \n", consumerName, len(resourceList.Items), consumerStatusCode)
+			Expect(resourceList.Items).NotTo(BeEmpty(), resourceList.Items)
 		}
 	}
 	close(consumerChan)
@@ -321,6 +319,7 @@ func TestConsumerDeleting(t *testing.T) {
 			Expect(*consumer.Id).To(Equal(resourceConsumerId))
 			Expect(*consumer.Name).To(Equal(resourceConsumerName))
 		} else {
+			fmt.Printf("failed to create resource on consumer(%s), statusCode: %d, err: %v \n", resourceConsumerName, resourceStatusCode, result.err)
 			Expect(err.Error()).To(ContainSubstring("Not Found"))
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 		}
