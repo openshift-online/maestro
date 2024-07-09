@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -198,7 +199,7 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
 
-	// delete the resource(marked as deleted)
+	// delete the resource
 	resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
 	Expect(err).To(Succeed())
 	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
@@ -207,6 +208,121 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
+}
+
+// TestConsumerDeleting is to test creating resources when delete the consumer
+func TestConsumerDeleting(t *testing.T) {
+	h, client := test.RegisterIntegration(t)
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// create 20 consumers
+	consumerNum := 20
+	consumerIdToName := map[string]string{}
+	for i := 0; i < consumerNum; i++ {
+		consumerName := "tom" + fmt.Sprint(i)
+		consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(openapi.Consumer{
+			Name: openapi.PtrString(consumerName),
+		}).Execute()
+		Expect(err).To(Succeed())
+		Expect(resp.StatusCode).To(Equal(http.StatusCreated))
+		Expect(*consumer.Id).NotTo(BeEmpty())
+		consumerIdToName[*consumer.Id] = consumerName
+	}
+
+	// asynchronously attaching 10 resources to each consumer
+	resourceNum := 10
+	var wg sync.WaitGroup
+	resourceChan := make(chan *Result, resourceNum*consumerNum)
+	for id, name := range consumerIdToName {
+		wg.Add(1)
+		go func(name, id string) {
+			defer wg.Done()
+			for i := 0; i < resourceNum; i++ {
+				// attach resource to the consumer
+				res := h.NewAPIResource(name, 1)
+				resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+				resourceChan <- &Result{
+					resource:     resource,
+					resp:         resp,
+					consumerName: name,
+					consumerId:   id,
+					err:          err,
+				}
+			}
+		}(name, id)
+	}
+
+	// delete consumer when creating resources on it
+	consumerChan := make(chan *Result, consumerNum)
+	for id, name := range consumerIdToName {
+		wg.Add(1)
+		go func(name, id string) {
+			defer wg.Done()
+			resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, id).Execute()
+			consumerChan <- &Result{
+				consumerName: name,
+				consumerId:   id,
+				resp:         resp,
+				err:          err,
+			}
+		}(name, id)
+	}
+
+	wg.Wait()
+
+	// verify the deleted consumer:
+	// 1. success -> no resources is associated with it
+	// 2. failed -> resources are associated with it
+	for i := 0; i < consumerNum; i++ {
+		result := <-consumerChan
+
+		consumerName := result.consumerName
+		consumerStatusCode := result.resp.StatusCode
+
+		search := fmt.Sprintf("consumer_name = '%s'", consumerName)
+		resourceList, resp, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Search(search).Execute()
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+		Expect(err).To(Succeed())
+
+		if consumerStatusCode == http.StatusForbidden {
+			// at least one resource on the consumer
+			fmt.Println("consumer", consumerName, "associated resources", len(resourceList.Items))
+			Expect(resourceList.Items).NotTo(BeEmpty(), resourceList.Items)
+		} else if consumerStatusCode == http.StatusNoContent {
+			// no resource is assocaited with the consumer
+			fmt.Println("consumer", consumerName, "deleted successfully!")
+			Expect(resourceList.Items).To(BeEmpty())
+		} else {
+			fmt.Println("unexpected consumer statusCode", consumerStatusCode)
+		}
+	}
+	close(consumerChan)
+
+	// verify the resources:
+	// 1. success: consumer is exist
+	// 2. failed: consumer is deleted
+	for i := 0; i < consumerNum*resourceNum; i++ {
+		result := <-resourceChan
+
+		resourceStatusCode := result.resp.StatusCode
+		resourceConsumerId := result.consumerId
+		resourceConsumerName := result.consumerName
+
+		// get the consumer
+		consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, resourceConsumerId).Execute()
+
+		if resourceStatusCode == http.StatusCreated {
+			Expect(err).To(Succeed())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(*consumer.Id).To(Equal(resourceConsumerId))
+			Expect(*consumer.Name).To(Equal(resourceConsumerName))
+		} else {
+			Expect(err.Error()).To(ContainSubstring("Not Found"))
+			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+		}
+	}
+	close(resourceChan)
 }
 
 func TestConsumerPaging(t *testing.T) {
@@ -233,4 +349,12 @@ func TestConsumerPaging(t *testing.T) {
 	Expect(list.Size).To(Equal(int32(5)))
 	Expect(list.Total).To(Equal(int32(20)))
 	Expect(list.Page).To(Equal(int32(2)))
+}
+
+type Result struct {
+	resource     *openapi.Resource
+	consumerName string
+	consumerId   string
+	resp         *http.Response
+	err          error
 }
