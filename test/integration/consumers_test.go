@@ -271,7 +271,7 @@ func TestConsumerDeleting(t *testing.T) {
 
 	wg.Wait()
 
-	// verify the deleted consumer:
+	// verify the deleting consumer:
 	// 1. success -> no resources is associated with it
 	// 2. failed -> resources are associated with it
 	for i := 0; i < consumerNum; i++ {
@@ -299,8 +299,8 @@ func TestConsumerDeleting(t *testing.T) {
 	}
 	close(consumerChan)
 
-	// verify the resources:
-	// 1. success: consumer is exist
+	// verify the creating resources:
+	// 1. success: consumer exists
 	// 2. failed: consumer is deleted
 	for i := 0; i < consumerNum*resourceNum; i++ {
 		result := <-resourceChan
