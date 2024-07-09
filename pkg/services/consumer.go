@@ -86,7 +86,7 @@ func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.Serv
 
 	// e is record not found
 	if err := s.consumerDao.Delete(ctx, id, true); err != nil {
-		return handleDeleteError("Consumer", errors.GeneralError("Unable to delete consumer: %s", err))
+		return handleDeleteError("Consumer", err)
 	}
 	return nil
 }

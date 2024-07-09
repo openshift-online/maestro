@@ -216,8 +216,8 @@ func TestConsumerDeleting(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	// create 20 consumers
-	consumerNum := 20
+	// create 10 consumers
+	consumerNum := 10
 	consumerIdToName := map[string]string{}
 	for i := 0; i < consumerNum; i++ {
 		consumerName := "tom" + fmt.Sprint(i)
@@ -230,32 +230,35 @@ func TestConsumerDeleting(t *testing.T) {
 		consumerIdToName[*consumer.Id] = consumerName
 	}
 
-	// asynchronously attaching 10 resources to each consumer
 	resourceNum := 10
-	var wg sync.WaitGroup
-	resourceChan := make(chan *Result, resourceNum*consumerNum)
-	for id, name := range consumerIdToName {
-		wg.Add(1)
-		go func(name, id string) {
-			defer wg.Done()
-			for i := 0; i < resourceNum; i++ {
-				// attach resource to the consumer
-				res := h.NewAPIResource(name, 1)
-				resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
-				resourceChan <- &Result{
-					resource:     resource,
-					resp:         resp,
-					consumerName: name,
-					consumerId:   id,
-					err:          err,
-				}
-			}
-		}(name, id)
-	}
-
-	// delete consumer when creating resources on it
+	resourceCreatorNum := 10
+	resourceChan := make(chan *Result, resourceCreatorNum*resourceNum*consumerNum)
 	consumerChan := make(chan *Result, consumerNum)
+
 	for id, name := range consumerIdToName {
+
+		var wg sync.WaitGroup
+		// 10 creator for each consumer
+		for i := 0; i < resourceCreatorNum; i++ {
+			wg.Add(1)
+			// each creator create resources to the consumer constantly
+			go func(name, id string) {
+				defer wg.Done()
+				for i := 0; i < resourceNum; i++ {
+					res := h.NewAPIResource(name, 1)
+					resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+					resourceChan <- &Result{
+						resource:     resource,
+						resp:         resp,
+						consumerName: name,
+						consumerId:   id,
+						err:          err,
+					}
+				}
+			}(name, id)
+		}
+
+		// delete the consumer when creating resources on it
 		wg.Add(1)
 		go func(name, id string) {
 			defer wg.Done()
@@ -267,9 +270,9 @@ func TestConsumerDeleting(t *testing.T) {
 				err:          err,
 			}
 		}(name, id)
-	}
 
-	wg.Wait()
+		wg.Wait()
+	}
 
 	// verify the deleting consumer:
 	// 1. success -> no resources is associated with it
@@ -302,7 +305,7 @@ func TestConsumerDeleting(t *testing.T) {
 	// verify the creating resources:
 	// 1. success: consumer exists
 	// 2. failed: consumer is deleted
-	for i := 0; i < consumerNum*resourceNum; i++ {
+	for i := 0; i < consumerNum*resourceNum*resourceCreatorNum; i++ {
 		result := <-resourceChan
 
 		resourceStatusCode := result.resp.StatusCode
