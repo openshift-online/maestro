@@ -76,7 +76,11 @@ CLIENT_SECRET ?= maestro
 ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
 ENABLE_OCM_MOCK ?= false
-ENABLE_GRPC ?= false
+ENABLE_GRPC_SERVER ?= false
+ENABLE_GRPC_BROKER ?= false
+
+# Set DRIVER based on ENABLE_GRPC_BROKER
+DRIVER := $(if $(filter true,$(ENABLE_GRPC_BROKER)),grpc,mqtt)
 
 # default replicas for maestro server
 REPLICAS ?= 1
@@ -303,7 +307,9 @@ cmds:
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_NAME=$(consumer_name)" \
 		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
-		--param="ENABLE_GRPC=$(ENABLE_GRPC)" \
+		--param="ENABLE_GRPC_SERVER=$(ENABLE_GRPC_SERVER)" \
+		--param="ENABLE_GRPC_BROKER=$(ENABLE_GRPC_BROKER)" \
+		--param="DRIVER"=$(DRIVER) \
 	> "templates/$*-template.json"
 
 

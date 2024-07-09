@@ -38,12 +38,17 @@ func runServer(cmd *cobra.Command, args []string) {
 	// Create event broadcaster to broadcast resource status update events to subscribers
 	eventBroadcaster := event.NewEventBroadcaster()
 
+	// Create the GRPC broker if enabled
+	var grpcBroker *server.GRPCBroker
+	if environments.Environment().Config.GRPCServer.EnableGRPCBroker {
+		grpcBroker = server.NewGRPCBroker()
+	}
 	// Create the servers
 	apiserver := server.NewAPIServer(eventBroadcaster)
 	metricsServer := server.NewMetricsServer()
 	healthcheckServer := server.NewHealthCheckServer()
 	pulseServer := server.NewPulseServer(eventBroadcaster)
-	controllersServer := server.NewControllersServer(pulseServer)
+	controllersServer := server.NewControllersServer(pulseServer, grpcBroker)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -75,6 +80,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	go healthcheckServer.Start()
 	go pulseServer.Start(ctx)
 	go controllersServer.Start(ctx)
+	// Start the GRPC broker if enabled
+	if grpcBroker != nil {
+		go grpcBroker.Start(ctx)
+	}
 
 	<-ctx.Done()
 }

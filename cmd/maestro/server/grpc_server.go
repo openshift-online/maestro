@@ -68,16 +68,16 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 			glog.Fatalf("Failed to generate credentials %v", err)
 		}
 		grpcServerOptions = append(grpcServerOptions, grpc.Creds(creds))
-		glog.Infof("Serving gRPC service with TLS at %s", config.BindPort)
+		glog.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
 	} else {
-		glog.Infof("Serving gRPC service without TLS at %s", config.BindPort)
+		glog.Infof("Serving gRPC service without TLS at %s", config.ServerBindPort)
 	}
 
 	return &GRPCServer{
 		grpcServer:       grpc.NewServer(grpcServerOptions...),
 		eventBroadcaster: eventBroadcaster,
 		resourceService:  resourceService,
-		bindAddress:      env().Config.HTTPServer.Hostname + ":" + config.BindPort,
+		bindAddress:      env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
 	}
 }
 

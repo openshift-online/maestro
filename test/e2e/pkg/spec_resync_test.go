@@ -303,6 +303,11 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
+		It("delete the grpc-broker service for agent", func() {
+			err := consumer.ClientSet.CoreV1().Services("maestro").Delete(ctx, "maestro-grpc-broker", metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
 		It("Rollout the mqtt-broker", func() {
 			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro").Get(ctx, "maestro-mqtt", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -452,6 +457,31 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			}
 
 			_, err := consumer.ClientSet.CoreV1().Services("maestro").Create(ctx, mqttAgentService, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("recreate the grpc-broker service for agent", func() {
+			grpcBrokerService := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "maestro-grpc-broker",
+					Namespace: "maestro",
+				},
+				Spec: corev1.ServiceSpec{
+					Selector: map[string]string{
+						"app": "maestro",
+					},
+					Ports: []corev1.ServicePort{
+						{
+							Name:       "grpc-broker",
+							Protocol:   corev1.ProtocolTCP,
+							Port:       8091,
+							TargetPort: intstr.FromInt(8091),
+						},
+					},
+					Type: corev1.ServiceTypeClusterIP,
+				},
+			}
+			_, err := consumer.ClientSet.CoreV1().Services("maestro").Create(ctx, grpcBrokerService, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
