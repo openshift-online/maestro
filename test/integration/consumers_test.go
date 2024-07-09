@@ -282,6 +282,7 @@ func TestConsumerDeleting(t *testing.T) {
 
 		consumerName := result.consumerName
 		consumerStatusCode := result.resp.StatusCode
+		consumerErr := result.err
 
 		search := fmt.Sprintf("consumer_name = '%s'", consumerName)
 		resourceList, resp, err := client.DefaultApi.ApiMaestroV1ResourcesGet(ctx).Search(search).Execute()
@@ -294,7 +295,7 @@ func TestConsumerDeleting(t *testing.T) {
 			Expect(resourceList.Items).To(BeEmpty())
 		} else {
 			// at least one resource on the consumer, the statusCode should be 403 or 500
-			fmt.Printf("failed to delete consumer(%s), associated with resource(%d), statusCode: %d \n", consumerName, len(resourceList.Items), consumerStatusCode)
+			fmt.Printf("failed to delete consumer(%s), associated with resource(%d), statusCode: %d, err: %v \n", consumerName, len(resourceList.Items), consumerStatusCode, consumerErr)
 			Expect(resourceList.Items).NotTo(BeEmpty(), resourceList.Items)
 		}
 	}
