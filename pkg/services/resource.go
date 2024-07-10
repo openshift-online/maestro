@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -23,7 +24,7 @@ type ResourceService interface {
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError)
-	MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError
+	MarkAsDeleting(ctx context.Context, id string, deletionTimestamp time.Time) *errors.ServiceError
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
@@ -214,16 +215,41 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	return updated, true, nil
 }
 
-// MarkAsDeleting marks the resource as deleting by setting the delete_at timestamp.
+// MarkAsDeleting marks the resource as deleting by setting the delete_at timestamp if it is provided.
 // The Resource Deletion Flow:
 // 1. User requests deletion
 // 2. Maestro marks resource as deleting by soft delete, adds delete event to DB
 // 3. Maestro handles delete event and sends CloudEvent to work-agent
 // 4. Work-agent deletes resource, sends CloudEvent back to Maestro
 // 5. Maestro hard deletes resource from DB
-func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
-	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
-		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
+func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string, deletionTimestamp time.Time) *errors.ServiceError {
+	if deletionTimestamp.IsZero() {
+		// if deletionTimestamp is not provided, delete the resource immediately
+		if err := s.resourceDao.Delete(ctx, id, false); err != nil {
+			return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
+		}
+	} else {
+		// if deletionTimestamp is provided, mark the resource as deleting in metadata before deletion
+		found, err := s.resourceDao.Get(ctx, id)
+		if err != nil {
+			return handleGetError("Resource", "id", id, err)
+		}
+		// set deletionTimestamp in metadata
+		workMetaValue, ok := found.Payload["metadata"]
+		if ok {
+			workMeta, ok := workMetaValue.(map[string]interface{})
+			if ok {
+				workMeta["deletionTimestamp"] = deletionTimestamp.Format(time.RFC3339)
+				found.Payload["metadata"] = workMeta
+			}
+		}
+		_, err = s.resourceDao.Update(ctx, found)
+		if err != nil {
+			return handleUpdateError("Resource", err)
+		}
+		if err := s.resourceDao.Delete(ctx, id, false); err != nil {
+			return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
+		}
 	}
 
 	if _, err := s.events.Create(ctx, &api.Event{

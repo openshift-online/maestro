@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 
@@ -172,7 +173,7 @@ func (h resourceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			err := h.resource.MarkAsDeleting(ctx, id)
+			err := h.resource.MarkAsDeleting(ctx, id, time.Time{})
 			if err != nil {
 				return nil, err
 			}
