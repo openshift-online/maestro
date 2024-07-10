@@ -210,7 +210,6 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
 }
 
-// TestConsumerDeleting is to test creating resources when delete the consumer
 func TestConsumerDeleting(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()

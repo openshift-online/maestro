@@ -117,7 +117,7 @@ func (d *sqlResourceDao) All(ctx context.Context) (api.ResourceList, error) {
 	return resources, nil
 }
 
-// FirstByConsumerName will take the first item of the resources. Currently leverage it to determine whether the result exists in the table.
+// FirstByConsumerName will take the first item of the resources on the consumer. it can be used to determine whether the resource exists for the consumer.
 func (d *sqlResourceDao) FirstByConsumerName(ctx context.Context, consumerName string, unscoped bool) (api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	if unscoped {

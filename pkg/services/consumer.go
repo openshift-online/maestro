@@ -64,26 +64,11 @@ func (s *sqlConsumerService) Replace(ctx context.Context, consumer *api.Consumer
 	return consumer, nil
 }
 
-// Delete will remove the consumer from the storage. Currently, it will:
+// Delete will remove the consumer from the storage:
 // 1. Perform a hard delete on the consumer, the resource creation will be blocked after it.
-// 2. Forbid consumer deletion if there are associated resources.
-// 3. The deleting resources(marked as deleted) will still block the consumer deletion.
-// TODO: Additional deletion options or strategies may be added in the future.
+// 2. Forbid consumer deletion if there are associated resources(include the marked as deleted resources).
+// TODO: Add deletion options or strategies.
 func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.ServiceError {
-	// TODO: The following code snippet is for soft deleting a consumer
-	// consumer, err := s.Get(ctx, id)
-	// if err != nil {
-	// 	return err
-	// }
-	// _, e := s.resourceDao.FirstByConsumerName(ctx, consumer.Name, true)
-	// if e == nil {
-	// 	return errors.Forbidden("Resources associated with the consumer: %s", consumer.Name)
-	// }
-	// if e != gorm.ErrRecordNotFound {
-	// 	return handleDeleteError("Consumer", e)
-	// }
-	// then resource is not found for the consumer
-
 	if err := s.consumerDao.Delete(ctx, id, true); err != nil {
 		return handleDeleteError("Consumer", err)
 	}
