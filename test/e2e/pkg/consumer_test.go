@@ -82,7 +82,7 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(eq).To(BeTrue())
 		})
 
-		AfterAll(func() {
+		It("delete consumer", func() {
 			// delete the consumer
 			resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
 			Expect(err).NotTo(HaveOccurred())
