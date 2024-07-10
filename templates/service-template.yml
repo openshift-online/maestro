@@ -410,7 +410,6 @@ objects:
         port: grpc
       annotations:
         description: Exposes and load balances the maestro pods grpc endpoint
-        service.alpha.openshift.io/serving-cert-secret-name: maestro-tls
     spec:
       selector:
         app: maestro
@@ -429,7 +428,6 @@ objects:
         port: grpc-broker
       annotations:
         description: Exposes and load balances the maestro pods grpc broker endpoint
-        service.alpha.openshift.io/serving-cert-secret-name: maestro-tls
     spec:
       selector:
         app: maestro

@@ -2,10 +2,12 @@ package db
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/logger"
+	"gorm.io/gorm"
 )
 
 type IsConsumerSubscribed func(consumerName string) bool
@@ -50,6 +52,9 @@ func (f *EventAdvisoryLockFactory) checkConsumerSubscribed(ctx context.Context, 
 
 	resource := map[string]interface{}{}
 	if err := g2.Table("resources").Take(&resource, "id = ?", sourceID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
 		return false, fmt.Errorf("error getting resource with id(%s): %v", sourceID, err)
 	}
 
@@ -110,7 +115,7 @@ func (f *EventAdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id st
 	}
 
 	if !subscribed {
-		return "", false, fmt.Errorf("consumer not subscribed")
+		return "", false, nil
 	}
 
 	lock, err := f.newLock(ctx, id, lockType)

@@ -17,7 +17,7 @@ import (
 
 var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() {
 	var resource1, resource2, resource3 *openapi.Resource
-	var mqttReplicas, maestroAgentReplicas int
+	var mqttReplicas, maestroServerReplicas, maestroAgentReplicas int
 
 	Context("Resource resync resource spec after maestro agent restarts", func() {
 		It("post the nginx-1 resource to the maestro api", func() {
@@ -298,17 +298,71 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the mqtt-broker service for agent", func() {
-			err := consumer.ClientSet.CoreV1().Services("maestro").Delete(ctx, "maestro-mqtt-agent", metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-		})
-
 		It("delete the grpc-broker service for agent", func() {
 			err := consumer.ClientSet.CoreV1().Services("maestro").Delete(ctx, "maestro-grpc-broker", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("Rollout the mqtt-broker", func() {
+		It("delete the mqtt-broker service for agent", func() {
+			err := consumer.ClientSet.CoreV1().Services("maestro").Delete(ctx, "maestro-mqtt-agent", metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("rollout maestro server", func() {
+			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro").Get(ctx, "maestro", metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			maestroServerReplicas = int(*deploy.Spec.Replicas)
+			deploy, err = consumer.ClientSet.AppsV1().Deployments("maestro").Patch(ctx, "maestro", types.MergePatchType, []byte(`{"spec":{"replicas":0}}`), metav1.PatchOptions{
+				FieldManager: "testconsumer.ClientSet",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(*deploy.Spec.Replicas).To(Equal(int32(0)))
+
+			// ensure no running maestro server pods
+			Eventually(func() error {
+				pods, err := consumer.ClientSet.CoreV1().Pods("maestro").List(ctx, metav1.ListOptions{
+					LabelSelector: "app=maestro",
+				})
+				if err != nil {
+					return err
+				}
+				if len(pods.Items) > 0 {
+					return fmt.Errorf("maestro server pods still running")
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			// patch maestro server replicas to maestroServerReplicas
+			deploy, err = consumer.ClientSet.AppsV1().Deployments("maestro").Patch(ctx, "maestro", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, maestroServerReplicas)), metav1.PatchOptions{
+				FieldManager: "testconsumer.ClientSet",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(*deploy.Spec.Replicas).To(Equal(int32(maestroServerReplicas)))
+
+			// ensure maestro server pod is up and running
+			Eventually(func() error {
+				pods, err := consumer.ClientSet.CoreV1().Pods("maestro").List(ctx, metav1.ListOptions{
+					LabelSelector: "app=maestro",
+				})
+				if err != nil {
+					return err
+				}
+				if len(pods.Items) != maestroServerReplicas {
+					return fmt.Errorf("unexpected maestro server pod count, expected %d, got %d", maestroServerReplicas, len(pods.Items))
+				}
+				for _, pod := range pods.Items {
+					if pod.Status.Phase != "Running" {
+						return fmt.Errorf("maestro server pod not in running state")
+					}
+					if pod.Status.ContainerStatuses[0].State.Running == nil {
+						return fmt.Errorf("maestro server container not in running state")
+					}
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+		})
+
+		It("rollout the mqtt-broker", func() {
 			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro").Get(ctx, "maestro-mqtt", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			mqttReplicas = int(*deploy.Spec.Replicas)
