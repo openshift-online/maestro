@@ -9,7 +9,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
-// go test -v ./test/e2e/pkg -args -api-server=$api_server -consumer-name=$consumer_name -consumer-kubeconfig=$consumer_kubeconfig -ginkgo.focus "Consumer"
 var _ = Describe("Consumer", Ordered, func() {
 	var consumer openapi.Consumer
 	var resourceConsumer openapi.Consumer
@@ -34,7 +33,7 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
 
-			// create a consumer associates with resource
+			// create a consumer with resource
 			created, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(resourceConsumer).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
@@ -82,12 +81,13 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(eq).To(BeTrue())
 		})
 
-		It("delete consumer", func() {
+		AfterAll(func() {
 			// delete the consumer
 			resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
+			// check the consumer is deleted
 			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 			Expect(err.Error()).To(ContainSubstring("Not Found"))
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
@@ -97,13 +97,12 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(err).To(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
 
-			// delete the resource
+			// delete the resource on the consumer
 			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-			// only permanently delete the resources, the consumer can be deleted
-			// deleting resource still block the consumer deletion
+			// only if permanently delete the resource, the consumer can be deleted
 			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *resourceConsumer.Id).Execute()
 			Expect(err).To(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
