@@ -1,11 +1,42 @@
 # Maestro
+
 Maestro is a system to leverage [CloudEvents](https://cloudevents.io/) to transport Kubernetes resources to the target clusters, and then transport the resource status back. The resources are stored in a database and the status is updated in the database as well. The system is composed of two parts: the Maestro server and the Maestro agent.
 - The Maestro server is responsible for storing the resources and their status. And sending the resources to the message broker in the CloudEvents format. The Maestro server provides Resful APIs and gRPC APIs to manage the resources.
 - Maestro agent is responsible for receiving the resources and applying them to the target clusters. And reporting back the status of the resources.
 
 ## Architecture
+
 Taking MQTT as an example:
+
 ![Maestro Architecture](./arch.png)
+
+## Why
+
+Maestro was created to address several critical challenges associated with managing Kubernetes clusters at scale.
+Traditional Kubernetes native and custom resources rely heavily on etcd,
+which has well-known limitations in terms of scalability and performance.
+As the number of clusters increases, the strain on etcd can lead to significant issues,
+making it difficult to achieve high-scale Kubernetes cluster management.
+To overcome these challenges, Maestro introduces a system that leverages a traditional relational database for storing relevant data,
+providing a more scalable and efficient solution.
+
+### Motivations
+
+**Scalability**: Kubernetes-based solutions often face scalability issues due to the limitations of etcd.
+Maestro aims to overcome these issues by decoupling resource management from the etcd store,
+allowing for more efficient handling of a large number of clusters.
+This approach supports the goal of managing up to 200,000+ clusters without linear scaling of the infrastructure.
+
+**Cost Effectiveness**: Running a central orchestrator in a Kubernetes-based environment can be costly.
+Maestro reduces infrastructure and maintenance costs by leveraging a relational database and optimized content delivery mechanisms.
+
+**Improve Feedback Loop**: Traditional Kubernetes solutions have limitations in the feedback loop,
+making it difficult to observe the state of resources effectively.
+Maestro addresses this by providing a robust feedback loop mechanism,
+ensuring that resource status is continuously updated and monitored.
+
+**Improve Security Architecture**: Maestro enhances security by eliminating the need for kubeconfigs,
+reducing the need for direct access to clusters.
 
 ## Run for the first time
 
@@ -173,11 +204,26 @@ ocm post /api/maestro/v1/resources << EOF
         }
       }
     }
+  },
+  "update_strategy": {
+    "type": "ServerSideApply"
+  },
+  "delete_option": {
+    "propagationPolicy": "Foreground"
   }
 }
 EOF
 
 ```
+delete_option defines the option to delete the resource. It is optional when creating a resource. The propagationPolicy of `delete_option` can be:
+- `Foreground` represents that the resource should be fourground deleted. This is a default value.
+- `Orphan` represents that the resource is orphaned when deleting the resource.
+
+update_strategy defines the strategy to update the resource. It is optional when creating a resource. The type of `update_strategy` can be:
+- `ServerSideApply` means to update resource using server side apply with work-controller as the field manager. This is a default value.
+- `Update` means to update resource by an update call.
+- `CreateOnly` means do not update resource based on current manifest.
+- `ReadOnly` means only check the existence of the resource based on the resource's metadata.
 
 #### Get your Resource
 
@@ -188,6 +234,9 @@ ocm get /api/maestro/v1/resources
     {
       "consumer_name": "cluster1",
       "created_at": "2023-11-23T09:26:13.43061Z",
+      "delete_option": {
+        "propagationPolicy":"Foreground"
+      },
       "href": "/api/maestro/v1/resources/f428e21d-71cb-47a4-8d7f-82a65d9a4048",
       "id": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
       "kind": "Resource",
@@ -276,11 +325,228 @@ ocm get /api/maestro/v1/resources
           "SequenceID": "1744926882802962432"
         }
       },
+      "update_strategy": {
+        "type":"ServerSideApply"
+      },
       "updated_at": "2023-11-23T09:26:13.457419Z",
       "version": 1
     }
   ],
   "kind": "",
+  "page": 1,
+  "size": 1,
+  "total": 1
+}
+```
+
+#### Create/Get resource bundle with multiple resources
+
+1. Enable gRPC server by passing `--enable-grpc-server=true` to the maestro server start command, for example:
+
+```shell
+$ oc -n maestro patch deploy/maestro --type=json -p='[{"op": "add", "path": "/spec/template/spec/containers/0/command/-", "value": "--enable-grpc-server=true"}]'
+```
+
+2. Port-forward the gRPC service to your local machine, for example:
+
+```shell
+$ oc -n maestro port-forward svc/maestro-grpc 8090 &
+```
+
+3. Create a resource bundle with multiple resources using the gRPC client, for example:
+
+```shell
+go run ./examples/grpcclient.go -cloudevents_json_file ./examples/cloudevent-bundle.json -grpc_server localhost:8090
+```
+
+4. Get the resource bundle with multiple resources, for example:
+
+```shell
+ocm get /api/maestro/v1/resource-bundles
+{
+  "items": [
+    {
+      "consumer_name": "cluster1",
+      "created_at": "2024-05-30T05:03:08.493083Z",
+      "delete_option": {
+        "propagationPolicy": "Foreground"
+      },
+      "href": "/api/maestro/v1/resource-bundles/68ebf474-6709-48bb-b760-386181268060",
+      "id": "68ebf474-6709-48bb-b760-386181268060",
+      "kind": "ResourceBundle",
+      "manifest_configs": [
+        {
+          "feedbackRules": [
+            {
+              "jsonPaths": [
+                {
+                  "name": "status",
+                  "path": ".status"
+                }
+              ],
+              "type": "JSONPaths"
+            }
+          ],
+          "resourceIdentifier": {
+            "group": "apps",
+            "name": "web",
+            "namespace": "default",
+            "resource": "deployments"
+          },
+          "updateStrategy": {
+            "type": "ServerSideApply"
+          }
+        }
+      ],
+      "manifests": [
+        {
+          "apiVersion": "v1",
+          "kind": "ConfigMap",
+          "metadata": {
+            "name": "web",
+            "namespace": "default"
+          }
+        },
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "web",
+            "namespace": "default"
+          },
+          "spec": {
+            "replicas": 1,
+            "selector": {
+              "matchLabels": {
+                "app": "web"
+              }
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "web"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "nginxinc/nginx-unprivileged",
+                    "name": "nginx"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "name": "68ebf474-6709-48bb-b760-386181268060",
+      "status": {
+        "ObservedVersion": 1,
+        "SequenceID": "1796044690592632832",
+        "conditions": [
+          {
+            "lastTransitionTime": "2024-05-30T05:03:08Z",
+            "message": "Apply manifest work complete",
+            "reason": "AppliedManifestWorkComplete",
+            "status": "True",
+            "type": "Applied"
+          },
+          {
+            "lastTransitionTime": "2024-05-30T05:03:08Z",
+            "message": "All resources are available",
+            "reason": "ResourcesAvailable",
+            "status": "True",
+            "type": "Available"
+          }
+        ],
+        "resourceStatus": [
+          {
+            "conditions": [
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Apply manifest complete",
+                "reason": "AppliedManifestComplete",
+                "status": "True",
+                "type": "Applied"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Resource is available",
+                "reason": "ResourceAvailable",
+                "status": "True",
+                "type": "Available"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "",
+                "reason": "NoStatusFeedbackSynced",
+                "status": "True",
+                "type": "StatusFeedbackSynced"
+              }
+            ],
+            "resourceMeta": {
+              "group": "",
+              "kind": "ConfigMap",
+              "name": "web",
+              "namespace": "default",
+              "ordinal": 0,
+              "resource": "configmaps",
+              "version": "v1"
+            },
+            "statusFeedback": {}
+          },
+          {
+            "conditions": [
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Apply manifest complete",
+                "reason": "AppliedManifestComplete",
+                "status": "True",
+                "type": "Applied"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "Resource is available",
+                "reason": "ResourceAvailable",
+                "status": "True",
+                "type": "Available"
+              },
+              {
+                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "message": "",
+                "reason": "StatusFeedbackSynced",
+                "status": "True",
+                "type": "StatusFeedbackSynced"
+              }
+            ],
+            "resourceMeta": {
+              "group": "apps",
+              "kind": "Deployment",
+              "name": "web",
+              "namespace": "default",
+              "ordinal": 1,
+              "resource": "deployments",
+              "version": "v1"
+            },
+            "statusFeedback": {
+              "values": [
+                {
+                  "fieldValue": {
+                    "jsonRaw": "{\"availableReplicas\":1,\"conditions\":[{\"lastTransitionTime\":\"2024-05-30T05:03:13Z\",\"lastUpdateTime\":\"2024-05-30T05:03:13Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2024-05-30T05:03:08Z\",\"lastUpdateTime\":\"2024-05-30T05:03:13Z\",\"message\":\"ReplicaSet \\\"web-dcffc4f85\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"}],\"observedGeneration\":1,\"readyReplicas\":1,\"replicas\":1,\"updatedReplicas\":1}",
+                    "type": "JsonRaw"
+                  },
+                  "name": "status"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "updated_at": "2024-05-30T05:03:17.796496Z",
+      "version": 1
+    }
+  ],
+  "kind": "ResourceBundleList",
   "page": 1,
   "size": 1,
   "total": 1

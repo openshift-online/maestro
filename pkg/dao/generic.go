@@ -54,7 +54,7 @@ func (d *sqlGenericDao) GetInstanceDao(ctx context.Context, model interface{}) G
 }
 
 func (d *sqlGenericDao) Fetch(offset int, limit int, resourceList interface{}) error {
-	return d.g2.Debug().Offset(offset).Limit(limit).Find(resourceList).Error
+	return d.g2.Debug().Unscoped().Offset(offset).Limit(limit).Find(resourceList).Error
 }
 
 func (d *sqlGenericDao) Preload(preload string) {
@@ -92,7 +92,7 @@ func (d *sqlGenericDao) Count(model interface{}, total *int64) {
 	if okl {
 		delete(g2.Statement.Clauses, "LIMIT")
 	}
-	g2.Count(total)
+	g2.Unscoped().Count(total)
 	if oko {
 		g2.Statement.Clauses["ORDER BY"] = order
 	}

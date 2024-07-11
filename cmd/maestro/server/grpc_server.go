@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"time"
 
 	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/golang/glog"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -20,6 +22,7 @@ import (
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
@@ -135,9 +138,12 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get resource: %v", err)
 			}
-			// keep the existing version for bundle resource, mainly from hub controller,
-			// the version is not guaranteed to be increased.
-			res.Version = found.Version
+
+			if res.Version == 0 {
+				// the resource version is not guaranteed to be increased by source client,
+				// using the latest resource version.
+				res.Version = found.Version
+			}
 		}
 		_, err := svr.resourceService.Update(ctx, res)
 		if err != nil {
@@ -182,9 +188,11 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 
 	select {
 	case err := <-errChan:
+		glog.Errorf("unregister client %s, error= %v", clientID, err)
 		svr.eventBroadcaster.Unregister(clientID)
 		return err
 	case <-subServer.Context().Done():
+		glog.V(10).Infof("unregister client %s", clientID)
 		svr.eventBroadcaster.Unregister(clientID)
 		return nil
 	}
@@ -226,11 +234,11 @@ func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resour
 		resource.Meta.DeletedAt.Time = deletionTimestamp
 	}
 
-	manifest, err := api.CloudEventToJSONMap(evt)
+	payload, err := api.CloudEventToJSONMap(evt)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert cloudevent to resource manifest: %v", err)
+		return nil, fmt.Errorf("failed to convert cloudevent to resource payload: %v", err)
 	}
-	resource.Manifest = manifest
+	resource.Payload = payload
 
 	switch eventDataType {
 	case workpayload.ManifestEventDataType:
@@ -246,7 +254,61 @@ func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resour
 
 // encode translates a resource to a cloudevent
 func encode(resource *api.Resource) (*ce.Event, error) {
-	return api.JSONMAPToCloudEvent(resource.Status)
+	if resource.Type == api.ResourceTypeSingle {
+		// single resource, return the status directly
+		return api.JSONMAPToCloudEvent(resource.Status)
+	}
+
+	statusEvt, err := api.JSONMAPToCloudEvent(resource.Status)
+	if err != nil {
+		return nil, err
+	}
+
+	// set basic fields
+	evt := ce.NewEvent()
+	evt.SetID(uuid.New().String())
+	evt.SetTime(time.Now())
+	evt.SetType(statusEvt.Type())
+	evt.SetSource(statusEvt.Source())
+	for key, val := range statusEvt.Extensions() {
+		evt.SetExtension(key, val)
+	}
+
+	// set work meta back from status event
+	if workMeta, ok := statusEvt.Extensions()[codec.ExtensionWorkMeta]; ok {
+		evt.SetExtension(codec.ExtensionWorkMeta, workMeta)
+	}
+
+	// manifest bundle status from the resource status
+	manifestBundleStatus := &workpayload.ManifestBundleStatus{}
+	if err := statusEvt.DataAs(manifestBundleStatus); err != nil {
+		return nil, err
+	}
+
+	if len(resource.Payload) > 0 {
+		specEvt, err := api.JSONMAPToCloudEvent(resource.Payload)
+		if err != nil {
+			return nil, err
+		}
+
+		// set work meta back from spec event
+		if workMeta, ok := specEvt.Extensions()[codec.ExtensionWorkMeta]; ok {
+			evt.SetExtension(codec.ExtensionWorkMeta, workMeta)
+		}
+
+		// set work spec back from spec event
+		manifestBundle := &workpayload.ManifestBundle{}
+		if err := specEvt.DataAs(manifestBundle); err != nil {
+			return nil, err
+		}
+		manifestBundleStatus.ManifestBundle = manifestBundle
+	}
+
+	if err := evt.SetData(ce.ApplicationJSON, manifestBundleStatus); err != nil {
+		return nil, err
+	}
+
+	return &evt, nil
 }
 
 // respondResyncStatusRequest responds to the status resync request by comparing the status hash of the resources

@@ -70,15 +70,15 @@ func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			manifest, err := presenters.ConvertResourceManifest(patch.Manifest)
+			payload, err := presenters.ConvertResourceManifest(patch.Manifest, patch.DeleteOption, patch.UpdateStrategy)
 			if err != nil {
 				return nil, errors.GeneralError("failed to convert resource manifest: %s", err)
 			}
 			resource, serviceErr := h.resource.Update(ctx, &api.Resource{
-				Meta:     api.Meta{ID: id},
-				Version:  *patch.Version,
-				Type:     api.ResourceTypeSingle,
-				Manifest: manifest,
+				Meta:    api.Meta{ID: id},
+				Version: *patch.Version,
+				Type:    api.ResourceTypeSingle,
+				Payload: payload,
 			})
 			if serviceErr != nil {
 				return nil, serviceErr
@@ -180,4 +180,70 @@ func (h resourceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 	handleDelete(w, r, cfg, http.StatusNoContent)
+}
+
+func (h resourceHandler) GetBundle(w http.ResponseWriter, r *http.Request) {
+	cfg := &handlerConfig{
+		Action: func() (interface{}, *errors.ServiceError) {
+			id := mux.Vars(r)["id"]
+			ctx := r.Context()
+			resource, serviceErr := h.resource.GetBundle(ctx, id)
+			if serviceErr != nil {
+				return nil, serviceErr
+			}
+
+			resBundle, err := presenters.PresentResourceBundle(resource)
+			if err != nil {
+				return nil, errors.GeneralError("failed to present resource bundle: %s", err)
+			}
+			return resBundle, nil
+		},
+	}
+
+	handleGet(w, r, cfg)
+}
+
+func (h resourceHandler) ListBundle(w http.ResponseWriter, r *http.Request) {
+	cfg := &handlerConfig{
+		Action: func() (interface{}, *errors.ServiceError) {
+			ctx := r.Context()
+
+			listArgs := services.NewListArguments(r.URL.Query())
+			if listArgs.Search == "" {
+				listArgs.Search = fmt.Sprintf("type='%s'", api.ResourceTypeBundle)
+			} else {
+				listArgs.Search = fmt.Sprintf("%s and type='%s'", listArgs.Search, api.ResourceTypeBundle)
+			}
+			var resources []api.Resource
+			paging, serviceErr := h.generic.List(ctx, "username", listArgs, &resources)
+			if serviceErr != nil {
+				return nil, serviceErr
+			}
+			resourceBundleList := openapi.ResourceBundleList{
+				Kind:  "ResourceBundleList",
+				Page:  int32(paging.Page),
+				Size:  int32(paging.Size),
+				Total: int32(paging.Total),
+				Items: []openapi.ResourceBundle{},
+			}
+
+			for _, resource := range resources {
+				converted, err := presenters.PresentResourceBundle(&resource)
+				if err != nil {
+					return nil, errors.GeneralError("failed to present resource: %s", err)
+				}
+				resourceBundleList.Items = append(resourceBundleList.Items, *converted)
+			}
+			if listArgs.Fields != nil {
+				filteredItems, err := presenters.SliceFilter(listArgs.Fields, resourceBundleList.Items)
+				if err != nil {
+					return nil, err
+				}
+				return filteredItems, nil
+			}
+			return resourceBundleList, nil
+		},
+	}
+
+	handleList(w, r, cfg)
 }

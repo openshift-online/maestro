@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"strings"
 
-	"gorm.io/gorm"
-
 	"github.com/Masterminds/squirrel"
+	"github.com/openshift-online/ocm-common/pkg/utils/parser/sql_parser"
 	"github.com/yaacov/tree-search-language/pkg/tsl"
 	"github.com/yaacov/tree-search-language/pkg/walkers/ident"
 	sqlFilter "github.com/yaacov/tree-search-language/pkg/walkers/sql"
+	"gorm.io/gorm"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -151,6 +151,16 @@ func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao
 func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao) (bool, *errors.ServiceError) {
 	if listCtx.args.Search == "" {
 		s.addJoins(listCtx, d)
+		return true, nil
+	}
+
+	if isJSONBSearch(listCtx.args.Search) {
+		parser := sql_parser.NewSQLParser()
+		sql, values, err := parser.Parse(listCtx.args.Search)
+		if err != nil {
+			return false, errors.BadRequest("failed to parse the search query: %v", err)
+		}
+		(*d).Where(sql, values.([]interface{}))
 		return true, nil
 	}
 
@@ -332,4 +342,11 @@ func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl
 	}
 
 	return tslTree, sqlizer, nil
+}
+
+func isJSONBSearch(search string) bool {
+	if strings.Contains(search, "->>") || strings.Contains(search, "@>") {
+		return true
+	}
+	return false
 }

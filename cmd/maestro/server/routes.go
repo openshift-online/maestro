@@ -79,8 +79,14 @@ func (s *apiServer) routes() *mux.Router {
 	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Patch).Methods(http.MethodPatch)
 	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Delete).Methods(http.MethodDelete)
 	apiV1ResourceRouter.Use(authMiddleware.AuthenticateAccountJWT)
-
 	apiV1ResourceRouter.Use(authzMiddleware.AuthorizeApi)
+
+	// /api/maestro/v1/resource-bundles
+	apiV1ResourceBundleRouter := apiV1Router.PathPrefix("/resource-bundles").Subrouter()
+	apiV1ResourceBundleRouter.HandleFunc("", resourceHandler.ListBundle).Methods(http.MethodGet)
+	apiV1ResourceBundleRouter.HandleFunc("/{id}", resourceHandler.GetBundle).Methods(http.MethodGet)
+	apiV1ResourceBundleRouter.Use(authMiddleware.AuthenticateAccountJWT)
+	apiV1ResourceBundleRouter.Use(authzMiddleware.AuthorizeApi)
 
 	//  /api/maestro/v1/consumers
 	apiV1ConsumersRouter := apiV1Router.PathPrefix("/consumers").Subrouter()

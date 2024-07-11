@@ -76,6 +76,10 @@ CLIENT_SECRET ?= maestro
 ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
 ENABLE_OCM_MOCK ?= false
+ENABLE_GRPC ?= false
+
+# default replicas for maestro server
+REPLICAS ?= 1
 
 # Enable set images
 POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
@@ -263,6 +267,7 @@ cmds:
 		--ignore-unknown-parameters="true" \
 		--param="ENVIRONMENT=$(OCM_ENV)" \
 		--param="GLOG_V=$(glog_v)" \
+		--param="REPLICAS=$(REPLICAS)" \
 		--param="DATABASE_HOST=$(db_host)" \
 		--param="DATABASE_NAME=$(db_name)" \
 		--param="DATABASE_PASSWORD=$(db_password)" \
@@ -298,6 +303,7 @@ cmds:
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_NAME=$(consumer_name)" \
 		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
+		--param="ENABLE_GRPC=$(ENABLE_GRPC)" \
 	> "templates/$*-template.json"
 
 
@@ -408,6 +414,9 @@ e2e-test/teardown:
 
 e2e-test: e2e-test/teardown e2e-test/setup
 	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
-	${PWD}/test/e2e/pkg -- -consumer_name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
-	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 -kubeconfig=${PWD}/test/e2e/.kubeconfig
+	${PWD}/test/e2e/pkg -- \
+	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
+	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \
+	-consumer-name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
+	-consumer-kubeconfig=${PWD}/test/e2e/.kubeconfig
 .PHONY: e2e-test

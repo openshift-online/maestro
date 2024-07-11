@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/logger"
@@ -23,6 +22,7 @@ type SourceClient interface {
 	OnDelete(ctx context.Context, id string) error
 	Subscribe(ctx context.Context, handlers ...cegeneric.ResourceHandler[*api.Resource])
 	Resync(ctx context.Context, consumers []string) error
+	ReconnectedChan() <-chan struct{}
 }
 
 type SourceClientImpl struct {
@@ -57,7 +57,7 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 		return err
 	}
 
-	logger.Infof("Publishing resource %s for db row insert", resource.ID)
+	logger.V(4).Infof("Publishing resource %s for db row insert", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
@@ -82,7 +82,7 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 		return err
 	}
 
-	logger.Infof("Publishing resource %s for db row update", resource.ID)
+	logger.V(4).Infof("Publishing resource %s for db row update", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
@@ -107,9 +107,11 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 		return err
 	}
 
-	// mark the resource as deleting
-	resource.Meta.DeletedAt.Time = time.Now()
-	logger.Infof("Publishing resource %s for db row delete", resource.ID)
+	// ensure the resource has been marked as deleting
+	if resource.Meta.DeletedAt.Time.IsZero() {
+		return fmt.Errorf("resource %s has not been marked as deleting", resource.ID)
+	}
+	logger.V(4).Infof("Publishing resource %s for db row delete", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
@@ -133,7 +135,7 @@ func (s *SourceClientImpl) Subscribe(ctx context.Context, handlers ...cegeneric.
 func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error {
 	logger := logger.NewOCMLogger(ctx)
 
-	logger.Infof("Resyncing resource status from consumers")
+	logger.V(4).Infof("Resyncing resource status from consumers %v", consumers)
 
 	for _, consumer := range consumers {
 		if err := s.CloudEventSourceClient.Resync(ctx, consumer); err != nil {
@@ -142,6 +144,10 @@ func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error
 	}
 
 	return nil
+}
+
+func (s *SourceClientImpl) ReconnectedChan() <-chan struct{} {
+	return s.CloudEventSourceClient.ReconnectedChan()
 }
 
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {

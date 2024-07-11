@@ -15,13 +15,18 @@ import (
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
+
+	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
+	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
+
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/store"
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/golang-jwt/jwt/v4"
@@ -75,6 +80,7 @@ type Helper struct {
 	PulseServer       *server.PulseServer
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
+	WorkAgentInformer workv1informers.ManifestWorkInformer
 	TimeFunc          TimeFunc
 	JWTPrivateKey     *rsa.PrivateKey
 	JWTCA             *rsa.PublicKey
@@ -209,9 +215,10 @@ func (helper *Helper) sendShutdownSignal() error {
 func (helper *Helper) startPulseServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.PulseInterval = 1
 	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
+	helper.PulseServer = server.NewPulseServer(helper.EventBroadcaster)
 	go func() {
 		glog.V(10).Info("Test pulse server started")
-		server.NewPulseServer(helper.EventBroadcaster).Start(ctx)
+		helper.PulseServer.Start(ctx)
 		glog.V(10).Info("Test pulse server stopped")
 	}()
 }
@@ -231,6 +238,9 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 			db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory),
 			helper.Env().Services.Events(),
 		),
+		StatusController: controllers.NewStatusController(
+			helper.Env().Services.StatusEvents(),
+		),
 	}
 
 	helper.ControllerManager.KindControllerManager.Add(&controllers.ControllerConfig{
@@ -240,6 +250,10 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 			api.UpdateEventType: {sourceClient.OnUpdate},
 			api.DeleteEventType: {sourceClient.OnDelete},
 		},
+	})
+	helper.ControllerManager.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
+		api.StatusUpdateEventType: {helper.PulseServer.OnStatusUpdate},
+		api.StatusDeleteEventType: {helper.PulseServer.OnStatusUpdate},
 	})
 
 	// start controller manager
@@ -260,17 +274,30 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 		workCodec = codec.NewManifestCodec(nil)
 	}
 
+	watcherStore := store.NewAgentInformerWatcherStore()
+
 	clientHolder, err := work.NewClientHolderBuilder(mqttOptions).
 		WithClientID(clusterName).
 		WithClusterName(clusterName).
 		WithCodecs(workCodec).
+		WithWorkClientWatcherStore(watcherStore).
 		NewAgentClientHolder(ctx)
 	if err != nil {
 		glog.Fatalf("Unable to create work agent holder: %s", err)
 	}
 
-	go clientHolder.ManifestWorkInformer().Informer().Run(ctx.Done())
+	factory := workinformers.NewSharedInformerFactoryWithOptions(
+		clientHolder.WorkInterface(),
+		5*time.Minute,
+		workinformers.WithNamespace(clusterName),
+	)
+	informer := factory.Work().V1().ManifestWorks()
+	watcherStore.SetStore(informer.Informer().GetStore())
+
+	go informer.Informer().Run(ctx.Done())
+
 	helper.WorkAgentHolder = clientHolder
+	helper.WorkAgentInformer = informer
 }
 
 func (helper *Helper) StartGRPCResourceSourceClient() {
@@ -455,6 +482,8 @@ func (helper *Helper) CleanDB() error {
 	// TODO: this list should not be static or otherwise not hard-coded here.
 	for _, table := range []string{
 		"events",
+		"status_events",
+		"event_instances",
 		"resources",
 		"consumers",
 		"server_instances",

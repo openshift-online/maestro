@@ -19,6 +19,7 @@ import (
 
 type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
+	GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError)
@@ -55,13 +56,21 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 	return resource, nil
 }
 
+func (s *sqlResourceService) GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
+	resource, err := s.resourceDao.GetBundle(ctx, id)
+	if err != nil {
+		return nil, handleGetError("Resource Bundle", "id", id, err)
+	}
+	return resource, nil
+}
+
 func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError) {
 	if resource.Name != "" {
 		if err := ValidateResourceName(resource); err != nil {
 			return nil, errors.Validation("the name in the resource is invalid, %v", err)
 		}
 	}
-	if err := ValidateManifest(resource.Type, resource.Manifest); err != nil {
+	if err := ValidateManifest(resource.Type, resource.Payload); err != nil {
 		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
 	}
 
@@ -104,17 +113,17 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 	}
 
 	// New manifest is not changed, the update action is not needed.
-	if reflect.DeepEqual(resource.Manifest, found.Manifest) {
+	if reflect.DeepEqual(resource.Payload, found.Payload) {
 		return found, nil
 	}
 
-	if err := ValidateManifestUpdate(resource.Type, resource.Manifest, found.Manifest); err != nil {
+	if err := ValidateManifestUpdate(resource.Type, resource.Payload, found.Payload); err != nil {
 		return nil, errors.Validation("the new manifest in the resource is invalid, %v", err)
 	}
 
 	// Increase the current resource version and update its manifest.
 	found.Version = found.Version + 1
-	found.Manifest = resource.Manifest
+	found.Payload = resource.Payload
 
 	updated, err := s.resourceDao.Update(ctx, found)
 	if err != nil {
@@ -205,20 +214,23 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	return updated, true, nil
 }
 
-// MarkAsDeleting marks the resource as deleting by setting the deleted_at timestamp.
+// MarkAsDeleting marks the resource as deleting by setting the delete_at timestamp.
 // The Resource Deletion Flow:
 // 1. User requests deletion
-// 2. Maestro marks resource as deleting, adds delete event to DB
+// 2. Maestro marks resource as deleting by soft delete, adds delete event to DB
 // 3. Maestro handles delete event and sends CloudEvent to work-agent
 // 4. Work-agent deletes resource, sends CloudEvent back to Maestro
-// 5. Maestro deletes resource from DB
+// 5. Maestro hard deletes resource from DB
 func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
-	_, err := s.events.Create(ctx, &api.Event{
+	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
+		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
+	}
+
+	if _, err := s.events.Create(ctx, &api.Event{
 		Source:    "Resources",
 		SourceID:  id,
 		EventType: api.DeleteEventType,
-	})
-	if err != nil {
+	}); err != nil {
 		return handleDeleteError("Resource", err)
 	}
 
@@ -226,7 +238,7 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 }
 
 func (s *sqlResourceService) Delete(ctx context.Context, id string) *errors.ServiceError {
-	if err := s.resourceDao.Delete(ctx, id); err != nil {
+	if err := s.resourceDao.Delete(ctx, id, true); err != nil {
 		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
 	}
 

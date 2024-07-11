@@ -224,6 +224,80 @@ paths:
                 $ref: '#/components/schemas/Error'
     parameters:
     - $ref: '#/components/parameters/id'
+  /api/maestro/v1/resource-bundles:
+    get:
+      summary: Returns a list of resource bundles
+      security:
+        - Bearer: []
+      responses:
+        '200':
+          description: A JSON array of resource bundle objects
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceBundleList'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Unexpected error occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - $ref: '#/components/parameters/page'
+      - $ref: '#/components/parameters/size'
+      - $ref: '#/components/parameters/search'
+      - $ref: '#/components/parameters/orderBy'
+      - $ref: '#/components/parameters/fields'
+  /api/maestro/v1/resource-bundles/{id}:
+    get:
+      summary: Get an resource bundle by id
+      security:
+        - Bearer: []
+      responses:
+        '200':
+          description: Resource bundle found by id
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResourceBundle'
+        '401':
+          description: Auth token is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Unauthorized to perform operation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: No resource bundle with specified id exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Unexpected error occurred
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      parameters:
+      - $ref: '#/components/parameters/id'
   /api/maestro/v1/consumers:
     get:
       summary: Returns a list of consumers
@@ -507,7 +581,14 @@ components:
           updated_at:
             type: string
             format: date-time
+          deleted_at:
+            type: string
+            format: date-time
           manifest:
+            type: object
+          delete_option:
+            type: object
+          update_strategy:
             type: object
           status:
             type: object
@@ -527,6 +608,53 @@ components:
           type: integer
         manifest:
           type: object
+        delete_option:
+          type: object
+        update_strategy:
+          type: object
+    ResourceBundleList:
+      allOf:
+      - $ref: '#/components/schemas/List'
+      - type: object
+        properties:
+          items:
+            type: array
+            items:
+              $ref: '#/components/schemas/ResourceBundle'
+    ResourceBundle:
+      allOf:
+      - $ref: '#/components/schemas/ObjectReference'
+      - type: object
+        properties:
+          name:
+            type: string
+          consumer_name:
+            type: string
+          version:
+            type: integer
+          created_at:
+            type: string
+            format: date-time
+          updated_at:
+            type: string
+            format: date-time
+          deleted_at:
+            type: string
+            format: date-time
+          metadata:
+            type: object
+          manifests:
+            type: array
+            items:
+              type: object
+          delete_option:
+            type: object
+          manifest_configs:
+            type: array
+            items:
+              type: object
+          status:
+            type: object
     Consumer:
       allOf:
         - $ref: '#/components/schemas/ObjectReference'

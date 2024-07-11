@@ -61,11 +61,23 @@ func TestPulseServer(t *testing.T) {
 
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
+
+	// insert a new instance with the same name to consumer name "cluster1"
+	// to make sure the consumer is hashed to the new instance firstly.
+	// after the new instance is stale after 3*pulseInterval (3s), the current
+	// instance will take over the consumer and resync the resource status.
+	_, err = instanceDao.UpSert(ctx, &api.ServerInstance{
+		Meta: api.Meta{
+			ID: "cluster1",
+		},
+	})
+	Expect(err).NotTo(HaveOccurred())
+
 	res := h.CreateResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
-	informer := clientHolder.ManifestWorkInformer()
+	informer := h.WorkAgentInformer
 	lister := informer.Lister().ManifestWorks(consumer.Name)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()
@@ -75,13 +87,6 @@ func TestPulseServer(t *testing.T) {
 		list, err := lister.List(labels.Everything())
 		if err != nil {
 			return err
-		}
-
-		if len(list) == 0 {
-			// no work synced yet, resync it now
-			if _, err := agentWorkClient.List(ctx, metav1.ListOptions{}); err != nil {
-				return err
-			}
 		}
 
 		// ensure there is only one work was synced on the cluster
@@ -94,6 +99,7 @@ func TestPulseServer(t *testing.T) {
 		if err != nil {
 			return err
 		}
+
 		return nil
 	}, 3*time.Second, 1*time.Second).Should(Succeed())
 
@@ -120,7 +126,7 @@ func TestPulseServer(t *testing.T) {
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
 
-	// afther the two instances are stale, the current instance will take over the consumer
+	// after the instance ("cluster") is stale, the current instance ("maestro") will take over the consumer
 	// and resync status, then the resource status will be updated finally
 	Eventually(func() error {
 		newRes, err := resourceService.Get(ctx, res.ID)
@@ -131,7 +137,7 @@ func TestPulseServer(t *testing.T) {
 			return fmt.Errorf("resource status is empty")
 		}
 		return nil
-	}, 5*time.Second, 1*time.Second).Should(Succeed())
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	newRes, err := resourceService.Get(ctx, res.ID)
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)

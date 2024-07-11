@@ -4,18 +4,16 @@ import (
 	"context"
 	"testing"
 
-	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/db"
-
+	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"github.com/yaacov/tree-search-language/pkg/tsl"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/db/db_session"
 	"github.com/openshift-online/maestro/pkg/errors"
-
-	. "github.com/onsi/gomega"
 )
 
 func TestSQLTranslation(t *testing.T) {
