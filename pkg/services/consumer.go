@@ -20,9 +20,10 @@ type ConsumerService interface {
 	FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, *errors.ServiceError)
 }
 
-func NewConsumerService(lockFactory db.LockFactory, consumerDao dao.ConsumerDao, events EventService) ConsumerService {
+func NewConsumerService(lockFactory db.LockFactory, consumerDao dao.ConsumerDao, resourceDao dao.ResourceDao, events EventService) ConsumerService {
 	return &sqlConsumerService{
 		consumerDao: consumerDao,
+		resourceDao: resourceDao,
 	}
 }
 
@@ -30,6 +31,7 @@ var _ ConsumerService = &sqlConsumerService{}
 
 type sqlConsumerService struct {
 	consumerDao dao.ConsumerDao
+	resourceDao dao.ResourceDao
 }
 
 func (s *sqlConsumerService) Get(ctx context.Context, id string) (*api.Consumer, *errors.ServiceError) {
@@ -62,9 +64,13 @@ func (s *sqlConsumerService) Replace(ctx context.Context, consumer *api.Consumer
 	return consumer, nil
 }
 
+// Delete will remove the consumer from the storage:
+// 1. Perform a hard delete on the consumer, the resource creation will be blocked after it.
+// 2. Forbid consumer deletion if there are associated resources(include the marked as deleted resources).
+// TODO: Add deletion options or strategies.
 func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.ServiceError {
-	if err := s.consumerDao.Delete(ctx, id); err != nil {
-		return handleDeleteError("Consumer", errors.GeneralError("Unable to delete consumer: %s", err))
+	if err := s.consumerDao.Delete(ctx, id, true); err != nil {
+		return handleDeleteError("Consumer", err)
 	}
 	return nil
 }

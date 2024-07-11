@@ -17,12 +17,14 @@ var _ RestHandler = consumerHandler{}
 
 type consumerHandler struct {
 	consumer services.ConsumerService
+	resource services.ResourceService
 	generic  services.GenericService
 }
 
-func NewConsumerHandler(consumer services.ConsumerService, generic services.GenericService) *consumerHandler {
+func NewConsumerHandler(consumer services.ConsumerService, resource services.ResourceService, generic services.GenericService) *consumerHandler {
 	return &consumerHandler{
 		consumer: consumer,
+		resource: resource,
 		generic:  generic,
 	}
 }
@@ -84,7 +86,7 @@ func (h consumerHandler) List(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 
 			listArgs := services.NewListArguments(r.URL.Query())
-			var consumers = []api.Consumer{}
+			consumers := []api.Consumer{}
 			paging, err := h.generic.List(ctx, "username", listArgs, &consumers)
 			if err != nil {
 				return nil, err
@@ -135,7 +137,11 @@ func (h consumerHandler) Get(w http.ResponseWriter, r *http.Request) {
 func (h consumerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	cfg := &handlerConfig{
 		Action: func() (interface{}, *errors.ServiceError) {
-			return nil, errors.NotImplemented("delete")
+			id := mux.Vars(r)["id"]
+			if err := h.consumer.Delete(r.Context(), id); err != nil {
+				return nil, err
+			}
+			return nil, nil
 		},
 	}
 	handleDelete(w, r, cfg, http.StatusNoContent)
