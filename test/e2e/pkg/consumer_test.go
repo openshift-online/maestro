@@ -87,7 +87,6 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-			// check the consumer is deleted
 			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 			Expect(err.Error()).To(ContainSubstring("Not Found"))
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
