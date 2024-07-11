@@ -183,11 +183,10 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		var deletionTimestamp time.Time
 		evtExtensions := evt.Context.GetExtensions()
 		if _, ok := evtExtensions[codec.ExtensionWorkMeta]; ok {
-			if deletionTimestampValue, exists := evtExtensions[types.ExtensionDeletionTimestamp]; exists {
-				deletionTimestamp, err = cetypes.ToTime(deletionTimestampValue)
-				if err != nil {
-					return nil, fmt.Errorf("failed to convert deletion timestamp %v to time.Time: %v", deletionTimestampValue, err)
-				}
+			if _, exists := evtExtensions[types.ExtensionDeletionTimestamp]; exists {
+				// Use the server-generated deletion timestamp from the Maestro server instead of the source client's timestamp
+				// to account for potential timezone discrepancies between the source client and the Maestro server.
+				deletionTimestamp = time.Now()
 			}
 		}
 		sErr := svr.resourceService.MarkAsDeleting(ctx, res.ID, deletionTimestamp)
