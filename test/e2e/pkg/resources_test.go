@@ -352,11 +352,27 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
+		It("get the resource via restful API", func() {
+			gotResourceBundleList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Execute()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(len(gotResourceBundleList.Items)).To(Equal(1))
+			resourceBundle := gotResourceBundleList.Items[0]
+			Expect(resourceBundle.Metadata["creationTimestamp"]).ShouldNot(BeEmpty())
+			gotResourceBundle, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, *resourceBundle.Id).Execute()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(gotResourceBundle.Metadata["creationTimestamp"]).ShouldNot(BeEmpty())
+		})
+
 		It("get the resource status back", func() {
 			Eventually(func() error {
 				work, err := workClient.ManifestWorks(consumer.Name).Get(ctx, workName, metav1.GetOptions{})
 				if err != nil {
 					return err
+				}
+				if work.CreationTimestamp.Time.IsZero() {
+					return fmt.Errorf("work creationTimestamp is empty")
 				}
 
 				manifest := work.Status.ResourceStatus.Manifests

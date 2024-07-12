@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"time"
@@ -10,14 +9,12 @@ import (
 	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
-	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
@@ -124,41 +121,18 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return &emptypb.Empty{}, nil
 	}
 
-	var res *api.Resource
+	res, err := decode(eventType.CloudEventsDataType, evt)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
+	}
+
 	switch eventType.Action {
 	case common.CreateRequestAction:
-		// set creation timestamp in work metadata
-		creationTimestamp := time.Now()
-		if workMeta, ok := evt.Extensions()[codec.ExtensionWorkMeta]; ok {
-			metaJSON, err := cloudeventstypes.ToString(workMeta)
-			if err != nil {
-				return nil, fmt.Errorf("failed to convert work meta extension to json: %v", err)
-			}
-			metaObj := metav1.ObjectMeta{}
-			if err := json.Unmarshal([]byte(metaJSON), &metaObj); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal work meta extension: %v", err)
-			}
-			metaObj.CreationTimestamp = metav1.Time{Time: creationTimestamp}
-			metaJSONBytes, err := json.Marshal(metaObj)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal work meta extension: %v", err)
-			}
-			evt.SetExtension(codec.ExtensionWorkMeta, string(metaJSONBytes))
-		}
-		res, err = decode(eventType.CloudEventsDataType, evt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
-		}
-		res.Meta.CreatedAt = creationTimestamp
 		_, err := svr.resourceService.Create(ctx, res)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create resource: %v", err)
 		}
 	case common.UpdateRequestAction:
-		res, err = decode(eventType.CloudEventsDataType, evt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
-		}
 		if res.Type == api.ResourceTypeBundle {
 			found, err := svr.resourceService.Get(ctx, res.ID)
 			if err != nil {
@@ -176,22 +150,9 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 			return nil, fmt.Errorf("failed to update resource: %v", err)
 		}
 	case common.DeleteRequestAction:
-		res, err = decode(eventType.CloudEventsDataType, evt)
+		err := svr.resourceService.MarkAsDeleting(ctx, res.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
-		}
-		var deletionTimestamp time.Time
-		evtExtensions := evt.Context.GetExtensions()
-		if _, ok := evtExtensions[codec.ExtensionWorkMeta]; ok {
-			if _, exists := evtExtensions[types.ExtensionDeletionTimestamp]; exists {
-				// Use the server-generated deletion timestamp from the Maestro server instead of the source client's timestamp
-				// to account for potential timezone discrepancies between the source client and the Maestro server.
-				deletionTimestamp = time.Now()
-			}
-		}
-		sErr := svr.resourceService.MarkAsDeleting(ctx, res.ID, deletionTimestamp)
-		if sErr != nil {
-			return nil, fmt.Errorf("failed to update resource: %v", err)
+			return nil, fmt.Errorf("failed to delete resource: %v", err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported action %s", eventType.Action)
