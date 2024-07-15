@@ -11,7 +11,6 @@ import (
 
 type ResourceDao interface {
 	Get(ctx context.Context, id string) (*api.Resource, error)
-	GetBundle(ctx context.Context, id string) (*api.Resource, error)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Delete(ctx context.Context, id string, unscoped bool) error
@@ -36,15 +35,6 @@ func (d *sqlResourceDao) Get(ctx context.Context, id string) (*api.Resource, err
 	g2 := (*d.sessionFactory).New(ctx)
 	var resource api.Resource
 	if err := g2.Unscoped().Take(&resource, "id = ?", id).Error; err != nil {
-		return nil, err
-	}
-	return &resource, nil
-}
-
-func (d *sqlResourceDao) GetBundle(ctx context.Context, id string) (*api.Resource, error) {
-	g2 := (*d.sessionFactory).New(ctx)
-	var resource api.Resource
-	if err := g2.Unscoped().Take(&resource, "id = ? AND type = ?", id, api.ResourceTypeBundle).Error; err != nil {
 		return nil, err
 	}
 	return &resource, nil

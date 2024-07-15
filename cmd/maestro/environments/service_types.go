@@ -14,6 +14,7 @@ func NewResourceServiceLocator(env *Env) ResourceServiceLocator {
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			dao.NewResourceDao(&env.Database.SessionFactory),
 			env.Services.Events(),
+			env.Services.Generic(),
 		)
 	}
 }

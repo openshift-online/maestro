@@ -10,7 +10,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	logger "github.com/openshift-online/maestro/pkg/logger"
-	"gorm.io/gorm"
 
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -21,24 +20,25 @@ import (
 
 type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
-	GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError)
-	MarkAsDeleting(ctx context.Context, id string, deletionTimestamp time.Time) *errors.ServiceError
+	MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError
 	Delete(ctx context.Context, id string) *errors.ServiceError
 	All(ctx context.Context) (api.ResourceList, *errors.ServiceError)
 
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
 	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
+	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
 
-func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService) ResourceService {
+func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService, generic GenericService) ResourceService {
 	return &sqlResourceService{
 		lockFactory: lockFactory,
 		resourceDao: resourceDao,
 		events:      events,
+		generic:     generic,
 	}
 }
 
@@ -48,6 +48,7 @@ type sqlResourceService struct {
 	lockFactory db.LockFactory
 	resourceDao dao.ResourceDao
 	events      EventService
+	generic     GenericService
 }
 
 func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
@@ -55,14 +56,10 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 	if err != nil {
 		return nil, handleGetError("Resource", "id", id, err)
 	}
-	return resource, nil
-}
 
-func (s *sqlResourceService) GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
-	resource, err := s.resourceDao.GetBundle(ctx, id)
-	if err != nil {
-		return nil, handleGetError("Resource Bundle", "id", id, err)
-	}
+	// sync the creationTimestamp and deletionTimestamp from resource meta to work metadata
+	s.syncTimestampsFromResourceMeta(resource)
+
 	return resource, nil
 }
 
@@ -216,48 +213,16 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	return updated, true, nil
 }
 
-// MarkAsDeleting marks the resource as deleting by setting the deletion timestamp.
-// There are two cases:
-// 1. If deletionTimestamp is not provided, the resource will be deleted and the deleteAt
-// will be set by the database.
-// 2. If deletionTimestamp is provided, the resource will be marked as deleting in both
-// the deleteAt field and deletionTimestamp in the work metadata before deletion.
-//
+// MarkAsDeleting marks the resource as deleting by setting the delete_at timestamp.
 // The Resource Deletion Flow:
 // 1. User requests deletion
 // 2. Maestro marks resource as deleting by soft delete, adds delete event to DB
 // 3. Maestro handles delete event and sends CloudEvent to work-agent
 // 4. Work-agent deletes resource, sends CloudEvent back to Maestro
 // 5. Maestro hard deletes resource from DB
-func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string, deletionTimestamp time.Time) *errors.ServiceError {
-	if deletionTimestamp.IsZero() {
-		// If deletionTimestamp is not provided, delete the resource immediately.
-		// The database deletion mechanism ensures the deleteAt field of the resource is set.
-		if err := s.resourceDao.Delete(ctx, id, false); err != nil {
-			return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
-		}
-	} else {
-		// If deletionTimestamp is provided, the resource will be marked as deleting in both
-		// the deleteAt field and deletionTimestamp in the work metadata before deletion.
-		found, err := s.resourceDao.Get(ctx, id)
-		if err != nil {
-			return handleGetError("Resource", "id", id, err)
-		}
-		// set deletionTimestamp in work metadata
-		workMetaValue, ok := found.Payload["metadata"]
-		if ok {
-			workMeta, ok := workMetaValue.(map[string]interface{})
-			if ok {
-				workMeta["deletionTimestamp"] = deletionTimestamp.Format(time.RFC3339)
-				found.Payload["metadata"] = workMeta
-			}
-		}
-		// set deletedAt in resource meta
-		found.DeletedAt = gorm.DeletedAt{Time: deletionTimestamp, Valid: true}
-		_, err = s.resourceDao.Update(ctx, found)
-		if err != nil {
-			return handleUpdateError("Resource", err)
-		}
+func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
+	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
+		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
 	}
 
 	if _, err := s.events.Create(ctx, &api.Event{
@@ -305,10 +270,43 @@ func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors
 
 var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 
+// List implements the cegeneric.Lister interface, enabling the cloudevents source client to list resources for responding spec resync from the agent.
+// For more details, refer to the cegeneric.Lister interface:
+// https://github.com/open-cluster-management-io/sdk-go/blob/d3c47c228d7905ebb20f331f9b72bc5ff6a84789/pkg/cloudevents/generic/interface.go#L36-L39
 func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
 	resourceList, err := s.resourceDao.FindByConsumerName(context.TODO(), listOpts.ClusterName)
 	if err != nil {
 		return nil, err
 	}
 	return resourceList, nil
+}
+
+// ListWithArgs lists resources based on the provided page and filter arguments.
+func (s *sqlResourceService) ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError) {
+	paging, serviceErr := s.generic.List(ctx, username, args, resources)
+	if serviceErr != nil {
+		return nil, serviceErr
+	}
+
+	for _, resource := range *resources {
+		// sync the creationTimestamp and deletionTimestamp from resource meta to work metadata
+		s.syncTimestampsFromResourceMeta(&resource)
+	}
+
+	return paging, nil
+}
+
+func (s *sqlResourceService) syncTimestampsFromResourceMeta(resource *api.Resource) {
+	// fill back the creationTimestamp and deletionTimestamp from resource meta to work metadata if it exists
+	workMetaValue, ok := resource.Payload["metadata"]
+	if ok {
+		workMeta, ok := workMetaValue.(map[string]interface{})
+		if ok {
+			workMeta["creationTimestamp"] = resource.CreatedAt.Format(time.RFC3339)
+			if !resource.DeletedAt.Time.IsZero() {
+				workMeta["deletionTimestamp"] = resource.DeletedAt.Time.Format(time.RFC3339)
+			}
+			resource.Payload["metadata"] = workMeta
+		}
+	}
 }

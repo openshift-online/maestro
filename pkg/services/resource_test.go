@@ -16,7 +16,8 @@ func TestResourceFindByConsumerID(t *testing.T) {
 
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
-	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events)
+
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil)
 
 	const Fukuisaurus = "b288a9da-8bfe-4c82-94cc-2b48e773fc46"
 	const Seismosaurus = "e3eb7db1-b124-4a4d-8bb6-cc779c01b402"
@@ -53,7 +54,7 @@ func TestCreateInvalidResource(t *testing.T) {
 
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
-	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events)
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil)
 
 	resource := &api.Resource{ConsumerName: "invalidation", Payload: newPayload(t, "{}")}
 

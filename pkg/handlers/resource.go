@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/gorilla/mux"
 
@@ -173,7 +172,7 @@ func (h resourceHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			err := h.resource.MarkAsDeleting(ctx, id, time.Time{})
+			err := h.resource.MarkAsDeleting(ctx, id)
 			if err != nil {
 				return nil, err
 			}
@@ -188,7 +187,7 @@ func (h resourceHandler) GetBundle(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			resource, serviceErr := h.resource.GetBundle(ctx, id)
+			resource, serviceErr := h.resource.Get(ctx, id)
 			if serviceErr != nil {
 				return nil, serviceErr
 			}
@@ -216,7 +215,7 @@ func (h resourceHandler) ListBundle(w http.ResponseWriter, r *http.Request) {
 				listArgs.Search = fmt.Sprintf("%s and type='%s'", listArgs.Search, api.ResourceTypeBundle)
 			}
 			var resources []api.Resource
-			paging, serviceErr := h.generic.List(ctx, "username", listArgs, &resources)
+			paging, serviceErr := h.resource.ListWithArgs(ctx, "username", listArgs, &resources)
 			if serviceErr != nil {
 				return nil, serviceErr
 			}

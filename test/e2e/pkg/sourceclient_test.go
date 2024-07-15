@@ -431,19 +431,19 @@ func AssertWatchResult(result *WatchedResult) error {
 	hasDeletedWork := false
 
 	for _, watchedWork := range result.WatchedWorks {
-		if strings.HasPrefix(watchedWork.Name, "init-work-a") {
+		if strings.HasPrefix(watchedWork.Name, "init-work-a") && !watchedWork.CreationTimestamp.IsZero() {
 			hasFirstInitWork = true
 		}
 
-		if strings.HasPrefix(watchedWork.Name, "init-work-b") {
+		if strings.HasPrefix(watchedWork.Name, "init-work-b") && !watchedWork.CreationTimestamp.IsZero() {
 			hasSecondInitWork = true
 		}
 
-		if strings.HasPrefix(watchedWork.Name, "work-") {
+		if strings.HasPrefix(watchedWork.Name, "work-") && !watchedWork.CreationTimestamp.IsZero() {
 			hasWork = true
 		}
 
-		if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ManifestsDeleted) {
+		if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ManifestsDeleted) && !watchedWork.DeletionTimestamp.IsZero() {
 			hasDeletedWork = true
 		}
 	}
