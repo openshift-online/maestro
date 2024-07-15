@@ -157,89 +157,15 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 
 		switch action {
 		case types.StatusModified:
-			found, svcErr := s.resourceService.Get(ctx, resource.ID)
-			if svcErr != nil {
-				if svcErr.Is404() {
-					log.Warning(fmt.Sprintf("skipping resource %s as it is not found", resource.ID))
-					return nil
-				}
-
-				return fmt.Errorf("failed to get resource %s, %s", resource.ID, svcErr.Error())
-			}
-
-			if found.ConsumerName != resource.ConsumerName {
-				return fmt.Errorf("unmatched consumer name %s for resource %s", resource.ConsumerName, resource.ID)
-			}
-
-			// set the resource source and type back for broadcast
-			resource.Source = found.Source
-			resource.Type = found.Type
-
 			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 				// the resource is not owned by the current instance, skip
 				log.V(4).Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
 				return nil
 			}
 
-			specEvent, err := api.JSONMAPToCloudEvent(found.Payload)
-			if err != nil {
-				return fmt.Errorf("failed to convert resource spec to cloudevent: %v", err)
-			}
-
-			// convert the resource status to cloudevent
-			statusEvent, err := api.JSONMAPToCloudEvent(resource.Status)
-			if err != nil {
-				return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
-			}
-
-			// set work meta from spec event to status event
-			if workMeta, ok := specEvent.Extensions()[codec.ExtensionWorkMeta]; ok {
-				statusEvent.SetExtension(codec.ExtensionWorkMeta, workMeta)
-			}
-
-			resource.Status, err = api.CloudEventToJSONMap(statusEvent)
-			if err != nil {
-				return fmt.Errorf("failed to convert resource status cloudevent to json: %v", err)
-			}
-
-			// decode the cloudevent data as manifest status
-			statusPayload := &workpayload.ManifestStatus{}
-			if err := statusEvent.DataAs(statusPayload); err != nil {
-				return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
-			}
-
-			// if the resource has been deleted from agent, create status event and delete it from maestro
-			if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
-				_, sErr := s.statusEventService.Create(ctx, &api.StatusEvent{
-					ResourceID:      resource.ID,
-					ResourceSource:  resource.Source,
-					ResourceType:    resource.Type,
-					Status:          resource.Status,
-					StatusEventType: api.StatusDeleteEventType,
-				})
-				if sErr != nil {
-					return fmt.Errorf("failed to create status event for resource status delete %s: %s", resource.ID, sErr.Error())
-				}
-				if svcErr := s.resourceService.Delete(ctx, resource.ID); svcErr != nil {
-					return fmt.Errorf("failed to delete resource %s: %s", resource.ID, svcErr.Error())
-				}
-			} else {
-				// update the resource status
-				_, updated, svcErr := s.resourceService.UpdateStatus(ctx, resource)
-				if svcErr != nil {
-					return fmt.Errorf("failed to update resource status %s: %s", resource.ID, svcErr.Error())
-				}
-
-				// create the status event only when the resource is updated
-				if updated {
-					_, sErr := s.statusEventService.Create(ctx, &api.StatusEvent{
-						ResourceID:      resource.ID,
-						StatusEventType: api.StatusUpdateEventType,
-					})
-					if sErr != nil {
-						return fmt.Errorf("failed to create status event for resource status update %s: %s", resource.ID, sErr.Error())
-					}
-				}
+			// handle the resource status update according status update type
+			if err := handleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
+				return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 			}
 		default:
 			return fmt.Errorf("unsupported action %s", action)
@@ -289,4 +215,96 @@ func (s *PulseServer) OnStatusUpdate(ctx context.Context, eventID, resourceID st
 	})
 
 	return err
+}
+
+// handleStatusUpdate processes the resource status update from the agent.
+// The resource argument contains the updated status.
+// The function performs the following steps:
+// 1. Verifies if the resource is still in the Maestro server and checks if the consumer name matches.
+// 2. Retrieves the resource from Maestro and fills back the work metadata from the spec event to the status event.
+// 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
+// otherwise, updates the resource status and creates a status event.
+func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
+	found, svcErr := resourceService.Get(ctx, resource.ID)
+	if svcErr != nil {
+		if svcErr.Is404() {
+			log.Warning(fmt.Sprintf("skipping resource %s as it is not found", resource.ID))
+			return nil
+		}
+
+		return fmt.Errorf("failed to get resource %s, %s", resource.ID, svcErr.Error())
+	}
+
+	if found.ConsumerName != resource.ConsumerName {
+		return fmt.Errorf("unmatched consumer name %s for resource %s", resource.ConsumerName, resource.ID)
+	}
+
+	// set the resource source and type back for broadcast
+	resource.Source = found.Source
+	resource.Type = found.Type
+
+	// convert the resource status to cloudevent
+	statusEvent, err := api.JSONMAPToCloudEvent(resource.Status)
+	if err != nil {
+		return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
+	}
+
+	// convert the resource spec to cloudevent
+	specEvent, err := api.JSONMAPToCloudEvent(found.Payload)
+	if err != nil {
+		return fmt.Errorf("failed to convert resource spec to cloudevent: %v", err)
+	}
+
+	// set work meta from spec event to status event
+	if workMeta, ok := specEvent.Extensions()[codec.ExtensionWorkMeta]; ok {
+		statusEvent.SetExtension(codec.ExtensionWorkMeta, workMeta)
+	}
+
+	// convert the resource status cloudevent back to resource status jsonmap
+	resource.Status, err = api.CloudEventToJSONMap(statusEvent)
+	if err != nil {
+		return fmt.Errorf("failed to convert resource status cloudevent to json: %v", err)
+	}
+
+	// decode the cloudevent data as manifest status
+	statusPayload := &workpayload.ManifestStatus{}
+	if err := statusEvent.DataAs(statusPayload); err != nil {
+		return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
+	}
+
+	// if the resource has been deleted from agent, create status event and delete it from maestro
+	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
+		_, sErr := statusEventService.Create(ctx, &api.StatusEvent{
+			ResourceID:      resource.ID,
+			ResourceSource:  resource.Source,
+			ResourceType:    resource.Type,
+			Status:          resource.Status,
+			StatusEventType: api.StatusDeleteEventType,
+		})
+		if sErr != nil {
+			return fmt.Errorf("failed to create status event for resource status delete %s: %s", resource.ID, sErr.Error())
+		}
+		if svcErr := resourceService.Delete(ctx, resource.ID); svcErr != nil {
+			return fmt.Errorf("failed to delete resource %s: %s", resource.ID, svcErr.Error())
+		}
+	} else {
+		// update the resource status
+		_, updated, svcErr := resourceService.UpdateStatus(ctx, resource)
+		if svcErr != nil {
+			return fmt.Errorf("failed to update resource status %s: %s", resource.ID, svcErr.Error())
+		}
+
+		// create the status event only when the resource is updated
+		if updated {
+			_, sErr := statusEventService.Create(ctx, &api.StatusEvent{
+				ResourceID:      resource.ID,
+				StatusEventType: api.StatusUpdateEventType,
+			})
+			if sErr != nil {
+				return fmt.Errorf("failed to create status event for resource status update %s: %s", resource.ID, sErr.Error())
+			}
+		}
+	}
+
+	return nil
 }

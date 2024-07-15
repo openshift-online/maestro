@@ -32,8 +32,10 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 		BeforeEach(func() {
 			workName = "work-" + rand.String(5)
 			work := NewManifestWork(workName)
-			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+				return err
+			}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)

@@ -117,7 +117,7 @@ parameters:
 - name: GRPC_BROKER_BINDPORT
   displayName: gRPC Broker Bindport
   description: gRPC broker bind port
-  value: "8090"
+  value: "8091"
 
 - name: METRICS_SERVER_BINDPORT
   displayName: Metrics Server Bindport

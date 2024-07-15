@@ -110,7 +110,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	glog.V(4).Infof("receive the event with grpc, %s", evt)
+	glog.V(4).Infof("receive the event with grpc server, %s", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -121,7 +121,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return &emptypb.Empty{}, nil
 	}
 
-	res, err := decode(eventType.CloudEventsDataType, evt)
+	res, err := decodeResourceSpec(eventType.CloudEventsDataType, evt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
@@ -164,12 +164,12 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 // Subscribe implements the Subscribe method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
 	clientID, errChan := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
-		evt, err := encode(res)
+		evt, err := encodeResourceStatus(res)
 		if err != nil {
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
 
-		glog.V(4).Infof("send the event with grpc, %s", evt)
+		glog.V(4).Infof("send the event to status subscribers, %s", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
@@ -198,8 +198,8 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 	}
 }
 
-// decode translates a cloudevent to a resource
-func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resource, error) {
+// decodeResourceSpec translates a CloudEvent into a resource containing the spec JSON map.
+func decodeResourceSpec(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resource, error) {
 	evtExtensions := evt.Context.GetExtensions()
 
 	clusterName, err := cetypes.ToString(evtExtensions[types.ExtensionClusterName])
@@ -252,8 +252,8 @@ func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resour
 	return resource, nil
 }
 
-// encode translates a resource to a cloudevent
-func encode(resource *api.Resource) (*ce.Event, error) {
+// encodeResourceStatus translates a resource status JSON map into a CloudEvent.
+func encodeResourceStatus(resource *api.Resource) (*ce.Event, error) {
 	if resource.Type == api.ResourceTypeSingle {
 		// single resource, return the status directly
 		return api.JSONMAPToCloudEvent(resource.Status)

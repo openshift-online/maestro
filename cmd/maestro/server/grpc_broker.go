@@ -17,15 +17,12 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/klog/v2"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/logger"
@@ -127,7 +124,7 @@ func (bkr *GRPCBroker) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	glog.V(4).Infof("receive the event with grpc, %s", evt)
+	glog.V(4).Infof("receive the event with grpc broker, %s", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -138,83 +135,15 @@ func (bkr *GRPCBroker) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return &emptypb.Empty{}, nil
 	}
 
-	resourceID, err := cetypes.ToString(evt.Extensions()[types.ExtensionResourceID])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get resourceid extension: %v", err)
-	}
-
-	consumerName, err := cetypes.ToString(evt.Extensions()[types.ExtensionClusterName])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
-	}
-
-	found, svcErr := bkr.resourceService.Get(ctx, resourceID)
-	if svcErr != nil {
-		return nil, fmt.Errorf("failed to get resource %s, %s", resourceID, svcErr.Error())
-	}
-
-	if found.ConsumerName != consumerName {
-		return nil, fmt.Errorf("unmatched consumer name %s for resource %s", consumerName, resourceID)
-	}
-
-	specEvent, err := api.JSONMAPToCloudEvent(found.Payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert resource spec to cloudevent: %v", err)
-	}
-
-	// set work meta from spec event to status event
-	if workMeta, ok := specEvent.Extensions()[codec.ExtensionWorkMeta]; ok {
-		evt.SetExtension(codec.ExtensionWorkMeta, workMeta)
-	}
-
 	// decode the cloudevent data as resource with status
 	resource, err := decodeResourceStatus(eventType.CloudEventsDataType, evt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
 
-	// set the resource source and type back for broadcast
-	resource.Source = found.Source
-	resource.Type = found.Type
-
-	// decode the cloudevent data as manifest status
-	statusPayload := &workpayload.ManifestStatus{}
-	if err := evt.DataAs(statusPayload); err != nil {
-		return nil, fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
-	}
-
-	// if the resource has been deleted from agent, create status event and delete it from maestro
-	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
-		_, sErr := bkr.statusEventService.Create(ctx, &api.StatusEvent{
-			ResourceID:      resource.ID,
-			ResourceSource:  resource.Source,
-			ResourceType:    resource.Type,
-			Status:          resource.Status,
-			StatusEventType: api.StatusDeleteEventType,
-		})
-		if sErr != nil {
-			return nil, fmt.Errorf("failed to create status event for resource status delete %s: %s", resource.ID, sErr.Error())
-		}
-		if svcErr := bkr.resourceService.Delete(ctx, resource.ID); svcErr != nil {
-			return nil, fmt.Errorf("failed to delete resource %s: %s", resource.ID, svcErr.Error())
-		}
-	} else {
-		// update the resource status
-		_, updated, svcErr := bkr.resourceService.UpdateStatus(ctx, resource)
-		if svcErr != nil {
-			return nil, fmt.Errorf("failed to update resource status %s: %s", resource.ID, svcErr.Error())
-		}
-
-		// create the status event only when the resource is updated
-		if updated {
-			_, sErr := bkr.statusEventService.Create(ctx, &api.StatusEvent{
-				ResourceID:      resource.ID,
-				StatusEventType: api.StatusUpdateEventType,
-			})
-			if sErr != nil {
-				return nil, fmt.Errorf("failed to create status event for resource status update %s: %s", resource.ID, sErr.Error())
-			}
-		}
+	// handle the resource status update according status update type
+	if err := handleStatusUpdate(ctx, resource, bkr.resourceService, bkr.statusEventService); err != nil {
+		return nil, fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 	}
 
 	return &emptypb.Empty{}, nil
@@ -243,6 +172,7 @@ func (bkr *GRPCBroker) unregister(id string) {
 	bkr.mu.Lock()
 	defer bkr.mu.Unlock()
 
+	glog.V(10).Infof("unregister subscriber %s", id)
 	close(bkr.subscribers[id].errChan)
 	delete(bkr.subscribers, id)
 }
@@ -258,6 +188,8 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		if err != nil {
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
+
+		glog.V(4).Infof("send the event to spec subscribers, %s", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
@@ -280,13 +212,12 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		bkr.unregister(subscriberID)
 		return err
 	case <-subServer.Context().Done():
-		glog.V(10).Infof("unregister subscriber %s", subscriberID)
 		bkr.unregister(subscriberID)
 		return nil
 	}
 }
 
-// decodeResourceStatus translates a cloudevent to a resource containing the resource status.
+// decodeResourceStatus translates a CloudEvent into a resource containing the status JSON map.
 func decodeResourceStatus(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resource, error) {
 	evtExtensions := evt.Context.GetExtensions()
 
@@ -332,7 +263,7 @@ func decodeResourceStatus(eventDataType types.CloudEventsDataType, evt *ce.Event
 	return resource, nil
 }
 
-// encode translates a resource spec to a cloudevent
+// encodeResourceSpec translates a resource spec JSON map into a CloudEvent.
 func encodeResourceSpec(resource *api.Resource) (*ce.Event, error) {
 	evt, err := api.JSONMAPToCloudEvent(resource.Payload)
 	if err != nil {

@@ -12,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -297,20 +296,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("post the resource bundle via gRPC client", func() {
-			obj := &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "v1",
-					"kind":       "Secret",
-					"metadata": map[string]interface{}{
-						"namespace": "default",
-						"name":      "auth",
-					},
-				},
-			}
-			objectStr, _ := obj.MarshalJSON()
-			manifest := workv1.Manifest{}
-			manifest.Raw = objectStr
-			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, &workv1.ManifestWork{
+			work := &workv1.ManifestWork{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: workName,
 				},
@@ -348,8 +334,11 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 						},
 					},
 				},
-			}, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
+			}
+			Eventually(func() error {
+				_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+				return err
+			}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("get the resource via restful API", func() {
