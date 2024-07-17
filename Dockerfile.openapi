@@ -1,4 +1,4 @@
-FROM openapitools/openapi-generator-cli:v7.6.0
+FROM openapitools/openapi-generator-cli:v7.7.0
 
 RUN apt-get update
 RUN apt-get install -y make sudo git
