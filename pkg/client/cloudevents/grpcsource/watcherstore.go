@@ -10,7 +10,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -126,18 +125,23 @@ func (m *RESTFulAPIWatcherStore) HandleReceivedWork(action types.ResourceAction,
 }
 
 // Get a work from maestro server with its namespace and name
-func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, error) {
+func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
 	id := utils.UID(m.sourceID, namespace, name)
 	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(context.Background(), id).Execute()
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, errors.NewNotFound(common.ManifestWorkGR, id)
+			return nil, false, nil
 		}
 
-		return nil, err
+		return nil, false, err
 	}
 
-	return ToManifestWork(rb)
+	work, err := ToManifestWork(rb)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return work, true, nil
 }
 
 // List works from maestro server with a specified namespace and list options.
