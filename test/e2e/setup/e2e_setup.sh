@@ -76,7 +76,6 @@ kubectl $1 apply -f ./test/e2e/setup/service-ca/
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
 export ENABLE_GRPC_SERVER=true
-export REPLICAS=2
 kubectl create namespace $namespace || true
 make template \
 	deploy-secrets \

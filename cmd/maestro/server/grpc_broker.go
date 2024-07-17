@@ -178,11 +178,14 @@ func (bkr *GRPCBroker) unregister(id string) {
 }
 
 // Subscribe in stub implementation for maestro agent subscribe resource spec from maestro server.
+// Note: It's unnecessary to send a status resync request to Maestro agent subscribers.
+// The work agent will continuously attempt to send status updates to the gRPC broker.
+// If the broker is down or disconnected, the agent will resend the status once the broker is back up or reconnected.
 func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
 	if len(subReq.ClusterName) == 0 {
 		return fmt.Errorf("invalid subscription request: missing cluster name")
 	}
-	// subscribe the cluster for the resource spec
+	// register the cluster for subscription to the resource spec
 	subscriberID, errChan := bkr.register(subReq.ClusterName, func(res *api.Resource) error {
 		evt, err := encodeResourceSpec(res)
 		if err != nil {

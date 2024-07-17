@@ -152,7 +152,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return fmt.Errorf("unexpected status, should not contain error looking up service account default/nginx, got %s", string(statusJSON))
 				}
 				return nil
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the nginx resource", func() {
@@ -169,7 +169,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -351,7 +351,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())

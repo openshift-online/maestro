@@ -419,7 +419,7 @@ e2e-test/teardown:
 .PHONY: e2e-test/teardown
 
 e2e-test: e2e-test/teardown e2e-test/setup
-	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
+	ginkgo -v --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
 	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \

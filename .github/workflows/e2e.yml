@@ -30,6 +30,7 @@ jobs:
           make e2e-test
         env:
           container_tool: docker
+          REPLICAS: 2
   e2e-broadcast-subscription:
     runs-on: ubuntu-latest
     steps:
@@ -46,6 +47,7 @@ jobs:
           make e2e-test
         env:
           container_tool: docker
+          REPLICAS: 2
           ENABLE_BROADCAST_SUBSCRIPTION: true
   e2e-grpc-broker:
     runs-on: ubuntu-latest
