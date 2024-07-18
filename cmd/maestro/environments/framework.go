@@ -173,21 +173,21 @@ func (e *Env) LoadClients() error {
 		glog.Infof("Using Mock CloudEvents Source Client")
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
+		// For gRPC message broker type, Maestro server does not require the source client to publish resources or subscribe to resource status.
+		if e.Config.MessageBroker.MessageBrokerType != "grpc" {
+			_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
+				LoadConfig()
+			if err != nil {
+				glog.Errorf("Unable to load configuration: %s", err.Error())
+				return err
+			}
 
-		_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
-			LoadConfig()
-		if err != nil {
-			glog.Errorf("Unable to load configuration: %s", err.Error())
-			return err
-		}
-
-		cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
-			e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
-		if err != nil {
-			glog.Errorf("Unable to build cloudevent source options: %s", err.Error())
-			return err
-		}
-		if cloudEventsSourceOptions != nil {
+			cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
+				e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
+			if err != nil {
+				glog.Errorf("Unable to build cloudevent source options: %s", err.Error())
+				return err
+			}
 			e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
 			if err != nil {
 				glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())

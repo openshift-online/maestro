@@ -9,7 +9,6 @@ import (
 
 type GRPCServerConfig struct {
 	EnableGRPCServer      bool          `json:"enable_grpc_server"`
-	EnableGRPCBroker      bool          `json:"enable_grpc_broker"`
 	TLSCertFile           string        `json:"grpc_tls_cert_file"`
 	TLSKeyFile            string        `json:"grpc_tls_key_file"`
 	EnableTLS             bool          `json:"enable_grpc_tls"`
@@ -31,7 +30,6 @@ func NewGRPCServerConfig() *GRPCServerConfig {
 func (s *GRPCServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&s.EnableGRPCServer, "enable-grpc-server", false, "Enable gRPC server")
 	fs.StringVar(&s.ServerBindPort, "grpc-server-bindport", "8090", "gPRC server bind port")
-	fs.BoolVar(&s.EnableGRPCBroker, "enable-grpc-broker", false, "Enable gRPC broker")
 	fs.StringVar(&s.BrokerBindPort, "grpc-broker-bindport", "8091", "gPRC broker bind port")
 	fs.Uint32Var(&s.MaxConcurrentStreams, "grpc-max-concurrent-streams", math.MaxUint32, "gPRC max concurrent streams")
 	fs.IntVar(&s.MaxReceiveMessageSize, "grpc-max-receive-message-size", 1024*1024*4, "gPRC max receive message size")

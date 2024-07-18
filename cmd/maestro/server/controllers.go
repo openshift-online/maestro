@@ -10,7 +10,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 )
 
-func NewControllersServer(pulseServer *PulseServer, grpcBroker *GRPCBroker) *ControllersServer {
+func NewControllersServer(eventServer EventServer) *ControllersServer {
 	s := &ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
 			db.NewAdvisoryLockFactory(env().Database.SessionFactory),
@@ -21,29 +21,18 @@ func NewControllersServer(pulseServer *PulseServer, grpcBroker *GRPCBroker) *Con
 		),
 	}
 
-	sourceClient := env().Clients.CloudEventsSource
-	controllerConfig := &controllers.ControllerConfig{
+	s.KindControllerManager.Add(&controllers.ControllerConfig{
 		Source: "Resources",
 		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-			api.CreateEventType: {sourceClient.OnCreate},
-			api.UpdateEventType: {sourceClient.OnUpdate},
-			api.DeleteEventType: {sourceClient.OnDelete},
+			api.CreateEventType: {eventServer.OnCreate},
+			api.UpdateEventType: {eventServer.OnUpdate},
+			api.DeleteEventType: {eventServer.OnDelete},
 		},
-	}
-
-	// TODO: Add support for multiple gRPC broker instances. When there are multiple instances of the Maestro server,
-	// the work agent may be load-balanced across any instance. Each instance needs to handle the resource spec to
-	// ensure all work agents receive all the resource spec.
-	if grpcBroker != nil {
-		controllerConfig.Handlers[api.CreateEventType] = append(controllerConfig.Handlers[api.CreateEventType], grpcBroker.OnCreate)
-		controllerConfig.Handlers[api.UpdateEventType] = append(controllerConfig.Handlers[api.UpdateEventType], grpcBroker.OnUpdate)
-		controllerConfig.Handlers[api.DeleteEventType] = append(controllerConfig.Handlers[api.DeleteEventType], grpcBroker.OnDelete)
-	}
-	s.KindControllerManager.Add(controllerConfig)
+	})
 
 	s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
-		api.StatusUpdateEventType: {pulseServer.OnStatusUpdate},
-		api.StatusDeleteEventType: {pulseServer.OnStatusUpdate},
+		api.StatusUpdateEventType: {eventServer.OnStatusUpdate},
+		api.StatusDeleteEventType: {eventServer.OnStatusUpdate},
 	})
 
 	return s

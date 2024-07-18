@@ -38,17 +38,22 @@ func runServer(cmd *cobra.Command, args []string) {
 	// Create event broadcaster to broadcast resource status update events to subscribers
 	eventBroadcaster := event.NewEventBroadcaster()
 
-	// Create the GRPC broker if enabled
-	var grpcBroker *server.GRPCBroker
-	if environments.Environment().Config.GRPCServer.EnableGRPCBroker {
-		grpcBroker = server.NewGRPCBroker()
+	// Create the event server based on the message broker type:
+	// For gRPC, create a gRPC broker to handle resource spec and status events.
+	// For MQTT, create a Pulse server to handle resource spec and status events.
+	var eventServer server.EventServer
+	if environments.Environment().Config.MessageBroker.MessageBrokerType == "grpc" {
+		glog.Info("Setting up grpc broker")
+		eventServer = server.NewGRPCBroker(eventBroadcaster)
+	} else {
+		glog.Info("Setting up pulse server")
+		eventServer = server.NewPulseServer(eventBroadcaster)
 	}
 	// Create the servers
 	apiserver := server.NewAPIServer(eventBroadcaster)
 	metricsServer := server.NewMetricsServer()
 	healthcheckServer := server.NewHealthCheckServer()
-	pulseServer := server.NewPulseServer(eventBroadcaster)
-	controllersServer := server.NewControllersServer(pulseServer, grpcBroker)
+	controllersServer := server.NewControllersServer(eventServer)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -78,12 +83,8 @@ func runServer(cmd *cobra.Command, args []string) {
 	go apiserver.Start()
 	go metricsServer.Start()
 	go healthcheckServer.Start()
-	go pulseServer.Start(ctx)
+	go eventServer.Start(ctx)
 	go controllersServer.Start(ctx)
-	// Start the GRPC broker if enabled
-	if grpcBroker != nil {
-		go grpcBroker.Start(ctx)
-	}
 
 	<-ctx.Done()
 }

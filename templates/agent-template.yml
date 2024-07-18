@@ -33,8 +33,9 @@ parameters:
   displayName: Image tag
   value: latest
 
-- name: DRIVER
+- name: MESSAGE_DRIVER_TYPE
   displayName: Message Driver Type
+  description: Message driver type, mqtt or grpc.
   value: mqtt
 
 - name: MQTT_HOST
@@ -293,16 +294,16 @@ objects:
             - /usr/local/bin/maestro
             - agent
             - --consumer-name=${CONSUMER_NAME}
-            - --workload-source-driver=${DRIVER}
-            - --workload-source-config=/secrets/${DRIVER}/config.yaml
+            - --workload-source-driver=${MESSAGE_DRIVER_TYPE}
+            - --workload-source-config=/secrets/${MESSAGE_DRIVER_TYPE}/config.yaml
             - --cloudevents-client-id=${CONSUMER_NAME}-work-agent
           volumeMounts:
-          - name: ${DRIVER}
-            mountPath: /secrets/${DRIVER}
+          - name: ${MESSAGE_DRIVER_TYPE}
+            mountPath: /secrets/${MESSAGE_DRIVER_TYPE}
         volumes:
-        - name: ${DRIVER}
+        - name: ${MESSAGE_DRIVER_TYPE}
           secret:
-            secretName: maestro-agent-${DRIVER}
+            secretName: maestro-agent-${MESSAGE_DRIVER_TYPE}
 
 - apiVersion: v1
   kind: Secret

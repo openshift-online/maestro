@@ -25,23 +25,46 @@ import (
 
 var log = logger.NewOCMLogger(context.Background())
 
-// PulseServer represents a server responsible for periodic heartbeat updates and
-// checking the liveness of Maestro instances, triggering status resync based on
-// instances' status and other conditions.
+// EventServer handles resource-related events:
+// 1. Resource spec events (create, update and delete) from the resource controller.
+// 2. Resource status update events from the agent.
+type EventServer interface {
+	// Start initiates the EventServer.
+	Start(ctx context.Context)
+
+	// OnCreate handles the creation of a resource.
+	OnCreate(ctx context.Context, resourceID string) error
+
+	// OnUpdate handles updates to a resource.
+	OnUpdate(ctx context.Context, resourceID string) error
+
+	// OnDelete handles the deletion of a resource.
+	OnDelete(ctx context.Context, resourceID string) error
+
+	// OnStatusUpdate handles status update events for a resource.
+	OnStatusUpdate(ctx context.Context, eventID, resourceID string) error
+}
+
+var _ EventServer = &PulseServer{}
+
+// PulseServer represents a server responsible for publish resource spec events from
+// resource controller and handle resource status update events from the maestro agent.
+// It also periodic heartbeat updates and checking the liveness of Maestro instances,
+// triggering status resync based on instances' status and other conditions.
 type PulseServer struct {
 	instanceID         string
 	pulseInterval      int64
 	instanceDao        dao.InstanceDao
 	eventInstanceDao   dao.EventInstanceDao
 	lockFactory        db.LockFactory
-	eventBroadcaster   *event.EventBroadcaster
+	eventBroadcaster   *event.EventBroadcaster // event broadcaster to broadcast resource status update events to subscribers
 	resourceService    services.ResourceService
 	statusEventService services.StatusEventService
 	sourceClient       cloudevents.SourceClient
 	statusDispatcher   dispatcher.Dispatcher
 }
 
-func NewPulseServer(eventBroadcaster *event.EventBroadcaster) *PulseServer {
+func NewPulseServer(eventBroadcaster *event.EventBroadcaster) EventServer {
 	var statusDispatcher dispatcher.Dispatcher
 	switch config.SubscriptionType(env().Config.PulseServer.SubscriptionType) {
 	case config.SharedSubscriptionType:
@@ -173,6 +196,21 @@ func (s *PulseServer) startSubscription(ctx context.Context) {
 
 		return nil
 	})
+}
+
+// OnCreate will be called on each new resource creation event inserted into db.
+func (s *PulseServer) OnCreate(ctx context.Context, resourceID string) error {
+	return s.sourceClient.OnCreate(ctx, resourceID)
+}
+
+// OnUpdate will be called on each new resource update event inserted into db.
+func (s *PulseServer) OnUpdate(ctx context.Context, resourceID string) error {
+	return s.sourceClient.OnUpdate(ctx, resourceID)
+}
+
+// OnDelete will be called on each new resource deletion event inserted into db.
+func (s *PulseServer) OnDelete(ctx context.Context, resourceID string) error {
+	return s.sourceClient.OnDelete(ctx, resourceID)
 }
 
 // On StatusUpdate will be called on each new status event inserted into db.

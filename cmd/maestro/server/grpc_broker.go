@@ -25,6 +25,8 @@ import (
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 )
@@ -38,20 +40,28 @@ type subscriber struct {
 	errChan     chan<- error
 }
 
+var _ EventServer = &GRPCBroker{}
+
 // GRPCBroker is a gRPC broker that implements the CloudEventServiceServer interface.
 // It broadcasts resource spec to Maestro agents and listens for resource status updates from them.
+// TODO: Add support for multiple gRPC broker instances. When there are multiple instances of the Maestro server,
+// the work agent may be load-balanced across any instance. Each instance needs to handle the resource spec to
+// ensure all work agents receive all the resource spec.
 type GRPCBroker struct {
 	pbv1.UnimplementedCloudEventServiceServer
 	grpcServer         *grpc.Server
+	instanceID         string
+	eventInstanceDao   dao.EventInstanceDao
 	resourceService    services.ResourceService
 	statusEventService services.StatusEventService
 	bindAddress        string
-	subscribers        map[string]*subscriber // registered subscribers
+	subscribers        map[string]*subscriber  // registered subscribers
+	eventBroadcaster   *event.EventBroadcaster // event broadcaster to broadcast resource status update events to subscribers
 	mu                 sync.RWMutex
 }
 
 // NewGRPCBroker creates a new gRPC broker with the given configuration.
-func NewGRPCBroker() *GRPCBroker {
+func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 	config := *env().Config.GRPCServer
 	grpcServerOptions := make([]grpc.ServerOption, 0)
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxRecvMsgSize(config.MaxReceiveMessageSize))
@@ -84,12 +94,16 @@ func NewGRPCBroker() *GRPCBroker {
 		glog.Infof("Serving gRPC broker without TLS at %s", config.BrokerBindPort)
 	}
 
+	sessionFactory := env().Database.SessionFactory
 	return &GRPCBroker{
 		grpcServer:         grpc.NewServer(grpcServerOptions...),
+		instanceID:         env().Config.MessageBroker.ClientID,
+		eventInstanceDao:   dao.NewEventInstanceDao(&sessionFactory),
 		resourceService:    env().Services.Resources(),
 		statusEventService: env().Services.StatusEvents(),
 		bindAddress:        env().Config.HTTPServer.Hostname + ":" + config.BrokerBindPort,
 		subscribers:        make(map[string]*subscriber),
+		eventBroadcaster:   eventBroadcaster,
 	}
 }
 
@@ -429,6 +443,48 @@ func (bkr *GRPCBroker) OnDelete(ctx context.Context, id string) error {
 	bkr.handleRes(resource)
 
 	return nil
+}
+
+// On StatusUpdate will be called on each new status event inserted into db.
+// It does two things:
+// 1. build the resource status and broadcast it to subscribers
+// 2. add the event instance record to mark the event has been processed by the current instance
+func (bkr *GRPCBroker) OnStatusUpdate(ctx context.Context, eventID, resourceID string) error {
+	statusEvent, sErr := bkr.statusEventService.Get(ctx, eventID)
+	if sErr != nil {
+		return fmt.Errorf("failed to get status event %s: %s", eventID, sErr.Error())
+	}
+
+	var resource *api.Resource
+	// check if the status event is delete event
+	if statusEvent.StatusEventType == api.StatusDeleteEventType {
+		// build resource with resource id and delete status
+		resource = &api.Resource{
+			Meta: api.Meta{
+				ID: resourceID,
+			},
+			Source: statusEvent.ResourceSource,
+			Type:   statusEvent.ResourceType,
+			Status: statusEvent.Status,
+		}
+	} else {
+		resource, sErr = bkr.resourceService.Get(ctx, resourceID)
+		if sErr != nil {
+			return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
+		}
+	}
+
+	// broadcast the resource status to subscribers
+	log.V(4).Infof("Broadcast the resource status %s", resource.ID)
+	bkr.eventBroadcaster.Broadcast(resource)
+
+	// add the event instance record
+	_, err := bkr.eventInstanceDao.Create(ctx, &api.EventInstance{
+		EventID:    eventID,
+		InstanceID: bkr.instanceID,
+	})
+
+	return err
 }
 
 // IsConsumerSubscribed returns true if the consumer is subscribed to the broker for resource spec.
