@@ -92,6 +92,9 @@ var _ = BeforeSuite(func() {
 	sourceID = "sourceclient-test" + rand.String(5)
 	grpcOptions = grpcoptions.NewGRPCOptions()
 	grpcOptions.URL = grpcServerAddress
+	grpcOptions.KeepAliveOptions.Enable = true
+	grpcOptions.KeepAliveOptions.Time = 6 * time.Second
+	grpcOptions.KeepAliveOptions.Timeout = 1 * time.Second
 
 	workClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
