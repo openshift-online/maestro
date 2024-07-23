@@ -84,7 +84,7 @@ parameters:
   description: HTTP server bind port
   value: "8000"
 
-- nane: ENABLE_GRPC_SERVER
+- name: ENABLE_GRPC_SERVER
   displayName: Enable gRPC Server
   description: Enable gRPC server
   value: "true"
