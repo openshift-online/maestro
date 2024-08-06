@@ -182,6 +182,10 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 
 	upStrategy := &workv1.UpdateStrategy{
 		Type: workv1.UpdateStrategyTypeServerSideApply,
+		ServerSideApply: &workv1.ServerSideApplyConfig{
+			Force:        true,
+			FieldManager: "maestro-agent",
+		},
 	}
 	if len(updateStrategy) != 0 {
 		upStrategy = &workv1.UpdateStrategy{}
