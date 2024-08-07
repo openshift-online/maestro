@@ -1,0 +1,546 @@
+apiVersion: work.open-cluster-management.io/v1
+kind: ManifestWork
+metadata:
+  annotations:
+    hypershift-deployment.open-cluster-management.io/created-by: ignore/ignore
+  name: {{ .Name }}-hypershift
+  namespace: {{ .ClusterName }}
+  labels:
+    api.openshift.com/environment: maestro-perf-test
+    api.openshift.com/id: {{ .Name }}
+    api.openshift.com/legal-entity-id: {{ .Name }}
+    api.openshift.com/name: {{ .Name }}
+    api.openshift.com/hosted-cluster: "true"
+    api.openshift.com/management-cluster: {{ .ClusterName }}
+spec:
+  deleteOption:
+    propagationPolicy: Foreground
+  manifestConfigs:
+  - feedbackRules:
+    - jsonPaths:
+      - name: Available-Reason
+        path: .status.conditions[?(@.type=="Available")].reason
+      - name: Available-Status
+        path: .status.conditions[?(@.type=="Available")].status
+      - name: Available-Message
+        path: .status.conditions[?(@.type=="Available")].message
+      - name: Available-LastTransitionTime
+        path: .status.conditions[?(@.type=="Available")].lastTransitionTime
+      - name: Progressing-Reason
+        path: .status.conditions[?(@.type=="Progressing")].reason
+      - name: Progressing-Status
+        path: .status.conditions[?(@.type=="Progressing")].status
+      - name: Progressing-Message
+        path: .status.conditions[?(@.type=="Progressing")].message
+      - name: Progressing-LastTransitionTime
+        path: .status.conditions[?(@.type=="Progressing")].lastTransitionTime
+      - name: Degraded-Reason
+        path: .status.conditions[?(@.type=="Degraded")].reason
+      - name: Degraded-Status
+        path: .status.conditions[?(@.type=="Degraded")].status
+      - name: Degraded-Message
+        path: .status.conditions[?(@.type=="Degraded")].message
+      - name: Degraded-LastTransitionTime
+        path: .status.conditions[?(@.type=="Degraded")].lastTransitionTime
+      - name: InfrastructureReady-Reason
+        path: .status.conditions[?(@.type=="InfrastructureReady")].reason
+      - name: InfrastructureReady-Status
+        path: .status.conditions[?(@.type=="InfrastructureReady")].status
+      - name: InfrastructureReady-Message
+        path: .status.conditions[?(@.type=="InfrastructureReady")].message
+      - name: InfrastructureReady-LastTransitionTime
+        path: .status.conditions[?(@.type=="InfrastructureReady")].lastTransitionTime
+      - name: KubeAPIServerAvailable-Reason
+        path: .status.conditions[?(@.type=="KubeAPIServerAvailable")].reason
+      - name: KubeAPIServerAvailable-Status
+        path: .status.conditions[?(@.type=="KubeAPIServerAvailable")].status
+      - name: KubeAPIServerAvailable-Message
+        path: .status.conditions[?(@.type=="KubeAPIServerAvailable")].message
+      - name: KubeAPIServerAvailable-LastTransitionTime
+        path: .status.conditions[?(@.type=="KubeAPIServerAvailable")].lastTransitionTime
+      - name: EtcdAvailable-Reason
+        path: .status.conditions[?(@.type=="EtcdAvailable")].reason
+      - name: EtcdAvailable-Status
+        path: .status.conditions[?(@.type=="EtcdAvailable")].status
+      - name: EtcdAvailable-Message
+        path: .status.conditions[?(@.type=="EtcdAvailable")].message
+      - name: EtcdAvailable-LastTransitionTime
+        path: .status.conditions[?(@.type=="EtcdAvailable")].lastTransitionTime
+      - name: ValidHostedControlPlaneConfiguration-Reason
+        path: .status.conditions[?(@.type=="ValidHostedControlPlaneConfiguration")].reason
+      - name: ValidHostedControlPlaneConfiguration-Status
+        path: .status.conditions[?(@.type=="ValidHostedControlPlaneConfiguration")].status
+      - name: ValidHostedControlPlaneConfiguration-Message
+        path: .status.conditions[?(@.type=="ValidHostedControlPlaneConfiguration")].message
+      - name: ValidHostedControlPlaneConfiguration-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidHostedControlPlaneConfiguration")].lastTransitionTime
+      - name: CloudResourcesDestroyed-Reason
+        path: .status.conditions[?(@.type=="CloudResourcesDestroyed")].reason
+      - name: CloudResourcesDestroyed-Status
+        path: .status.conditions[?(@.type=="CloudResourcesDestroyed")].status
+      - name: CloudResourcesDestroyed-Message
+        path: .status.conditions[?(@.type=="CloudResourcesDestroyed")].message
+      - name: CloudResourcesDestroyed-LastTransitionTime
+        path: .status.conditions[?(@.type=="CloudResourcesDestroyed")].lastTransitionTime
+      - name: HostedClusterDestroyed-Reason
+        path: .status.conditions[?(@.type=="HostedClusterDestroyed")].reason
+      - name: HostedClusterDestroyed-Status
+        path: .status.conditions[?(@.type=="HostedClusterDestroyed")].status
+      - name: HostedClusterDestroyed-Message
+        path: .status.conditions[?(@.type=="HostedClusterDestroyed")].message
+      - name: HostedClusterDestroyed-LastTransitionTime
+        path: .status.conditions[?(@.type=="HostedClusterDestroyed")].lastTransitionTime
+      - name: ExternalDNSReachable-Reason
+        path: .status.conditions[?(@.type=="ExternalDNSReachable")].reason
+      - name: ExternalDNSReachable-Status
+        path: .status.conditions[?(@.type=="ExternalDNSReachable")].status
+      - name: ExternalDNSReachable-Message
+        path: .status.conditions[?(@.type=="ExternalDNSReachable")].message
+      - name: ExternalDNSReachable-LastTransitionTime
+        path: .status.conditions[?(@.type=="ExternalDNSReachable")].lastTransitionTime
+      - name: ValidReleaseInfo-Reason
+        path: .status.conditions[?(@.type=="ValidReleaseInfo")].reason
+      - name: ValidReleaseInfo-Status
+        path: .status.conditions[?(@.type=="ValidReleaseInfo")].status
+      - name: ValidReleaseInfo-Message
+        path: .status.conditions[?(@.type=="ValidReleaseInfo")].message
+      - name: ValidReleaseInfo-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidReleaseInfo")].lastTransitionTime
+      - name: ClusterVersionSucceeding-Reason
+        path: .status.conditions[?(@.type=="ClusterVersionSucceeding")].reason
+      - name: ClusterVersionSucceeding-Status
+        path: .status.conditions[?(@.type=="ClusterVersionSucceeding")].status
+      - name: ClusterVersionSucceeding-Message
+        path: .status.conditions[?(@.type=="ClusterVersionSucceeding")].message
+      - name: ClusterVersionSucceeding-LastTransitionTime
+        path: .status.conditions[?(@.type=="ClusterVersionSucceeding")].lastTransitionTime
+      - name: ClusterVersionUpgradeable-Reason
+        path: .status.conditions[?(@.type=="ClusterVersionUpgradeable")].reason
+      - name: ClusterVersionUpgradeable-Status
+        path: .status.conditions[?(@.type=="ClusterVersionUpgradeable")].status
+      - name: ClusterVersionUpgradeable-Message
+        path: .status.conditions[?(@.type=="ClusterVersionUpgradeable")].message
+      - name: ClusterVersionUpgradeable-LastTransitionTime
+        path: .status.conditions[?(@.type=="ClusterVersionUpgradeable")].lastTransitionTime
+      - name: ClusterVersionFailing-Reason
+        path: .status.conditions[?(@.type=="ClusterVersionFailing")].reason
+      - name: ClusterVersionFailing-Status
+        path: .status.conditions[?(@.type=="ClusterVersionFailing")].status
+      - name: ClusterVersionFailing-Message
+        path: .status.conditions[?(@.type=="ClusterVersionFailing")].message
+      - name: ClusterVersionFailing-LastTransitionTime
+        path: .status.conditions[?(@.type=="ClusterVersionFailing")].lastTransitionTime
+      - name: ClusterVersionProgressing-Reason
+        path: .status.conditions[?(@.type=="ClusterVersionProgressing")].reason
+      - name: ClusterVersionProgressing-Status
+        path: .status.conditions[?(@.type=="ClusterVersionProgressing")].status
+      - name: ClusterVersionProgressing-Message
+        path: .status.conditions[?(@.type=="ClusterVersionProgressing")].message
+      - name: ClusterVersionProgressing-LastTransitionTime
+        path: .status.conditions[?(@.type=="ClusterVersionProgressing")].lastTransitionTime
+      - name: ClusterVersionAvailable-Reason
+        path: .status.conditions[?(@.type=="ClusterVersionAvailable")].reason
+      - name: ClusterVersionAvailable-Status
+        path: .status.conditions[?(@.type=="ClusterVersionAvailable")].status
+      - name: ClusterVersionAvailable-Message
+        path: .status.conditions[?(@.type=="ClusterVersionAvailable")].message
+      - name: ClusterVersionAvailable-LastTransitionTime
+        path: .status.conditions[?(@.type=="ClusterVersionAvailable")].lastTransitionTime
+      - name: ClusterVersionReleaseAccepted-Reason
+        path: .status.conditions[?(@.type=="ClusterVersionReleaseAccepted")].reason
+      - name: ClusterVersionReleaseAccepted-Status
+        path: .status.conditions[?(@.type=="ClusterVersionReleaseAccepted")].status
+      - name: ClusterVersionReleaseAccepted-Message
+        path: .status.conditions[?(@.type=="ClusterVersionReleaseAccepted")].message
+      - name: ClusterVersionReleaseAccepted-LastTransitionTime
+        path: .status.conditions[?(@.type=="ClusterVersionReleaseAccepted")].lastTransitionTime
+      - name: UnmanagedEtcdAvailable-Reason
+        path: .status.conditions[?(@.type=="UnmanagedEtcdAvailable")].reason
+      - name: UnmanagedEtcdAvailable-Status
+        path: .status.conditions[?(@.type=="UnmanagedEtcdAvailable")].status
+      - name: UnmanagedEtcdAvailable-Message
+        path: .status.conditions[?(@.type=="UnmanagedEtcdAvailable")].message
+      - name: UnmanagedEtcdAvailable-LastTransitionTime
+        path: .status.conditions[?(@.type=="UnmanagedEtcdAvailable")].lastTransitionTime
+      - name: IgnitionEndpointAvailable-Reason
+        path: .status.conditions[?(@.type=="IgnitionEndpointAvailable")].reason
+      - name: IgnitionEndpointAvailable-Status
+        path: .status.conditions[?(@.type=="IgnitionEndpointAvailable")].status
+      - name: IgnitionEndpointAvailable-Message
+        path: .status.conditions[?(@.type=="IgnitionEndpointAvailable")].message
+      - name: IgnitionEndpointAvailable-LastTransitionTime
+        path: .status.conditions[?(@.type=="IgnitionEndpointAvailable")].lastTransitionTime
+      - name: IgnitionServerValidReleaseInfo-Reason
+        path: .status.conditions[?(@.type=="IgnitionServerValidReleaseInfo")].reason
+      - name: IgnitionServerValidReleaseInfo-Status
+        path: .status.conditions[?(@.type=="IgnitionServerValidReleaseInfo")].status
+      - name: IgnitionServerValidReleaseInfo-Message
+        path: .status.conditions[?(@.type=="IgnitionServerValidReleaseInfo")].message
+      - name: IgnitionServerValidReleaseInfo-LastTransitionTime
+        path: .status.conditions[?(@.type=="IgnitionServerValidReleaseInfo")].lastTransitionTime
+      - name: SupportedHostedCluster-Reason
+        path: .status.conditions[?(@.type=="SupportedHostedCluster")].reason
+      - name: SupportedHostedCluster-Status
+        path: .status.conditions[?(@.type=="SupportedHostedCluster")].status
+      - name: SupportedHostedCluster-Message
+        path: .status.conditions[?(@.type=="SupportedHostedCluster")].message
+      - name: SupportedHostedCluster-LastTransitionTime
+        path: .status.conditions[?(@.type=="SupportedHostedCluster")].lastTransitionTime
+      - name: ValidOIDCConfiguration-Reason
+        path: .status.conditions[?(@.type=="ValidOIDCConfiguration")].reason
+      - name: ValidOIDCConfiguration-Status
+        path: .status.conditions[?(@.type=="ValidOIDCConfiguration")].status
+      - name: ValidOIDCConfiguration-Message
+        path: .status.conditions[?(@.type=="ValidOIDCConfiguration")].message
+      - name: ValidOIDCConfiguration-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidOIDCConfiguration")].lastTransitionTime
+      - name: ValidReleaseImage-Reason
+        path: .status.conditions[?(@.type=="ValidReleaseImage")].reason
+      - name: ValidReleaseImage-Status
+        path: .status.conditions[?(@.type=="ValidReleaseImage")].status
+      - name: ValidReleaseImage-Message
+        path: .status.conditions[?(@.type=="ValidReleaseImage")].message
+      - name: ValidReleaseImage-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidReleaseImage")].lastTransitionTime
+      - name: ValidAzureKMSConfig-Reason
+        path: .status.conditions[?(@.type=="ValidAzureKMSConfig")].reason
+      - name: ValidAzureKMSConfig-Status
+        path: .status.conditions[?(@.type=="ValidAzureKMSConfig")].status
+      - name: ValidAzureKMSConfig-Message
+        path: .status.conditions[?(@.type=="ValidAzureKMSConfig")].message
+      - name: ValidAzureKMSConfig-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidAzureKMSConfig")].lastTransitionTime
+      - name: PlatformCredentialsFound-Reason
+        path: .status.conditions[?(@.type=="PlatformCredentialsFound")].reason
+      - name: PlatformCredentialsFound-Status
+        path: .status.conditions[?(@.type=="PlatformCredentialsFound")].status
+      - name: PlatformCredentialsFound-Message
+        path: .status.conditions[?(@.type=="PlatformCredentialsFound")].message
+      - name: PlatformCredentialsFound-LastTransitionTime
+        path: .status.conditions[?(@.type=="PlatformCredentialsFound")].lastTransitionTime
+      - name: ReconciliationActive-Reason
+        path: .status.conditions[?(@.type=="ReconciliationActive")].reason
+      - name: ReconciliationActive-Status
+        path: .status.conditions[?(@.type=="ReconciliationActive")].status
+      - name: ReconciliationActive-Message
+        path: .status.conditions[?(@.type=="ReconciliationActive")].message
+      - name: ReconciliationActive-LastTransitionTime
+        path: .status.conditions[?(@.type=="ReconciliationActive")].lastTransitionTime
+      - name: ReconciliationSucceeded-Reason
+        path: .status.conditions[?(@.type=="ReconciliationSucceeded")].reason
+      - name: ReconciliationSucceeded-Status
+        path: .status.conditions[?(@.type=="ReconciliationSucceeded")].status
+      - name: ReconciliationSucceeded-Message
+        path: .status.conditions[?(@.type=="ReconciliationSucceeded")].message
+      - name: ReconciliationSucceeded-LastTransitionTime
+        path: .status.conditions[?(@.type=="ReconciliationSucceeded")].lastTransitionTime
+      - name: progress
+        path: .status.version.history[?(@.state!="")].state
+      - name: Version-Desired
+        path: .status.version.desired.version
+      - name: Image-Current
+        path: .status.version.history[?(@.state!="")].image
+      - name: Version-Current
+        path: .status.version.history[?(@.state!="")].version
+      - name: Version-Status
+        path: .status.version.history[?(@.state!="")].state
+      type: JSONPaths
+    resourceIdentifier:
+      group: hypershift.openshift.io
+      name: {{ .Name }}
+      namespace: {{ .Name }}
+      resource: hostedclusters
+    updateStrategy:
+      type: ServerSideApply
+  - feedbackRules:
+    - jsonPaths:
+      - name: ValidPlatformImage-Reason
+        path: .status.conditions[?(@.type=="ValidPlatformImage")].reason
+      - name: ValidPlatformImage-Status
+        path: .status.conditions[?(@.type=="ValidPlatformImage")].status
+      - name: ValidPlatformImage-Message
+        path: .status.conditions[?(@.type=="ValidPlatformImage")].message
+      - name: ValidPlatformImage-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidPlatformImage")].lastTransitionTime
+      - name: ValidMachineConfig-Reason
+        path: .status.conditions[?(@.type=="ValidMachineConfig")].reason
+      - name: ValidMachineConfig-Status
+        path: .status.conditions[?(@.type=="ValidMachineConfig")].status
+      - name: ValidMachineConfig-Message
+        path: .status.conditions[?(@.type=="ValidMachineConfig")].message
+      - name: ValidMachineConfig-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidMachineConfig")].lastTransitionTime
+      - name: ValidTuningConfig-Reason
+        path: .status.conditions[?(@.type=="ValidTuningConfig")].reason
+      - name: ValidTuningConfig-Status
+        path: .status.conditions[?(@.type=="ValidTuningConfig")].status
+      - name: ValidTuningConfig-Message
+        path: .status.conditions[?(@.type=="ValidTuningConfig")].message
+      - name: ValidTuningConfig-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidTuningConfig")].lastTransitionTime
+      - name: UpdateManagementEnabled-Reason
+        path: .status.conditions[?(@.type=="UpdateManagementEnabled")].reason
+      - name: UpdateManagementEnabled-Status
+        path: .status.conditions[?(@.type=="UpdateManagementEnabled")].status
+      - name: UpdateManagementEnabled-Message
+        path: .status.conditions[?(@.type=="UpdateManagementEnabled")].message
+      - name: UpdateManagementEnabled-LastTransitionTime
+        path: .status.conditions[?(@.type=="UpdateManagementEnabled")].lastTransitionTime
+      - name: AutoscalingEnabled-Reason
+        path: .status.conditions[?(@.type=="AutoscalingEnabled")].reason
+      - name: AutoscalingEnabled-Status
+        path: .status.conditions[?(@.type=="AutoscalingEnabled")].status
+      - name: AutoscalingEnabled-Message
+        path: .status.conditions[?(@.type=="AutoscalingEnabled")].message
+      - name: AutoscalingEnabled-LastTransitionTime
+        path: .status.conditions[?(@.type=="AutoscalingEnabled")].lastTransitionTime
+      - name: Ready-Reason
+        path: .status.conditions[?(@.type=="Ready")].reason
+      - name: Ready-Status
+        path: .status.conditions[?(@.type=="Ready")].status
+      - name: Ready-Message
+        path: .status.conditions[?(@.type=="Ready")].message
+      - name: Ready-LastTransitionTime
+        path: .status.conditions[?(@.type=="Ready")].lastTransitionTime
+      - name: ReconciliationActive-Reason
+        path: .status.conditions[?(@.type=="ReconciliationActive")].reason
+      - name: ReconciliationActive-Status
+        path: .status.conditions[?(@.type=="ReconciliationActive")].status
+      - name: ReconciliationActive-Message
+        path: .status.conditions[?(@.type=="ReconciliationActive")].message
+      - name: ReconciliationActive-LastTransitionTime
+        path: .status.conditions[?(@.type=="ReconciliationActive")].lastTransitionTime
+      - name: AutorepairEnabled-Reason
+        path: .status.conditions[?(@.type=="AutorepairEnabled")].reason
+      - name: AutorepairEnabled-Status
+        path: .status.conditions[?(@.type=="AutorepairEnabled")].status
+      - name: AutorepairEnabled-Message
+        path: .status.conditions[?(@.type=="AutorepairEnabled")].message
+      - name: AutorepairEnabled-LastTransitionTime
+        path: .status.conditions[?(@.type=="AutorepairEnabled")].lastTransitionTime
+      - name: UpdatingVersion-Reason
+        path: .status.conditions[?(@.type=="UpdatingVersion")].reason
+      - name: UpdatingVersion-Status
+        path: .status.conditions[?(@.type=="UpdatingVersion")].status
+      - name: UpdatingVersion-Message
+        path: .status.conditions[?(@.type=="UpdatingVersion")].message
+      - name: UpdatingVersion-LastTransitionTime
+        path: .status.conditions[?(@.type=="UpdatingVersion")].lastTransitionTime
+      - name: UpdatingConfig-Reason
+        path: .status.conditions[?(@.type=="UpdatingConfig")].reason
+      - name: UpdatingConfig-Status
+        path: .status.conditions[?(@.type=="UpdatingConfig")].status
+      - name: UpdatingConfig-Message
+        path: .status.conditions[?(@.type=="UpdatingConfig")].message
+      - name: UpdatingConfig-LastTransitionTime
+        path: .status.conditions[?(@.type=="UpdatingConfig")].lastTransitionTime
+      - name: AsExpected-Reason
+        path: .status.conditions[?(@.type=="AsExpected")].reason
+      - name: AsExpected-Status
+        path: .status.conditions[?(@.type=="AsExpected")].status
+      - name: AsExpected-Message
+        path: .status.conditions[?(@.type=="AsExpected")].message
+      - name: AsExpected-LastTransitionTime
+        path: .status.conditions[?(@.type=="AsExpected")].lastTransitionTime
+      - name: ValidationFailed-Reason
+        path: .status.conditions[?(@.type=="ValidationFailed")].reason
+      - name: ValidationFailed-Status
+        path: .status.conditions[?(@.type=="ValidationFailed")].status
+      - name: ValidationFailed-Message
+        path: .status.conditions[?(@.type=="ValidationFailed")].message
+      - name: ValidationFailed-LastTransitionTime
+        path: .status.conditions[?(@.type=="ValidationFailed")].lastTransitionTime
+      - name: InplaceUpgradeFailed-Reason
+        path: .status.conditions[?(@.type=="InplaceUpgradeFailed")].reason
+      - name: InplaceUpgradeFailed-Status
+        path: .status.conditions[?(@.type=="InplaceUpgradeFailed")].status
+      - name: InplaceUpgradeFailed-Message
+        path: .status.conditions[?(@.type=="InplaceUpgradeFailed")].message
+      - name: InplaceUpgradeFailed-LastTransitionTime
+        path: .status.conditions[?(@.type=="InplaceUpgradeFailed")].lastTransitionTime
+      type: JSONPaths
+    resourceIdentifier:
+      group: hypershift.openshift.io
+      name: {{ .Name }}
+      namespace: {{ .Name }}
+      resource: nodepools
+    updateStrategy:
+      type: ServerSideApply
+  workload:
+    manifests:
+    - apiVersion: v1
+      data:
+        .dockerconfigjson: {{ .DockerConfigJSON }}
+      kind: Secret
+      metadata:
+        name: {{ .Name }}-pull
+        namespace: {{ .Name }}
+    - apiVersion: v1
+      data:
+        id_rsa: {{ .IDRsa }}
+        id_rsa.pub: {{ .IDRsaPub }}
+      kind: Secret
+      metadata:
+        name: {{ .Name }}-ssh
+        namespace: {{ .Name }}
+    - apiVersion: v1
+      data:
+        key: {{ .SecretKey }}
+      kind: Secret
+      metadata:
+        name: {{ .Name }}-encryption
+        namespace: {{ .Name }}
+    - apiVersion: v1
+      data:
+        AZURE_CLIENT_ID: {{ .AzureClientInfo }}
+        AZURE_CLIENT_SECRET: {{ .AzureClientInfo }}
+        AZURE_SUBSCRIPTION_ID: {{ .AzureClientInfo }}
+        AZURE_TENANT_ID: {{ .AzureClientInfo }}
+      kind: Secret
+      metadata:
+        name: {{ .Name }}-azure-credentials
+        namespace: {{ .Name }}
+    - apiVersion: v1
+      data:
+        htpasswd: {{ .HTPasswd }}
+      kind: Secret
+      metadata:
+        labels:
+          api.openshift.com/id: {{ .Name }}
+          api.openshift.com/name: {{ .Name }}
+          api.openshift.com/type: identity-provider
+        name: {{ .Name }}-htpasswd-secret
+        namespace: {{ .Name }}
+      type: Opaque
+    - apiVersion: hypershift.openshift.io/v1beta1
+      kind: HostedCluster
+      metadata:
+        annotations:
+          cluster.open-cluster-management.io/managedcluster-name: {{ .Name }}
+          hypershift.openshift.io/cleanup-cloud-resources: "true"
+        name: {{ .Name }}
+        namespace: {{ .Name }}
+      spec:
+        autoscaling: {}
+        channel: stable-4.15
+        clusterID: {{ .Name }}
+        configuration:
+          oauth:
+            identityProviders:
+            - htpasswd:
+                fileData:
+                  name: htpasswd-secret
+              mappingMethod: claim
+              name: htpasswd
+              type: HTPasswd
+            templates:
+              error:
+                name: ""
+              login:
+                name: ""
+              providerSelection:
+                name: ""
+            tokenConfig: {}
+        controllerAvailabilityPolicy: HighlyAvailable
+        dns:
+          baseDomain: {{ .BaseDomain }}
+        etcd:
+          managed:
+            storage:
+              persistentVolume:
+                size: 32Gi
+              type: PersistentVolume
+          managementType: Managed
+        fips: false
+        infraID: {{ .Name }}
+        infrastructureAvailabilityPolicy: HighlyAvailable
+        networking:
+          apiServer:
+            port: 443
+          clusterNetwork:
+          - cidr: 10.132.0.0/14
+          machineNetwork:
+          - cidr: 10.0.0.0/16
+          networkType: OVNKubernetes
+          serviceNetwork:
+          - cidr: 172.31.0.0/16
+        olmCatalogPlacement: management
+        platform:
+          azure:
+            cloud: AzurePublicCloud
+            credentials:
+              name: {{ .Name }}-azure-credentials
+            location: westus3
+            resourceGroup: ms-aro-hcp-mrg-test
+            securityGroupID: /subscriptions/{{ .SubID }}/resourceGroups/networkrelatedrg/providers/Microsoft.Network/networkSecurityGroups/mynsg
+            subnetID: /subscriptions/{{ .SubID }}/resourceGroups/networkrelatedrg/providers/Microsoft.Network/virtualNetworks/myvnet/subnets/mysubnet
+            subscriptionID: {{ .SubID }}
+            vnetID: /subscriptions/{{ .SubID }}/resourceGroups/networkrelatedrg/providers/Microsoft.Network/virtualNetworks/myvnet
+          type: Azure
+        pullSecret:
+          name: {{ .Name }}-pull
+        release:
+          image: registry.ci.openshift.org/ocp:1.23
+        secretEncryption:
+          aescbc:
+            activeKey:
+              name: {{ .Name }}-encryption
+          type: aescbc
+        services:
+        - service: OVNSbDb
+          servicePublishingStrategy:
+            route:
+              hostname: ovn-sbdb-{{ .Name }}.{{ .BaseDomain }}
+            type: Route
+        - service: APIServer
+          servicePublishingStrategy:
+            route:
+              hostname: api-{{ .Name }}.
+            type: Route
+        - service: OAuthServer
+          servicePublishingStrategy:
+            route:
+              hostname: oauth-{{ .Name }}.{{ .BaseDomain }}
+            type: Route
+        - service: Konnectivity
+          servicePublishingStrategy:
+            route:
+              hostname: konnectivity-{{ .Name }}.{{ .BaseDomain }}
+            type: Route
+        - service: Ignition
+          servicePublishingStrategy:
+            route:
+              hostname: ignition-{{ .Name }}.{{ .BaseDomain }}
+            type: Route
+        sshKey:
+          name: {{ .Name }}-ssh
+    - apiVersion: hypershift.openshift.io/v1beta1
+      kind: NodePool
+      metadata:
+        name: {{ .Name }}
+        namespace: {{ .Name }}
+      spec:
+        clusterName: {{ .Name }}
+        management:
+          autoRepair: true
+          replace:
+            rollingUpdate:
+              maxSurge: 1
+              maxUnavailable: 0
+            strategy: RollingUpdate
+          upgradeType: Replace
+        platform:
+          azure:
+            cloud: AzurePublicCloud
+            credentials:
+              name: {{ .Name }}-azure-credentials
+            location: westus3
+            resourceGroup: ms-aro-hcp-mrg-test
+            securityGroupID: /subscriptions/{{ .SubID }}/resourceGroups/networkrelatedrg/providers/Microsoft.Network/networkSecurityGroups/mynsg
+            subnetID: /subscriptions/{{ .SubID }}/resourceGroups/networkrelatedrg/providers/Microsoft.Network/virtualNetworks/myvnet/subnets/mysubnet
+            subscriptionID: {{ .SubID }}
+            vnetID: /subscriptions/{{ .SubID }}/resourceGroups/networkrelatedrg/providers/Microsoft.Network/virtualNetworks/myvnet
+          type: Azure
+        release:
+          image: registry.ci.openshift.org/ocp:1.23
+        replicas: 2

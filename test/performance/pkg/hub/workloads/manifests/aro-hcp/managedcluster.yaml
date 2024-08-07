@@ -1,0 +1,11 @@
+apiVersion: cluster.open-cluster-management.io/v1
+kind: ManagedCluster
+metadata:
+  name: {{ .Name }}
+  annotations:
+    import.open-cluster-management.io/hosting-cluster-name: {{ .ClusterName }}
+    import.open-cluster-management.io/klusterlet-deploy-mode: Hosted
+    open-cluster-management/created-via: other
+    addon.open-cluster-management.io/enable-hosted-mode-addons: "true"
+spec:
+  hubAcceptsClient: true
