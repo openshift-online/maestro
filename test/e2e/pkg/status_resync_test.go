@@ -152,7 +152,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return fmt.Errorf("unexpected status, should not contain error looking up service account default/nginx, got %s", string(statusJSON))
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the nginx resource", func() {

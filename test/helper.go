@@ -77,7 +77,7 @@ type Helper struct {
 	APIServer         server.Server
 	MetricsServer     server.Server
 	HealthCheckServer server.Server
-	PulseServer       *server.PulseServer
+	EventServer       server.EventServer
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
 	WorkAgentInformer workv1informers.ManifestWorkInformer
@@ -138,7 +138,7 @@ func NewHelper(t *testing.T) *Helper {
 		helper.startAPIServer()
 		helper.startMetricsServer()
 		helper.startHealthCheckServer()
-		helper.startPulseServer(helper.Ctx)
+		helper.startEventServer(helper.Ctx)
 	})
 	helper.T = t
 	return helper
@@ -212,14 +212,14 @@ func (helper *Helper) sendShutdownSignal() error {
 	return nil
 }
 
-func (helper *Helper) startPulseServer(ctx context.Context) {
+func (helper *Helper) startEventServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.PulseInterval = 1
 	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
-	helper.PulseServer = server.NewPulseServer(helper.EventBroadcaster)
+	helper.EventServer = server.NewPulseServer(helper.EventBroadcaster)
 	go func() {
-		glog.V(10).Info("Test pulse server started")
-		helper.PulseServer.Start(ctx)
-		glog.V(10).Info("Test pulse server stopped")
+		glog.V(10).Info("Test event server started")
+		helper.EventServer.Start(ctx)
+		glog.V(10).Info("Test event server stopped")
 	}()
 }
 
@@ -232,7 +232,6 @@ func (helper *Helper) startEventBroadcaster() {
 }
 
 func (helper *Helper) StartControllerManager(ctx context.Context) {
-	sourceClient := helper.Env().Clients.CloudEventsSource
 	helper.ControllerManager = &server.ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
 			db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory),
@@ -246,14 +245,14 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 	helper.ControllerManager.KindControllerManager.Add(&controllers.ControllerConfig{
 		Source: "Resources",
 		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-			api.CreateEventType: {sourceClient.OnCreate},
-			api.UpdateEventType: {sourceClient.OnUpdate},
-			api.DeleteEventType: {sourceClient.OnDelete},
+			api.CreateEventType: {helper.EventServer.OnCreate},
+			api.UpdateEventType: {helper.EventServer.OnUpdate},
+			api.DeleteEventType: {helper.EventServer.OnDelete},
 		},
 	})
 	helper.ControllerManager.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
-		api.StatusUpdateEventType: {helper.PulseServer.OnStatusUpdate},
-		api.StatusDeleteEventType: {helper.PulseServer.OnStatusUpdate},
+		api.StatusUpdateEventType: {helper.EventServer.OnStatusUpdate},
+		api.StatusDeleteEventType: {helper.EventServer.OnStatusUpdate},
 	})
 
 	// start controller manager
@@ -303,7 +302,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 func (helper *Helper) StartGRPCResourceSourceClient() {
 	store := NewStore()
 	grpcOptions := grpcoptions.NewGRPCOptions()
-	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BindPort)
+	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.ServerBindPort)
 	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
 		helper.Ctx,
 		grpcoptions.NewSourceOptions(grpcOptions, "maestro"),

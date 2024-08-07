@@ -65,7 +65,7 @@ parameters:
   description: Debug mode for OCM API client
   value: "false"
 
-- name: REPLICAS
+- name: SERVER_REPLICAS
   description: Number of replicas of the service to run.
   value: "1"
 
@@ -174,7 +174,7 @@ objects:
       selector:
         matchLabels:
           app: maestro
-      replicas: ${{REPLICAS}}
+      replicas: ${{SERVER_REPLICAS}}
       strategy:
         rollingUpdate:
           maxSurge: 25%

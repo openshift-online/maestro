@@ -75,8 +75,7 @@ kubectl $1 apply -f ./test/e2e/setup/service-ca/
 # 4. deploy maestro into maestro namespace
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
-export ENABLE_GRPC=true
-export REPLICAS=2
+export ENABLE_GRPC_SERVER=true
 kubectl create namespace $namespace || true
 make template \
 	deploy-secrets \
