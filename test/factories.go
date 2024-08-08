@@ -220,6 +220,7 @@ func (helper *Helper) CreateResource(consumerName string, replicas int) *api.Res
 func (helper *Helper) CreateResourceList(consumerName string, count int) (resources []*api.Resource) {
 	for i := 1; i <= count; i++ {
 		resources = append(resources, helper.CreateResource(consumerName, 1))
+		time.Sleep(10 * time.Millisecond)
 	}
 	return resources
 }

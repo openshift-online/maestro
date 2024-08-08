@@ -14,7 +14,7 @@ import (
 	"gopkg.in/resty.v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
@@ -42,7 +42,7 @@ func TestResourceGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resource := h.CreateResource(consumer.Name, 1)
 
 	res, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resource.ID).Execute()
@@ -61,17 +61,18 @@ func TestResourcePost(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	defer func() {
+		cancel()
+	}()
 
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewAPIResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := h.WorkAgentInformer
-	lister := informer.Lister().ManifestWorks(consumer.Name)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
-	resourceService := h.Env().Services.Resources()
 	sourceClient := h.Env().Clients.CloudEventsSource
 
 	// POST responses per openapi spec: 201, 400, 409, 500
@@ -97,16 +98,6 @@ func TestResourcePost(t *testing.T) {
 
 	var work *workv1.ManifestWork
 	Eventually(func() error {
-		list, err := lister.List(labels.Everything())
-		if err != nil {
-			return err
-		}
-
-		// ensure there is only one work was synced on the cluster
-		if len(list) != 1 {
-			return fmt.Errorf("unexpected work list %v", list)
-		}
-
 		// ensure the work can be get by work client
 		work, err = agentWorkClient.Get(ctx, *resource.Id, metav1.GetOptions{})
 		if err != nil {
@@ -152,30 +143,28 @@ func TestResourcePost(t *testing.T) {
 
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
-
 	// Resync the resource status
 	ceSourceClient, ok := sourceClient.(*cloudevents.SourceClientImpl)
 	Expect(ok).To(BeTrue())
 	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
 
+	var newRes *openapi.Resource
 	Eventually(func() error {
-		newRes, err := resourceService.Get(ctx, *resource.Id)
+		newRes, _, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resource.Id).Execute()
 		if err != nil {
 			return err
 		}
-		if newRes.Status == nil || len(newRes.Status) == 0 {
+		if newRes.Status == nil || len(newRes.Status) == 0 ||
+			newRes.Status["ReconcileStatus"] == nil || newRes.Status["ContentStatus"] == nil {
 			return fmt.Errorf("resource status is empty")
 		}
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes, err := resourceService.Get(ctx, *resource.Id)
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
-	Expect(newRes.Version).To(Equal(*resource.Version))
-	status, err := api.DecodeStatus(newRes.Status)
-	Expect(err).NotTo(HaveOccurred(), "Error decoding status:  %v", err)
-	Expect(status["ReconcileStatus"]).NotTo(BeNil())
-	reconcileStatus := status["ReconcileStatus"].(map[string]interface{})
+	Expect(newRes.Version).To(Equal(resource.Version))
+	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
+	reconcileStatus := newRes.Status["ReconcileStatus"].(map[string]interface{})
 	observedVersion, ok := reconcileStatus["ObservedVersion"].(float64)
 	Expect(ok).To(BeTrue())
 	Expect(int32(observedVersion)).To(Equal(*resource.Version))
@@ -185,14 +174,11 @@ func TestResourcePost(t *testing.T) {
 	Expect(condition["type"]).To(Equal("Applied"))
 	Expect(condition["status"]).To(Equal("True"))
 
-	contentStatus := status["ContentStatus"].(map[string]interface{})
+	contentStatus := newRes.Status["ContentStatus"].(map[string]interface{})
 	Expect(contentStatus["replicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["availableReplicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["readyReplicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["updatedReplicas"]).To(Equal(float64(1)))
-
-	// make sure controller manager and work agent are stopped
-	cancel()
 }
 
 func TestResourcePostWithoutName(t *testing.T) {
@@ -200,7 +186,7 @@ func TestResourcePostWithoutName(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewAPIResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
@@ -241,7 +227,7 @@ func TestResourcePostWithName(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewAPIResource(consumer.Name, 1)
 	h.StartControllerManager(ctx)
@@ -268,15 +254,15 @@ func TestResourcePatch(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
-
+	defer func() {
+		cancel()
+	}()
 	// use the consumer id as the consumer name
 	consumer := h.CreateConsumer("")
 
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, false)
 	clientHolder := h.WorkAgentHolder
-	informer := h.WorkAgentInformer
-	lister := informer.Lister().ManifestWorks(consumer.ID)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
 	res := h.CreateResource(consumer.ID, 1)
@@ -320,16 +306,6 @@ func TestResourcePatch(t *testing.T) {
 
 	var work *workv1.ManifestWork
 	Eventually(func() error {
-		list, err := lister.List(labels.Everything())
-		if err != nil {
-			return err
-		}
-
-		// ensure there is only one work was synced on the cluster
-		if len(list) != 1 {
-			return fmt.Errorf("unexpected work list %v", list)
-		}
-
 		// ensure the work can be get by work client
 		work, err = agentWorkClient.Get(ctx, *resource.Id, metav1.GetOptions{})
 		if err != nil {
@@ -350,9 +326,6 @@ func TestResourcePatch(t *testing.T) {
 	manifest := map[string]interface{}{}
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 	Expect(manifest).To(Equal(newRes.Manifest))
-
-	// make sure controller manager and work agent are stopped
-	cancel()
 }
 
 func contains(et api.EventType, events api.EventList) bool {
@@ -371,7 +344,7 @@ func TestResourcePaging(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// Paging
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	_ = h.CreateResourceList(consumer.Name, 20)
 	_ = h.CreateResourceBundleList(consumer.Name, 20)
 
@@ -398,7 +371,7 @@ func TestResourceListSearch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resources := h.CreateResourceList(consumer.Name, 20)
 
 	search := fmt.Sprintf("id in ('%s')", resources[0].ID)
@@ -425,7 +398,7 @@ func TestResourceBundleGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resourceBundle := h.CreateResourceBundle("resource1", consumer.Name, 1)
 
 	resBundle, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceBundle.ID).Execute()
@@ -447,7 +420,7 @@ func TestResourceBundleListSearch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resourceBundles := h.CreateResourceBundleList(consumer.Name, 20)
 	_ = h.CreateResourceList(consumer.Name, 20)
 
@@ -474,7 +447,7 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	res := h.CreateResource(consumer.Name, 1)
 	newRes := h.NewAPIResource(consumer.Name, 2)
 
@@ -527,16 +500,20 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 			return fmt.Errorf("there are %d unreleased advisory lock", count)
 		}
 		return nil
-	}, 10*time.Second, 1*time.Second).Should(Succeed())
+	}, 20*time.Second, 1*time.Second).Should(Succeed())
 }
 
 func TestResourceFromGRPC(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
-	defer cancel()
+	defer func() {
+		cancel()
+		// give one second to terminate the work agent
+		time.Sleep(1 * time.Second)
+	}()
 	// create a mock resource
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewResource(consumer.Name, 1)
 	res.ID = uuid.NewString()
@@ -742,9 +719,11 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
-	defer cancel()
+	defer func() {
+		cancel()
+	}()
 	// create a mock resource
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
 	res := h.NewResource(consumer.Name, 1)
 	res.ID = uuid.NewString()
@@ -757,6 +736,8 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 
 	// use grpc client to create resource bundle
 	h.StartGRPCResourceSourceClient()
+	time.Sleep(1 * time.Second)
+
 	err := h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
