@@ -8,13 +8,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	matav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -23,7 +24,6 @@ import (
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
@@ -44,6 +44,7 @@ var (
 	helper            *test.Helper
 	cancel            context.CancelFunc
 	ctx               context.Context
+	grpcCertDir       string
 )
 
 func TestE2E(t *testing.T) {
@@ -86,16 +87,41 @@ var _ = BeforeSuite(func() {
 	}
 	apiClient = openapi.NewAPIClient(cfg)
 
-	var err error
-	grpcConn, err = grpc.Dial(grpcServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("fail to dial grpc server: %v", err)
-	}
-	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
+	grpcCertDir, err := os.MkdirTemp("/tmp", "maestro-grpc-certs-")
+	Expect(err).To(Succeed())
 
-	sourceID = "sourceclient-test" + rand.String(5)
+	// validate the consumer kubeconfig and name
+	restConfig, err := clientcmd.BuildConfigFromFlags("", consumer.KubeConfig)
+	Expect(err).To(Succeed())
+	consumer.ClientSet, err = kubernetes.NewForConfig(restConfig)
+	Expect(err).To(Succeed())
+	Expect(consumer.Name).NotTo(BeEmpty(), "consumer name is not provided")
+
+	grpcCertSrt, err := consumer.ClientSet.CoreV1().Secrets("maestro").Get(ctx, "maestro-grpc-cert", metav1.GetOptions{})
+	Expect(err).To(Succeed())
+	grpcServerCAFile := fmt.Sprintf("%s/ca.crt", grpcCertDir)
+	grpcClientCert := fmt.Sprintf("%s/client.crt", grpcCertDir)
+	grpcClientKey := fmt.Sprintf("%s/client.key", grpcCertDir)
+	Expect(os.WriteFile(grpcServerCAFile, grpcCertSrt.Data["ca.crt"], 0644)).To(Succeed())
+	Expect(os.WriteFile(grpcClientCert, grpcCertSrt.Data["client.crt"], 0644)).To(Succeed())
+	Expect(os.WriteFile(grpcClientKey, grpcCertSrt.Data["client.key"], 0644)).To(Succeed())
+
+	grpcClientTokenSrt, err := consumer.ClientSet.CoreV1().Secrets("maestro").Get(ctx, "grpc-client-token", metav1.GetOptions{})
+	Expect(err).To(Succeed())
+	grpcClientTokenFile := fmt.Sprintf("%s/token", grpcCertDir)
+	Expect(os.WriteFile(grpcClientTokenFile, grpcClientTokenSrt.Data["token"], 0644)).To(Succeed())
+
 	grpcOptions = grpcoptions.NewGRPCOptions()
 	grpcOptions.URL = grpcServerAddress
+	grpcOptions.CAFile = grpcServerCAFile
+	grpcOptions.TokenFile = grpcClientTokenFile
+	sourceID = "sourceclient-test" + rand.String(5)
+
+	// create the clusterrole for grpc authz
+	Expect(helper.CreateGRPCAuthRule(ctx, consumer.ClientSet, "grpc-pub-sub", "source", sourceID, []string{"pub", "sub"})).To(Succeed())
+	grpcConn, err = helper.CreateGRPCConn(grpcServerAddress, grpcServerCAFile, grpcClientTokenFile)
+	Expect(err).To(Succeed())
+	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
 
 	workClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
@@ -104,19 +130,13 @@ var _ = BeforeSuite(func() {
 		sourceID,
 	)
 	Expect(err).ShouldNot(HaveOccurred())
-
-	// validate the consumer kubeconfig and name
-	restConfig, err := clientcmd.BuildConfigFromFlags("", consumer.KubeConfig)
-	Expect(err).To(Succeed())
-	consumer.ClientSet, err = kubernetes.NewForConfig(restConfig)
-	Expect(err).To(Succeed())
-	Expect(consumer.Name).NotTo(BeEmpty(), "consumer name is not provided")
 })
 
 var _ = AfterSuite(func() {
 	// dump debug info
 	dumpDebugInfo()
 	grpcConn.Close()
+	os.RemoveAll(grpcCertDir)
 	cancel()
 })
 
@@ -135,7 +155,7 @@ func dumpDebugInfo() {
 
 func dumpPodLogs(ctx context.Context, kubeClient kubernetes.Interface, podSelector, podNamespace string) error {
 	// get pods from podSelector
-	pods, err := kubeClient.CoreV1().Pods(podNamespace).List(ctx, matav1.ListOptions{LabelSelector: podSelector})
+	pods, err := kubeClient.CoreV1().Pods(podNamespace).List(ctx, metav1.ListOptions{LabelSelector: podSelector})
 	if err != nil {
 		return fmt.Errorf("failed to list pods with pod selector (%s): %v", podSelector, err)
 	}

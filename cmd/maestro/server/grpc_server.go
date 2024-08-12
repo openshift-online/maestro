@@ -2,8 +2,12 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
+	"os"
+	"strings"
 	"time"
 
 	ce "github.com/cloudevents/sdk-go/v2"
@@ -12,8 +16,12 @@ import (
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
@@ -26,22 +34,156 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
+// Context key type defined to avoid collisions in other pkgs using context
+// See https://golang.org/pkg/context/#WithValue
+type contextKey string
+
+const (
+	contextUserKey   contextKey = "user"
+	contextGroupsKey contextKey = "groups"
+)
+
+func newContextWithIdentity(ctx context.Context, user string, groups []string) context.Context {
+	ctx = context.WithValue(ctx, contextUserKey, user)
+	return context.WithValue(ctx, contextGroupsKey, groups)
+}
+
+// identityFromCertificate retrieves the user and groups from the client certificate if they are present.
+func identityFromCertificate(ctx context.Context) (string, []string, error) {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		return "", nil, status.Error(codes.Unauthenticated, "no peer found")
+	}
+
+	tlsAuth, ok := p.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return "", nil, status.Error(codes.Unauthenticated, "unexpected peer transport credentials")
+	}
+
+	if len(tlsAuth.State.VerifiedChains) == 0 || len(tlsAuth.State.VerifiedChains[0]) == 0 {
+		return "", nil, status.Error(codes.Unauthenticated, "could not verify peer certificate")
+	}
+
+	if tlsAuth.State.VerifiedChains[0][0] == nil {
+		return "", nil, status.Error(codes.Unauthenticated, "could not verify peer certificate")
+	}
+
+	user := tlsAuth.State.VerifiedChains[0][0].Subject.CommonName
+	groups := tlsAuth.State.VerifiedChains[0][0].Subject.Organization
+
+	if user == "" {
+		return "", nil, status.Error(codes.Unauthenticated, "could not find user in peer certificate")
+	}
+
+	if len(groups) == 0 {
+		return "", nil, status.Error(codes.Unauthenticated, "could not find group in peer certificate")
+	}
+
+	return user, groups, nil
+}
+
+// identityFromToken retrieves the user and groups from the access token if they are present.
+func identityFromToken(ctx context.Context, grpcAuthorizer grpcauthorizer.GRPCAuthorizer) (string, []string, error) {
+	// Extract the metadata from the context
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", nil, status.Error(codes.InvalidArgument, "missing metadata")
+	}
+
+	// Extract the access token from the metadata
+	authorization, ok := md["authorization"]
+	if !ok || len(authorization) == 0 {
+		return "", nil, status.Error(codes.Unauthenticated, "invalid token")
+	}
+
+	token := strings.TrimPrefix(authorization[0], "Bearer ")
+	// Extract the user and groups from the access token
+	return grpcAuthorizer.TokenReview(ctx, token)
+}
+
+// newAuthUnaryInterceptor creates a new unary interceptor that looks up the client certificate from the incoming RPC context,
+// retrieves the user and groups from it and creates a new context with the user and groups before invoking the provided handler.
+// otherwise, it falls back retrieving the user and groups from the access token.
+func newAuthUnaryInterceptor(authorizer grpcauthorizer.GRPCAuthorizer) grpc.UnaryServerInterceptor {
+	return func(
+		ctx context.Context,
+		req interface{},
+		info *grpc.UnaryServerInfo,
+		handler grpc.UnaryHandler,
+	) (interface{}, error) {
+		user, groups, err := identityFromToken(ctx, authorizer)
+		if err != nil {
+			glog.Warningf("unable to get user and groups from token: %v, fall back to certificate", err)
+			user, groups, err = identityFromCertificate(ctx)
+			if err != nil {
+				glog.Errorf("unable to get user and groups from certificate: %v", err)
+				return nil, err
+			}
+		}
+
+		return handler(newContextWithIdentity(ctx, user, groups), req)
+	}
+}
+
+// wrappedStream wraps a grpc.ServerStream associated with an incoming RPC, and
+// a custom context containing the user and groups derived from the client certificate
+// specified in the incoming RPC metadata
+type wrappedStream struct {
+	grpc.ServerStream
+	ctx context.Context
+}
+
+func (w *wrappedStream) Context() context.Context {
+	return w.ctx
+}
+
+func newWrappedStream(ctx context.Context, s grpc.ServerStream) grpc.ServerStream {
+	return &wrappedStream{s, ctx}
+}
+
+// newAuthStreamInterceptor creates a new stream interceptor that looks up the client certificate from the incoming RPC context,
+// retrieves the user and groups from it and creates a new context with the user and groups before invoking the provided handler.
+// otherwise, it falls back retrieving the user and groups from the access token.
+func newAuthStreamInterceptor(authorizer grpcauthorizer.GRPCAuthorizer) grpc.StreamServerInterceptor {
+	return func(
+		srv interface{},
+		ss grpc.ServerStream,
+		info *grpc.StreamServerInfo,
+		handler grpc.StreamHandler,
+	) error {
+		user, groups, err := identityFromToken(ss.Context(), authorizer)
+		if err != nil {
+			glog.Warningf("unable to get user and groups from token: %v, fall back to certificate", err)
+			user, groups, err = identityFromCertificate(ss.Context())
+			if err != nil {
+				glog.Errorf("unable to get user and groups from certificate: %v", err)
+				return err
+			}
+		}
+
+		return handler(srv, newWrappedStream(newContextWithIdentity(ss.Context(), user, groups), ss))
+	}
+}
+
 // GRPCServer includes a gRPC server and a resource service
 type GRPCServer struct {
 	pbv1.UnimplementedCloudEventServiceServer
-	grpcServer       *grpc.Server
-	eventBroadcaster *event.EventBroadcaster
-	resourceService  services.ResourceService
-	bindAddress      string
+	grpcServer        *grpc.Server
+	eventBroadcaster  *event.EventBroadcaster
+	resourceService   services.ResourceService
+	disableAuthorizer bool
+	grpcAuthorizer    grpcauthorizer.GRPCAuthorizer
+	bindAddress       string
 }
 
 // NewGRPCServer creates a new GRPCServer
-func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *event.EventBroadcaster, config config.GRPCServerConfig) *GRPCServer {
+func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *event.EventBroadcaster, config config.GRPCServerConfig, grpcAuthorizer grpcauthorizer.GRPCAuthorizer) *GRPCServer {
 	grpcServerOptions := make([]grpc.ServerOption, 0)
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxRecvMsgSize(config.MaxReceiveMessageSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxSendMsgSize(config.MaxSendMessageSize))
@@ -53,7 +195,7 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 		MaxConnectionAge: config.MaxConnectionAge,
 	}))
 
-	if config.EnableTLS {
+	if !config.DisableTLS {
 		// Check tls cert and key path path
 		if config.TLSCertFile == "" || config.TLSKeyFile == "" {
 			check(
@@ -63,29 +205,66 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 		}
 
 		// Serve with TLS
-		creds, err := credentials.NewServerTLSFromFile(config.TLSCertFile, config.TLSKeyFile)
+		serverCerts, err := tls.LoadX509KeyPair(config.TLSCertFile, config.TLSKeyFile)
 		if err != nil {
-			glog.Fatalf("Failed to generate credentials %v", err)
+			check(fmt.Errorf("failed to load server certificates: %v", err), "Can't start gRPC server")
 		}
-		grpcServerOptions = append(grpcServerOptions, grpc.Creds(creds))
-		glog.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
+
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{serverCerts},
+			MinVersion:   tls.VersionTLS13,
+			MaxVersion:   tls.VersionTLS13,
+		}
+
+		if config.GRPCAuthNType == "mtls" {
+			if len(config.ClientCAFile) == 0 {
+				check(fmt.Errorf("no client CA file specified when using mtls authorization type"), "Can't start gRPC server")
+			}
+
+			certPool, err := x509.SystemCertPool()
+			if err != nil {
+				check(fmt.Errorf("failed to load system cert pool: %v", err), "Can't start gRPC server")
+			}
+
+			caPEM, err := os.ReadFile(config.ClientCAFile)
+			if err != nil {
+				check(fmt.Errorf("failed to read client CA file: %v", err), "Can't start gRPC server")
+			}
+
+			if ok := certPool.AppendCertsFromPEM(caPEM); !ok {
+				check(fmt.Errorf("failed to append client CA to cert pool"), "Can't start gRPC server")
+			}
+
+			tlsConfig.ClientCAs = certPool
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)), grpc.UnaryInterceptor(newAuthUnaryInterceptor(grpcAuthorizer)), grpc.StreamInterceptor(newAuthStreamInterceptor(grpcAuthorizer)))
+			glog.Infof("Serving gRPC service with mTLS at %s", config.ServerBindPort)
+		} else {
+			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)), grpc.UnaryInterceptor(newAuthUnaryInterceptor(grpcAuthorizer)), grpc.StreamInterceptor(newAuthStreamInterceptor(grpcAuthorizer)))
+			glog.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
+		}
 	} else {
+		// Note: Do not use this in production.
 		glog.Infof("Serving gRPC service without TLS at %s", config.ServerBindPort)
 	}
 
 	return &GRPCServer{
-		grpcServer:       grpc.NewServer(grpcServerOptions...),
-		eventBroadcaster: eventBroadcaster,
-		resourceService:  resourceService,
-		bindAddress:      env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
+		grpcServer:        grpc.NewServer(grpcServerOptions...),
+		eventBroadcaster:  eventBroadcaster,
+		resourceService:   resourceService,
+		disableAuthorizer: config.DisableTLS,
+		grpcAuthorizer:    grpcAuthorizer,
+		bindAddress:       env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
 	}
 }
 
 // Start starts the gRPC server
 func (svr *GRPCServer) Start() error {
+	glog.Info("Starting gRPC server")
 	lis, err := net.Listen("tcp", svr.bindAddress)
 	if err != nil {
-		glog.Fatalf("failed to listen: %v", err)
+		glog.Errorf("failed to listen: %v", err)
 		return err
 	}
 	pbv1.RegisterCloudEventServiceServer(svr.grpcServer, svr)
@@ -103,6 +282,19 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	evt, err := binding.ToEvent(ctx, grpcprotocol.NewMessage(pubReq.Event))
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert protobuf to cloudevent: %v", err)
+	}
+
+	if !svr.disableAuthorizer {
+		// check if the event is from the authorized source
+		user := ctx.Value(contextUserKey).(string)
+		groups := ctx.Value(contextGroupsKey).([]string)
+		allowed, err := svr.grpcAuthorizer.AccessReview(ctx, "pub", "source", evt.Source(), user, groups)
+		if err != nil {
+			return nil, fmt.Errorf("failed to authorize the request: %v", err)
+		}
+		if !allowed {
+			return nil, fmt.Errorf("unauthorized to publish the event from source %s", evt.Source())
+		}
 	}
 
 	eventType, err := types.ParseCloudEventsType(evt.Type())
@@ -163,6 +355,20 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 
 // Subscribe implements the Subscribe method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
+	if !svr.disableAuthorizer {
+		// check if the client is authorized to subscribe the event from the source
+		ctx := subServer.Context()
+		user := ctx.Value(contextUserKey).(string)
+		groups := ctx.Value(contextGroupsKey).([]string)
+		allowed, err := svr.grpcAuthorizer.AccessReview(ctx, "sub", "source", subReq.Source, user, groups)
+		if err != nil {
+			return fmt.Errorf("failed to authorize the request: %v", err)
+		}
+		if !allowed {
+			return fmt.Errorf("unauthorized to subscribe the event from source %s", subReq.Source)
+		}
+	}
+
 	clientID, errChan := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
 		evt, err := encodeResourceStatus(res)
 		if err != nil {

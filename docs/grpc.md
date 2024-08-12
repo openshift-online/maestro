@@ -1,8 +1,101 @@
 # gRPC server
 
-gPRC server is disabled by default. You can enable it by passing `--enable-grpc-server=true` to the maestro server start command.
+gPRC server is disabled by default. You can enable it by passing `--enable-grpc-server=true` to the maestro server command.
 
-## How to Use
+## Authentication and Authorization
+
+By default, the gRPC server enable server side TLS. To disable that, set `--disable-grpc-tls=true` to the maestro server command. However, if you need Authentication and Authorization, server side TLS must remain enabled.
+
+For authorization, the gRPC server uses a mock authorizer by default. To enable real authorization, set `--grpc-authn-type` to either `mtls` or `token`. Depending on the authorizer type, you will need to create authorization rule resources, which are standard Kubernetes RBAC resources.
+
+1. mTLS-Based Authorization
+
+For mTLS-based authorization, specify the client CA file using `--grpc-client-ca-file`. The server will validate the client certificate against this CA.
+
+Then create authorization rules based on the `CN (Common Name)` or `O (Organization)` in the client certificate, representing the user or group. For example, to allow the user "Alice" to publish and subscribe to the `policy` source, use the following Kubernetes RBAC configuration:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: policy-pub-sub
+rules:
+- nonResourceURLs:
+  - /sources/policy
+  verbs:
+  - pub
+  - sub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: policy-pub-sub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: policy-pub-sub
+subjects:
+- kind: User
+  name: Alice
+  apiGroup: rbac.authorization.k8s.io
+```
+
+On the gRPC client side, configure the [gRPC options](https://pkg.go.dev/open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc#GRPCOptions) with the client certificate and key files, as follows:
+
+```golang
+grpcOptions = grpcoptions.NewGRPCOptions()
+grpcOptions.URL = grpcServerAddr
+grpcOptions.CAFile = grpcServerCAFile
+grpcOptions.ClientCertFile = grpcClientCertFile
+grpcOptions.ClientKeyFile = grpcClientKeyFile
+```
+
+The `grpcClientCertFile` and `grpcClientKeyFile` should contain the certificate signed by the client CA. For the example above, the CN must be "Alice".
+
+2. Token-Based Authorization
+
+For token-based authorization, the gRPC server authenticates the client using a Kubernetes service account token. The service account is supposed created by the gRPC client.
+
+Create authorization rules based on the service account associated with the token. For example, to allow the service account `open-cluster-management/policy-controller` to publish and subscribe to the `policy` source, use the following Kubernetes RBAC configuration:
+
+```yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: policy-pub-sub
+rules:
+- nonResourceURLs:
+  - /sources/policy
+  verbs:
+  - pub
+  - sub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: policy-pub-sub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: policy-pub-sub
+subjects:
+- kind: ServiceAccount
+  name: policy-controller
+  namespace: open-cluster-management
+```
+
+On the gRPC client side, configure the gRPC options with the token file, as follows:
+
+```golang
+grpcOptions = grpcoptions.NewGRPCOptions()
+grpcOptions.URL = grpcServerAddr
+grpcOptions.CAFile = grpcServerCAFile
+grpcOptions.TokenFile = grpcClientTokenFile
+```
+
+The `grpcClientTokenFile` stores the token for the corresponding service account. In the example above, it holds the token for the `open-cluster-management/policy-controller` service account.
+
+## How to Use gPRC Source Client
 
 ### Initliaze the gRPC source client
 
@@ -16,6 +109,12 @@ gPRC server is disabled by default. You can enable it by passing `--enable-grpc-
 
     grpcOptions = grpcoptions.NewGRPCOptions()
     grpcOptions.URL = h.Env().Config.GRPCServer.BindAddress
+    // set grpc client authentication and authorization configuration
+    // if gRPC Server enable authentication and authorization.
+    // grpcOptions.CAFile = grpcServerCAFile
+    // ClientCertFile = grpcClientCertFile
+    // ClientKeyFile = grpcClientKeyFile
+	// grpcOptions.TokenFile = grpcClientTokenFile
     grpcSourceOption = grpcoptions.NewSourceOptions(grpcOptions, "grpc-source-example")
     ```
 
@@ -71,31 +170,31 @@ see the below for an example of the resource:
         "apiVersion": "apps/v1",
         "kind": "Deployment",
         "metadata": {
-        "name": "nginx",
-        "namespace": "default"
+          "name": "nginx",
+          "namespace": "default"
         },
         "spec": {
-        "replicas": %d,
-        "selector": {
+          "replicas": %d,
+          "selector": {
             "matchLabels": {
-            "app": "nginx"
+              "app": "nginx"
             }
-        },
-        "template": {
+          },
+          "template": {
             "metadata": {
-            "labels": {
+              "labels": {
                 "app": "nginx"
-            }
+              }
             },
             "spec": {
-            "containers": [
+              "containers": [
                 {
-                "image": "nginxinc/nginx-unprivileged",
-                "name": "nginx"
+                  "image": "nginxinc/nginx-unprivileged",
+                  "name": "nginx"
                 }
-            ]
+              ]
             }
-        }
+          }
         }
     }`, &testManifest);
 ```
@@ -111,4 +210,3 @@ To subscribe to the resource status, you need to call the `Subscribe` method of 
         return nil
     })
 ```
-
