@@ -21,6 +21,10 @@ type GRPCServerConfig struct {
 	WriteBufferSize       int           `json:"write_buffer_size"`
 	ReadBufferSize        int           `json:"read_buffer_size"`
 	MaxConnectionAge      time.Duration `json:"max_connection_age"`
+	ClientMinPingInterval       time.Duration `json:"client_min_ping_interval"`
+	ServerPingInterval          time.Duration `json:"server_ping_interval"`
+	ServerPingTimeout           time.Duration `json:"server_ping_timeout"`
+	PermitPingWithoutStream bool `json:"permit_ping_without_stream"`
 }
 
 func NewGRPCServerConfig() *GRPCServerConfig {
@@ -36,6 +40,10 @@ func (s *GRPCServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&s.MaxSendMessageSize, "grpc-max-send-message-size", math.MaxInt32, "gPRC max send message size")
 	fs.DurationVar(&s.ConnectionTimeout, "grpc-connection-timeout", 120*time.Second, "gPRC connection timeout")
 	fs.DurationVar(&s.MaxConnectionAge, "grpc-max-connection-age", time.Duration(math.MaxInt64), "A duration for the maximum amount of time connection may exist before closing")
+	fs.DurationVar(&s.ClientMinPingInterval, "grpc-client-min-ping-interval", 5*time.Second, "Server will terminate the connection if the client pings more than once within this duration")
+	fs.DurationVar(&s.ServerPingInterval, "grpc-server-ping-interval", 30*time.Second, "Duration after which the server pings the client if no activity is detected")
+	fs.DurationVar(&s.ServerPingTimeout, "grpc-server-ping-timeout", 10*time.Second, "Duration the client waits for a response after sending a keepalive ping")
+	fs.BoolVar(&s.PermitPingWithoutStream, "permit-ping-without-stream", false, "Allow keepalive pings even when there are no active streams")
 	fs.IntVar(&s.WriteBufferSize, "grpc-write-buffer-size", 32*1024, "gPRC write buffer size")
 	fs.IntVar(&s.ReadBufferSize, "grpc-read-buffer-size", 32*1024, "gPRC read buffer size")
 	fs.StringVar(&s.TLSCertFile, "grpc-tls-cert-file", "", "The path to the tls.crt file")

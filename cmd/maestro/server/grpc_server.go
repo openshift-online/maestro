@@ -49,8 +49,14 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 	grpcServerOptions = append(grpcServerOptions, grpc.ConnectionTimeout(config.ConnectionTimeout))
 	grpcServerOptions = append(grpcServerOptions, grpc.WriteBufferSize(config.WriteBufferSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.ReadBufferSize(config.ReadBufferSize))
+	grpcServerOptions = append(grpcServerOptions, grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+		MinTime:             config.ClientMinPingInterval,
+		PermitWithoutStream: config.PermitPingWithoutStream,
+	}))
 	grpcServerOptions = append(grpcServerOptions, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge: config.MaxConnectionAge,
+		Time:             config.ServerPingInterval,
+		Timeout:          config.ServerPingTimeout,
 	}))
 
 	if config.EnableTLS {
