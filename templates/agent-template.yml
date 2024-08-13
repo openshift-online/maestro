@@ -293,6 +293,7 @@ objects:
           command:
             - /usr/local/bin/maestro
             - agent
+            - --v=5
             - --consumer-name=${CONSUMER_NAME}
             - --workload-source-driver=${MESSAGE_DRIVER_TYPE}
             - --workload-source-config=/secrets/${MESSAGE_DRIVER_TYPE}/config.yaml
