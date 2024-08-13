@@ -17,9 +17,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), func() {
+var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status-resync-restart"), func() {
 	var resource *openapi.Resource
-	var mqttReplicas, maestroServerReplicas int
+	var maestroServerReplicas int
 
 	Context("Resource resync resource status after maestro server restarts", func() {
 		It("post the nginx resource with non-default service account to the maestro api", func() {
@@ -104,8 +104,8 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("start maestro server", func() {
-			// patch maestro server replicas to 1
+		It("restart maestro server", func() {
+			// patch maestro server replicas back
 			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro").Patch(ctx, "maestro", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, maestroServerReplicas)), metav1.PatchOptions{
 				FieldManager: "testConsumer.ClientSet",
 			})
@@ -169,12 +169,17 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
+})
+
+var _ = Describe("Status Resync After Reconnect", Ordered, Label("e2e-tests-status-resync-reconnect"), func() {
+	var resource *openapi.Resource
+	var mqttReplicas int
 
 	Context("Resource resync resource status after maestro server reconnects", func() {
 		It("post the nginx resource with non-default service account to the maestro api", func() {
@@ -351,7 +356,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())

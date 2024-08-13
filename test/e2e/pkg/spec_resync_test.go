@@ -15,9 +15,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() {
+var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-resync-restart"), func() {
 	var resource1, resource2, resource3 *openapi.Resource
-	var mqttReplicas, maestroServerReplicas, maestroAgentReplicas int
+	var maestroAgentReplicas int
 
 	Context("Resource resync resource spec after maestro agent restarts", func() {
 		It("post the nginx-1 resource to the maestro api", func() {
@@ -152,8 +152,8 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("start maestro agent", func() {
-			// patch maestro agent replicas to maestroAgentReplicas
+		It("restart maestro agent", func() {
+			// patch maestro agent replicas back
 			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro-agent").Patch(ctx, "maestro-agent", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, maestroAgentReplicas)), metav1.PatchOptions{
 				FieldManager: "testconsumer.ClientSet",
 			})
@@ -254,6 +254,11 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
+})
+
+var _ = Describe("Spec Resync After Reconnect", Ordered, Label("e2e-tests-spec-resync-reconnect"), func() {
+	var resource1, resource2, resource3 *openapi.Resource
+	var maestroServerReplicas, mqttReplicas int
 
 	Context("Resource resync resource spec after maestro agent reconnects", func() {
 		It("post the nginx-1 resource to the maestro api", func() {

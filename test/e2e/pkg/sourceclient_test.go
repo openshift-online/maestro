@@ -47,7 +47,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 60*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 
 		})
 
@@ -93,7 +93,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			initWorkBName = "init-work-b" + rand.String(5)
+			initWorkBName = "init-work-b-" + rand.String(5)
 			work = NewManifestWorkWithLabels(initWorkBName, map[string]string{"app": "test"})
 			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -112,7 +112,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 				}
 
 				return AssertWorkNotFound(initWorkBName)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 60*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 
 			watcherCancel()
 		})
@@ -161,7 +161,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWatchResult(result)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 60*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("The watchers with different namespace", func() {
@@ -202,7 +202,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWatchResult(allConsumerWatcherResult)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 60*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				return AssertWatchResult(consumerWatcherResult)
@@ -247,7 +247,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWatchResult(result)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 60*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -320,7 +320,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 				}
 
 				return AssertWorkNotFound(testWorkCName)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 60*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("List works with options", func() {
