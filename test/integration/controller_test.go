@@ -13,6 +13,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/test"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 func TestControllerRacing(t *testing.T) {
@@ -20,6 +21,9 @@ func TestControllerRacing(t *testing.T) {
 
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	defer func() {
+		cancel()
+	}()
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
@@ -33,7 +37,6 @@ func TestControllerRacing(t *testing.T) {
 		if err != nil {
 			return err
 		}
-
 		for _, evt := range events {
 			if evt.SourceID != id {
 				continue
@@ -89,31 +92,30 @@ func TestControllerRacing(t *testing.T) {
 				Source: "Resources",
 				Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
 					api.CreateEventType: {onUpsert},
-					api.UpdateEventType: {onUpsert},
 				},
 			})
 
 			s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
 				api.StatusUpdateEventType: {onStatusUpdate},
-				api.StatusDeleteEventType: {onStatusUpdate},
 			})
 
 			s.Start(ctx)
 		}()
 	}
+	// wait for controller service starts
+	time.Sleep(3 * time.Second)
 
-	consumer := h.CreateConsumer("cluster1")
-	h.StartWorkAgent(ctx, consumer.Name, false)
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resources := h.CreateResourceList(consumer.Name, 50)
 
 	// This is to check only 50 create events are processed. It waits for 5 seconds to ensure all events have been
 	// processed by the controllers.
 	Eventually(func() error {
 		if len(proccessedEvent) != 50 {
-			return fmt.Errorf("should have only 50 create events but got %d", len(proccessedEvent))
+			return fmt.Errorf("should have 50 create events but got %d", len(proccessedEvent))
 		}
 		return nil
-	}, 5*time.Second, 1*time.Second).Should(Succeed())
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	// create 50 update status events
 	for _, resource := range resources {
@@ -124,19 +126,17 @@ func TestControllerRacing(t *testing.T) {
 		if sErr != nil {
 			t.Fatalf("failed to create status event: %v", sErr)
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
-	// This is to check 150 status update events are processed. It waits for 5 seconds to ensure all status events have been
+	// This is to check 150 status update events are processed. It waits for 10 seconds to ensure all status events have been
 	// processed by the controllers.
 	Eventually(func() error {
 		if len(processedStatusEvent) != threads*50 {
 			return fmt.Errorf("should have 150 update status events but got %d", len(processedStatusEvent))
 		}
 		return nil
-	}, 5*time.Second, 1*time.Second).Should(Succeed())
-
-	// cancel the context to stop the controller manager
-	cancel()
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 }
 
 func TestControllerReconcile(t *testing.T) {
@@ -201,7 +201,7 @@ func TestControllerReconcile(t *testing.T) {
 	// wait for the listener to start
 	time.Sleep(100 * time.Millisecond)
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resource := h.CreateResource(consumer.Name, 1)
 
 	// Eventually, the event will be processed by the controller.

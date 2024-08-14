@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/test"
@@ -29,7 +30,7 @@ func TestConsumerGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.CreateConsumerWithLabels("cluster1", map[string]string{"foo": "bar"})
+	consumer := h.CreateConsumerWithLabels("cluster-"+rand.String(5), map[string]string{"foo": "bar"})
 
 	found, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, consumer.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
