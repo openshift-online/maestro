@@ -417,7 +417,7 @@ e2e-test/teardown:
 .PHONY: e2e-test/teardown
 
 e2e-test: e2e-test/teardown e2e-test/setup
-	ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect||e2e-tests-spec-resync-restart||e2e-tests-status-resync-restart)" \
+	ginkgo -v --fail-fast --label-filter="e2e-tests-resources" \
 	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \

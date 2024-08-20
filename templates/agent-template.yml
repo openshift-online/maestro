@@ -288,7 +288,7 @@ objects:
         serviceAccountName: maestro-agent-sa
         containers:
         - name: maestro-agent
-          image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
+          image: quay.io/morvencao/maestro:latest
           imagePullPolicy: IfNotPresent
           command:
             - /usr/local/bin/maestro

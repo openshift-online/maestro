@@ -249,7 +249,7 @@ objects:
               name: authentication
           initContainers:
           - name: migration
-            image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
+            image: quay.io/morvencao/maestro:latest
             imagePullPolicy: IfNotPresent
             volumeMounts:
             - name: service
@@ -270,7 +270,7 @@ objects:
             - -v=${GLOG_V}
           containers:
           - name: service
-            image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
+            image: quay.io/morvencao/maestro:latest
             imagePullPolicy: IfNotPresent
             volumeMounts:
             - name: tls
