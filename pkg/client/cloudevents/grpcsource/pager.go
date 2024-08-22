@@ -17,7 +17,7 @@ import (
 var MaxListPageSize int32 = 400
 
 // pageList assists client code in breaking large list queries into multiple smaller chunks of PageSize or smaller.
-func pageList(client *openapi.APIClient, search string, opts metav1.ListOptions) (*openapi.ResourceBundleList, string, error) {
+func pageList(ctx context.Context, client *openapi.APIClient, search string, opts metav1.ListOptions) (*openapi.ResourceBundleList, string, error) {
 	items := []openapi.ResourceBundle{}
 
 	page, err := page(opts)
@@ -36,7 +36,7 @@ func pageList(client *openapi.APIClient, search string, opts metav1.ListOptions)
 	offset := (page - 1) * pageSize
 	for {
 		klog.V(4).Infof("list works with search=%s, page=%d, size=%d", search, page, pageSize)
-		rbs, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
+		rbs, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).
 			Search(search).
 			Page(page).
 			Size(pageSize).

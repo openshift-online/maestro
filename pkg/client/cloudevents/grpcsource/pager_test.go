@@ -1,6 +1,7 @@
 package grpcsource
 
 import (
+	"context"
 	"testing"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
@@ -143,7 +144,7 @@ func TestPageList(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			getter.Set(c.resourceBundles)
 
-			list, next, err := pageList(client, "", c.listOpts)
+			list, next, err := pageList(context.Background(), client, "", c.listOpts)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
