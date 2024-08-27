@@ -13,6 +13,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 )
@@ -22,7 +23,7 @@ const sleepJob = `
 	"apiVersion": "batch/v1",
 	"kind": "Job",
 	"metadata": {
-	  "name": "sleep",
+	  "name": "%s",
 	  "namespace": "default"
 	},
 	"spec": {
@@ -47,14 +48,16 @@ const sleepJob = `
 }
 `
 
-var _ = Describe("Server Side Apply", func() {
+var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply"), func() {
 	It("Apply a job with maestro", func() {
 		// The kube-apiserver will set a default selector and label on the Pod of Job if the job does not have
 		// spec.Selector, these fields are immutable, if we use update strategy to apply Job, it will report
 		// AppliedManifestFailed. The maestro uses the server side strategy to apply a resource with ManifestWork
 		// by default, this will avoid this.
 		manifest := map[string]interface{}{}
-		Expect(json.Unmarshal([]byte(sleepJob), &manifest)).ShouldNot(HaveOccurred())
+		sleepJobName := fmt.Sprintf("sleep-%s", rand.String(5))
+		err := json.Unmarshal([]byte(fmt.Sprintf(sleepJob, sleepJobName)), &manifest)
+		Expect(err).ShouldNot(HaveOccurred())
 
 		res := openapi.Resource{
 			Manifest:     manifest,

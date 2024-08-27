@@ -15,15 +15,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), func() {
-	var resource *openapi.Resource
-	var mqttReplicas, maestroServerReplicas int
-
+var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status-resync-restart"), func() {
 	Context("Resource resync resource status after maestro server restarts", func() {
+		var maestroServerReplicas int
+		var resource *openapi.Resource
+		name := fmt.Sprintf("nginx-%s", rand.String(5))
 		It("post the nginx resource with non-default service account to the maestro api", func() {
-			res := helper.NewAPIResourceWithSA(consumer.Name, 1, "nginx")
+			res := helper.NewAPIResourceWithSA(consumer.Name, name, name, 1)
 			var resp *http.Response
 			var err error
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
@@ -32,12 +33,12 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx deployment %s, expected 1, got %d", name, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
@@ -61,7 +62,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return fmt.Errorf("unexpected status, expected error looking up service account default/nginx, got %s", string(statusJSON))
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("shut down maestro server", func() {
@@ -91,21 +92,21 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("create default/nginx serviceaccount", func() {
+		It("create serviceaccount for nginx deployment", func() {
 			_, err := consumer.ClientSet.CoreV1().ServiceAccounts("default").Create(ctx, &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "nginx",
+					Name: name,
 				},
 			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// delete the nginx deployment to tigger recreating
-			err = consumer.ClientSet.AppsV1().Deployments("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
+			err = consumer.ClientSet.AppsV1().Deployments("default").Delete(ctx, name, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("start maestro server", func() {
-			// patch maestro server replicas to 1
+		It("restart maestro server", func() {
+			// patch maestro server replicas back
 			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro").Patch(ctx, "maestro", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, maestroServerReplicas)), metav1.PatchOptions{
 				FieldManager: "testConsumer.ClientSet",
 			})
@@ -161,7 +162,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, name, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -169,16 +170,21 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 
-			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
+			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, name, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
+})
 
+var _ = Describe("Status Resync After Reconnect", Ordered, Label("e2e-tests-status-resync-reconnect"), func() {
 	Context("Resource resync resource status after maestro server reconnects", func() {
+		var mqttReplicas int
+		var resource *openapi.Resource
+		name := fmt.Sprintf("nginx-%s", rand.String(5))
 		It("post the nginx resource with non-default service account to the maestro api", func() {
-			res := helper.NewAPIResourceWithSA(consumer.Name, 1, "nginx")
+			res := helper.NewAPIResourceWithSA(consumer.Name, name, name, 1)
 			var resp *http.Response
 			var err error
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
@@ -187,12 +193,12 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, name, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx deployment %s, expected 1, got %d", name, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
@@ -216,7 +222,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return fmt.Errorf("unexpected status, expected error looking up service account default/nginx, got %s", string(statusJSON))
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the mqtt-broker service for server", func() {
@@ -224,16 +230,16 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("create default/nginx serviceaccount", func() {
+		It("create serviceaccount for nginx deployment", func() {
 			_, err := consumer.ClientSet.CoreV1().ServiceAccounts("default").Create(ctx, &corev1.ServiceAccount{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "nginx",
+					Name: name,
 				},
 			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// delete the nginx deployment to tigger recreating
-			err = consumer.ClientSet.AppsV1().Deployments("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
+			err = consumer.ClientSet.AppsV1().Deployments("default").Delete(ctx, name, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -343,7 +349,7 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, name, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -351,9 +357,9 @@ var _ = Describe("Status resync", Ordered, Label("e2e-tests-status-resync"), fun
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 
-			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
+			err = consumer.ClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, name, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})

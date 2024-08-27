@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -71,7 +72,8 @@ func TestPulseServer(t *testing.T) {
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	res := h.CreateResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.CreateResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder

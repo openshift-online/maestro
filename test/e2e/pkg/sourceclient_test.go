@@ -25,7 +25,7 @@ import (
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 )
 
-var _ = Describe("gRPC Source ManifestWork Client Test", func() {
+var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-work-client"), func() {
 	Context("Update an obsolete work", func() {
 		var workName string
 
@@ -35,7 +35,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			Eventually(func() error {
 				_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 				return err
-			}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
@@ -47,7 +47,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 		})
 
@@ -73,6 +73,9 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).Should(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "the resource version is not the latest")).Should(BeTrue())
+
+			// wait for few seconds to ensure the update is finished
+			<-time.After(5 * time.Second)
 		})
 	})
 
@@ -93,7 +96,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			initWorkBName = "init-work-b" + rand.String(5)
+			initWorkBName = "init-work-b-" + rand.String(5)
 			work = NewManifestWorkWithLabels(initWorkBName, map[string]string{"app": "test"})
 			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -112,7 +115,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 				}
 
 				return AssertWorkNotFound(initWorkBName)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			watcherCancel()
 		})
@@ -161,7 +164,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWatchResult(result)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("The watchers with different namespace", func() {
@@ -202,7 +205,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWatchResult(allConsumerWatcherResult)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				return AssertWatchResult(consumerWatcherResult)
@@ -247,7 +250,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			Eventually(func() error {
 				return AssertWatchResult(result)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -265,25 +268,28 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			prodWorkName = "work-prod" + rand.String(5)
-			work = NewManifestWorkWithLabels(prodWorkName, map[string]string{"app": "nginx", "env": "prod"})
+			prodWorkName = "work-production" + rand.String(5)
+			work = NewManifestWorkWithLabels(prodWorkName, map[string]string{"app": "test", "env": "production"})
 			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			testWorkAName = "work-test-a-" + rand.String(5)
-			work = NewManifestWorkWithLabels(testWorkAName, map[string]string{"app": "nginx", "env": "test", "val": "a"})
+			testWorkAName = "work-integration-a-" + rand.String(5)
+			work = NewManifestWorkWithLabels(testWorkAName, map[string]string{"app": "test", "env": "integration", "val": "a"})
 			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			testWorkBName = "work-test-b-" + rand.String(5)
-			work = NewManifestWorkWithLabels(testWorkBName, map[string]string{"app": "nginx", "env": "test", "val": "b"})
+			testWorkBName = "work-integration-b-" + rand.String(5)
+			work = NewManifestWorkWithLabels(testWorkBName, map[string]string{"app": "test", "env": "integration", "val": "b"})
 			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			testWorkCName = "work-test-c-" + rand.String(5)
-			work = NewManifestWorkWithLabels(testWorkCName, map[string]string{"app": "nginx", "env": "test", "val": "c"})
+			testWorkCName = "work-integration-c-" + rand.String(5)
+			work = NewManifestWorkWithLabels(testWorkCName, map[string]string{"app": "test", "env": "integration", "val": "c"})
 			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for few seconds to ensure the creation is finished
+			<-time.After(5 * time.Second)
 		})
 
 		AfterEach(func() {
@@ -320,7 +326,7 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 				}
 
 				return AssertWorkNotFound(testWorkCName)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("List works with options", func() {
@@ -348,28 +354,28 @@ var _ = Describe("gRPC Source ManifestWork Client Test", func() {
 
 			By("list works with app label")
 			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
-				LabelSelector: "app=nginx",
+				LabelSelector: "app=test",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works without test env")
 			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
-				LabelSelector: "app=nginx,env!=test",
+				LabelSelector: "app=test,env!=integration",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName)).ShouldNot(HaveOccurred())
 
 			By("list works in prod and test env")
 			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
-				LabelSelector: "env in (prod, test)",
+				LabelSelector: "env in (production, integration)",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works in test env and val not in a and b")
 			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
-				LabelSelector: "env=test,val notin (a,b)",
+				LabelSelector: "env=integration,val notin (a,b)",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, testWorkCName)).ShouldNot(HaveOccurred())
@@ -501,6 +507,12 @@ func AssertWorks(works []workv1.ManifestWork, expected ...string) error {
 	return nil
 }
 
+func NewManifestWorkWithLabels(name string, labels map[string]string) *workv1.ManifestWork {
+	work := NewManifestWork(name)
+	work.Labels = labels
+	return work
+}
+
 func NewManifestWork(name string) *workv1.ManifestWork {
 	return &workv1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
@@ -514,12 +526,6 @@ func NewManifestWork(name string) *workv1.ManifestWork {
 			},
 		},
 	}
-}
-
-func NewManifestWorkWithLabels(name string, labels map[string]string) *workv1.ManifestWork {
-	work := NewManifestWork(name)
-	work.Labels = labels
-	return work
 }
 
 func NewManifest(name string) workv1.Manifest {

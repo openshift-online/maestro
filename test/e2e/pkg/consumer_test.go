@@ -1,44 +1,67 @@
 package e2e_test
 
 import (
+	"fmt"
 	"net/http"
 	"reflect"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-var _ = Describe("Consumer", Ordered, func() {
-	var consumer openapi.Consumer
-	var resourceConsumer openapi.Consumer
-	var resource openapi.Resource
-	BeforeAll(func() {
-		consumer = openapi.Consumer{Name: openapi.PtrString("linda")}
-		resourceConsumer = openapi.Consumer{Name: openapi.PtrString("susan")}
-		resource = helper.NewAPIResource(*resourceConsumer.Name, 1)
-	})
-
+var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 	Context("Consumer CRUD Tests", func() {
+		consumerA := openapi.Consumer{Name: openapi.PtrString("consumer-a")}
+		consumerB := openapi.Consumer{Name: openapi.PtrString("consumer-b")}
+		resource := helper.NewAPIResource(*consumerB.Name, fmt.Sprintf("nginx-%s", rand.String(5)), 1)
+
+		AfterAll(func() {
+			// delete the consumer
+			resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerA.Id).Execute()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
+			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
+			Expect(err.Error()).To(ContainSubstring("Not Found"))
+			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+
+			// delete the consumer associated with resource
+			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
+			Expect(err).To(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
+
+			// delete the resource on the consumer
+			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
+			Expect(err).To(Succeed())
+			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
+			// only if permanently delete the resource, the consumer can be deleted
+			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
+			Expect(err).To(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
+		})
+
 		It("create consumer", func() {
 			// create a consumer without resource
-			created, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumer).Execute()
+			created, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerA).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*created.Id).NotTo(BeEmpty())
-			consumer = *created
+			consumerA = *created
 
-			got, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+			got, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
 
 			// create a consumer with resource
-			created, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(resourceConsumer).Execute()
+			created, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerB).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*created.Id).NotTo(BeEmpty())
-			resourceConsumer = *created
+			consumerB = *created
 
 			res, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(resource).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -54,10 +77,11 @@ var _ = Describe("Consumer", Ordered, func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(consumerList).NotTo(BeNil())
 			Expect(len(consumerList.Items) > 0).To(BeTrue())
+			fmt.Printf("consumer list: %v\n", consumerList.Items)
 
 			got := false
 			for _, c := range consumerList.Items {
-				if *c.Name == *consumer.Name {
+				if *c.Name == *consumerA.Name {
 					got = true
 				}
 			}
@@ -66,45 +90,19 @@ var _ = Describe("Consumer", Ordered, func() {
 
 		It("patch consumer", func() {
 			labels := &map[string]string{"hello": "world"}
-			patched, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, *consumer.Id).
+			patched, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, *consumerA.Id).
 				ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: labels}).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			_, ok := patched.GetLabelsOk()
 			Expect(ok).To(BeTrue())
 
-			got, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+			got, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
 			eq := reflect.DeepEqual(*labels, *got.Labels)
 			Expect(eq).To(BeTrue())
-		})
-
-		AfterAll(func() {
-			// delete the consumer
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-
-			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
-			Expect(err.Error()).To(ContainSubstring("Not Found"))
-			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
-
-			// delete the consumer associated with resource
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *resourceConsumer.Id).Execute()
-			Expect(err).To(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
-
-			// delete the resource on the consumer
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
-			Expect(err).To(Succeed())
-			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-
-			// only if permanently delete the resource, the consumer can be deleted
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *resourceConsumer.Id).Execute()
-			Expect(err).To(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
 		})
 	})
 })
