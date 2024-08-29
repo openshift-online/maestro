@@ -106,6 +106,10 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return nil, handleGetError("Resource", "id", resource.ID, err)
 	}
 
+	if !found.DeletedAt.Time.IsZero() {
+		return nil, errors.Conflict("the resource is under deletion, id: %s", resource.ID)
+	}
+
 	// Make sure the requested resource version is consistent with its database version.
 	if found.Version != resource.Version {
 		return nil, errors.Conflict("the resource version is not the latest, the latest version: %d", found.Version)
@@ -221,6 +225,15 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 // 4. Work-agent deletes resource, sends CloudEvent back to Maestro
 // 5. Maestro hard deletes resource from DB
 func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
+	// If there are multiple requests to write the resource at the same time, it will cause the race conditions among these
+	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, id, db.Resources)
+	// Ensure that the transaction related to this lock always end.
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
+	if err != nil {
+		return errors.DatabaseAdvisoryLock(err)
+	}
+
 	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
 		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
 	}

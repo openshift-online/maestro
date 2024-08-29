@@ -14,6 +14,7 @@ import (
 	"gopkg.in/resty.v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -268,6 +269,30 @@ func TestResourcePatch(t *testing.T) {
 	res := h.CreateResource(consumer.ID, 1)
 	Expect(res.Version).To(Equal(int32(1)))
 
+	var work *workv1.ManifestWork
+	Eventually(func() error {
+		// ensure the work can be get by work client
+		var err error
+		work, err = agentWorkClient.Get(ctx, res.ID, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		// add finalizer to the work
+		patchBytes, err := json.Marshal(map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"uid":             work.GetUID(),
+				"resourceVersion": work.GetResourceVersion(),
+				"finalizers":      []string{"work-test-finalizer"},
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = agentWorkClient.Patch(ctx, work.Name, k8stypes.MergePatchType, patchBytes, metav1.PatchOptions{})
+		return err
+	}, 20*time.Second, 2*time.Second).Should(Succeed())
+
 	// 200 OK
 	newRes := h.NewAPIResource(consumer.ID, 2)
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
@@ -304,7 +329,6 @@ func TestResourcePatch(t *testing.T) {
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
 
-	var work *workv1.ManifestWork
 	Eventually(func() error {
 		// ensure the work can be get by work client
 		work, err = agentWorkClient.Get(ctx, *resource.Id, metav1.GetOptions{})
@@ -326,6 +350,16 @@ func TestResourcePatch(t *testing.T) {
 	manifest := map[string]interface{}{}
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 	Expect(manifest).To(Equal(newRes.Manifest))
+
+	// initialize resource deletion
+	_, err = client.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, res.ID).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error deleting object:  %v", err)
+
+	// patch the deleting resource should return 409 conflict
+	_, resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(
+		openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
+	Expect(err).To(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
 }
 
 func contains(et api.EventType, events api.EventList) bool {
