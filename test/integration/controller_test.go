@@ -202,7 +202,8 @@ func TestControllerReconcile(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
-	resource := h.CreateResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource := h.CreateResource(consumer.Name, deployName, 1)
 
 	// Eventually, the event will be processed by the controller.
 	Eventually(func() error {

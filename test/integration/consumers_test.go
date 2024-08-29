@@ -188,7 +188,8 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	Expect(*consumer.Id).NotTo(BeEmpty())
 
 	// attach resource to the consumer
-	res := h.NewAPIResource(*consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewAPIResource(*consumer.Name, deployName, 1)
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 	Expect(err).To(Succeed())
 	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
@@ -245,7 +246,8 @@ func TestConsumerDeleting(t *testing.T) {
 			go func(name, id string) {
 				defer wg.Done()
 				for i := 0; i < resourceNum; i++ {
-					res := h.NewAPIResource(name, 1)
+					deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+					res := h.NewAPIResource(name, deployName, 1)
 					resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 					resourceChan <- &Result{
 						resource:     resource,

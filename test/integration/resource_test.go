@@ -44,7 +44,8 @@ func TestResourceGet(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
-	resource := h.CreateResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource := h.CreateResource(consumer.Name, deployName, 1)
 
 	res, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resource.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -68,7 +69,8 @@ func TestResourcePost(t *testing.T) {
 
 	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewAPIResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
@@ -189,7 +191,8 @@ func TestResourcePostWithoutName(t *testing.T) {
 
 	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewAPIResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	resourceService := h.Env().Services.Resources()
 	// POST responses per openapi spec: 201, 400, 409, 500
@@ -230,7 +233,8 @@ func TestResourcePostWithName(t *testing.T) {
 
 	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewAPIResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	// POST responses per openapi spec: 201, 400, 409, 500
 
@@ -266,7 +270,8 @@ func TestResourcePatch(t *testing.T) {
 	clientHolder := h.WorkAgentHolder
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
-	res := h.CreateResource(consumer.ID, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.CreateResource(consumer.ID, deployName, 1)
 	Expect(res.Version).To(Equal(int32(1)))
 
 	var work *workv1.ManifestWork
@@ -294,7 +299,7 @@ func TestResourcePatch(t *testing.T) {
 	}, 20*time.Second, 2*time.Second).Should(Succeed())
 
 	// 200 OK
-	newRes := h.NewAPIResource(consumer.ID, 2)
+	newRes := h.NewAPIResource(consumer.Name, deployName, 2)
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -433,7 +438,8 @@ func TestResourceBundleGet(t *testing.T) {
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
-	resourceBundle := h.CreateResourceBundle("resource1", consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resourceBundle := h.CreateResourceBundle(consumer.Name, deployName, 1)
 
 	resBundle, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceBundle.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -482,8 +488,9 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
-	res := h.CreateResource(consumer.Name, 1)
-	newRes := h.NewAPIResource(consumer.Name, 2)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.CreateResource(consumer.Name, deployName, 1)
+	newRes := h.NewAPIResource(consumer.Name, deployName, 2)
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20
@@ -549,7 +556,8 @@ func TestResourceFromGRPC(t *testing.T) {
 	// create a mock resource
 	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewResource(consumer.Name, deployName, 1, 1)
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
@@ -667,7 +675,7 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes := h.NewResource(consumer.Name, 2)
+	newRes := h.NewResource(consumer.Name, deployName, 2, 1)
 	newRes.ID = *resource.Id
 	newRes.Version = *resource.Version
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
@@ -759,7 +767,8 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	// create a mock resource
 	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewResource(consumer.Name, deployName, 1, 1)
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
@@ -864,7 +873,7 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes := h.NewResource(consumer.Name, 2)
+	newRes := h.NewResource(consumer.Name, deployName, 2, 1)
 	newRes.ID = res.ID
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,

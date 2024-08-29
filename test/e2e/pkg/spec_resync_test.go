@@ -13,50 +13,53 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
-var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() {
-	var resource1, resource2, resource3 *openapi.Resource
-	var mqttReplicas, maestroServerReplicas, maestroAgentReplicas int
-
+var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-resync-restart"), func() {
 	Context("Resource resync resource spec after maestro agent restarts", func() {
-		It("post the nginx-1 resource to the maestro api", func() {
-			res := helper.NewAPIResourceWithIndex(consumer.Name, 1, 1)
+		var maestroAgentReplicas int
+		var resourceA, resourceB, resourceC *openapi.Resource
+		deployA := fmt.Sprintf("nginx-%s", rand.String(5))
+		deployB := fmt.Sprintf("nginx-%s", rand.String(5))
+		deployC := fmt.Sprintf("nginx-%s", rand.String(5))
+		It("post the nginx A resource to the maestro api", func() {
+			res := helper.NewAPIResource(consumer.Name, deployA, 1)
 			var resp *http.Response
 			var err error
-			resource1, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+			resourceA, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-			Expect(*resource1.Id).ShouldNot(BeEmpty())
+			Expect(*resourceA.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas for nginx-1 deployment, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 1, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("post the nginx-2 resource to the maestro api", func() {
-			res := helper.NewAPIResourceWithIndex(consumer.Name, 1, 2)
+		It("post the nginx B resource to the maestro api", func() {
+			res := helper.NewAPIResource(consumer.Name, deployB, 1)
 			var resp *http.Response
 			var err error
-			resource2, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+			resourceB, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-			Expect(*resource2.Id).ShouldNot(BeEmpty())
+			Expect(*resourceB.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-2", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas for nginx-2 deployment, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx B deployment %s, expected 1, got %d", deployB, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
@@ -89,71 +92,68 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("patch the nginx-1 resource", func() {
-			newRes := helper.NewAPIResourceWithIndex(consumer.Name, 2, 1)
-			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, *resource1.Id).
-				ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resource1.Version, Manifest: newRes.Manifest}).Execute()
+		It("patch the nginx A resource", func() {
+			newRes := helper.NewAPIResource(consumer.Name, deployA, 2)
+			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, *resourceA.Id).
+				ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resourceA.Version, Manifest: newRes.Manifest}).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			Expect(*patchedResource.Version).To(Equal(*resource1.Version + 1))
+			Expect(*patchedResource.Version).To(Equal(*resourceA.Version + 1))
 		})
 
-		It("ensure the nginx-1 resource is not updated", func() {
-			// ensure the "nginx-1" deployment in the "default" namespace is not updated
+		It("ensure the nginx A resource is not updated", func() {
 			Consistently(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					return nil
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas for nginx-1 deployment, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 1, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the nginx-2 resource", func() {
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource2.Id).Execute()
+		It("delete the nginx B resource", func() {
+			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resourceB.Id).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 		})
 
-		It("ensure the nginx-2 resource is not deleted", func() {
-			// ensure the "nginx-2" deployment in the "default" namespace is not deleted
+		It("ensure the nginx B resource is not deleted", func() {
 			Consistently(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-2", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
-						return fmt.Errorf("nginx-2 deployment is deleted")
+						return fmt.Errorf("nginx B deployment %s is deleted", deployB)
 					}
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("post the nginx-3 resource to the maestro api", func() {
-			res := helper.NewAPIResourceWithIndex(consumer.Name, 1, 3)
+		It("post the nginx C resource to the maestro api", func() {
+			res := helper.NewAPIResource(consumer.Name, deployC, 1)
 			var resp *http.Response
 			var err error
-			resource3, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+			resourceC, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-			Expect(*resource3.Id).ShouldNot(BeEmpty())
+			Expect(*resourceC.Id).ShouldNot(BeEmpty())
 		})
 
-		It("ensure the nginx-3 resource is not created", func() {
-			// ensure the "nginx-3" deployment in the "default" namespace is not created
+		It("ensure the nginx C resource is not created", func() {
 			Consistently(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-3", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
 				if err == nil {
-					return fmt.Errorf("nginx-3 deployment is created")
+					return fmt.Errorf("nginx C deployment %s is created", deployC)
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("start maestro agent", func() {
-			// patch maestro agent replicas to maestroAgentReplicas
+		It("restart maestro agent", func() {
+			// patch maestro agent replicas back
 			deploy, err := consumer.ClientSet.AppsV1().Deployments("maestro-agent").Patch(ctx, "maestro-agent", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, maestroAgentReplicas)), metav1.PatchOptions{
 				FieldManager: "testconsumer.ClientSet",
 			})
@@ -183,116 +183,123 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("ensure the nginx-1 resource is updated", func() {
+		It("ensure the nginx A resource is updated", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 2 {
-					return fmt.Errorf("unexpected replicas for nginx-1 deployment, expected 2, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 2, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("ensure the nginx-2 resource is deleted", func() {
+		It("ensure the nginx B resource is deleted", func() {
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-2", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
-				return fmt.Errorf("nginx-2 deployment still exists")
+				return fmt.Errorf("nginx B deployment %s still exists", deployB)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("ensure the nginx-3 resource is created", func() {
+		It("ensure the nginx C resource is created", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-3", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx C deployment %s, expected 1, got %d", deployC, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the nginx-1 and nginx-3 resource", func() {
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource1.Id).Execute()
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource3.Id).Execute()
+		It("delete the nginx A and nginx C resources", func() {
+			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resourceA.Id).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
-				return fmt.Errorf("nginx-1 deployment still exists")
+				return fmt.Errorf("nginx A deployment %s still exists", deployA)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
+			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resourceC.Id).Execute()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-3", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
-				return fmt.Errorf("nginx-3 deployment still exists")
+				return fmt.Errorf("nginx C deployment %s still exists", deployC)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
+})
 
+var _ = Describe("Spec Resync After Reconnect", Ordered, Label("e2e-tests-spec-resync-reconnect"), func() {
 	Context("Resource resync resource spec after maestro agent reconnects", func() {
-		It("post the nginx-1 resource to the maestro api", func() {
-			res := helper.NewAPIResourceWithIndex(consumer.Name, 1, 1)
+		var maestroServerReplicas, mqttReplicas int
+		var resourceA, resourceB, resourceC *openapi.Resource
+		deployA := fmt.Sprintf("nginx-%s", rand.String(5))
+		deployB := fmt.Sprintf("nginx-%s", rand.String(5))
+		deployC := fmt.Sprintf("nginx-%s", rand.String(5))
+		It("post the nginx A resource to the maestro api", func() {
+			res := helper.NewAPIResource(consumer.Name, deployA, 1)
 			var resp *http.Response
 			var err error
-			resource1, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+			resourceA, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-			Expect(*resource1.Id).ShouldNot(BeEmpty())
+			Expect(*resourceA.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas for nginx-1 deployment, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 1, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("post the nginx-2 resource to the maestro api", func() {
-			res := helper.NewAPIResourceWithIndex(consumer.Name, 1, 2)
+		It("post the nginx B resource to the maestro api", func() {
+			res := helper.NewAPIResource(consumer.Name, deployB, 1)
 			var resp *http.Response
 			var err error
-			resource2, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+			resourceB, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-			Expect(*resource2.Id).ShouldNot(BeEmpty())
+			Expect(*resourceB.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-2", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas for nginx-2 deployment, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx B deployment %s, expected 1, got %d", deployB, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
@@ -416,73 +423,70 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("patch the nginx-1 resource", func() {
-			newRes := helper.NewAPIResourceWithIndex(consumer.Name, 2, 1)
+		It("patch the nginx A resource", func() {
+			newRes := helper.NewAPIResource(consumer.Name, deployA, 2)
 			Eventually(func() error {
-				patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, *resource1.Id).
-					ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resource1.Version, Manifest: newRes.Manifest}).Execute()
+				patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, *resourceA.Id).
+					ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resourceA.Version, Manifest: newRes.Manifest}).Execute()
 				if err != nil {
 					return err
 				}
 				if resp.StatusCode != http.StatusOK {
 					return fmt.Errorf("unexpected status code, expected 200, got %d", resp.StatusCode)
 				}
-				if *patchedResource.Version != *resource1.Version+1 {
-					return fmt.Errorf("unexpected version, expected %d, got %d", *resource1.Version+1, *patchedResource.Version)
+				if *patchedResource.Version != *resourceA.Version+1 {
+					return fmt.Errorf("unexpected version, expected %d, got %d", *resourceA.Version+1, *patchedResource.Version)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("ensure the nginx-1 resource is not updated", func() {
-			// ensure the "nginx-1" deployment in the "default" namespace is not updated
+		It("ensure the nginx A resource is not updated", func() {
 			Consistently(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					return nil
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas for nginx-1 deployment, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 1, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the nginx-2 resource", func() {
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource2.Id).Execute()
+		It("delete the nginx B resource", func() {
+			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resourceB.Id).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 		})
 
-		It("ensure the nginx-2 resource is not deleted", func() {
-			// ensure the "nginx-2" deployment in the "default" namespace is not deleted
+		It("ensure the nginx B resource is not deleted", func() {
 			Consistently(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-2", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
-						return fmt.Errorf("nginx-2 deployment is deleted")
+						return fmt.Errorf("nginx B deployment %s is deleted", deployB)
 					}
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("post the nginx-3 resource to the maestro api", func() {
-			res := helper.NewAPIResourceWithIndex(consumer.Name, 1, 3)
+		It("post the nginx C resource to the maestro api", func() {
+			res := helper.NewAPIResource(consumer.Name, deployC, 1)
 			var resp *http.Response
 			var err error
-			resource3, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
+			resourceC, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-			Expect(*resource3.Id).ShouldNot(BeEmpty())
+			Expect(*resourceC.Id).ShouldNot(BeEmpty())
 		})
 
-		It("ensure the nginx-3 resource is not created", func() {
-			// ensure the "nginx-3" deployment in the "default" namespace is not created
+		It("ensure the nginx C resource is not created", func() {
 			Consistently(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-3", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
 				if err == nil {
-					return fmt.Errorf("nginx-3 deployment is created")
+					return fmt.Errorf("nginx C deployment %s is created", deployC)
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
@@ -539,74 +543,74 @@ var _ = Describe("Spec resync", Ordered, Label("e2e-tests-spec-resync"), func() 
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
-		It("ensure the nginx-1 resource is updated", func() {
+		It("ensure the nginx A resource is updated", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 2 {
-					return fmt.Errorf("unexpected replicas for nginx-1 deployment, expected 2, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 2, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("ensure the nginx-2 resource is deleted", func() {
+		It("ensure the nginx B resource is deleted", func() {
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-2", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
-				return fmt.Errorf("nginx-2 deployment still exists")
+				return fmt.Errorf("nginx B deployment %s still exists", deployB)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("ensure the nginx-3 resource is created", func() {
+		It("ensure the nginx C resource is created", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-3", metav1.GetOptions{})
+				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
 				if *deploy.Spec.Replicas != 1 {
-					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
+					return fmt.Errorf("unexpected replicas for nginx C deployment %s, expected 1, got %d", deployC, *deploy.Spec.Replicas)
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the nginx-1 and nginx-3 resource", func() {
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource1.Id).Execute()
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource3.Id).Execute()
+		It("delete the nginx A and nginx C resources", func() {
+			resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resourceA.Id).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-1", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployA, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
-				return fmt.Errorf("nginx-1 deployment still exists")
+				return fmt.Errorf("nginx A deployment %s still exists", deployA)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
+			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resourceC.Id).Execute()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx-3", metav1.GetOptions{})
+				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
 					}
 					return err
 				}
-				return fmt.Errorf("nginx-3 deployment still exists")
+				return fmt.Errorf("nginx C deployment %s still exists", deployC)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})

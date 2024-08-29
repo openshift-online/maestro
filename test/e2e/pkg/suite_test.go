@@ -1,9 +1,11 @@
 package e2e_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 	"testing"
@@ -11,6 +13,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	matav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -110,6 +114,8 @@ var _ = BeforeSuite(func() {
 })
 
 var _ = AfterSuite(func() {
+	// dump debug info
+	dumpDebugInfo()
 	grpcConn.Close()
 	cancel()
 })
@@ -118,4 +124,44 @@ type ConsumerOptions struct {
 	Name       string
 	KubeConfig string
 	ClientSet  *kubernetes.Clientset
+}
+
+func dumpDebugInfo() {
+	// dump the maestro server logs
+	dumpPodLogs(ctx, consumer.ClientSet, "app=maestro", "maestro")
+	// dump the maestro agent ogs
+	dumpPodLogs(ctx, consumer.ClientSet, "app=maestro-agent", "maestro-agent")
+}
+
+func dumpPodLogs(ctx context.Context, kubeClient kubernetes.Interface, podSelector, podNamespace string) error {
+	// get pods from podSelector
+	pods, err := kubeClient.CoreV1().Pods(podNamespace).List(ctx, matav1.ListOptions{LabelSelector: podSelector})
+	if err != nil {
+		return fmt.Errorf("failed to list pods with pod selector (%s): %v", podSelector, err)
+	}
+
+	for _, pod := range pods.Items {
+		logReq := kubeClient.CoreV1().Pods(podNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
+		logs, err := logReq.Stream(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to open log stream: %v", err)
+		}
+		defer logs.Close()
+
+		buf := new(bytes.Buffer)
+		_, err = buf.ReadFrom(logs)
+		if err != nil {
+			return fmt.Errorf("failed to read pod logs: %v", err)
+		}
+
+		log.Printf("=========================================== POD LOGS START ===========================================")
+		log.Printf("Pod %s/%s phase: %s", pod.Name, podNamespace, string(pod.Status.Phase))
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			log.Printf("Container %s status: %v", containerStatus.Name, containerStatus.State)
+		}
+		log.Printf("Pod %s/%s logs: \n%s", pod.Name, podNamespace, buf.String())
+		log.Printf("=========================================== POD LOGS STOP ===========================================")
+	}
+
+	return nil
 }

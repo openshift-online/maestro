@@ -46,10 +46,12 @@ require (
 	k8s.io/klog/v2 v2.120.1
 	open-cluster-management.io/api v0.14.1-0.20240627145512-bd6f2229b53c
 	open-cluster-management.io/ocm v0.13.1-0.20240618054845-e2a7b9e78b33
-	open-cluster-management.io/sdk-go v0.14.1-0.20240806021439-bf354ff3847f
+	open-cluster-management.io/sdk-go v0.14.1-0.20240829071054-7bd852f2b2a8
 )
 
 require (
+	cloud.google.com/go/compute v1.23.3 // indirect
+	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/antlr/antlr4 v0.0.0-20200712162734-eb1adaa8a7a6 // indirect
 	github.com/antlr/antlr4/runtime/Go/antlr/v4 v4.0.0-20230305170008-8188dc5388df // indirect
