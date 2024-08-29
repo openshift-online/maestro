@@ -33,6 +33,9 @@ import (
 type RESTFulAPIWatcherStore struct {
 	sync.RWMutex
 
+	// the context for RESTful API request, it is passed with RESTful API client together
+	ctx context.Context
+
 	sourceID  string
 	apiClient *openapi.APIClient
 
@@ -44,6 +47,7 @@ var _ store.WorkClientWatcherStore = &RESTFulAPIWatcherStore{}
 
 func newRESTFulAPIWatcherStore(ctx context.Context, apiClient *openapi.APIClient, sourceID string) *RESTFulAPIWatcherStore {
 	s := &RESTFulAPIWatcherStore{
+		ctx:       ctx,
 		sourceID:  sourceID,
 		apiClient: apiClient,
 		watchers:  make(map[string]*workWatcher),
@@ -83,7 +87,7 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 	}
 
 	// for watch, we need list all works with the search condition from maestro server
-	rbs, _, err := pageList(m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
+	rbs, _, err := pageList(m.ctx, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -124,7 +128,7 @@ func (m *RESTFulAPIWatcherStore) HandleReceivedWork(action types.ResourceAction,
 // Get a work from maestro server with its namespace and name
 func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
 	id := utils.UID(m.sourceID, namespace, name)
-	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(context.Background(), id).Execute()
+	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(m.ctx, id).Execute()
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, false, nil
@@ -160,7 +164,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 		searches = append(searches, labelSearch)
 	}
 
-	rbs, nextPage, err := pageList(m.apiClient, strings.Join(searches, " and "), opts)
+	rbs, nextPage, err := pageList(m.ctx, m.apiClient, strings.Join(searches, " and "), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -230,7 +234,7 @@ func (m *RESTFulAPIWatcherStore) Sync() error {
 	}
 
 	// for sync, we need list all works with the search condition from maestro server
-	rbs, _, err := pageList(m.apiClient, strings.Join(search, " or "), metav1.ListOptions{})
+	rbs, _, err := pageList(m.ctx, m.apiClient, strings.Join(search, " or "), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
