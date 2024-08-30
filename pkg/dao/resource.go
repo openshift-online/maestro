@@ -17,6 +17,7 @@ type ResourceDao interface {
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
+	FindByConsumerNameAndResourceType(ctx context.Context, consumerName string, resourceType api.ResourceType) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
 	FirstByConsumerName(ctx context.Context, name string, unscoped bool) (api.Resource, error)
 }
@@ -93,6 +94,15 @@ func (d *sqlResourceDao) FindByConsumerName(ctx context.Context, consumerName st
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
 	if err := g2.Unscoped().Where("consumer_name = ?", consumerName).Find(&resources).Error; err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
+func (d *sqlResourceDao) FindByConsumerNameAndResourceType(ctx context.Context, consumerName string, resourceType api.ResourceType) (api.ResourceList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	resources := api.ResourceList{}
+	if err := g2.Unscoped().Where("consumer_name = ? and type = ?", consumerName, resourceType).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil
