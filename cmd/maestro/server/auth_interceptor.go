@@ -119,20 +119,22 @@ func newAuthUnaryInterceptor(authNType string, authorizer grpcauthorizer.GRPCAut
 	}
 }
 
-// wrappedStream wraps a grpc.ServerStream associated with an incoming RPC, and
+// wrappedAuthStream wraps a grpc.ServerStream associated with an incoming RPC, and
 // a custom context containing the user and groups derived from the client certificate
 // specified in the incoming RPC metadata
-type wrappedStream struct {
+type wrappedAuthStream struct {
 	grpc.ServerStream
 	ctx context.Context
 }
 
-func (w *wrappedStream) Context() context.Context {
+// Context returns the context associated with the stream
+func (w *wrappedAuthStream) Context() context.Context {
 	return w.ctx
 }
 
-func newWrappedStream(ctx context.Context, s grpc.ServerStream) grpc.ServerStream {
-	return &wrappedStream{s, ctx}
+// newWrappedAuthStream creates a new wrappedAuthStream
+func newWrappedAuthStream(ctx context.Context, s grpc.ServerStream) grpc.ServerStream {
+	return &wrappedAuthStream{s, ctx}
 }
 
 // newAuthStreamInterceptor creates a stream interceptor that retrieves the user and groups
@@ -167,6 +169,6 @@ func newAuthStreamInterceptor(authNType string, authorizer grpcauthorizer.GRPCAu
 			return fmt.Errorf("unsupported authentication Type %s", authNType)
 		}
 
-		return handler(srv, newWrappedStream(newContextWithIdentity(ss.Context(), user, groups), ss))
+		return handler(srv, newWrappedAuthStream(newContextWithIdentity(ss.Context(), user, groups), ss))
 	}
 }

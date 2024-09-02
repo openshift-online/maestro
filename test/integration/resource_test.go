@@ -4,13 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+	prommodel "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"gopkg.in/resty.v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -365,15 +369,14 @@ func TestResourcePatch(t *testing.T) {
 		openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
-}
 
-func contains(et api.EventType, events api.EventList) bool {
-	for _, e := range events {
-		if e.EventType == et {
-			return true
-		}
+	// check the metrics
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("id"), Value: resource.Id},
+		{Name: strPtr("action"), Value: strPtr("update")},
 	}
-	return false
+	checkServerCounterMetric(t, families, "resource_processed_total", labels, 1.0)
 }
 
 func TestResourcePaging(t *testing.T) {
@@ -452,6 +455,15 @@ func TestResourceBundleGet(t *testing.T) {
 	Expect(*resBundle.CreatedAt).To(BeTemporally("~", resourceBundle.CreatedAt))
 	Expect(*resBundle.UpdatedAt).To(BeTemporally("~", resourceBundle.UpdatedAt))
 	Expect(*resBundle.Version).To(Equal(resourceBundle.Version))
+
+	// check the metrics
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("method"), Value: strPtr("GET")},
+		{Name: strPtr("path"), Value: strPtr("/api/maestro/v1/resource-bundles/-")},
+		{Name: strPtr("code"), Value: strPtr("200")},
+	}
+	checkServerCounterMetric(t, families, "rest_api_inbound_request_count", labels, 1.0)
 }
 
 func TestResourceBundleListSearch(t *testing.T) {
@@ -479,6 +491,15 @@ func TestResourceBundleListSearch(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
 	Expect(len(list.Items)).To(Equal(20))
 	Expect(list.Total).To(Equal(int32(20)))
+
+	// check the metrics
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("method"), Value: strPtr("GET")},
+		{Name: strPtr("path"), Value: strPtr("/api/maestro/v1/resource-bundles")},
+		{Name: strPtr("code"), Value: strPtr("200")},
+	}
+	checkServerCounterMetric(t, families, "rest_api_inbound_request_count", labels, 2.0)
 }
 
 func TestUpdateResourceWithRacingRequests(t *testing.T) {
@@ -755,6 +776,37 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
+	// check the metrics
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Publish")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_called_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "grpc_server_message_received_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "grpc_server_message_sent_total", labels, 3.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Subscribe")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_called_total", labels, 1.0)
+	checkServerCounterMetric(t, families, "grpc_server_message_received_total", labels, 1.0)
+	//checkServerCounterMetric(t, families, "maestro_grpc_server_msg_sent_total", labels, 2.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Publish")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("code"), Value: strPtr("OK")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_processed_total", labels, 3.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Subscribe")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("code"), Value: strPtr("OK")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_processed_total", labels, 0.0)
 }
 
 func TestResourceBundleFromGRPC(t *testing.T) {
@@ -920,4 +972,80 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
 	Expect(len(list.Items)).To(Equal(1))
 	Expect(list.Total).To(Equal(int32(1)))
+}
+
+func contains(et api.EventType, events api.EventList) bool {
+	for _, e := range events {
+		if e.EventType == et {
+			return true
+		}
+	}
+	return false
+}
+
+func getServerMetrics(t *testing.T, url string) map[string]*prommodel.MetricFamily {
+	// gather metrics from metrics server from url /metrics
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Errorf("Error getting metrics:  %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Error getting metrics with status code:  %v", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("Error reading metrics:  %v", err)
+	}
+	parser := expfmt.TextParser{}
+	// Ensure EOL
+	reader := strings.NewReader(strings.ReplaceAll(string(body), "\r\n", "\n"))
+	families, err := parser.TextToMetricFamilies(reader)
+	if err != nil {
+		t.Errorf("Error parsing metrics:  %v", err)
+	}
+
+	return families
+}
+
+func checkServerCounterMetric(t *testing.T, families map[string]*prommodel.MetricFamily, name string, labels []*prommodel.LabelPair, value float64) {
+	family, ok := families[name]
+	if !ok {
+		t.Errorf("Metric %s not found", name)
+	}
+	metricValue := 0.0
+	metrics := family.GetMetric()
+	for _, metric := range metrics {
+		metricLabels := metric.GetLabel()
+		if !compareMetricLabels(labels, metricLabels) {
+			continue
+		}
+		metricValue += *metric.Counter.Value
+	}
+	if metricValue != value {
+		t.Errorf("Counter metric %s value is %f, expected %f", name, metricValue, value)
+	}
+}
+
+func compareMetricLabels(labels []*prommodel.LabelPair, metricLabels []*prommodel.LabelPair) bool {
+	if len(labels) != len(metricLabels) {
+		return false
+	}
+	for _, label := range labels {
+		match := false
+		for _, metricLabel := range metricLabels {
+			if *label.Name == *metricLabel.Name && *label.Value == *metricLabel.Value {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return false
+		}
+	}
+	return true
+}
+
+func strPtr(s string) *string {
+	return &s
 }

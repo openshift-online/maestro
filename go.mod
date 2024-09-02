@@ -30,6 +30,8 @@ require (
 	github.com/openshift-online/ocm-sdk-go v0.1.421
 	github.com/openshift/library-go v0.0.0-20240621150525-4bb4238aef81
 	github.com/prometheus/client_golang v1.18.0
+	github.com/prometheus/client_model v0.5.0
+	github.com/prometheus/common v0.45.0
 	github.com/segmentio/ksuid v1.0.2
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
@@ -49,7 +51,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	open-cluster-management.io/api v0.14.1-0.20240627145512-bd6f2229b53c
 	open-cluster-management.io/ocm v0.14.1-0.20240906021855-b6763a13c0ff
-	open-cluster-management.io/sdk-go v0.14.1-0.20240829071054-7bd852f2b2a8
+	open-cluster-management.io/sdk-go v0.14.1-0.20240906071839-3e8465851efc
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -114,8 +116,6 @@ require (
 	github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/profile v1.3.0 // indirect
-	github.com/prometheus/client_model v0.5.0 // indirect
-	github.com/prometheus/common v0.45.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/robfig/cron v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect

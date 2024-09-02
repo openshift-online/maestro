@@ -10,6 +10,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	logger "github.com/openshift-online/maestro/pkg/logger"
+	"github.com/prometheus/client_golang/prometheus"
 
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -18,6 +19,11 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
+
+func init() {
+	// Register the metrics for resource service
+	RegisterResourceMetrics()
+}
 
 type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
@@ -142,6 +148,15 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return nil, handleUpdateError("Resource", err)
 	}
 
+	// Create the set of labels that we will add to all the resource process:
+	labels := prometheus.Labels{
+		metricsIDLabel:     updated.ID,
+		metricsActionLabel: "update",
+	}
+
+	// Update the metric containing the number of processed resources:
+	resourceProcessedCountMetric.With(labels).Inc()
+
 	return updated, nil
 }
 
@@ -214,6 +229,15 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	if err != nil {
 		return nil, false, handleUpdateError("Resource", err)
 	}
+
+	// Create the set of labels that we will add to all the resource process:
+	labels := prometheus.Labels{
+		metricsIDLabel:     updated.ID,
+		metricsActionLabel: "update",
+	}
+
+	// Update the metric containing the number of processed resources:
+	resourceProcessedCountMetric.With(labels).Inc()
 
 	return updated, true, nil
 }
@@ -334,3 +358,48 @@ func (s *sqlResourceService) syncTimestampsFromResourceMeta(resource *api.Resour
 		}
 	}
 }
+
+// Subsystem used to define the metrics:
+const metricsSubsystem = "resource"
+
+// Names of the labels added to metrics:
+const (
+	metricsIDLabel     = "id"
+	metricsActionLabel = "action"
+)
+
+// metricsLabels - Array of labels added to metrics:
+var metricsLabels = []string{
+	metricsIDLabel,
+	metricsActionLabel,
+}
+
+// Names of the metrics:
+const (
+	processedCountMetric = "processed_total"
+)
+
+// Register the metrics:
+func RegisterResourceMetrics() {
+	prometheus.MustRegister(resourceProcessedCountMetric)
+}
+
+// Unregister the metrics:
+func UnregisterResourceMetrics() {
+	prometheus.Unregister(resourceProcessedCountMetric)
+}
+
+// Reset the metrics:
+func ResetResourceMetrics() {
+	resourceProcessedCountMetric.Reset()
+}
+
+// Description of the resource process count metric:
+var resourceProcessedCountMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Subsystem: metricsSubsystem,
+		Name:      processedCountMetric,
+		Help:      "Number of processed resources.",
+	},
+	metricsLabels,
+)

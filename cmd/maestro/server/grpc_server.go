@@ -80,6 +80,11 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 			MaxVersion:   tls.VersionTLS13,
 		}
 
+		// add metrics and auth interceptors
+		grpcServerOptions = append(grpcServerOptions,
+			grpc.ChainUnaryInterceptor(newMetricsUnaryInterceptor(), newAuthUnaryInterceptor(config.GRPCAuthNType, grpcAuthorizer)),
+			grpc.ChainStreamInterceptor(newMetricsStreamInterceptor(), newAuthStreamInterceptor(config.GRPCAuthNType, grpcAuthorizer)))
+
 		if config.GRPCAuthNType == "mtls" {
 			if len(config.ClientCAFile) == 0 {
 				check(fmt.Errorf("no client CA file specified when using mtls authorization type"), "Can't start gRPC server")
@@ -102,17 +107,17 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 			tlsConfig.ClientCAs = certPool
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
-			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)),
-				grpc.UnaryInterceptor(newAuthUnaryInterceptor(config.GRPCAuthNType, grpcAuthorizer)),
-				grpc.StreamInterceptor(newAuthStreamInterceptor(config.GRPCAuthNType, grpcAuthorizer)))
+			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
 			glog.Infof("Serving gRPC service with mTLS at %s", config.ServerBindPort)
 		} else {
-			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)),
-				grpc.UnaryInterceptor(newAuthUnaryInterceptor(config.GRPCAuthNType, grpcAuthorizer)),
-				grpc.StreamInterceptor(newAuthStreamInterceptor(config.GRPCAuthNType, grpcAuthorizer)))
+			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
 			glog.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
 		}
 	} else {
+		// append metrics interceptor
+		grpcServerOptions = append(grpcServerOptions,
+			grpc.UnaryInterceptor(newMetricsUnaryInterceptor()),
+			grpc.StreamInterceptor(newMetricsStreamInterceptor()))
 		// Note: Do not use this in production.
 		glog.Infof("Serving gRPC service without TLS at %s", config.ServerBindPort)
 	}
