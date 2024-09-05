@@ -63,8 +63,6 @@ func (k *KubeGRPCAuthorizer) AccessReview(ctx context.Context, action, resourceT
 	switch resourceType {
 	case "source":
 		nonResourceUrl = fmt.Sprintf("/sources/%s", resource)
-	case "cluster":
-		nonResourceUrl = fmt.Sprintf("/clusters/%s", resource)
 	default:
 		return false, fmt.Errorf("unsupported resource type: %s", resourceType)
 	}

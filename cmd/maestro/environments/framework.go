@@ -206,7 +206,7 @@ func (e *Env) LoadClients() error {
 			glog.Infof("Using Mock GRPC Authorizer")
 			e.Clients.GRPCAuthorizer = grpcauthorizer.NewMockGRPCAuthorizer()
 		} else {
-			kubeConfig, err := clientcmd.BuildConfigFromFlags("", e.Config.GRPCServer.GRPCAuthrizerConfig)
+			kubeConfig, err := clientcmd.BuildConfigFromFlags("", e.Config.GRPCServer.GRPCAuthorizerConfig)
 			if err != nil {
 				glog.Warningf("Unable to create kube client config: %s", err.Error())
 				// fallback to in-cluster config

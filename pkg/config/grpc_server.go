@@ -13,7 +13,7 @@ type GRPCServerConfig struct {
 	TLSCertFile           string        `json:"grpc_tls_cert_file"`
 	TLSKeyFile            string        `json:"grpc_tls_key_file"`
 	GRPCAuthNType         string        `json:"grpc_authn_type"`
-	GRPCAuthrizerConfig   string        `json:"grpc_authorizer_config"`
+	GRPCAuthorizerConfig  string        `json:"grpc_authorizer_config"`
 	ClientCAFile          string        `json:"grpc_client_ca_file"`
 	ServerBindPort        string        `json:"server_bind_port"`
 	BrokerBindPort        string        `json:"broker_bind_port"`
@@ -45,6 +45,6 @@ func (s *GRPCServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.TLSCertFile, "grpc-tls-cert-file", "", "The path to the tls.crt file")
 	fs.StringVar(&s.TLSKeyFile, "grpc-tls-key-file", "", "The path to the tls.key file")
 	fs.StringVar(&s.GRPCAuthNType, "grpc-authn-type", "mock", "Specify the gRPC authentication type (e.g., mock, mtls or token)")
-	fs.StringVar(&s.GRPCAuthrizerConfig, "grpc-authorizer-config", "", "Path to the gRPC authorizer configuration file")
+	fs.StringVar(&s.GRPCAuthorizerConfig, "grpc-authorizer-config", "", "Path to the gRPC authorizer configuration file")
 	fs.StringVar(&s.ClientCAFile, "grpc-client-ca-file", "", "The path to the client ca file, must specify if using mtls authentication type")
 }
