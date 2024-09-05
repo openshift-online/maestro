@@ -336,7 +336,7 @@ func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, eventDataTy
 	}
 	clusterName := fmt.Sprintf("%s", clusterNameValue)
 
-	objs, err := bkr.resourceService.List(types.ListOptions{ClusterName: clusterName})
+	objs, err := bkr.resourceService.List(types.ListOptions{ClusterName: clusterName, CloudEventsDataType: eventDataType})
 	if err != nil {
 		return err
 	}
