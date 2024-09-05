@@ -160,6 +160,7 @@ func (helper *Helper) Teardown() {
 func (helper *Helper) startAPIServer() {
 	// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
+	helper.Env().Config.GRPCServer.DisableTLS = true
 	helper.APIServer = server.NewAPIServer(helper.EventBroadcaster)
 	go func() {
 		glog.V(10).Info("Test API server started")

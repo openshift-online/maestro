@@ -124,9 +124,8 @@ func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 		Handler: mainHandler,
 	}
 
-	// TODO: support authn and authz for gRPC
 	if env().Config.GRPCServer.EnableGRPCServer {
-		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventBroadcaster, *env().Config.GRPCServer)
+		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventBroadcaster, *env().Config.GRPCServer, env().Clients.GRPCAuthorizer)
 	}
 	return s
 }

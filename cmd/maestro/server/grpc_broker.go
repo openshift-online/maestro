@@ -14,7 +14,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
@@ -74,26 +73,7 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 		MaxConnectionAge: config.MaxConnectionAge,
 	}))
 
-	if config.EnableTLS {
-		// Check tls cert and key path path
-		if config.TLSCertFile == "" || config.TLSKeyFile == "" {
-			check(
-				fmt.Errorf("unspecified required --grpc-tls-cert-file, --grpc-tls-key-file"),
-				"Can't start gRPC broker",
-			)
-		}
-
-		// Serve with TLS
-		creds, err := credentials.NewServerTLSFromFile(config.TLSCertFile, config.TLSKeyFile)
-		if err != nil {
-			glog.Fatalf("Failed to generate credentials %v", err)
-		}
-		grpcServerOptions = append(grpcServerOptions, grpc.Creds(creds))
-		glog.Infof("Serving gRPC broker with TLS at %s", config.BrokerBindPort)
-	} else {
-		glog.Infof("Serving gRPC broker without TLS at %s", config.BrokerBindPort)
-	}
-
+	glog.Infof("Serving gRPC broker without TLS at %s", config.BrokerBindPort)
 	sessionFactory := env().Database.SessionFactory
 	return &GRPCBroker{
 		grpcServer:         grpc.NewServer(grpcServerOptions...),
@@ -109,14 +89,15 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 
 // Start starts the gRPC broker
 func (bkr *GRPCBroker) Start(ctx context.Context) {
+	glog.Info("Starting gRPC broker")
 	lis, err := net.Listen("tcp", bkr.bindAddress)
 	if err != nil {
-		glog.Fatalf("failed to listen: %v", err)
+		check(fmt.Errorf("failed to listen: %v", err), "Can't start gRPC broker")
 	}
 	pbv1.RegisterCloudEventServiceServer(bkr.grpcServer, bkr)
 	go func() {
 		if err := bkr.grpcServer.Serve(lis); err != nil {
-			glog.Fatalf("failed to start gRPC broker: %v", err)
+			check(fmt.Errorf("failed to serve gRPC broker: %v", err), "Can't start gRPC broker")
 		}
 	}()
 

@@ -2,18 +2,29 @@ package test
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"os"
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/db"
+	"golang.org/x/oauth2"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/oauth"
 	"gorm.io/datatypes"
+	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -442,4 +453,83 @@ func (helper *Helper) NewBundleEvent(source, action, consumerName, resourceID, d
 	}
 
 	return &evt
+}
+
+func (helper *Helper) CreateGRPCAuthRule(ctx context.Context, kubeClient kubernetes.Interface, ruleName, resourceType, resourceID string, actions []string) error {
+	// create the cluster rolefor grpc authz
+	nonResourceUrl := ""
+	switch resourceType {
+	case "source":
+		nonResourceUrl = fmt.Sprintf("/sources/%s", resourceID)
+	case "cluster":
+		nonResourceUrl = fmt.Sprintf("/clusters/%s", resourceID)
+	default:
+		return fmt.Errorf("unsupported resource type: %s", resourceType)
+	}
+
+	_, err := kubeClient.RbacV1().ClusterRoles().Create(ctx, &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: ruleName,
+		},
+		Rules: []rbacv1.PolicyRule{
+			{
+				NonResourceURLs: []string{nonResourceUrl},
+				Verbs:           actions,
+			},
+		},
+	}, metav1.CreateOptions{})
+	if errors.IsAlreadyExists(err) {
+		// update the cluster role
+		_, err = kubeClient.RbacV1().ClusterRoles().Update(ctx, &rbacv1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: ruleName,
+			},
+			Rules: []rbacv1.PolicyRule{
+				{
+					NonResourceURLs: []string{nonResourceUrl},
+					Verbs:           actions,
+				},
+			},
+		}, metav1.UpdateOptions{})
+		if err != nil {
+			return err
+		}
+	}
+
+	return err
+}
+
+func (helper *Helper) CreateGRPCConn(serverAddr, serverCAFile, tokenFile string) (*grpc.ClientConn, error) {
+	certPool, err := x509.SystemCertPool()
+	if err != nil {
+		return nil, err
+	}
+
+	caPEM, err := os.ReadFile(serverCAFile)
+	if err != nil {
+		return nil, err
+	}
+
+	ok := certPool.AppendCertsFromPEM(caPEM)
+	if !ok {
+		return nil, fmt.Errorf("failed to append server CA certificate")
+	}
+
+	tlsConfig := &tls.Config{
+		RootCAs:    certPool,
+		MinVersion: tls.VersionTLS13,
+		MaxVersion: tls.VersionTLS13,
+	}
+
+	token, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return nil, err
+	}
+
+	perRPCCred := oauth.TokenSource{
+		TokenSource: oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: string(token),
+		})}
+
+	return grpc.Dial(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithPerRPCCredentials(perRPCCred))
 }

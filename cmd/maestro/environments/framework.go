@@ -8,10 +8,14 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
@@ -193,6 +197,31 @@ func (e *Env) LoadClients() error {
 				glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
 				return err
 			}
+		}
+	}
+
+	// Create GRPC authorizer based on configuration
+	if e.Config.GRPCServer.EnableGRPCServer {
+		if e.Config.GRPCServer.GRPCAuthNType == "mock" {
+			glog.Infof("Using Mock GRPC Authorizer")
+			e.Clients.GRPCAuthorizer = grpcauthorizer.NewMockGRPCAuthorizer()
+		} else {
+			kubeConfig, err := clientcmd.BuildConfigFromFlags("", e.Config.GRPCServer.GRPCAuthorizerConfig)
+			if err != nil {
+				glog.Warningf("Unable to create kube client config: %s", err.Error())
+				// fallback to in-cluster config
+				kubeConfig, err = rest.InClusterConfig()
+				if err != nil {
+					glog.Errorf("Unable to create kube client config: %s", err.Error())
+					return err
+				}
+			}
+			kubeClient, err := kubernetes.NewForConfig(kubeConfig)
+			if err != nil {
+				glog.Errorf("Unable to create kube client: %s", err.Error())
+				return err
+			}
+			e.Clients.GRPCAuthorizer = grpcauthorizer.NewKubeGRPCAuthorizer(kubeClient)
 		}
 	}
 
