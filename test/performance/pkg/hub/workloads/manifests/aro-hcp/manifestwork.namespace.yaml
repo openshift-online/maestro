@@ -1,0 +1,24 @@
+apiVersion: work.open-cluster-management.io/v1
+kind: ManifestWork
+metadata:
+  annotations:
+    hypershift-deployment.open-cluster-management.io/created-by: ignore/ignore
+  name: {{ .Name }}-namespace
+  namespace: {{ .ClusterName }}
+  labels:
+    api.openshift.com/environment: maestro-perf-test
+    api.openshift.com/id: {{ .Name }}
+    api.openshift.com/legal-entity-id: {{ .Name }}
+    api.openshift.com/name: {{ .Name }}
+    api.openshift.com/management-cluster: {{ .ClusterName }}
+    containsNamespaces: "true"
+spec:
+  deleteOption:
+    propagationPolicy: Foreground
+  workload:
+    manifests:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: {{ .Name }}
+      spec: {}

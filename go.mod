@@ -28,6 +28,7 @@ require (
 	github.com/onsi/gomega v1.32.0
 	github.com/openshift-online/ocm-common v0.0.0-20240620110211-2ecfa6ec5707
 	github.com/openshift-online/ocm-sdk-go v0.1.421
+	github.com/openshift/library-go v0.0.0-20240621150525-4bb4238aef81
 	github.com/prometheus/client_golang v1.18.0
 	github.com/segmentio/ksuid v1.0.2
 	github.com/spf13/cobra v1.8.0
@@ -42,12 +43,14 @@ require (
 	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
 	k8s.io/api v0.30.2
 	k8s.io/apimachinery v0.30.2
+	k8s.io/apiserver v0.30.1
 	k8s.io/client-go v0.30.2
 	k8s.io/component-base v0.30.2
 	k8s.io/klog/v2 v2.120.1
 	open-cluster-management.io/api v0.14.1-0.20240627145512-bd6f2229b53c
 	open-cluster-management.io/ocm v0.13.1-0.20240618054845-e2a7b9e78b33
 	open-cluster-management.io/sdk-go v0.14.1-0.20240829071054-7bd852f2b2a8
+	sigs.k8s.io/yaml v1.4.0
 )
 
 require (
@@ -110,7 +113,6 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/openshift/api v0.0.0-20240527133614-ba11c1587003 // indirect
 	github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87 // indirect
-	github.com/openshift/library-go v0.0.0-20240621150525-4bb4238aef81 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pkg/profile v1.3.0 // indirect
 	github.com/prometheus/client_model v0.5.0 // indirect
@@ -155,7 +157,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.4.7 // indirect
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
-	k8s.io/apiserver v0.30.1 // indirect
 	k8s.io/kms v0.30.1 // indirect
 	k8s.io/kube-aggregator v0.30.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
@@ -165,5 +166,4 @@ require (
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
-	sigs.k8s.io/yaml v1.4.0 // indirect
 )
