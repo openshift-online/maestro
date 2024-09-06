@@ -71,6 +71,7 @@ kubectl get pod -A
 kubectl apply -f ./test/e2e/setup/service-ca-crds
 kubectl $1 create ns openshift-config-managed
 kubectl $1 apply -f ./test/e2e/setup/service-ca/
+kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
 
 # 4. deploy maestro into maestro namespace
 export ENABLE_JWT=false

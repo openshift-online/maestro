@@ -12,7 +12,10 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -111,4 +114,117 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 		Expect(err).ShouldNot(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 	})
+
+	It("Apply a nested work with SSA", func() {
+		workName := fmt.Sprintf("ssa-work-%s", rand.String(5))
+		nestedWorkName := fmt.Sprintf("nested-work-%s", rand.String(5))
+		nestedWorkNamespace := "default"
+
+		work := NewNestedManifestWork(nestedWorkNamespace, workName, nestedWorkName)
+		_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+
+		// make sure the nested work is created
+		Eventually(func() error {
+			_, err := kubeWorkClient.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}, 30*time.Second, time.Second).ShouldNot(HaveOccurred())
+
+		// make sure the nested work is not updated
+		Consistently(func() error {
+			nestedWork, err := kubeWorkClient.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+
+			if nestedWork.Generation != 1 {
+				return fmt.Errorf("nested work generation is changed to %d", nestedWork.Generation)
+			}
+
+			return nil
+		}, 1*time.Minute, 1*time.Second).Should(BeNil())
+
+		err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+		Expect(err).ShouldNot(HaveOccurred())
+	})
 })
+
+func NewNestedManifestWork(nestedWorkNamespace, name, nestedWorkName string) *workv1.ManifestWork {
+	nestedWork := &workv1.ManifestWork{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "work.open-cluster-management.io/v1",
+			Kind:       "ManifestWork",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nestedWorkName,
+			Namespace: nestedWorkNamespace,
+		},
+		Spec: workv1.ManifestWorkSpec{
+			Workload: workv1.ManifestsTemplate{
+				Manifests: []workv1.Manifest{{
+					RawExtension: runtime.RawExtension{
+						Object: &corev1.ConfigMap{
+							TypeMeta: metav1.TypeMeta{
+								Kind:       "ConfigMap",
+								APIVersion: "v1",
+							},
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      "cm-test",
+								Namespace: "default",
+							},
+							Data: map[string]string{
+								"some": "data",
+							},
+						},
+					},
+				}},
+			},
+		},
+	}
+
+	manifest := workv1.Manifest{}
+	manifest.Object = nestedWork
+
+	return &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: workv1.ManifestWorkSpec{
+			Workload: workv1.ManifestsTemplate{
+				Manifests: []workv1.Manifest{manifest},
+			},
+			ManifestConfigs: []workv1.ManifestConfigOption{
+				{
+					ResourceIdentifier: workv1.ResourceIdentifier{
+						Group:     "work.open-cluster-management.io",
+						Resource:  "manifestworks",
+						Name:      nestedWorkName,
+						Namespace: nestedWorkNamespace,
+					},
+					UpdateStrategy: &workv1.UpdateStrategy{
+						Type: workv1.UpdateStrategyTypeServerSideApply,
+						ServerSideApply: &workv1.ServerSideApplyConfig{
+							Force:        true,
+							FieldManager: "maestro-agent",
+						},
+					},
+					FeedbackRules: []workv1.FeedbackRule{
+						{
+							Type: workv1.JSONPathsType,
+							JsonPaths: []workv1.JsonPath{
+								{
+									Name: "status",
+									Path: ".status",
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}

@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 
@@ -45,6 +46,7 @@ var (
 	cancel            context.CancelFunc
 	ctx               context.Context
 	grpcCertDir       string
+	kubeWorkClient    workclientset.Interface
 )
 
 func TestE2E(t *testing.T) {
@@ -94,6 +96,8 @@ var _ = BeforeSuite(func() {
 	restConfig, err := clientcmd.BuildConfigFromFlags("", consumer.KubeConfig)
 	Expect(err).To(Succeed())
 	consumer.ClientSet, err = kubernetes.NewForConfig(restConfig)
+	Expect(err).To(Succeed())
+	kubeWorkClient, err = workclientset.NewForConfig(restConfig)
 	Expect(err).To(Succeed())
 	Expect(consumer.Name).NotTo(BeEmpty(), "consumer name is not provided")
 

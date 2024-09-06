@@ -212,7 +212,7 @@ func TestResourcePostWithoutName(t *testing.T) {
 	Expect(*resource.Name).To(Equal(*resource.Id))
 
 	Eventually(func() error {
-		newRes, err := resourceService.List(types.ListOptions{ClusterName: clusterName})
+		newRes, err := resourceService.List(types.ListOptions{ClusterName: clusterName, CloudEventsDataType: payload.ManifestEventDataType})
 		if err != nil {
 			return err
 		}
