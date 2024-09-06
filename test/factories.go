@@ -73,9 +73,6 @@ var testReadOnlyManifestJSON = `
 	"metadata": {
 	  "name": "%s",
 	  "namespace": "%s"
-	},
-	"update_strategy": {
-	  "type": "ReadOnly"
 	}
 }
 `
@@ -125,6 +122,9 @@ func (helper *Helper) NewReadOnlyAPIResource(consumerName, deployName string) op
 	return openapi.Resource{
 		Manifest:     testManifest,
 		ConsumerName: &consumerName,
+		UpdateStrategy: map[string]interface{}{
+			"type": "ReadOnly",
+		},
 	}
 }
 
