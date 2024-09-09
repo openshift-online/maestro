@@ -70,7 +70,8 @@ func NewPulseServer(eventBroadcaster *event.EventBroadcaster) EventServer {
 	case config.SharedSubscriptionType:
 		statusDispatcher = dispatcher.NewNoopDispatcher(dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource)
 	case config.BroadcastSubscriptionType:
-		statusDispatcher = dispatcher.NewHashDispatcher(env().Config.MessageBroker.ClientID, dao.NewInstanceDao(&env().Database.SessionFactory), dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource)
+		statusDispatcher = dispatcher.NewHashDispatcher(env().Config.MessageBroker.ClientID, dao.NewInstanceDao(&env().Database.SessionFactory),
+			dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource, env().Config.PulseServer.ConsistentHashConfig)
 	default:
 		glog.Fatalf("Unsupported subscription type: %s", env().Config.PulseServer.SubscriptionType)
 	}

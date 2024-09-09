@@ -30,7 +30,7 @@ func NewApplicationConfig() *ApplicationConfig {
 		GRPCServer:    NewGRPCServerConfig(),
 		Metrics:       NewMetricsConfig(),
 		HealthCheck:   NewHealthCheckConfig(),
-		PulseServer:   MewPulseServerConfig(),
+		PulseServer:   NewPulseServerConfig(),
 		Database:      NewDatabaseConfig(),
 		MessageBroker: NewMessageBrokerConfig(),
 		OCM:           NewOCMConfig(),
