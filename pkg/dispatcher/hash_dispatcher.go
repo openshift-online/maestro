@@ -11,6 +11,7 @@ import (
 	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -32,7 +33,7 @@ type HashDispatcher struct {
 	consistent   *consistent.Consistent
 }
 
-func NewHashDispatcher(instanceID string, instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, sourceClient cloudevents.SourceClient) *HashDispatcher {
+func NewHashDispatcher(instanceID string, instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, sourceClient cloudevents.SourceClient, consistentHashingConfig *config.ConsistentHashConfig) *HashDispatcher {
 	return &HashDispatcher{
 		instanceID:   instanceID,
 		instanceDao:  instanceDao,
@@ -41,9 +42,9 @@ func NewHashDispatcher(instanceID string, instanceDao dao.InstanceDao, consumerD
 		consumerSet:  mapset.NewSet[string](),
 		workQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "hash-dispatcher"),
 		consistent: consistent.New(nil, consistent.Config{
-			PartitionCount:    7,    // consumer IDs are distributed among partitions, select a big PartitionCount for more consumers.
-			ReplicationFactor: 20,   // the numbers for maestro instances to be replicated on consistent hash ring.
-			Load:              1.25, // Load is used to calculate average load, 1.25 is reasonable for most cases.
+			PartitionCount:    consistentHashingConfig.PartitionCount,
+			ReplicationFactor: consistentHashingConfig.ReplicationFactor,
+			Load:              consistentHashingConfig.Load,
 			Hasher:            hasher{},
 		}),
 	}
