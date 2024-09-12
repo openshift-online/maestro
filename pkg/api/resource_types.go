@@ -185,21 +185,21 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 		PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
 	}
 
-	// set default delete option to Orphan if update strategy is ReadOnly
+	// set delete option to Orphan if update strategy is ReadOnly
 	if upStrategy.Type == workv1.UpdateStrategyTypeReadOnly {
 		delOption = &workv1.DeleteOption{
 			PropagationPolicy: workv1.DeletePropagationPolicyTypeOrphan,
 		}
-	}
-
-	if len(deleteOption) != 0 {
-		deleteOptionBytes, err := json.Marshal(deleteOption)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
-		}
-		err = json.Unmarshal(deleteOptionBytes, delOption)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal json to deleteOption: %v", err)
+	} else {
+		if len(deleteOption) != 0 {
+			deleteOptionBytes, err := json.Marshal(deleteOption)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
+			}
+			err = json.Unmarshal(deleteOptionBytes, delOption)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal json to deleteOption: %v", err)
+			}
 		}
 	}
 
