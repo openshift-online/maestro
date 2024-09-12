@@ -19,8 +19,8 @@ type (
 
 const (
 	Migrations     LockType = "migrations"
-	Resources      LockType = "Resources"
-	ResourceStatus LockType = "ResourceStatus"
+	Resources      LockType = "resources"
+	ResourceStatus LockType = "resource_status"
 	Events         LockType = "events"
 	Instances      LockType = "instances"
 )

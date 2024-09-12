@@ -6,6 +6,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+func init() {
+	// Register the metrics for advisory locks
+	RegisterAdvisoryLockMetrics()
+}
+
 type MetricsCollector interface {
 }
 
@@ -18,8 +23,8 @@ const (
 	metricsStatusLabel = "status"
 )
 
-// MetricsLabels - Array of labels added to metrics:
-var MetricsLabels = []string{
+// metricsLabels - Array of labels added to metrics:
+var metricsLabels = []string{
 	metricsTypeLabel,
 	metricsStatusLabel,
 }
@@ -30,12 +35,6 @@ const (
 	durationMetric = "duration"
 )
 
-// MetricsNames - Array of Names of the metrics:
-var MetricsNames = []string{
-	countMetric,
-	durationMetric,
-}
-
 // Description of the requests count metric:
 var advisoryLockCountMetric = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
@@ -43,7 +42,7 @@ var advisoryLockCountMetric = prometheus.NewCounterVec(
 		Name:      countMetric,
 		Help:      "Number of advisory lock requests.",
 	},
-	MetricsLabels,
+	metricsLabels,
 )
 
 // Description of the request duration metric:
@@ -61,7 +60,7 @@ var advisoryLockDurationMetric = prometheus.NewHistogramVec(
 			10.0,
 		},
 	},
-	MetricsLabels,
+	metricsLabels,
 )
 
 // Register the metrics:
@@ -76,7 +75,7 @@ func UnregisterAdvisoryLockMetrics() {
 	prometheus.Unregister(advisoryLockDurationMetric)
 }
 
-// ResetMetricCollectors resets all collectors
+// ResetAdvisoryLockMetricsCollectors resets all collectors
 func ResetAdvisoryLockMetricsCollectors() {
 	advisoryLockCountMetric.Reset()
 	advisoryLockDurationMetric.Reset()

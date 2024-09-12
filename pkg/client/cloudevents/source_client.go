@@ -41,6 +41,9 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 		return nil, err
 	}
 
+	// register resource resync metrics for cloud event source client
+	cegeneric.RegisterResourceResyncMetrics()
+
 	return &SourceClientImpl{
 		Codec:                  codec,
 		BundleCodec:            bundleCodec,
