@@ -11,7 +11,6 @@ import (
 	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
-	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
@@ -73,7 +72,7 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 		MaxConnectionAge: config.MaxConnectionAge,
 	}))
 
-	glog.Infof("Serving gRPC broker without TLS at %s", config.BrokerBindPort)
+	klog.Infof("Serving gRPC broker without TLS at %s", config.BrokerBindPort)
 	sessionFactory := env().Database.SessionFactory
 	return &GRPCBroker{
 		grpcServer:         grpc.NewServer(grpcServerOptions...),
@@ -89,7 +88,7 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 
 // Start starts the gRPC broker
 func (bkr *GRPCBroker) Start(ctx context.Context) {
-	glog.Info("Starting gRPC broker")
+	klog.Info("Starting gRPC broker")
 	lis, err := net.Listen("tcp", bkr.bindAddress)
 	if err != nil {
 		check(fmt.Errorf("failed to listen: %v", err), "Can't start gRPC broker")
@@ -119,7 +118,7 @@ func (bkr *GRPCBroker) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	glog.V(4).Infof("receive the event with grpc broker, %s", evt)
+	klog.V(4).Infof("receive the event with grpc broker, %s", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -157,7 +156,7 @@ func (bkr *GRPCBroker) register(clusterName string, handler resourceHandler) (st
 		errChan:     errChan,
 	}
 
-	glog.V(4).Infof("register a subscriber %s (cluster name = %s)", id, clusterName)
+	klog.V(4).Infof("register a subscriber %s (cluster name = %s)", id, clusterName)
 
 	return id, errChan
 }
@@ -167,7 +166,7 @@ func (bkr *GRPCBroker) unregister(id string) {
 	bkr.mu.Lock()
 	defer bkr.mu.Unlock()
 
-	glog.V(10).Infof("unregister subscriber %s", id)
+	klog.V(10).Infof("unregister subscriber %s", id)
 	close(bkr.subscribers[id].errChan)
 	delete(bkr.subscribers, id)
 }
@@ -187,7 +186,7 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
 
-		glog.V(4).Infof("send the event to spec subscribers, %s", evt)
+		klog.V(4).Infof("send the event to spec subscribers, %s", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
@@ -206,7 +205,7 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 
 	select {
 	case err := <-errChan:
-		glog.Errorf("unregister subscriber %s, error= %v", subscriberID, err)
+		klog.Errorf("unregister subscriber %s, error= %v", subscriberID, err)
 		bkr.unregister(subscriberID)
 		return err
 	case <-subServer.Context().Done():

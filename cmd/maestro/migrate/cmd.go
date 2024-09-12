@@ -2,11 +2,10 @@ package migrate
 
 import (
 	"context"
-	"flag"
 
-	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/db/db_session"
 	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
@@ -24,18 +23,17 @@ func NewMigrationCommand() *cobra.Command {
 	}
 
 	dbConfig.AddFlags(cmd.PersistentFlags())
-	cmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 	return cmd
 }
 
 func runMigration(_ *cobra.Command, _ []string) {
 	err := dbConfig.ReadFiles()
 	if err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 
 	connection := db_session.NewProdFactory(dbConfig)
 	if err := db.Migrate(connection.New(context.Background())); err != nil {
-		glog.Fatal(err)
+		klog.Fatal(err)
 	}
 }
