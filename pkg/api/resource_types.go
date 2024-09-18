@@ -165,26 +165,11 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 		return nil, nil
 	}
 
-	delOption := &workv1.DeleteOption{
-		PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
-	}
-	if len(deleteOption) != 0 {
-		delOption = &workv1.DeleteOption{}
-		deleteOptionBytes, err := json.Marshal(deleteOption)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
-		}
-		err = json.Unmarshal(deleteOptionBytes, delOption)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal json to deleteOption: %v", err)
-		}
-	}
-
+	// default update strategy is ServerSideApply
 	upStrategy := &workv1.UpdateStrategy{
 		Type: workv1.UpdateStrategyTypeServerSideApply,
 	}
 	if len(updateStrategy) != 0 {
-		upStrategy = &workv1.UpdateStrategy{}
 		updateStrategyBytes, err := json.Marshal(updateStrategy)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal updateStrategy to json: %v", err)
@@ -193,7 +178,29 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal json to updateStrategy: %v", err)
 		}
-		fmt.Println("upStrategy", upStrategy)
+	}
+
+	// default delete option is Foreground
+	delOption := &workv1.DeleteOption{
+		PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
+	}
+
+	// set delete option to Orphan if update strategy is ReadOnly
+	if upStrategy.Type == workv1.UpdateStrategyTypeReadOnly {
+		delOption = &workv1.DeleteOption{
+			PropagationPolicy: workv1.DeletePropagationPolicyTypeOrphan,
+		}
+	} else {
+		if len(deleteOption) != 0 {
+			deleteOptionBytes, err := json.Marshal(deleteOption)
+			if err != nil {
+				return nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
+			}
+			err = json.Unmarshal(deleteOptionBytes, delOption)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal json to deleteOption: %v", err)
+			}
+		}
 	}
 
 	// create a cloud event with the manifest as the data

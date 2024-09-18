@@ -35,6 +35,7 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 			validateEmpty(&rs, "Id", "id"),
 			validateNotEmpty(&rs, "ConsumerName", "consumer_name"),
 			validateNotEmpty(&rs, "Manifest", "manifest"),
+			validateDeleteOptionAndUpdateStrategy(&rs),
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()

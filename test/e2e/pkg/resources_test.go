@@ -227,9 +227,16 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("post the resource to the maestro api with readonly updateStrategy", func() {
-			res := helper.NewReadOnlyAPIResource(consumer.Name, deployName)
 			var resp *http.Response
 			var err error
+			// post the resource with readonly updateStrategy and foreground delete option should fail
+			invalidRes := helper.NewReadOnlyAPIResource(consumer.Name, deployName)
+			invalidRes.DeleteOption = map[string]interface{}{"propagationPolicy": "Foreground"}
+			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(invalidRes).Execute()
+			Expect(err).Should(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
+
+			res := helper.NewReadOnlyAPIResource(consumer.Name, deployName)
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
@@ -241,6 +248,15 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				res, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resource.Id).Execute()
 				if err != nil {
 					return err
+				}
+
+				// ensure the delete option is set to Orphan
+				deleteType, ok := res.DeleteOption["propagationPolicy"]
+				if !ok {
+					return fmt.Errorf("delete option is not set")
+				}
+				if deleteType != "Orphan" {
+					return fmt.Errorf("delete option is not Orphan")
 				}
 
 				statusJSON, err := json.Marshal(res.Status)
