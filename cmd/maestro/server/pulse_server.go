@@ -139,7 +139,7 @@ func (s *PulseServer) checkInstances(ctx context.Context) {
 	}
 	// skip if the lock is not acquired
 	if !acquired {
-		log.Error("failed to acquire the lock as another maestro instance is checking instances")
+		log.V(4).Infof("failed to acquire the lock as another maestro instance is checking instances, skip")
 		return
 	}
 
