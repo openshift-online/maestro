@@ -7,8 +7,8 @@ import (
 	"net/http"
 
 	health "github.com/docker/go-healthcheck"
-	"github.com/golang/glog"
 	"github.com/gorilla/mux"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -50,14 +50,14 @@ func (s healthCheckServer) Start() {
 		}
 
 		// Serve with TLS
-		glog.Infof("Serving HealthCheck with TLS at %s", env().Config.HealthCheck.BindPort)
+		klog.Infof("Serving HealthCheck with TLS at %s", env().Config.HealthCheck.BindPort)
 		err = s.httpServer.ListenAndServeTLS(env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		glog.Infof("Serving HealthCheck without TLS at %s", env().Config.HealthCheck.BindPort)
+		klog.Infof("Serving HealthCheck without TLS at %s", env().Config.HealthCheck.BindPort)
 		err = s.httpServer.ListenAndServe()
 	}
 	check(err, "HealthCheck server terminated with errors")
-	glog.Infof("HealthCheck server terminated")
+	klog.Infof("HealthCheck server terminated")
 }
 
 func (s healthCheckServer) Stop() error {

@@ -60,7 +60,7 @@ mqtt_password_file=${PWD}/secrets/mqtt.password
 mqtt_config_file=${PWD}/secrets/mqtt.config
 
 # Log verbosity level
-glog_v:=10
+klog_v:=10
 
 # Location of the JSON web key set used to verify tokens:
 jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
@@ -269,7 +269,7 @@ cmds:
 		--local="true" \
 		--ignore-unknown-parameters="true" \
 		--param="ENVIRONMENT=$(OCM_ENV)" \
-		--param="GLOG_V=$(glog_v)" \
+		--param="KLOG_V=$(klog_v)" \
 		--param="SERVER_REPLICAS=$(SERVER_REPLICAS)" \
 		--param="DATABASE_HOST=$(db_host)" \
 		--param="DATABASE_NAME=$(db_name)" \

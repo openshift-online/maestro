@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
-
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
@@ -50,12 +49,12 @@ func (f *Test) Init(config *config.DatabaseConfig) {
 	// Only the first time
 	once.Do(func() {
 		if err := initDatabase(config, db.Migrate); err != nil {
-			glog.Errorf("error initializing test database: %s", err)
+			klog.Errorf("error initializing test database: %s", err)
 			return
 		}
 
 		if err := resetDB(config); err != nil {
-			glog.Errorf("error resetting test database: %s", err)
+			klog.Errorf("error resetting test database: %s", err)
 			return
 		}
 	})

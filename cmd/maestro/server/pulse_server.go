@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/config"
@@ -17,6 +16,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
@@ -73,7 +73,7 @@ func NewPulseServer(eventBroadcaster *event.EventBroadcaster) EventServer {
 		statusDispatcher = dispatcher.NewHashDispatcher(env().Config.MessageBroker.ClientID, dao.NewInstanceDao(&env().Database.SessionFactory),
 			dao.NewConsumerDao(&env().Database.SessionFactory), env().Clients.CloudEventsSource, env().Config.PulseServer.ConsistentHashConfig)
 	default:
-		glog.Fatalf("Unsupported subscription type: %s", env().Config.PulseServer.SubscriptionType)
+		klog.Fatalf("Unsupported subscription type: %s", env().Config.PulseServer.SubscriptionType)
 	}
 	sessionFactory := env().Database.SessionFactory
 	return &PulseServer{

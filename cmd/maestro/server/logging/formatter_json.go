@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/golang/glog"
+	"k8s.io/klog/v2"
 )
 
 func NewJSONLogFormatter() *jsonLogFormatter {
@@ -22,7 +22,7 @@ func (f *jsonLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
 		RequestURI: r.RequestURI,
 		RemoteAddr: r.RemoteAddr,
 	}
-	if glog.V(10) {
+	if klog.V(10).Enabled() {
 		jsonlog.Header = r.Header
 		jsonlog.Body = r.Body
 	}
@@ -36,7 +36,7 @@ func (f *jsonLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
 
 func (f *jsonLogFormatter) FormatResponseLog(info *ResponseInfo) (string, error) {
 	jsonlog := jsonResponseLog{Header: nil, Status: info.Status, Elapsed: info.Elapsed}
-	if glog.V(10) {
+	if klog.V(10).Enabled() {
 		jsonlog.Body = string(info.Body[:])
 	}
 	log, err := json.Marshal(jsonlog)

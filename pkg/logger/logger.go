@@ -6,8 +6,8 @@ import (
 	"strings"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/util"
+	"k8s.io/klog/v2"
 )
 
 type OCMLogger interface {
@@ -100,7 +100,7 @@ func (l *logger) V(level int32) OCMLogger {
 // Infof doesn't trigger Sentry error
 func (l *logger) Infof(format string, args ...interface{}) {
 	prefixed := l.prepareLogPrefixf(format, args...)
-	glog.V(glog.Level(l.level)).Infof("%s", prefixed)
+	klog.V(klog.Level(l.level)).Infof("%s", prefixed)
 }
 
 func (l *logger) Extra(key string, value interface{}) OCMLogger {
@@ -109,24 +109,24 @@ func (l *logger) Extra(key string, value interface{}) OCMLogger {
 }
 
 func (l *logger) Info(message string) {
-	l.log(message, sentry.LevelInfo, glog.V(glog.Level(l.level)).Infoln)
+	l.log(message, sentry.LevelInfo, klog.V(klog.Level(l.level)).Infoln)
 }
 
 func (l *logger) Warning(message string) {
-	l.log(message, sentry.LevelWarning, glog.Warningln)
+	l.log(message, sentry.LevelWarning, klog.Warningln)
 }
 
 func (l *logger) Error(message string) {
-	l.log(message, sentry.LevelError, glog.Errorln)
+	l.log(message, sentry.LevelError, klog.Errorln)
 }
 
 func (l *logger) Fatal(message string) {
-	l.log(message, sentry.LevelFatal, glog.Fatalln)
+	l.log(message, sentry.LevelFatal, klog.Fatalln)
 }
 
-func (l *logger) log(message string, level sentry.Level, glogFunc func(args ...interface{})) {
+func (l *logger) log(message string, level sentry.Level, logFunc func(args ...interface{})) {
 	prefixed := l.prepareLogPrefix(message, l.extra)
-	glogFunc(prefixed)
+	logFunc(prefixed)
 	if level != sentry.LevelInfo && level != sentry.LevelWarning {
 		l.captureSentryEvent(level, message)
 	}

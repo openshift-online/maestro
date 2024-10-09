@@ -2,13 +2,17 @@ package main
 
 import (
 	"flag"
+	"os"
+	"strconv"
 
-	"github.com/golang/glog"
-	"github.com/spf13/cobra"
-
+	"github.com/go-logr/zapr"
 	"github.com/openshift-online/maestro/cmd/maestro/agent"
 	"github.com/openshift-online/maestro/cmd/maestro/migrate"
 	"github.com/openshift-online/maestro/cmd/maestro/servecmd"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"k8s.io/klog/v2"
 )
 
 // nolint
@@ -16,22 +20,43 @@ import (
 //go:generate go-bindata -o ../../data/generated/openapi/openapi.go -pkg openapi -prefix ../../openapi/ ../../openapi
 
 func main() {
-	// This is needed to make `glog` believe that the flags have already been parsed, otherwise
-	// every log messages is prefixed by an error message stating the the flags haven't been
-	// parsed.
-	_ = flag.CommandLine.Parse([]string{})
-
-	//pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
-
-	// Always log to stderr by default
-	if err := flag.Set("logtostderr", "true"); err != nil {
-		glog.Infof("Unable to set logtostderr to true")
+	// check if the glog flag is already registered to avoid duplicate flag define error
+	if flag.CommandLine.Lookup("alsologtostderr") != nil {
+		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 	}
 
+	// add klog flags
+	klog.InitFlags(nil)
+
+	// Set up klog backing logger
+	cobra.OnInitialize(func() {
+		// Retrieve log level from klog flags
+		logLevel, err := strconv.ParseInt(flag.CommandLine.Lookup("v").Value.String(), 10, 8)
+		if err != nil {
+			klog.Fatalf("can't parse log level: %v", err)
+		}
+
+		// Initialize zap logger
+		zc := zap.NewDevelopmentConfig()
+		// zap log level is the inverse of klog log level, for more details refer to:
+		// https://github.com/go-logr/zapr?tab=readme-ov-file#increasing-verbosity
+		zc.Level = zap.NewAtomicLevelAt(zapcore.Level(0 - logLevel))
+		zapLog, err := zc.Build()
+		if err != nil {
+			klog.Fatalf("can't initialize zap logger: %v", err)
+		}
+		// Set backing logger for klog
+		klog.SetLogger(zapr.NewLogger(zapLog))
+	})
+
+	// Initialize root command
 	rootCmd := &cobra.Command{
 		Use:  "maestro",
 		Long: "maestro is a multi-cluster resources orchestrator for Kubernetes",
 	}
+
+	// Add klog flags to root command
+	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 
 	// All subcommands under root
 	migrateCmd := migrate.NewMigrationCommand()
@@ -42,6 +67,6 @@ func main() {
 	rootCmd.AddCommand(migrateCmd, serveCmd, agentCmd)
 
 	if err := rootCmd.Execute(); err != nil {
-		glog.Fatalf("error running command: %v", err)
+		klog.Fatalf("error running command: %v", err)
 	}
 }

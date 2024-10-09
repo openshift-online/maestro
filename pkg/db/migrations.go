@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/go-gormigrate/gormigrate/v2"
-	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/db/migrations"
+	"k8s.io/klog/v2"
 
 	"gorm.io/gorm"
 )
@@ -30,7 +30,7 @@ func MigrateTo(sessionFactory SessionFactory, migrationID string) {
 	m := newGormigrate(g2)
 
 	if err := m.MigrateTo(migrationID); err != nil {
-		glog.Fatalf("Could not migrate: %v", err)
+		klog.Fatalf("Could not migrate: %v", err)
 	}
 }
 

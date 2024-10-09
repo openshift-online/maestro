@@ -7,8 +7,8 @@ import (
 	"os"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/errors"
+	"k8s.io/klog/v2"
 )
 
 // SendNotFound sends a 404 response with some details about the non existing resource.
@@ -40,7 +40,7 @@ func SendNotFound(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(data)
 	if err != nil {
 		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
-		glog.Error(err)
+		klog.Error(err)
 		sentry.CaptureException(err)
 		return
 	}
@@ -62,7 +62,7 @@ func SendUnauthorized(w http.ResponseWriter, r *http.Request, message string) {
 	_, err = w.Write(data)
 	if err != nil {
 		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
-		glog.Error(err)
+		klog.Error(err)
 		sentry.CaptureException(err)
 		return
 	}
@@ -78,7 +78,7 @@ func SendPanic(w http.ResponseWriter, r *http.Request) {
 			r.URL.Path,
 			err.Error(),
 		)
-		glog.Error(err)
+		klog.Error(err)
 		sentry.CaptureException(err)
 	}
 }
@@ -109,7 +109,7 @@ func init() {
 			"cannot create the panic error body: %s",
 			err.Error(),
 		)
-		glog.Error(err)
+		klog.Error(err)
 		sentry.CaptureException(err)
 		os.Exit(1)
 	}

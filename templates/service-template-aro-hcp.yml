@@ -35,8 +35,8 @@ parameters:
   displayName: Image tag
   value: latest
 
-- name: GLOG_V
-  displayName: GLOG V Level
+- name: KLOG_V
+  displayName: KLOG V Level
   description: Log verbosity level
   value: "10"
 
@@ -216,7 +216,7 @@ objects:
             - --db-name-file=/secrets/db/db.name
             - --db-sslmode=${DB_SSLMODE}
             - --alsologtostderr
-            - -v=${GLOG_V}
+            - -v=${KLOG_V}
           containers:
           - name: service
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
@@ -269,7 +269,7 @@ objects:
             - --http-write-timeout=${HTTP_WRITE_TIMEOUT}
             - --label-metrics-inclusion-duration=${LABEL_METRICS_INCLUSION_DURATION}
             - --alsologtostderr
-            - -v=${GLOG_V}
+            - -v=${KLOG_V}
             resources:
               requests:
                 cpu: ${CPU_REQUEST}

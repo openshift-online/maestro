@@ -15,6 +15,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
+	"k8s.io/klog/v2"
 
 	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
 	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
@@ -30,7 +31,6 @@ import (
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/pflag"
@@ -100,17 +100,17 @@ func NewHelper(t *testing.T) *Helper {
 		env.Name = environments.TestingEnv
 		err = env.AddFlags(pflag.CommandLine)
 		if err != nil {
-			glog.Fatalf("Unable to add environment flags: %s", err.Error())
+			klog.Fatalf("Unable to add environment flags: %s", err.Error())
 		}
 		if logLevel := os.Getenv("LOGLEVEL"); logLevel != "" {
-			glog.Infof("Using custom loglevel: %s", logLevel)
+			klog.Infof("Using custom loglevel: %s", logLevel)
 			pflag.CommandLine.Set("-v", logLevel)
 		}
 		pflag.Parse()
 
 		err = env.Initialize()
 		if err != nil {
-			glog.Fatalf("Unable to initialize testing environment: %s", err.Error())
+			klog.Fatalf("Unable to initialize testing environment: %s", err.Error())
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -163,9 +163,9 @@ func (helper *Helper) startAPIServer() {
 	helper.Env().Config.GRPCServer.DisableTLS = true
 	helper.APIServer = server.NewAPIServer(helper.EventBroadcaster)
 	go func() {
-		glog.V(10).Info("Test API server started")
+		klog.V(10).Info("Test API server started")
 		helper.APIServer.Start()
-		glog.V(10).Info("Test API server stopped")
+		klog.V(10).Info("Test API server stopped")
 	}()
 }
 
@@ -179,9 +179,9 @@ func (helper *Helper) stopAPIServer() error {
 func (helper *Helper) startMetricsServer() {
 	helper.MetricsServer = server.NewMetricsServer()
 	go func() {
-		glog.V(10).Info("Test Metrics server started")
+		klog.V(10).Info("Test Metrics server started")
 		helper.MetricsServer.Start()
-		glog.V(10).Info("Test Metrics server stopped")
+		klog.V(10).Info("Test Metrics server stopped")
 	}()
 }
 
@@ -195,9 +195,9 @@ func (helper *Helper) stopMetricsServer() error {
 func (helper *Helper) startHealthCheckServer() {
 	helper.HealthCheckServer = server.NewHealthCheckServer()
 	go func() {
-		glog.V(10).Info("Test health check server started")
+		klog.V(10).Info("Test health check server started")
 		helper.HealthCheckServer.Start()
-		glog.V(10).Info("Test health check server stopped")
+		klog.V(10).Info("Test health check server stopped")
 	}()
 }
 
@@ -218,17 +218,17 @@ func (helper *Helper) startEventServer(ctx context.Context) {
 	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
 	helper.EventServer = server.NewPulseServer(helper.EventBroadcaster)
 	go func() {
-		glog.V(10).Info("Test event server started")
+		klog.V(10).Info("Test event server started")
 		helper.EventServer.Start(ctx)
-		glog.V(10).Info("Test event server stopped")
+		klog.V(10).Info("Test event server stopped")
 	}()
 }
 
 func (helper *Helper) startEventBroadcaster() {
 	go func() {
-		glog.V(10).Info("Test event broadcaster started")
+		klog.V(10).Info("Test event broadcaster started")
 		helper.EventBroadcaster.Start(helper.Ctx)
-		glog.V(10).Info("Test event broadcaster stopped")
+		klog.V(10).Info("Test event broadcaster stopped")
 	}()
 }
 
@@ -264,7 +264,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 	// initilize the mqtt options
 	mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
 	if err != nil {
-		glog.Fatalf("Unable to build MQTT options: %s", err.Error())
+		klog.Fatalf("Unable to build MQTT options: %s", err.Error())
 	}
 
 	var workCodec generic.Codec[*workv1.ManifestWork]
@@ -283,7 +283,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 		WithWorkClientWatcherStore(watcherStore).
 		NewAgentClientHolder(ctx)
 	if err != nil {
-		glog.Fatalf("Unable to create work agent holder: %s", err)
+		klog.Fatalf("Unable to create work agent holder: %s", err)
 	}
 
 	factory := workinformers.NewSharedInformerFactoryWithOptions(
@@ -314,7 +314,7 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 	)
 
 	if err != nil {
-		glog.Fatalf("Unable to create grpc cloudevents source client: %s", err.Error())
+		klog.Fatalf("Unable to create grpc cloudevents source client: %s", err.Error())
 	}
 
 	sourceClient.Subscribe(helper.Ctx, func(action types.ResourceAction, resource *api.Resource) error {
@@ -328,31 +328,31 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 func (helper *Helper) RestartServer() {
 	helper.stopAPIServer()
 	helper.startAPIServer()
-	glog.V(10).Info("Test API server restarted")
+	klog.V(10).Info("Test API server restarted")
 }
 
 func (helper *Helper) RestartMetricsServer() {
 	helper.stopMetricsServer()
 	helper.startMetricsServer()
-	glog.V(10).Info("Test metrics server restarted")
+	klog.V(10).Info("Test metrics server restarted")
 }
 
 func (helper *Helper) Reset() {
-	glog.Infof("Reseting testing environment")
+	klog.Infof("Reseting testing environment")
 	env := environments.Environment()
 	// Reset the configuration
 	env.Config = config.NewApplicationConfig()
 
 	// Re-read command-line configuration into a NEW flagset
 	// This new flag set ensures we don't hit conflicts defining the same flag twice
-	// Also on reset, we don't care to be re-defining 'v' and other glog flags
+	// Also on reset, we don't care to be re-defining 'v' and other klog flags
 	flagset := pflag.NewFlagSet(helper.NewID(), pflag.ContinueOnError)
 	env.AddFlags(flagset)
 	pflag.Parse()
 
 	err := env.Initialize()
 	if err != nil {
-		glog.Fatalf("Unable to reset testing environment: %s", err.Error())
+		klog.Fatalf("Unable to reset testing environment: %s", err.Error())
 	}
 	helper.AppConfig = env.Config
 	helper.RestartServer()
