@@ -9,6 +9,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
+	"github.com/prometheus/client_golang/prometheus"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -42,7 +43,7 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 	}
 
 	// register resource resync metrics for cloud event source client
-	cegeneric.RegisterResourceResyncMetrics()
+	cegeneric.RegisterCloudEventsMetrics(prometheus.DefaultRegisterer)
 
 	return &SourceClientImpl{
 		Codec:                  codec,
