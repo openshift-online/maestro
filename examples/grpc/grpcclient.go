@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"flag"
+	"io"
 	"log"
 	"os"
 
@@ -22,6 +23,7 @@ var (
 	serverAddr         = flag.String("grpc_server", "localhost:8090", "The server address in the format of host:port")
 	serverHostOverride = flag.String("server_host_override", "x.test.example.com", "The server name used to verify the hostname returned by the TLS handshake")
 	cloudEventFile     = flag.String("cloudevents_json_file", "", "The absolute file path containing the CloudEvent resource")
+	subscribeStatus    = flag.Bool("subscribe_status", false, "If true, subscribe to the CloudEvent resource status.")
 )
 
 func main() {
@@ -68,4 +70,33 @@ func main() {
 	log.Printf("=======================================")
 	log.Printf("Published spec with cloudevent:\n%v\n\n", evt)
 	log.Printf("=======================================")
+
+	if *subscribeStatus {
+		subReq := &pbv1.SubscriptionRequest{
+			Source: "grpc",
+		}
+
+		subClient, err := client.Subscribe(ctx, subReq)
+		if err != nil {
+			log.Fatalf("failed to subscribe: %v", err)
+		}
+
+		for {
+			pvEvt, err := subClient.Recv()
+			if err == io.EOF {
+				break
+			}
+			if err != nil {
+				log.Fatalf("failed to receive cloudevent: %v", err)
+			}
+			evt, err := binding.ToEvent(ctx, grpcprotocol.NewMessage(pvEvt))
+			if err != nil {
+				log.Fatalf("failed to convert status from protobuf to cloudevent: %v", err)
+			}
+
+			log.Printf("=======================================")
+			log.Printf("Received status with cloudevent:\n%v\n", evt)
+			log.Printf("=======================================")
+		}
+	}
 }

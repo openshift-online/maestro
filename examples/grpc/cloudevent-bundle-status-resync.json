@@ -1,0 +1,13 @@
+{
+    "specversion": "1.0",
+    "id": "ff8b8e9b-d433-4707-bedd-66d52bbfb9f1",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.status.resync_request",
+    "source": "grpc",
+    "time": "2024-10-15T17:31:05Z",
+    "clustername": "",
+    "originalsource": "",
+    "datacontenttype": "application/json",
+    "data": {
+        "statusHashes": []
+    }
+}
