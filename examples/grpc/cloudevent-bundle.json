@@ -18,36 +18,36 @@
                 }
             },
             {
-            "apiVersion": "apps/v1",
-            "kind": "Deployment",
-            "metadata": {
-                "name": "web",
-                "namespace": "default"
-            },
-            "spec": {
-                "replicas": 1,
-                "selector": {
-                    "matchLabels": {
-                        "app": "web"
-                    }
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {
+                    "name": "web",
+                    "namespace": "default"
                 },
-                "template": {
-                    "metadata": {
-                        "labels": {
+                "spec": {
+                    "replicas": 1,
+                    "selector": {
+                        "matchLabels": {
                             "app": "web"
                         }
                     },
-                    "spec": {
-                        "containers": [
-                            {
-                                "image": "nginxinc/nginx-unprivileged",
-                                "name": "nginx"
+                    "template": {
+                        "metadata": {
+                            "labels": {
+                                "app": "web"
                             }
-                        ]
+                        },
+                        "spec": {
+                            "containers": [
+                                {
+                                    "image": "nginxinc/nginx-unprivileged",
+                                    "name": "nginx"
+                                }
+                            ]
+                        }
                     }
                 }
             }
-        }
         ],
         "deleteOption": {
             "propagationPolicy": "Foreground"

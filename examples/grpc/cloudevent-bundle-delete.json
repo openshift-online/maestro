@@ -1,0 +1,12 @@
+{
+    "specversion": "1.0",
+    "id": "aa27051a-5578-4e03-b737-5d6416d09694",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.spec.delete_request",
+    "source": "grpc",
+    "clustername": "cluster1",
+    "resourceid": "68ebf474-6709-48bb-b760-386181268064",
+    "resourceversion": 1,
+    "deletiontimestamp": "2024-10-15T09:54:06.582625606Z",
+    "datacontenttype": "application/json",
+    "data": {}
+}

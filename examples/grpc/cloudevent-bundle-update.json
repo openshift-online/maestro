@@ -1,0 +1,80 @@
+{
+    "specversion": "1.0",
+    "id": "9dbcc8ec-c92e-4686-8ea3-0a0def70fa06",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.spec.update_request",
+    "source": "grpc",
+    "clustername": "cluster1",
+    "resourceid": "68ebf474-6709-48bb-b760-386181268064",
+    "resourceversion": 1,
+    "datacontenttype": "application/json",
+    "data": {
+        "manifests": [
+            {
+                "apiVersion": "v1",
+                "kind": "ConfigMap",
+                "metadata": {
+                    "name": "web",
+                    "namespace": "default"
+                }
+            },
+            {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {
+                    "name": "web",
+                    "namespace": "default"
+                },
+                "spec": {
+                    "replicas": 2,
+                    "selector": {
+                        "matchLabels": {
+                            "app": "web"
+                        }
+                    },
+                    "template": {
+                        "metadata": {
+                            "labels": {
+                                "app": "web"
+                            }
+                        },
+                        "spec": {
+                            "containers": [
+                                {
+                                    "image": "nginxinc/nginx-unprivileged",
+                                    "name": "nginx"
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        ],
+        "deleteOption": {
+            "propagationPolicy": "Foreground"
+        },
+        "manifestConfigs": [
+            {
+                "resourceIdentifier": {
+                    "group": "apps",
+                    "resource": "deployments",
+                    "namespace": "default",
+                    "name": "web"
+                },
+                "feedbackRules": [
+                    {
+                        "type": "JSONPaths",
+                        "jsonPaths": [
+                            {
+                                "name": "status",
+                                "path": ".status"
+                            }
+                        ]
+                    }
+                ],
+                "updateStrategy": {
+                    "type": "ServerSideApply"
+                }
+            }
+        ]
+    }
+}
