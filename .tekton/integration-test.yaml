@@ -124,7 +124,7 @@ spec:
             volumeMounts:
               - mountPath: /work
                 name: pgdata
-          - image: docker.io/library/eclipse-mosquitto:2.0.18
+          - image: docker.io/library/eclipse-mosquitto:2.0.20
             name: mqtt-test
             volumeMounts:
               - mountPath: /mosquitto/data
