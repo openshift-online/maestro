@@ -60,7 +60,7 @@ mqtt_password_file=${PWD}/secrets/mqtt.password
 mqtt_config_file=${PWD}/secrets/mqtt.config
 
 # Log verbosity level
-klog_v:=10
+klog_v:=4
 
 # Location of the JSON web key set used to verify tokens:
 jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
@@ -126,11 +126,11 @@ GOLANGCI_LINT_BIN:=$(shell go env GOPATH)/bin/golangci-lint
 ### Envrionment-sourced variables with defaults
 # Can be overriden by setting environment var before running
 # Example:
-#   OCM_ENV=testing make run
-#   export OCM_ENV=testing; make run
+#   MAESTRO_ENV=testing make run
+#   export MAESTRO_ENV=testing; make run
 # Set the environment to development by default
-ifndef OCM_ENV
-	OCM_ENV:=development
+ifndef MAESTRO_ENV
+	MAESTRO_ENV:=development
 endif
 
 ifndef TEST_SUMMARY_FORMAT
@@ -202,7 +202,7 @@ install: check-gopath
 # Examples:
 #   make test TESTFLAGS="-run TestSomething"
 test:
-	OCM_ENV=testing gotestsum --jsonfile-timing-events=$(unit_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -v $(TESTFLAGS) \
+	MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(unit_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -v $(TESTFLAGS) \
 		./pkg/... \
 		./cmd/...
 .PHONY: test
@@ -218,7 +218,7 @@ test:
 #   make test-integration TESTFLAGS="-run TestAccountsGet"  runs TestAccountsGet
 #   make test-integration TESTFLAGS="-short"                skips long-run tests
 test-integration:
-	OCM_ENV=testing gotestsum --jsonfile-timing-events=$(integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration
 
@@ -268,7 +268,7 @@ cmds:
 		--filename="templates/$*-template.yml" \
 		--local="true" \
 		--ignore-unknown-parameters="true" \
-		--param="ENVIRONMENT=$(OCM_ENV)" \
+		--param="ENVIRONMENT=$(MAESTRO_ENV)" \
 		--param="KLOG_V=$(klog_v)" \
 		--param="SERVER_REPLICAS=$(SERVER_REPLICAS)" \
 		--param="DATABASE_HOST=$(db_host)" \

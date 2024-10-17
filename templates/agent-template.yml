@@ -14,6 +14,11 @@ labels:
   template: maestro-agent
 parameters:
 
+- name: ENVIRONMENT
+  displayName: Environment
+  description: Which maestro environment to use for this deployment
+  value: production
+
 - name: AGENT_NAMESPACE
   description: namespace of maestro agent
 
@@ -32,6 +37,11 @@ parameters:
 - name: IMAGE_TAG
   displayName: Image tag
   value: latest
+
+- name: KLOG_V
+  displayName: KLOG V Level
+  description: Log verbosity level
+  value: "3"
 
 - name: MESSAGE_DRIVER_TYPE
   displayName: Message Driver Type
@@ -290,6 +300,9 @@ objects:
         - name: maestro-agent
           image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
           imagePullPolicy: IfNotPresent
+          env:
+            - name: "MAESTRO_ENV"
+              value: "${ENVIRONMENT}"
           command:
             - /usr/local/bin/maestro
             - agent
@@ -297,6 +310,7 @@ objects:
             - --workload-source-driver=${MESSAGE_DRIVER_TYPE}
             - --workload-source-config=/secrets/${MESSAGE_DRIVER_TYPE}/config.yaml
             - --cloudevents-client-id=${CONSUMER_NAME}-work-agent
+            - -v=${KLOG_V}
           volumeMounts:
           - name: ${MESSAGE_DRIVER_TYPE}
             mountPath: /secrets/${MESSAGE_DRIVER_TYPE}
