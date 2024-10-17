@@ -500,36 +500,41 @@ func (helper *Helper) CreateGRPCAuthRule(ctx context.Context, kubeClient kuberne
 }
 
 func (helper *Helper) CreateGRPCConn(serverAddr, serverCAFile, tokenFile string) (*grpc.ClientConn, error) {
-	certPool, err := x509.SystemCertPool()
-	if err != nil {
-		return nil, err
+	if serverCAFile == "" || tokenFile == "" {
+		// no TLS and authz
+		return grpc.Dial(serverAddr, grpc.WithInsecure())
+	} else {
+		certPool, err := x509.SystemCertPool()
+		if err != nil {
+			return nil, err
+		}
+
+		caPEM, err := os.ReadFile(serverCAFile)
+		if err != nil {
+			return nil, err
+		}
+
+		ok := certPool.AppendCertsFromPEM(caPEM)
+		if !ok {
+			return nil, fmt.Errorf("failed to append server CA certificate")
+		}
+
+		tlsConfig := &tls.Config{
+			RootCAs:    certPool,
+			MinVersion: tls.VersionTLS13,
+			MaxVersion: tls.VersionTLS13,
+		}
+
+		token, err := os.ReadFile(tokenFile)
+		if err != nil {
+			return nil, err
+		}
+
+		perRPCCred := oauth.TokenSource{
+			TokenSource: oauth2.StaticTokenSource(&oauth2.Token{
+				AccessToken: string(token),
+			})}
+
+		return grpc.Dial(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithPerRPCCredentials(perRPCCred))
 	}
-
-	caPEM, err := os.ReadFile(serverCAFile)
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(caPEM)
-	if !ok {
-		return nil, fmt.Errorf("failed to append server CA certificate")
-	}
-
-	tlsConfig := &tls.Config{
-		RootCAs:    certPool,
-		MinVersion: tls.VersionTLS13,
-		MaxVersion: tls.VersionTLS13,
-	}
-
-	token, err := os.ReadFile(tokenFile)
-	if err != nil {
-		return nil, err
-	}
-
-	perRPCCred := oauth.TokenSource{
-		TokenSource: oauth2.StaticTokenSource(&oauth2.Token{
-			AccessToken: string(token),
-		})}
-
-	return grpc.Dial(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithPerRPCCredentials(perRPCCred))
 }
