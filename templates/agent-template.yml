@@ -41,7 +41,7 @@ parameters:
 - name: KLOG_V
   displayName: KLOG V Level
   description: Log verbosity level
-  value: "1"
+  value: "3"
 
 - name: MESSAGE_DRIVER_TYPE
   displayName: Message Driver Type
