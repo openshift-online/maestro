@@ -33,7 +33,7 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			workName = "work-" + rand.String(5)
 			work := NewManifestWork(workName)
 			Eventually(func() error {
-				_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+				_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 				return err
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 
@@ -42,7 +42,7 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 		})
 
 		AfterEach(func() {
-			err := workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -53,7 +53,7 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 
 		It("Should return an error when updating an obsolete work", func() {
 			By("update a work by work client")
-			work, err := workClient.ManifestWorks(consumer.Name).Get(ctx, workName, metav1.GetOptions{})
+			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			newWork := work.DeepCopy()
@@ -61,7 +61,7 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			patchData, err := grpcsource.ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("update the work by work client again")
@@ -70,7 +70,7 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			patchData, err = grpcsource.ToWorkPatch(work, obsoleteWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).Should(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "the resource version is not the latest")).Should(BeTrue())
 
@@ -93,20 +93,20 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			initWorkAName = "init-work-a-" + rand.String(5)
 			work := NewManifestWorkWithLabels(initWorkAName, map[string]string{"app": "test"})
 
-			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			initWorkBName = "init-work-b-" + rand.String(5)
 			work = NewManifestWorkWithLabels(initWorkBName, map[string]string{"app": "test"})
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
-			err := workClient.ManifestWorks(consumer.Name).Delete(ctx, initWorkAName, metav1.DeleteOptions{})
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, initWorkAName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, initWorkBName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, initWorkBName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -131,20 +131,20 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("start watching")
-			watcher, err := watcherClient.ManifestWorks(consumer.Name).Watch(watcherCtx, metav1.ListOptions{})
+			watcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			result := StartWatch(watcherCtx, watcher)
 
 			By("create a work by work client")
 			workName := "work-" + rand.String(5)
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("update a work by work client")
-			work, err := workClient.ManifestWorks(consumer.Name).Get(ctx, workName, metav1.GetOptions{})
+			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			newWork := work.DeepCopy()
@@ -152,14 +152,14 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			patchData, err := grpcsource.ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = workClient.ManifestWorks(consumer.Name).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the work status is updated by agent
 			<-time.After(5 * time.Second)
 
 			By("delete the work by work client")
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -181,8 +181,8 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			Expect(err).ShouldNot(HaveOccurred())
 			allConsumerWatcherResult := StartWatch(watcherCtx, allConsumerWatcher)
 
-			By("start watching works from consumer" + consumer.Name)
-			consumerWatcher, err := watcherClient.ManifestWorks(consumer.Name).Watch(watcherCtx, metav1.ListOptions{})
+			By("start watching works from consumer" + agentTestOpts.consumerName)
+			consumerWatcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			consumerWatcherResult := StartWatch(watcherCtx, consumerWatcher)
 
@@ -193,14 +193,14 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 
 			By("create a work by work client")
 			workName := "work-" + rand.String(5)
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("delete the work by work client")
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -229,7 +229,7 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("start watching with label app=test")
-			watcher, err := watcherClient.ManifestWorks(consumer.Name).Watch(watcherCtx, metav1.ListOptions{
+			watcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{
 				LabelSelector: "app=test",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -238,14 +238,14 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			By("create a work by work client")
 			workName := "work-" + rand.String(5)
 			work := NewManifestWorkWithLabels(workName, map[string]string{"app": "test"})
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("delete the work by work client")
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -265,27 +265,27 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 			// prepare works firstly
 			workName = "work-" + rand.String(5)
 			work := NewManifestWork(workName)
-			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			prodWorkName = "work-production" + rand.String(5)
 			work = NewManifestWorkWithLabels(prodWorkName, map[string]string{"app": "test", "env": "production"})
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkAName = "work-integration-a-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkAName, map[string]string{"app": "test", "env": "integration", "val": "a"})
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkBName = "work-integration-b-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkBName, map[string]string{"app": "test", "env": "integration", "val": "b"})
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkCName = "work-integration-c-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkCName, map[string]string{"app": "test", "env": "integration", "val": "c"})
-			_, err = workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
@@ -293,19 +293,19 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 		})
 
 		AfterEach(func() {
-			err := workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, prodWorkName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, prodWorkName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, testWorkAName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkAName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, testWorkBName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkBName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = workClient.ManifestWorks(consumer.Name).Delete(ctx, testWorkCName, metav1.DeleteOptions{})
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkCName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -331,57 +331,57 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 
 		It("List works with options", func() {
 			By("list all works")
-			works, err := workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+			works, err := sourceWorkClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works by consumer name")
-			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{})
+			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works by nonexistent consumer")
-			works, err = workClient.ManifestWorks("nonexistent").List(ctx, metav1.ListOptions{})
+			works, err = sourceWorkClient.ManifestWorks("nonexistent").List(ctx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
 
 			By("list works with nonexistent labels")
-			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
+			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
 				LabelSelector: "nonexistent=true",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
 
 			By("list works with app label")
-			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
+			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
 				LabelSelector: "app=test",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works without test env")
-			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
+			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
 				LabelSelector: "app=test,env!=integration",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName)).ShouldNot(HaveOccurred())
 
 			By("list works in prod and test env")
-			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
+			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
 				LabelSelector: "env in (production, integration)",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works in test env and val not in a and b")
-			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
+			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
 				LabelSelector: "env=integration,val notin (a,b)",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(AssertWorks(works.Items, testWorkCName)).ShouldNot(HaveOccurred())
 
 			By("list works with val label")
-			works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
+			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
 				LabelSelector: "val",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -389,7 +389,7 @@ var _ = Describe("Source ManifestWork Client", Ordered, Label("e2e-tests-source-
 
 			// TODO support does not exist
 			// By("list works without val label")
-			// works, err = workClient.ManifestWorks(consumer.Name).List(ctx, metav1.ListOptions{
+			// works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
 			// 	LabelSelector: "!val",
 			// })
 			// Expect(err).ShouldNot(HaveOccurred())
@@ -476,7 +476,7 @@ func AssertWatchResult(result *WatchedResult) error {
 }
 
 func AssertWorkNotFound(name string) error {
-	_, err := workClient.ManifestWorks(consumer.Name).Get(ctx, name, metav1.GetOptions{})
+	_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, name, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
 		return nil
 	}

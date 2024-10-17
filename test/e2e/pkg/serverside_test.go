@@ -64,7 +64,7 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 
 		res := openapi.Resource{
 			Manifest:     manifest,
-			ConsumerName: &consumer.Name,
+			ConsumerName: &agentTestOpts.consumerName,
 		}
 
 		created, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
@@ -121,12 +121,12 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 		nestedWorkNamespace := "default"
 
 		work := NewNestedManifestWork(nestedWorkNamespace, workName, nestedWorkName)
-		_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, work, metav1.CreateOptions{})
+		_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 
 		// make sure the nested work is created
 		Eventually(func() error {
-			_, err := kubeWorkClient.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
+			_, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -136,7 +136,7 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 
 		// make sure the nested work is not updated
 		Consistently(func() error {
-			nestedWork, err := kubeWorkClient.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
+			nestedWork, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
 			if err != nil {
 				return err
 			}
@@ -148,7 +148,7 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 			return nil
 		}, 1*time.Minute, 1*time.Second).Should(BeNil())
 
-		err = workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+		err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 })
