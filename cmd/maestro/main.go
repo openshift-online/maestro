@@ -51,6 +51,12 @@ func main() {
 
 		// zap log level is the inverse of klog log level, for more details refer to:
 		// https://github.com/go-logr/zapr?tab=readme-ov-file#increasing-verbosity
+		// zap level mapping to klog level:
+		// fatal: -5, panic: -4, dpanic: -3, error: -2, warn: -1, info: 0, debug: 1
+		// the higher the log level, the more verbose the logs:
+		// if the log level is 0, it will log everything except debug logs;
+		// if the log level is 1, it will log everything including debug logs;
+		// if the log level is 2 or higher, it will log everything including klog verbose logs.
 		zc.Level = zap.NewAtomicLevelAt(zapcore.Level(0 - logLevel))
 		// Disable stacktrace for production environment
 		zc.DisableStacktrace = true
