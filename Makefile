@@ -422,6 +422,7 @@ e2e-test: e2e-test/teardown e2e-test/setup
 	${PWD}/test/e2e/pkg -- \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
 	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \
+	-server-kubeconfig=${PWD}/test/e2e/.kubeconfig \
 	-consumer-name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
-	-consumer-kubeconfig=${PWD}/test/e2e/.kubeconfig
+	-agent-kubeconfig=${PWD}/test/e2e/.kubeconfig
 .PHONY: e2e-test
