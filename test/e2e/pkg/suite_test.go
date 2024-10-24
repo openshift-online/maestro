@@ -31,6 +31,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/test"
+	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
 )
 
 type agentTestOptions struct {
@@ -173,6 +174,16 @@ var _ = AfterSuite(func() {
 	grpcConn.Close()
 	os.RemoveAll(grpcCertDir)
 	cancel()
+})
+
+var _ = ReportAfterSuite("Maestro e2e Test Report", func(report Report) {
+	junitReportFile := os.Getenv("JUNIT_REPORT_FILE")
+	if junitReportFile != "" {
+		err := reporter.GenerateJUnitReport(report, junitReportFile)
+		if err != nil {
+			log.Printf("Failed to generate the report due to: %v", err)
+		}
+	}
 })
 
 func dumpDebugInfo() {
