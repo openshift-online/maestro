@@ -1,0 +1,38 @@
+{
+    "name": "nginx",
+    "consumer_name": "cluster1",
+    "version": 1,
+    "manifest": {
+        "apiVersion": "apps/v1",
+        "kind": "Deployment",
+        "metadata": {
+            "name": "nginx",
+            "namespace": "default"
+        },
+        "spec": {
+            "replicas": 1,
+            "selector": {
+                "matchLabels": {
+                    "app": "nginx"
+                }
+            },
+            "template": {
+                "metadata": {
+                    "labels": {
+                        "app": "nginx"
+                    }
+                },
+                "spec": {
+                    "serviceAccount": "nginx",
+                    "containers": [
+                        {
+                            "image": "nginxinc/nginx-unprivileged",
+                            "imagePullPolicy": "IfNotPresent",
+                            "name": "nginx"
+                        }
+                    ]
+                }
+            }
+        }
+    }
+}
