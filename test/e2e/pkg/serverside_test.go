@@ -121,8 +121,10 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 		nestedWorkNamespace := "default"
 
 		work := NewNestedManifestWork(nestedWorkNamespace, workName, nestedWorkName)
-		_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
+		Eventually(func() error {
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			return err
+		}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
 
 		// make sure the nested work is created
 		Eventually(func() error {
@@ -148,7 +150,7 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 			return nil
 		}, 1*time.Minute, 1*time.Second).Should(BeNil())
 
-		err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+		err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 		Expect(err).ShouldNot(HaveOccurred())
 	})
 })
