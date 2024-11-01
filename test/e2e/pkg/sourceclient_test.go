@@ -418,10 +418,12 @@ func StartWatch(ctx context.Context, watcher watch.Interface) *WatchedResult {
 				switch event.Type {
 				case watch.Modified:
 					if work, ok := event.Object.(*workv1.ManifestWork); ok {
+						fmt.Printf("=====> modified, %v, %v\n", work.CreationTimestamp, work.DeletionTimestamp)
 						result.WatchedWorks = append(result.WatchedWorks, work)
 					}
 				case watch.Deleted:
 					if work, ok := event.Object.(*workv1.ManifestWork); ok {
+						fmt.Printf("=====> deleted, %v, %v\n", work.CreationTimestamp, work.DeletionTimestamp)
 						result.WatchedWorks = append(result.WatchedWorks, work)
 					}
 				}
