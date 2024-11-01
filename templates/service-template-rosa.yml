@@ -159,7 +159,7 @@ objects:
       selector:
         matchLabels:
           app: maestro
-      replicas: ${SERVER_REPLICAS}
+      replicas: ${{SERVER_REPLICAS}}
       strategy:
         rollingUpdate:
           maxSurge: 25%
