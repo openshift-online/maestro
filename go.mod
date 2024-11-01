@@ -51,9 +51,9 @@ require (
 	k8s.io/client-go v0.30.3
 	k8s.io/component-base v0.30.3
 	k8s.io/klog/v2 v2.130.1
-	open-cluster-management.io/api v0.14.1-0.20240627145512-bd6f2229b53c
-	open-cluster-management.io/ocm v0.14.1-0.20240906021855-b6763a13c0ff
-	open-cluster-management.io/sdk-go v0.14.1-0.20241009075853-0c5ba39fd113
+	open-cluster-management.io/api v0.15.0
+	open-cluster-management.io/ocm v0.15.0
+	open-cluster-management.io/sdk-go v0.15.1-0.20241031061311-f50d6e83dae3
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -73,7 +73,7 @@ require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.3.0 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/eclipse/paho.golang v0.21.0 // indirect
@@ -84,7 +84,7 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.19.6 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
-	github.com/go-openapi/swag v0.22.3 // indirect
+	github.com/go-openapi/swag v0.22.4 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
