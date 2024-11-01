@@ -429,44 +429,17 @@ func (bkr *GRPCBroker) OnDelete(ctx context.Context, id string) error {
 // It does two things:
 // 1. build the resource status and broadcast it to subscribers
 // 2. add the event instance record to mark the event has been processed by the current instance
-// TODO consider using a same way (MessageQueueEventServer.OnStatusUpdate) to handle this
 func (bkr *GRPCBroker) OnStatusUpdate(ctx context.Context, eventID, resourceID string) error {
-	statusEvent, sErr := bkr.statusEventService.Get(ctx, eventID)
-	if sErr != nil {
-		return fmt.Errorf("failed to get status event %s: %s", eventID, sErr.Error())
-	}
-
-	var resource *api.Resource
-	// check if the status event is delete event
-	if statusEvent.StatusEventType == api.StatusDeleteEventType {
-		// build resource with resource id and delete status
-		resource = &api.Resource{
-			Meta: api.Meta{
-				ID: resourceID,
-			},
-			Source:  statusEvent.ResourceSource,
-			Type:    statusEvent.ResourceType,
-			Payload: statusEvent.Payload,
-			Status:  statusEvent.Status,
-		}
-	} else {
-		resource, sErr = bkr.resourceService.Get(ctx, resourceID)
-		if sErr != nil {
-			return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
-		}
-	}
-
-	// broadcast the resource status to subscribers
-	log.V(4).Infof("Broadcast the resource status %s", resource.ID)
-	bkr.eventBroadcaster.Broadcast(resource)
-
-	// add the event instance record
-	_, err := bkr.eventInstanceDao.Create(ctx, &api.EventInstance{
-		EventID:    eventID,
-		InstanceID: bkr.instanceID,
-	})
-
-	return err
+	return broadcastStatusEvent(
+		ctx,
+		bkr.statusEventService,
+		bkr.resourceService,
+		bkr.eventInstanceDao,
+		bkr.eventBroadcaster,
+		bkr.instanceID,
+		eventID,
+		resourceID,
+	)
 }
 
 // IsConsumerSubscribed returns true if the consumer is subscribed to the broker for resource spec.

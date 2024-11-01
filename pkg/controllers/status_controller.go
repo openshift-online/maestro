@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
@@ -16,16 +17,22 @@ const StatusEventID ControllerHandlerContextKey = "status_event"
 type StatusHandlerFunc func(ctx context.Context, eventID, sourceID string) error
 
 type StatusController struct {
-	controllers  map[api.StatusEventType][]StatusHandlerFunc
-	statusEvents services.StatusEventService
-	eventsQueue  workqueue.RateLimitingInterface
+	controllers      map[api.StatusEventType][]StatusHandlerFunc
+	statusEvents     services.StatusEventService
+	instanceDao      dao.InstanceDao
+	eventInstanceDao dao.EventInstanceDao
+	eventsQueue      workqueue.RateLimitingInterface
 }
 
-func NewStatusController(statusEvents services.StatusEventService) *StatusController {
+func NewStatusController(statusEvents services.StatusEventService,
+	instanceDao dao.InstanceDao,
+	eventInstanceDao dao.EventInstanceDao) *StatusController {
 	return &StatusController{
-		controllers:  map[api.StatusEventType][]StatusHandlerFunc{},
-		statusEvents: statusEvents,
-		eventsQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status-event-controller"),
+		controllers:      map[api.StatusEventType][]StatusHandlerFunc{},
+		statusEvents:     statusEvents,
+		instanceDao:      instanceDao,
+		eventInstanceDao: eventInstanceDao,
+		eventsQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status-event-controller"),
 	}
 }
 
@@ -38,9 +45,8 @@ func (sc *StatusController) Run(stopCh <-chan struct{}) {
 	logger.Infof("Starting status event controller")
 	defer sc.eventsQueue.ShutDown()
 
-	// TODO: start a goroutine to sync all status events periodically
 	// use a jitter to avoid multiple instances syncing the events at the same time
-	// go wait.JitterUntil(sc.syncStatusEvents, defaultEventsSyncPeriod, 0.25, true, stopCh)
+	go wait.JitterUntil(sc.syncStatusEvents, defaultEventsSyncPeriod, 0.25, true, stopCh)
 
 	// start a goroutine to handle the status event from the event queue
 	// the .Until will re-kick the runWorker one second after the runWorker completes
@@ -51,35 +57,35 @@ func (sc *StatusController) Run(stopCh <-chan struct{}) {
 	logger.Infof("Shutting down status event controller")
 }
 
-func (sm *StatusController) runWorker() {
+func (sc *StatusController) runWorker() {
 	// hot loop until we're told to stop. processNextEvent will automatically wait until there's work available, so
 	// we don't worry about secondary waits
-	for sm.processNextEvent() {
+	for sc.processNextEvent() {
 	}
 }
 
 // processNextEvent deals with one key off the queue.
-func (sm *StatusController) processNextEvent() bool {
+func (sc *StatusController) processNextEvent() bool {
 	// pull the next status event item from queue.
 	// events queue blocks until it can return an item to be processed
-	key, quit := sm.eventsQueue.Get()
+	key, quit := sc.eventsQueue.Get()
 	if quit {
 		// the current queue is shutdown and becomes empty, quit this process
 		return false
 	}
-	defer sm.eventsQueue.Done(key)
+	defer sc.eventsQueue.Done(key)
 
-	if err := sm.handleStatusEvent(key.(string)); err != nil {
+	if err := sc.handleStatusEvent(key.(string)); err != nil {
 		logger.Error(fmt.Sprintf("Failed to handle the event %v, %v ", key, err))
 
 		// we failed to handle the status event, we should requeue the item to work on later
 		// this method will add a backoff to avoid hotlooping on particular items
-		sm.eventsQueue.AddRateLimited(key)
+		sc.eventsQueue.AddRateLimited(key)
 		return true
 	}
 
 	// we handle the status event successfully, tell the queue to stop tracking history for this status event
-	sm.eventsQueue.Forget(key)
+	sc.eventsQueue.Forget(key)
 	return true
 }
 
@@ -130,4 +136,43 @@ func (sc *StatusController) add(ev api.StatusEventType, fns []StatusHandlerFunc)
 	}
 
 	sc.controllers[ev] = append(sc.controllers[ev], fns...)
+}
+
+func (sc *StatusController) syncStatusEvents() {
+	ctx := context.Background()
+
+	readyInstanceIDs, err := sc.instanceDao.FindReadyIDs(ctx)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to find ready instances from db, %v", err))
+		return
+	}
+	logger.Infof("purge status events on the ready instances: %s", readyInstanceIDs)
+
+	// find the status events that already were dispatched to all ready instances
+	statusEventIDs, err := sc.eventInstanceDao.GetEventsAssociatedWithInstances(ctx, readyInstanceIDs)
+	if err != nil {
+		logger.Error(fmt.Sprintf("Failed to find handled status events from db, %v", err))
+		return
+	}
+
+	// batch delete the handled status events
+	batches := batchStatusEventIDs(statusEventIDs, 500)
+	for _, batch := range batches {
+		if err := sc.statusEvents.DeleteAllEvents(ctx, batch); err != nil {
+			logger.Error(fmt.Sprintf("Failed to delete handled status events from db, %v", err))
+			return
+		}
+	}
+}
+
+func batchStatusEventIDs(statusEventIDs []string, batchSize int) [][]string {
+	batches := [][]string{}
+	for i := 0; i < len(statusEventIDs); i += batchSize {
+		end := i + batchSize
+		if end > len(statusEventIDs) {
+			end = len(statusEventIDs)
+		}
+		batches = append(batches, statusEventIDs[i:end])
+	}
+	return batches
 }

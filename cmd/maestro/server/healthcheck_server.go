@@ -117,6 +117,7 @@ func (s *HealthCheckServer) pulse(ctx context.Context) {
 			return
 		}
 		klog.Errorf("Unable to get maestro instance: %s", err.Error())
+		return
 	}
 	found.LastHeartbeat = time.Now()
 	_, err = s.instanceDao.Replace(ctx, found)

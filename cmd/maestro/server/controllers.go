@@ -5,6 +5,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/controllers"
+	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 
 	"github.com/openshift-online/maestro/pkg/logger"
@@ -18,6 +19,8 @@ func NewControllersServer(eventServer EventServer) *ControllersServer {
 		),
 		StatusController: controllers.NewStatusController(
 			env().Services.StatusEvents(),
+			dao.NewInstanceDao(&env().Database.SessionFactory),
+			dao.NewEventInstanceDao(&env().Database.SessionFactory),
 		),
 	}
 
