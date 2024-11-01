@@ -202,6 +202,7 @@ func (km *KindControllerManager) processNextEvent() bool {
 }
 
 func (km *KindControllerManager) syncEvents() {
+	logger.Infof("purge all reconciled events")
 	// delete the reconciled events from the database firstly
 	if err := km.events.DeleteAllReconciledEvents(context.Background()); err != nil {
 		// this process is called periodically, so if the error happened, we will wait for the next cycle to handle
@@ -210,6 +211,7 @@ func (km *KindControllerManager) syncEvents() {
 		return
 	}
 
+	logger.Infof("sync all unreconciled events")
 	unreconciledEvents, err := km.events.FindAllUnreconciledEvents(context.Background())
 	if err != nil {
 		logger.Error(fmt.Sprintf("Failed to list unreconciled events from db, %v", err))

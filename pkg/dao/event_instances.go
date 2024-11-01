@@ -12,6 +12,9 @@ import (
 type EventInstanceDao interface {
 	Get(ctx context.Context, eventID, instanceID string) (*api.EventInstance, error)
 	Create(ctx context.Context, eventInstance *api.EventInstance) (*api.EventInstance, error)
+
+	FindStatusEvents(ctx context.Context, ids []string) (api.EventInstanceList, error)
+	GetEventsAssociatedWithInstances(ctx context.Context, instanceIDs []string) ([]string, error)
 }
 
 var _ EventInstanceDao = &sqlEventInstanceDao{}
@@ -42,4 +45,37 @@ func (d *sqlEventInstanceDao) Create(ctx context.Context, eventInstance *api.Eve
 		return nil, err
 	}
 	return eventInstance, nil
+}
+
+func (d *sqlEventInstanceDao) FindStatusEvents(ctx context.Context, ids []string) (api.EventInstanceList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	eventInstances := api.EventInstanceList{}
+	if err := g2.Where("event_id in (?)", ids).Find(&eventInstances).Error; err != nil {
+		return nil, err
+	}
+	return eventInstances, nil
+}
+
+func (d *sqlEventInstanceDao) GetEventsAssociatedWithInstances(ctx context.Context, instanceIDs []string) ([]string, error) {
+	var eventIDs []string
+
+	instanceCount := len(instanceIDs)
+	if instanceCount == 0 {
+		return eventIDs, nil
+	}
+
+	g2 := (*d.sessionFactory).New(ctx)
+
+	// Currently, the instance table should be small, if the instance table become to large,
+	// consider using join to optimize
+	if err := g2.Table("event_instances").
+		Select("event_id").
+		Where("instance_id IN ?", instanceIDs).
+		Group("event_id").
+		Having("COUNT(DISTINCT instance_id) = ?", instanceCount).
+		Scan(&eventIDs).Error; err != nil {
+		return nil, err
+	}
+
+	return eventIDs, nil
 }

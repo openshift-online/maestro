@@ -85,6 +85,8 @@ func TestControllerRacing(t *testing.T) {
 				),
 				StatusController: controllers.NewStatusController(
 					h.Env().Services.StatusEvents(),
+					dao.NewInstanceDao(&h.Env().Database.SessionFactory),
+					dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
 				),
 			}
 
@@ -181,6 +183,8 @@ func TestControllerReconcile(t *testing.T) {
 			),
 			StatusController: controllers.NewStatusController(
 				h.Env().Services.StatusEvents(),
+				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
+				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
 			),
 		}
 
@@ -312,6 +316,8 @@ func TestControllerSync(t *testing.T) {
 			),
 			StatusController: controllers.NewStatusController(
 				h.Env().Services.StatusEvents(),
+				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
+				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
 			),
 		}
 
@@ -343,6 +349,157 @@ func TestControllerSync(t *testing.T) {
 
 		return nil
 	}, 5*time.Second, 1*time.Second).Should(Succeed())
+
+	// cancel the context to stop the controller manager
+	cancel()
+}
+
+func TestStatusControllerSync(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+
+	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
+	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
+	eventInstanceDao := dao.NewEventInstanceDao(&h.Env().Database.SessionFactory)
+
+	// prepare instances
+	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
+		Meta: api.Meta{ID: "i1"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := instanceDao.Create(ctx, &api.ServerInstance{Meta: api.Meta{ID: "i2"}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
+		Meta: api.Meta{ID: "i3"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+
+	// prepare events
+	evt1, err := statusEventDao.Create(ctx, &api.StatusEvent{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evt2, err := statusEventDao.Create(ctx, &api.StatusEvent{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evt3, err := statusEventDao.Create(ctx, &api.StatusEvent{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evt4, err := statusEventDao.Create(ctx, &api.StatusEvent{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	evt5, err := statusEventDao.Create(ctx, &api.StatusEvent{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	readyInstances, err := instanceDao.FindReadyIDs(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// prepare event-instances
+	for _, id := range readyInstances {
+		if _, err := eventInstanceDao.Create(ctx, &api.EventInstance{InstanceID: id, EventID: evt1.ID}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := eventInstanceDao.Create(ctx, &api.EventInstance{InstanceID: id, EventID: evt2.ID}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := eventInstanceDao.Create(ctx, &api.EventInstance{InstanceID: "i2", EventID: evt1.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eventInstanceDao.Create(ctx, &api.EventInstance{InstanceID: "i1", EventID: evt3.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eventInstanceDao.Create(ctx, &api.EventInstance{InstanceID: "i2", EventID: evt3.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eventInstanceDao.Create(ctx, &api.EventInstance{InstanceID: "i1", EventID: evt4.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := eventInstanceDao.Create(ctx, &api.EventInstance{InstanceID: "i3", EventID: evt5.ID}); err != nil {
+		t.Fatal(err)
+	}
+
+	// start the controller
+	go func() {
+		s := &server.ControllersServer{
+			KindControllerManager: controllers.NewKindControllerManager(
+				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+				h.Env().Services.Events(),
+			),
+			StatusController: controllers.NewStatusController(
+				h.Env().Services.StatusEvents(),
+				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
+				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
+			),
+		}
+
+		s.Start(ctx)
+	}()
+
+	purged := []string{evt1.ID, evt2.ID}
+	remained := []string{evt3.ID, evt4.ID, evt5.ID}
+	Eventually(func() error {
+		events, err := statusEventDao.FindByIDs(ctx, remained)
+		if err != nil {
+			return err
+		}
+
+		if len(events) != 3 {
+			return fmt.Errorf("should have events %s remained, but got %v", remained, events)
+		}
+
+		events, err = statusEventDao.FindByIDs(ctx, purged)
+		if err != nil {
+			return err
+		}
+
+		if len(events) != 0 {
+			return fmt.Errorf("should purge the events %s, but got %+v", purged, events)
+		}
+
+		eventInstances, err := eventInstanceDao.FindStatusEvents(ctx, purged)
+		if err != nil {
+			return err
+		}
+		if len(eventInstances) != 0 {
+			return fmt.Errorf("should purge the event-instances %s, but got %+v", purged, eventInstances)
+		}
+
+		if _, err := eventInstanceDao.Get(ctx, evt3.ID, "i1"); err != nil {
+			return fmt.Errorf("%s-%s is not found", "e3", "i1")
+		}
+		if _, err := eventInstanceDao.Get(ctx, evt3.ID, "i2"); err != nil {
+			return fmt.Errorf("%s-%s is not found", "e3", "i2")
+		}
+		if _, err := eventInstanceDao.Get(ctx, evt4.ID, "i1"); err != nil {
+			return fmt.Errorf("%s-%s is not found", "e4", "i1")
+		}
+		if _, err := eventInstanceDao.Get(ctx, evt5.ID, "i3"); err != nil {
+			return fmt.Errorf("%s-%s is not found", "e5", "i3")
+		}
+
+		return nil
+	}, 5*time.Second, 1*time.Second).Should(Succeed())
+
+	// cleanup
+	for _, evtID := range remained {
+		if err := statusEventDao.Delete(ctx, evtID); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := instanceDao.DeleteByIDs(ctx, []string{"i1", "i2", "i3"}); err != nil {
+		t.Fatal(err)
+	}
 
 	// cancel the context to stop the controller manager
 	cancel()
