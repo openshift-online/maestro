@@ -1,31 +1,15 @@
 # Maestro ARO-HCP Env Setup
 
-## Background
-
-The idea of this directory is to provide means to create a development or testing environment that resemble the (future) production setup in a repeatable way. In order to do so, the creation of all infrastructure resources is based on bicep templates and parameter files.
-
 ## Prerequisites
 
 * `az` version >= 2.60, `jq`, `make`, [kubelogin](https://azure.github.io/kubelogin/install.html), `kubectl` version >= 1.30, `helm`
 * `az login` with service principal (azure AD user support is WIP)
-* Register the needed [AFEC](https://aka.ms/afec) feature flags using `cd cluster && make feature-registration`
-    * __NOTE:__ This will take awhile, you will have to wait until they're in a registered state.
-
-## Cluster Creation Procedure
-
-There are a few variants to chose from when creating an AKS cluster:
-
-* Service Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Service cluster
-* Management Cluster: Public AKS cluster with optional params that can be modified to include all Azure resources needed to run a Management cluster
-
-When creating a cluster, also supporting infrastructure is created, e.g. managed identities, permissions, databases, keyvaults, ...
 
 ### Create Service Cluster
 
 Change those flags accordingly and then run the following command. Depending on the selected features, this may take a while:
 
   ```bash
-  cd cluster
   AKSCONFIG=svc-cluster make cluster
   ```
 
@@ -34,7 +18,6 @@ Change those flags accordingly and then run the following command. Depending on 
 A Management Cluster depends on certain resources found in the resource group of the Service Cluster. Therefore, a standalone Management Cluster can't be created right now and requires a Service Cluster
 
   ```bash
-  cd cluster
   AKSCONFIG=mgmt-cluster make cluster
   ```
 
@@ -54,7 +37,6 @@ A Management Cluster depends on certain resources found in the resource group of
 Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azure
 
    ```bash
-   cd cluster
    AKSCONFIG=svc-cluster make clean
    ```
 
@@ -69,7 +51,6 @@ Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azur
 > The service cluster has no ingress. To interact with the services you deploy use `kubectl port-forward`
 
   ```bash
-  cd maestro
   AKSCONFIG=svc-cluster make deploy-server
   ```
 
@@ -97,7 +78,6 @@ If you need to restart the maestro server during testing and don't want the port
 First install the agent
 
   ```bash
-  cd maestro
   AKSCONFIG=mgmt-cluster make deploy-agent
   ```
 
