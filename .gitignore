@@ -59,3 +59,5 @@ test/e2e/.external_host_ip
 test/e2e/report/*
 unit-test-results.json
 integration-test-results.json
+
+test/e2e/setup/aro/aro-hcp
