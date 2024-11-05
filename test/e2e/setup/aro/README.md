@@ -48,7 +48,7 @@ Setting the correct `AKSCONFIG`, this will cleanup all resources created in Azur
 
 > Make sure your `KUBECONFIG` points to the service cluster!!!
 
-> The service cluster has no ingress. To interact with the services you deploy use `kubectl port-forward`
+> The service cluster has no ingress. To interact with the services you need to use `kubectl port-forward`
 
   ```bash
   AKSCONFIG=svc-cluster make deploy-server
