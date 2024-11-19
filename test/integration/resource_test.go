@@ -186,6 +186,17 @@ func TestResourcePost(t *testing.T) {
 	Expect(contentStatus["availableReplicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["readyReplicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["updatedReplicas"]).To(Equal(float64(1)))
+
+	// check the metrics
+	time.Sleep(1 * time.Second)
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+	}
+	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 3.0)
 }
 
 func TestResourcePostWithoutName(t *testing.T) {
@@ -777,6 +788,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	// check the metrics
+	time.Sleep(1 * time.Second)
 	families := getServerMetrics(t, "http://localhost:8080/metrics")
 	labels := []*prommodel.LabelPair{
 		{Name: strPtr("type"), Value: strPtr("Publish")},
@@ -807,6 +819,14 @@ func TestResourceFromGRPC(t *testing.T) {
 		{Name: strPtr("code"), Value: strPtr("OK")},
 	}
 	checkServerCounterMetric(t, families, "grpc_server_processed_total", labels, 0.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
+	}
+	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 3.0)
 }
 
 func TestResourceBundleFromGRPC(t *testing.T) {
