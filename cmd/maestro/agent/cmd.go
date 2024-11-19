@@ -8,17 +8,24 @@ import (
 	"github.com/spf13/pflag"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/version"
 	ocmfeature "open-cluster-management.io/api/feature"
 	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/work/spoke"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
 
 var (
 	commonOptions = commonoptions.NewAgentOptions()
 	agentOption   = spoke.NewWorkloadAgentOptions()
 )
+
+func init() {
+	// register the cloud events metrics for the agent
+	generic.RegisterCloudEventsMetrics(legacyregistry.Registerer())
+}
 
 // by default uses 1M as the limit for state feedback
 const maxJSONRawLength int32 = 1024 * 1024
