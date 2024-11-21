@@ -52,6 +52,14 @@ register-agent:
 	@AKSCONFIG=svc-cluster $(MAKE) -C $(CLONE_DIR)/maestro register-agent
 .PHONY: register-agent
 
+# enable the aks metrics
+enable-aks-metrics: clone
+ifndef AKSCONFIG
+	$(error "Must set AKSCONFIG")
+endif
+	@$(MAKE) -C $(CLONE_DIR)/dev-infrastructure enable-aks-metrics
+.PHONY: enable-aks-metrics
+
 # clean up the resources
 clean:
 ifndef AKSCONFIG
