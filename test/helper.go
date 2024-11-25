@@ -292,7 +292,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 		workinformers.WithNamespace(clusterName),
 	)
 	informer := factory.Work().V1().ManifestWorks()
-	watcherStore.SetStore(informer.Informer().GetStore())
+	watcherStore.SetInformer(informer.Informer())
 
 	go informer.Informer().Run(ctx.Done())
 
