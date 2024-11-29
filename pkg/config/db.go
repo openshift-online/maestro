@@ -1,8 +1,12 @@
 package config
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/openshift-online/maestro/pkg/constants"
 	"github.com/spf13/pflag"
 )
 
@@ -24,10 +28,16 @@ type DatabaseConfig struct {
 	UsernameFile string `json:"username_file"`
 	PasswordFile string `json:"password_file"`
 	RootCertFile string `json:"certificate_file"`
+
+	AuthMethod        string `json:"auth_method"`
+	TokenRequestScope string `json:"token_request_scope"`
 }
 
 func NewDatabaseConfig() *DatabaseConfig {
 	return &DatabaseConfig{
+		AuthMethod:        constants.AuthMethodPassword,
+		TokenRequestScope: "https://ossrdbms-aad.database.windows.net/.default",
+
 		Dialect:            "postgres",
 		SSLMode:            "disable",
 		Debug:              false,
@@ -43,6 +53,9 @@ func NewDatabaseConfig() *DatabaseConfig {
 }
 
 func (c *DatabaseConfig) AddFlags(fs *pflag.FlagSet) {
+	fs.StringVar(&c.AuthMethod, "db-auth-method", c.AuthMethod, "Configure the authentication to use password as the default and az-entra for Microsoft Entra Authentication in Azure PostgreSQL")
+	fs.StringVar(&c.TokenRequestScope, "db-token-request-scope", c.TokenRequestScope, "Configure the token request scope for Open-Source Relational Database Management Systems in Azure")
+
 	fs.StringVar(&c.HostFile, "db-host-file", c.HostFile, "Database host string file")
 	fs.StringVar(&c.PortFile, "db-port-file", c.PortFile, "Database port file")
 	fs.StringVar(&c.UsernameFile, "db-user-file", c.UsernameFile, "Database username file")
@@ -50,7 +63,7 @@ func (c *DatabaseConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.NameFile, "db-name-file", c.NameFile, "Database name file")
 	fs.StringVar(&c.RootCertFile, "db-rootcert", c.RootCertFile, "Database root certificate file")
 	fs.StringVar(&c.SSLMode, "db-sslmode", c.SSLMode, "Database ssl mode (disable | require | verify-ca | verify-full)")
-	fs.BoolVar(&c.Debug, "enable-db-debug", c.Debug, " framework's debug mode")
+	fs.BoolVar(&c.Debug, "enable-db-debug", c.Debug, "framework's debug mode")
 	fs.IntVar(&c.MaxOpenConnections, "db-max-open-connections", c.MaxOpenConnections, "Maximum open DB connections for this instance")
 }
 
@@ -70,9 +83,26 @@ func (c *DatabaseConfig) ReadFiles() error {
 		return err
 	}
 
-	err = readFileValueString(c.PasswordFile, &c.Password)
-	if err != nil {
-		return err
+	if c.AuthMethod == constants.AuthMethodMicrosoftEntra {
+		// ARO-HCP environment variable configuration is set by the Azure workload identity webhook.
+		// Use [WorkloadIdentityCredential] directly when not using the webhook or needing more control over its configuration.
+		cred, err := azidentity.NewDefaultAzureCredential(nil)
+		if err != nil {
+			return err
+		}
+		// The access token can be expired. but the existing connections are not invalidated.
+		// TODO: how to reconnect due to the network is broken etc. Right now, gorm does not have this feature.
+		// refer to https://github.com/go-gorm/gorm/issues/5602 & https://github.com/go-gorm/gorm/pull/1721.
+		token, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{c.TokenRequestScope}})
+		if err != nil {
+			return err
+		}
+		c.Password = token.Token
+	} else {
+		err = readFileValueString(c.PasswordFile, &c.Password)
+		if err != nil {
+			return err
+		}
 	}
 
 	err = readFileValueString(c.NameFile, &c.Name)

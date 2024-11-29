@@ -184,6 +184,7 @@ objects:
         metadata:
           labels:
             app: maestro
+            azure.workload.identity/use: "true" # Required. Only pods with this label can use workload identity.
         spec:
           serviceAccountName: maestro
           volumes:
