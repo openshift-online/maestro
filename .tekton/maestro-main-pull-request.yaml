@@ -248,8 +248,6 @@ spec:
       params:
       - name: BINARY_IMAGE
         value: $(params.output-image)
-      - name: BASE_IMAGES
-        value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
       runAfter:
       - build-container
       taskRef:
@@ -275,8 +273,6 @@ spec:
         workspace: workspace
     - name: deprecated-base-image-check
       params:
-      - name: BASE_IMAGES_DIGESTS
-        value: $(tasks.build-container.results.BASE_IMAGES_DIGESTS)
       - name: IMAGE_URL
         value: $(tasks.build-container.results.IMAGE_URL)
       - name: IMAGE_DIGEST
@@ -373,28 +369,6 @@ spec:
           value: clamav-scan
         - name: bundle
           value: quay.io/redhat-appstudio-tekton-catalog/task-clamav-scan:0.1@sha256:3e2891c232dc03fb5c7746fc615e1827afbd6931843e42b19cb8a6c04276ed32
-        - name: kind
-          value: task
-        resolver: bundles
-      when:
-      - input: $(params.skip-checks)
-        operator: in
-        values:
-        - "false"
-    - name: sbom-json-check
-      params:
-      - name: IMAGE_URL
-        value: $(tasks.build-container.results.IMAGE_URL)
-      - name: IMAGE_DIGEST
-        value: $(tasks.build-container.results.IMAGE_DIGEST)
-      runAfter:
-      - build-container
-      taskRef:
-        params:
-        - name: name
-          value: sbom-json-check
-        - name: bundle
-          value: quay.io/redhat-appstudio-tekton-catalog/task-sbom-json-check:0.2@sha256:a8f1748144a51dbb90d140ae788a95e05d65dcdd0625efceedce2f5ae755c654
         - name: kind
           value: task
         resolver: bundles
