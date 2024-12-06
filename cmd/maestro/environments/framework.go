@@ -6,12 +6,16 @@ import (
 	"strings"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/golang/glog"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
 	"github.com/spf13/pflag"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
@@ -72,36 +76,36 @@ func (e *Env) AddFlags(flags *pflag.FlagSet) error {
 // This should be called after the e.Config has been set appropriately though AddFlags and pasing, done elsewhere
 // The environment does NOT handle flag parsing
 func (e *Env) Initialize() error {
-	glog.Infof("Initializing %s environment", e.Name)
+	klog.Infof("Initializing %s environment", e.Name)
 
 	envImpl, found := environments[e.Name]
 	if !found {
-		glog.Fatalf("Unknown runtime environment: %s", e.Name)
+		klog.Fatalf("Unknown runtime environment: %s", e.Name)
 	}
 
 	if err := envImpl.VisitConfig(&e.ApplicationConfig); err != nil {
-		glog.Fatalf("Failed to visit ApplicationConfig: %s", err)
+		klog.Fatalf("Failed to visit ApplicationConfig: %s", err)
 	}
 
 	messages := environment.Config.ReadFiles()
 	if len(messages) != 0 {
 		err := fmt.Errorf("unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 		sentry.CaptureException(err)
-		glog.Fatalf("Unable to read configuration files:\n%s", strings.Join(messages, "\n"))
+		klog.Fatalf("Unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 	}
 
 	// each env will set db explicitly because the DB impl has a `once` init section
 	if err := envImpl.VisitDatabase(&e.Database); err != nil {
-		glog.Fatalf("Failed to visit Database: %s", err)
+		klog.Fatalf("Failed to visit Database: %s", err)
 	}
 
 	if err := envImpl.VisitMessageBroker(&e.MessageBroker); err != nil {
-		glog.Fatalf("Failed to visit MessageBroker: %s", err)
+		klog.Fatalf("Failed to visit MessageBroker: %s", err)
 	}
 
 	e.LoadServices()
 	if err := envImpl.VisitServices(&e.Services); err != nil {
-		glog.Fatalf("Failed to visit Services: %s", err)
+		klog.Fatalf("Failed to visit Services: %s", err)
 	}
 
 	// Load clients after services so that clients can use services
@@ -110,7 +114,7 @@ func (e *Env) Initialize() error {
 		return err
 	}
 	if err := envImpl.VisitClients(&e.Clients); err != nil {
-		glog.Fatalf("Failed to visit Clients: %s", err)
+		klog.Fatalf("Failed to visit Clients: %s", err)
 	}
 
 	err = e.InitializeSentry()
@@ -125,7 +129,7 @@ func (e *Env) Initialize() error {
 
 	if _, ok := envImpl.(HandlerVisitor); ok {
 		if err := (envImpl.(HandlerVisitor)).VisitHandlers(&e.Handlers); err != nil {
-			glog.Fatalf("Failed to visit Handlers: %s", err)
+			klog.Fatalf("Failed to visit Handlers: %s", err)
 		}
 	}
 
@@ -158,41 +162,66 @@ func (e *Env) LoadClients() error {
 
 	// Create OCM Authz client
 	if e.Config.OCM.EnableMock {
-		glog.Infof("Using Mock OCM Authz Client")
+		klog.Infof("Using Mock OCM Authz Client")
 		e.Clients.OCM, err = ocm.NewClientMock(ocmConfig)
 	} else {
 		e.Clients.OCM, err = ocm.NewClient(ocmConfig)
 	}
 	if err != nil {
-		glog.Errorf("Unable to create OCM Authz client: %s", err.Error())
+		klog.Errorf("Unable to create OCM Authz client: %s", err.Error())
 		return err
 	}
 
 	// Create CloudEvents Source client
 	if e.Config.MessageBroker.EnableMock {
-		glog.Infof("Using Mock CloudEvents Source Client")
+		klog.Infof("Using Mock CloudEvents Source Client")
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
-
-		_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
-			LoadConfig()
-		if err != nil {
-			glog.Errorf("Unable to load configuration: %s", err.Error())
-			return err
-		}
-
-		cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
-			e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
-		if err != nil {
-			glog.Errorf("Unable to build cloudevent source options: %s", err.Error())
-			return err
-		}
-		if cloudEventsSourceOptions != nil {
-			e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+		// For gRPC message broker type, Maestro server does not require the source client to publish resources or subscribe to resource status.
+		if e.Config.MessageBroker.MessageBrokerType != "grpc" {
+			_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
+				LoadConfig()
 			if err != nil {
-				glog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
+				klog.Errorf("Unable to load configuration: %s", err.Error())
 				return err
 			}
+
+			cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
+				e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
+			if err != nil {
+				klog.Errorf("Unable to build cloudevent source options: %s", err.Error())
+				return err
+			}
+			e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+			if err != nil {
+				klog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
+				return err
+			}
+		}
+	}
+
+	// Create GRPC authorizer based on configuration
+	if e.Config.GRPCServer.EnableGRPCServer {
+		if e.Config.GRPCServer.GRPCAuthNType == "mock" {
+			klog.Infof("Using Mock GRPC Authorizer")
+			e.Clients.GRPCAuthorizer = grpcauthorizer.NewMockGRPCAuthorizer()
+		} else {
+			kubeConfig, err := clientcmd.BuildConfigFromFlags("", e.Config.GRPCServer.GRPCAuthorizerConfig)
+			if err != nil {
+				klog.Warningf("Unable to create kube client config: %s", err.Error())
+				// fallback to in-cluster config
+				kubeConfig, err = rest.InClusterConfig()
+				if err != nil {
+					klog.Errorf("Unable to create kube client config: %s", err.Error())
+					return err
+				}
+			}
+			kubeClient, err := kubernetes.NewForConfig(kubeConfig)
+			if err != nil {
+				klog.Errorf("Unable to create kube client: %s", err.Error())
+				return err
+			}
+			e.Clients.GRPCAuthorizer = grpcauthorizer.NewKubeGRPCAuthorizer(kubeClient)
 		}
 	}
 
@@ -206,12 +235,12 @@ func (e *Env) InitializeSentry() error {
 		key := e.Config.Sentry.Key
 		url := e.Config.Sentry.URL
 		project := e.Config.Sentry.Project
-		glog.Infof("Sentry error reporting enabled to %s on project %s", url, project)
+		klog.Infof("Sentry error reporting enabled to %s on project %s", url, project)
 		options.Dsn = fmt.Sprintf("https://%s@%s/%s", key, url, project)
 	} else {
 		// Setting the DSN to an empty string effectively disables sentry
 		// See https://godoc.org/github.com/getsentry/sentry-go#ClientOptions Dsn
-		glog.Infof("Disabling Sentry error reporting")
+		klog.Infof("Disabling Sentry error reporting")
 		options.Dsn = ""
 	}
 
@@ -235,7 +264,7 @@ func (e *Env) InitializeSentry() error {
 
 	err = sentry.Init(options)
 	if err != nil {
-		glog.Errorf("Unable to initialize sentry integration: %s", err.Error())
+		klog.Errorf("Unable to initialize sentry integration: %s", err.Error())
 		return err
 	}
 	return nil
@@ -244,7 +273,7 @@ func (e *Env) InitializeSentry() error {
 func (e *Env) Teardown() {
 	if e.Name != TestingEnv {
 		if err := e.Database.SessionFactory.Close(); err != nil {
-			glog.Fatalf("Unable to close db connection: %s", err.Error())
+			klog.Fatalf("Unable to close db connection: %s", err.Error())
 		}
 		e.Clients.OCM.Close()
 	}
@@ -253,7 +282,7 @@ func (e *Env) Teardown() {
 func setConfigDefaults(flags *pflag.FlagSet, defaults map[string]string) error {
 	for name, value := range defaults {
 		if err := flags.Set(name, value); err != nil {
-			glog.Errorf("Error setting flag %s: %v", name, err)
+			klog.Errorf("Error setting flag %s: %v", name, err)
 			return err
 		}
 	}

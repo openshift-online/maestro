@@ -24,7 +24,7 @@ import (
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/golang/glog"
+	"k8s.io/klog/v2"
 )
 
 // SendAPI sends API documentation response.
@@ -55,7 +55,7 @@ func SendAPI(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(data)
 	if err != nil {
 		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
-		glog.Error(err)
+		klog.Error(err)
 		sentry.CaptureException(err)
 		return
 	}
@@ -90,7 +90,7 @@ func SendAPIV1(w http.ResponseWriter, r *http.Request) {
 	// Send the response:
 	_, err = w.Write(data)
 	if err != nil {
-		glog.Errorf("Can't send response body for request '%s'", r.URL.Path)
+		klog.Errorf("Can't send response body for request '%s'", r.URL.Path)
 		return
 	}
 }

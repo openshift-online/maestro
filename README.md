@@ -356,7 +356,7 @@ $ oc -n maestro port-forward svc/maestro-grpc 8090 &
 3. Create a resource bundle with multiple resources using the gRPC client, for example:
 
 ```shell
-go run ./examples/grpcclient.go -cloudevents_json_file ./examples/cloudevent-bundle.json -grpc_server localhost:8090
+go run ./examples/grpc/grpcclient.go -cloudevents_json_file ./examples/grpc/cloudevent-bundle.json -grpc_server localhost:8090
 ```
 
 4. Get the resource bundle with multiple resources, for example:

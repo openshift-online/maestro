@@ -4,22 +4,29 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"time"
 
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	logger "github.com/openshift-online/maestro/pkg/logger"
+	"github.com/prometheus/client_golang/prometheus"
 
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 
+func init() {
+	// Register the metrics for resource service
+	RegisterResourceMetrics()
+}
+
 type ResourceService interface {
 	Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
-	GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, *errors.ServiceError)
 	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError)
@@ -30,13 +37,15 @@ type ResourceService interface {
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
 	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
+	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
 
-func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService) ResourceService {
+func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService, generic GenericService) ResourceService {
 	return &sqlResourceService{
 		lockFactory: lockFactory,
 		resourceDao: resourceDao,
 		events:      events,
+		generic:     generic,
 	}
 }
 
@@ -46,6 +55,7 @@ type sqlResourceService struct {
 	lockFactory db.LockFactory
 	resourceDao dao.ResourceDao
 	events      EventService
+	generic     GenericService
 }
 
 func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
@@ -53,14 +63,10 @@ func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource,
 	if err != nil {
 		return nil, handleGetError("Resource", "id", id, err)
 	}
-	return resource, nil
-}
 
-func (s *sqlResourceService) GetBundle(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
-	resource, err := s.resourceDao.GetBundle(ctx, id)
-	if err != nil {
-		return nil, handleGetError("Resource Bundle", "id", id, err)
-	}
+	// sync the creationTimestamp and deletionTimestamp from resource meta to work metadata
+	s.syncTimestampsFromResourceMeta(resource)
+
 	return resource, nil
 }
 
@@ -107,6 +113,10 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return nil, handleGetError("Resource", "id", resource.ID, err)
 	}
 
+	if !found.DeletedAt.Time.IsZero() {
+		return nil, errors.Conflict("the resource is under deletion, id: %s", resource.ID)
+	}
+
 	// Make sure the requested resource version is consistent with its database version.
 	if found.Version != resource.Version {
 		return nil, errors.Conflict("the resource version is not the latest, the latest version: %d", found.Version)
@@ -137,6 +147,15 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 	}); err != nil {
 		return nil, handleUpdateError("Resource", err)
 	}
+
+	// Create the set of labels that we will add to all the resource process:
+	labels := prometheus.Labels{
+		metricsIDLabel:     updated.ID,
+		metricsActionLabel: "update",
+	}
+
+	// Update the metric containing the number of processed resources:
+	resourceProcessedCountMetric.With(labels).Inc()
 
 	return updated, nil
 }
@@ -211,6 +230,15 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return nil, false, handleUpdateError("Resource", err)
 	}
 
+	// Create the set of labels that we will add to all the resource process:
+	labels := prometheus.Labels{
+		metricsIDLabel:     updated.ID,
+		metricsActionLabel: "update",
+	}
+
+	// Update the metric containing the number of processed resources:
+	resourceProcessedCountMetric.With(labels).Inc()
+
 	return updated, true, nil
 }
 
@@ -222,6 +250,15 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 // 4. Work-agent deletes resource, sends CloudEvent back to Maestro
 // 5. Maestro hard deletes resource from DB
 func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
+	// If there are multiple requests to write the resource at the same time, it will cause the race conditions among these
+	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
+	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, id, db.Resources)
+	// Ensure that the transaction related to this lock always end.
+	defer s.lockFactory.Unlock(ctx, lockOwnerID)
+	if err != nil {
+		return errors.DatabaseAdvisoryLock(err)
+	}
+
 	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
 		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
 	}
@@ -271,10 +308,98 @@ func (s *sqlResourceService) All(ctx context.Context) (api.ResourceList, *errors
 
 var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 
+// List implements the cegeneric.Lister interface, enabling the cloudevents source client to list resources for responding spec resync from the agent.
+// For more details, refer to the cegeneric.Lister interface:
+// https://github.com/open-cluster-management-io/sdk-go/blob/d3c47c228d7905ebb20f331f9b72bc5ff6a84789/pkg/cloudevents/generic/interface.go#L36-L39
 func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
-	resourceList, err := s.resourceDao.FindByConsumerName(context.TODO(), listOpts.ClusterName)
+	var resourceType api.ResourceType
+	resourceEventDataType := listOpts.CloudEventsDataType
+	switch resourceEventDataType {
+	case payload.ManifestEventDataType:
+		resourceType = api.ResourceTypeSingle
+	case payload.ManifestBundleEventDataType:
+		resourceType = api.ResourceTypeBundle
+	default:
+		return nil, fmt.Errorf("unsupported resource event data type %v", resourceEventDataType)
+	}
+	resourceList, err := s.resourceDao.FindByConsumerNameAndResourceType(context.TODO(), listOpts.ClusterName, resourceType)
 	if err != nil {
 		return nil, err
 	}
 	return resourceList, nil
 }
+
+// ListWithArgs lists resources based on the provided page and filter arguments.
+func (s *sqlResourceService) ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError) {
+	paging, serviceErr := s.generic.List(ctx, username, args, resources)
+	if serviceErr != nil {
+		return nil, serviceErr
+	}
+
+	for _, resource := range *resources {
+		// sync the creationTimestamp and deletionTimestamp from resource meta to work metadata
+		s.syncTimestampsFromResourceMeta(&resource)
+	}
+
+	return paging, nil
+}
+
+func (s *sqlResourceService) syncTimestampsFromResourceMeta(resource *api.Resource) {
+	// fill back the creationTimestamp and deletionTimestamp from resource meta to work metadata if it exists
+	workMetaValue, ok := resource.Payload["metadata"]
+	if ok {
+		workMeta, ok := workMetaValue.(map[string]interface{})
+		if ok {
+			workMeta["creationTimestamp"] = resource.CreatedAt.Format(time.RFC3339)
+			if !resource.DeletedAt.Time.IsZero() {
+				workMeta["deletionTimestamp"] = resource.DeletedAt.Time.Format(time.RFC3339)
+			}
+			resource.Payload["metadata"] = workMeta
+		}
+	}
+}
+
+// Subsystem used to define the metrics:
+const metricsSubsystem = "resource"
+
+// Names of the labels added to metrics:
+const (
+	metricsIDLabel     = "id"
+	metricsActionLabel = "action"
+)
+
+// metricsLabels - Array of labels added to metrics:
+var metricsLabels = []string{
+	metricsIDLabel,
+	metricsActionLabel,
+}
+
+// Names of the metrics:
+const (
+	processedCountMetric = "processed_total"
+)
+
+// Register the metrics:
+func RegisterResourceMetrics() {
+	prometheus.MustRegister(resourceProcessedCountMetric)
+}
+
+// Unregister the metrics:
+func UnregisterResourceMetrics() {
+	prometheus.Unregister(resourceProcessedCountMetric)
+}
+
+// Reset the metrics:
+func ResetResourceMetrics() {
+	resourceProcessedCountMetric.Reset()
+}
+
+// Description of the resource process count metric:
+var resourceProcessedCountMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Subsystem: metricsSubsystem,
+		Name:      processedCountMetric,
+		Help:      "Number of processed resources.",
+	},
+	metricsLabels,
+)

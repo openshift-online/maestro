@@ -58,6 +58,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+func init() {
+	// Register the metrics:
+	prometheus.MustRegister(requestCountMetric)
+	prometheus.MustRegister(requestDurationMetric)
+}
+
 // MetricsMiddleware creates a new handler that collects metrics for the requests processed by the
 // given handler.
 func MetricsMiddleware(handler http.Handler) http.Handler {
@@ -86,9 +92,9 @@ func MetricsMiddleware(handler http.Handler) http.Handler {
 
 		// Create the set of labels that we will add to all the requests:
 		labels := prometheus.Labels{
-			metricsMethodLabel: r.Method,
-			metricsPathLabel:   path,
-			metricsCodeLabel:   strconv.Itoa(wrapper.code),
+			restMetricsMethodLabel: r.Method,
+			restMetricsPathLabel:   path,
+			restMetricsCodeLabel:   strconv.Itoa(wrapper.code),
 		}
 
 		// Update the metric containing the number of requests:
@@ -112,20 +118,20 @@ var metricsPathVarRE = regexp.MustCompile(`{[^}]*}`)
 var PathVarSub = "-"
 
 // Subsystem used to define the metrics:
-const metricsSubsystem = "api_inbound"
+const restMetricsSubsystem = "rest_api_inbound"
 
 // Names of the labels added to metrics:
 const (
-	metricsMethodLabel = "method"
-	metricsPathLabel   = "path"
-	metricsCodeLabel   = "code"
+	restMetricsMethodLabel = "method"
+	restMetricsPathLabel   = "path"
+	restMetricsCodeLabel   = "code"
 )
 
-// MetricsLabels - Array of labels added to metrics:
-var MetricsLabels = []string{
-	metricsMethodLabel,
-	metricsPathLabel,
-	metricsCodeLabel,
+// restMetricsLabels - Array of labels added to metrics:
+var restMetricsLabels = []string{
+	restMetricsMethodLabel,
+	restMetricsPathLabel,
+	restMetricsCodeLabel,
 }
 
 // Names of the metrics:
@@ -134,26 +140,20 @@ const (
 	requestDuration = "request_duration"
 )
 
-// MetricsNames - Array of Names of the metrics:
-var MetricsNames = []string{
-	requestCount,
-	requestDuration,
-}
-
 // Description of the requests count metric:
 var requestCountMetric = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Subsystem: metricsSubsystem,
+		Subsystem: restMetricsSubsystem,
 		Name:      requestCount,
 		Help:      "Number of requests served.",
 	},
-	MetricsLabels,
+	restMetricsLabels,
 )
 
 // Description of the request duration metric:
 var requestDurationMetric = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Subsystem: metricsSubsystem,
+		Subsystem: restMetricsSubsystem,
 		Name:      requestDuration,
 		Help:      "Request duration in seconds.",
 		Buckets: []float64{
@@ -163,7 +163,7 @@ var requestDurationMetric = prometheus.NewHistogramVec(
 			30.0,
 		},
 	},
-	MetricsLabels,
+	restMetricsLabels,
 )
 
 // metricsResponseWrapper is an extension of the HTTP response writer that remembers the status code,
@@ -188,10 +188,4 @@ func (w *metricsResponseWrapper) Write(b []byte) (n int, err error) {
 func (w *metricsResponseWrapper) WriteHeader(code int) {
 	w.code = code
 	w.wrapped.WriteHeader(code)
-}
-
-func init() {
-	// Register the metrics:
-	prometheus.MustRegister(requestCountMetric)
-	prometheus.MustRegister(requestDurationMetric)
 }

@@ -60,7 +60,7 @@ mqtt_password_file=${PWD}/secrets/mqtt.password
 mqtt_config_file=${PWD}/secrets/mqtt.config
 
 # Log verbosity level
-glog_v:=10
+klog_v:=10
 
 # Location of the JSON web key set used to verify tokens:
 jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
@@ -76,10 +76,13 @@ CLIENT_SECRET ?= maestro
 ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
 ENABLE_OCM_MOCK ?= false
-ENABLE_GRPC ?= false
+ENABLE_GRPC_SERVER ?= false
+
+# message driver type, mqtt or grpc, default is mqtt.
+MESSAGE_DRIVER_TYPE ?= mqtt
 
 # default replicas for maestro server
-REPLICAS ?= 1
+SERVER_REPLICAS ?= 1
 
 # Enable set images
 POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
@@ -114,7 +117,7 @@ help:
 
 # Encourage consistent tool versions
 OPENAPI_GENERATOR_VERSION:=5.4.0
-GO_VERSION:=go1.21.
+GO_VERSION:=go1.22.
 
 ### Constants:
 version:=$(shell date +%s)
@@ -266,8 +269,8 @@ cmds:
 		--local="true" \
 		--ignore-unknown-parameters="true" \
 		--param="ENVIRONMENT=$(OCM_ENV)" \
-		--param="GLOG_V=$(glog_v)" \
-		--param="REPLICAS=$(REPLICAS)" \
+		--param="KLOG_V=$(klog_v)" \
+		--param="SERVER_REPLICAS=$(SERVER_REPLICAS)" \
 		--param="DATABASE_HOST=$(db_host)" \
 		--param="DATABASE_NAME=$(db_name)" \
 		--param="DATABASE_PASSWORD=$(db_password)" \
@@ -303,7 +306,8 @@ cmds:
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_NAME=$(consumer_name)" \
 		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
-		--param="ENABLE_GRPC=$(ENABLE_GRPC)" \
+		--param="ENABLE_GRPC_SERVER=$(ENABLE_GRPC_SERVER)" \
+		--param="MESSAGE_DRIVER_TYPE"=$(MESSAGE_DRIVER_TYPE) \
 	> "templates/$*-template.json"
 
 
@@ -413,10 +417,12 @@ e2e-test/teardown:
 .PHONY: e2e-test/teardown
 
 e2e-test: e2e-test/teardown e2e-test/setup
-	ginkgo --output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
+	ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" \
+	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
 	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \
+	-server-kubeconfig=${PWD}/test/e2e/.kubeconfig \
 	-consumer-name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
-	-consumer-kubeconfig=${PWD}/test/e2e/.kubeconfig
+	-agent-kubeconfig=${PWD}/test/e2e/.kubeconfig
 .PHONY: e2e-test

@@ -30,17 +30,6 @@ func (d *resourceDaoMock) Get(ctx context.Context, id string) (*api.Resource, er
 	return nil, gorm.ErrRecordNotFound
 }
 
-func (d *resourceDaoMock) GetBundle(ctx context.Context, id string) (*api.Resource, error) {
-	for _, resource := range d.resources {
-		if resource.ID == id {
-			if resource.Type == api.ResourceTypeBundle {
-				return resource, nil
-			}
-		}
-	}
-	return nil, gorm.ErrRecordNotFound
-}
-
 func (d *resourceDaoMock) Create(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	d.resources = append(d.resources, resource)
 	return resource, nil
@@ -68,6 +57,20 @@ func (d *resourceDaoMock) FindByConsumerName(ctx context.Context, consumerID str
 	return resources, nil
 }
 
+func (d *resourceDaoMock) FindByConsumerNameAndResourceType(ctx context.Context, consumerName string, resourceType api.ResourceType) (api.ResourceList, error) {
+	var resources api.ResourceList
+	for _, resource := range d.resources {
+		if resource.ConsumerName != consumerName {
+			continue
+		}
+		if resource.Type != resourceType {
+			continue
+		}
+		resources = append(resources, resource)
+	}
+	return resources, nil
+}
+
 func (d *resourceDaoMock) FindBySource(ctx context.Context, source string) (api.ResourceList, error) {
 	var resources api.ResourceList
 	for _, resource := range d.resources {
@@ -80,4 +83,8 @@ func (d *resourceDaoMock) FindBySource(ctx context.Context, source string) (api.
 
 func (d *resourceDaoMock) All(ctx context.Context) (api.ResourceList, error) {
 	return d.resources, nil
+}
+
+func (d *resourceDaoMock) FirstByConsumerName(ctx context.Context, consumerName string, unscoped bool) (api.Resource, error) {
+	return *d.resources[0], errors.NotImplemented("Resource").AsError()
 }

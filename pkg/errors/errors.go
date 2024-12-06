@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/golang/glog"
-
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -106,7 +105,7 @@ func New(code ServiceErrorCode, reason string, values ...interface{}) *ServiceEr
 	var err *ServiceError
 	exists, err := Find(code)
 	if !exists {
-		glog.Errorf("Undefined error code used: %d", code)
+		klog.Errorf("Undefined error code used: %d", code)
 		err = &ServiceError{ErrorGeneral, "Unspecified error", 500}
 	}
 

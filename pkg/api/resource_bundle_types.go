@@ -9,6 +9,7 @@ import (
 
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 type ResourceBundleStatus struct {
@@ -31,7 +32,7 @@ func DecodeManifestBundle(manifest datatypes.JSONMap) (map[string]any, *workpayl
 
 	metaData := map[string]any{}
 	extensions := evt.Extensions()
-	if meta, ok := extensions["metadata"]; ok {
+	if meta, ok := extensions[codec.ExtensionWorkMeta]; ok {
 		metaJson, err := cloudeventstypes.ToString(meta)
 		if err != nil {
 			return nil, nil, err

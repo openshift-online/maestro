@@ -2,9 +2,11 @@ package cloudevents
 
 import (
 	"fmt"
+	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
+	"github.com/google/uuid"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
@@ -36,6 +38,11 @@ func (codec *BundleCodec) Encode(source string, eventType cetypes.CloudEventsTyp
 	evt.SetExtension(cetypes.ExtensionClusterName, res.ConsumerName)
 
 	if !res.GetDeletionTimestamp().IsZero() {
+		// in the deletion case, the event ID and time remain unchanged in storage.
+		// set the event ID and time before publishing, so the agent can identify the deletion event.
+		evt.SetID(uuid.New().String())
+		evt.SetTime(time.Now())
+		// set deletion timestamp extension
 		evt.SetExtension(cetypes.ExtensionDeletionTimestamp, res.GetDeletionTimestamp().Time)
 	}
 

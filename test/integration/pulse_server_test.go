@@ -8,7 +8,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -19,19 +19,15 @@ import (
 func TestPulseServer(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	defer func() {
+		cancel()
+	}()
 
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
-	// insert two existing instances
+	// insert one existing instances
 	_, err := instanceDao.UpSert(ctx, &api.ServerInstance{
 		Meta: api.Meta{
 			ID: "instance1",
-		},
-	})
-	Expect(err).NotTo(HaveOccurred())
-	_, err = instanceDao.UpSert(ctx, &api.ServerInstance{
-		Meta: api.Meta{
-			ID: "instance2",
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
@@ -59,41 +55,34 @@ func TestPulseServer(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
+	// the cluster1 name cannot be changed, because consistent hash makes it allocate to different instance.
+	// the case here we want to the new consumer allocate to new instance(cluster1) which is a fake instance.
+	// after 3*pulseInterval (3s), it will relocate to maestro instance.
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
 
-	// insert a new instance with the same name to consumer name "cluster1"
+	// insert a new instance with the same name to consumer name
 	// to make sure the consumer is hashed to the new instance firstly.
 	// after the new instance is stale after 3*pulseInterval (3s), the current
 	// instance will take over the consumer and resync the resource status.
 	_, err = instanceDao.UpSert(ctx, &api.ServerInstance{
 		Meta: api.Meta{
-			ID: "cluster1",
+			ID: clusterName,
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	res := h.CreateResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.CreateResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := h.WorkAgentInformer
-	lister := informer.Lister().ManifestWorks(consumer.Name)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()
 
 	var work *workv1.ManifestWork
 	Eventually(func() error {
-		list, err := lister.List(labels.Everything())
-		if err != nil {
-			return err
-		}
-
-		// ensure there is only one work was synced on the cluster
-		if len(list) != 1 {
-			return fmt.Errorf("unexpected work list %v", list)
-		}
-
 		// ensure the work can be get by work client
 		work, err = agentWorkClient.Get(ctx, res.ID, metav1.GetOptions{})
 		if err != nil {

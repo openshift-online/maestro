@@ -2,26 +2,30 @@ package agent
 
 import (
 	"context"
-	"flag"
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/version"
-	"k8s.io/klog/v2"
 	ocmfeature "open-cluster-management.io/api/feature"
 	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/work/spoke"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
 
 var (
 	commonOptions = commonoptions.NewAgentOptions()
 	agentOption   = spoke.NewWorkloadAgentOptions()
 )
+
+func init() {
+	// register the cloud events metrics for the agent
+	generic.RegisterCloudEventsMetrics(legacyregistry.Registerer())
+}
 
 // by default uses 1M as the limit for state feedback
 const maxJSONRawLength int32 = 1024 * 1024
@@ -38,17 +42,8 @@ func NewAgentCommand() *cobra.Command {
 	cmd.Short = "Start the Maestro Agent"
 	cmd.Long = "Start the Maestro Agent"
 
-	// check if the flag is already registered to avoid duplicate flag define error
-	if flag.CommandLine.Lookup("alsologtostderr") != nil {
-		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	}
-
-	// add klog flags
-	klog.InitFlags(nil)
-
-	flags := cmd.Flags()
+	flags := cmd.PersistentFlags()
 	flags.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
-	flags.AddGoFlagSet(flag.CommandLine)
 
 	// add common flags
 	// commonOptions.AddFlags(flags)
@@ -58,8 +53,11 @@ func NewAgentCommand() *cobra.Command {
 	// add alias flags
 	addFlags(flags)
 
-	utilruntime.Must(features.SpokeMutableFeatureGate.Add(ocmfeature.DefaultSpokeWorkFeatureGates))
-	utilruntime.Must(features.SpokeMutableFeatureGate.Set(fmt.Sprintf("%s=true", ocmfeature.RawFeedbackJsonString)))
+	// add pre-run to set feature gates
+	cmd.PreRun = func(cmd *cobra.Command, args []string) {
+		utilruntime.Must(features.SpokeMutableFeatureGate.Add(ocmfeature.DefaultSpokeWorkFeatureGates))
+		utilruntime.Must(features.SpokeMutableFeatureGate.Set(fmt.Sprintf("%s=true", ocmfeature.RawFeedbackJsonString)))
+	}
 
 	return cmd
 }

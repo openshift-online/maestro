@@ -71,12 +71,12 @@ kubectl get pod -A
 kubectl apply -f ./test/e2e/setup/service-ca-crds
 kubectl $1 create ns openshift-config-managed
 kubectl $1 apply -f ./test/e2e/setup/service-ca/
+kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
 
 # 4. deploy maestro into maestro namespace
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
-export ENABLE_GRPC=true
-export REPLICAS=2
+export ENABLE_GRPC_SERVER=true
 kubectl create namespace $namespace || true
 make template \
 	deploy-secrets \
@@ -89,7 +89,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: maestro-mqtt-server
-  namespace: maestro
 spec:
   ports:
   - name: mosquitto
@@ -104,7 +103,6 @@ apiVersion: v1
 kind: Service
 metadata:
   name: maestro-mqtt-agent
-  namespace: maestro
 spec:
   ports:
   - name: mosquitto
@@ -123,11 +121,11 @@ kubectl patch service maestro -n $namespace -p '{"spec":{"type":"NodePort", "por
 kubectl patch service maestro-grpc -n $namespace -p '{"spec":{"type":"NodePort", "ports":  [{"nodePort": 30090, "port": 8090, "targetPort": 8090}]}}' --type merge
 
 # 5. create a self-signed certificate for mqtt
-certDir=$(mktemp -d)
-step certificate create "maestro-mqtt-ca" ${certDir}/ca.crt ${certDir}/ca.key --profile root-ca --no-password --insecure
-step certificate create "maestro-mqtt-broker" ${certDir}/server.crt ${certDir}/server.key -san maestro-mqtt -san maestro-mqtt.maestro -san maestro-mqtt-server -san maestro-mqtt-server.maestro -san maestro-mqtt-agent -san maestro-mqtt-agent.maestro --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
-step certificate create "maestro-server-client" ${certDir}/server-client.crt ${certDir}/server-client.key --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
-step certificate create "maestro-agent-client" ${certDir}/agent-client.crt ${certDir}/agent-client.key --profile leaf --ca ${certDir}/ca.crt --ca-key ${certDir}/ca.key --no-password --insecure
+mqttCertDir=$(mktemp -d)
+step certificate create "maestro-mqtt-ca" ${mqttCertDir}/ca.crt ${mqttCertDir}/ca.key --profile root-ca --no-password --insecure
+step certificate create "maestro-mqtt-broker" ${mqttCertDir}/server.crt ${mqttCertDir}/server.key -san maestro-mqtt -san maestro-mqtt.maestro -san maestro-mqtt-server -san maestro-mqtt-server.maestro -san maestro-mqtt-agent -san maestro-mqtt-agent.maestro --profile leaf --ca ${mqttCertDir}/ca.crt --ca-key ${mqttCertDir}/ca.key --no-password --insecure
+step certificate create "maestro-server-client" ${mqttCertDir}/server-client.crt ${mqttCertDir}/server-client.key --profile leaf --ca ${mqttCertDir}/ca.crt --ca-key ${mqttCertDir}/ca.key --no-password --insecure
+step certificate create "maestro-agent-client" ${mqttCertDir}/agent-client.crt ${mqttCertDir}/agent-client.key --profile leaf --ca ${mqttCertDir}/ca.crt --ca-key ${mqttCertDir}/ca.key --no-password --insecure
 
 # apply the mosquitto configmap
 cat << EOF | kubectl -n $namespace apply -f -
@@ -148,13 +146,61 @@ data:
 EOF
 
 # create secret containing the mqtt certs and patch the maestro-mqtt deployment
-kubectl create secret generic maestro-mqtt-certs -n $namespace --from-file=ca.crt=${certDir}/ca.crt --from-file=server.crt=${certDir}/server.crt --from-file=server.key=${certDir}/server.key
+kubectl create secret generic maestro-mqtt-certs -n $namespace --from-file=ca.crt=${mqttCertDir}/ca.crt --from-file=server.crt=${mqttCertDir}/server.crt --from-file=server.key=${mqttCertDir}/server.key
 kubectl patch deploy/maestro-mqtt -n $namespace --type='json' -p='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mosquitto-certs","secret":{"secretName":"maestro-mqtt-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mosquitto-certs","mountPath":"/mosquitto/certs"}}]'
 kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
 
-maestroServerPatch='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
+# 6. create a self-signed certificate for maestro grpc
+grpcCertDir=$(mktemp -d)
+step certificate create "maestro-grpc-ca" ${grpcCertDir}/ca.crt ${grpcCertDir}/ca.key --profile root-ca --no-password --insecure
+step certificate create "maestro-grpc-server" ${grpcCertDir}/server.crt ${grpcCertDir}/server.key -san maestro-grpc -san maestro-grpc.maestro -san localhost -san 127.0.0.1 --profile leaf --ca ${grpcCertDir}/ca.crt --ca-key ${grpcCertDir}/ca.key --no-password --insecure
+cat << EOF > ${grpcCertDir}/cert.tpl
+{
+    "subject":{"organization":"open-cluster-management","commonName":"grpc-client"},
+    "keyUsage":["digitalSignature"],
+    "extKeyUsage": ["serverAuth","clientAuth"]
+}
+EOF
+step certificate create "maestro-grpc-client" ${grpcCertDir}/client.crt ${grpcCertDir}/client.key --template ${grpcCertDir}/cert.tpl --ca ${grpcCertDir}/ca.crt --ca-key ${grpcCertDir}/ca.key --no-password --insecure
+kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
+
+# create the grpc clusterrolebinding for publishing and subscribing
+cat << EOF | kubectl -n $namespace apply -f -
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: grpc-pub-sub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: grpc-pub-sub
+subjects:
+- kind: User
+  name: grpc-client
+  apiGroup: rbac.authorization.k8s.io
+- kind: ServiceAccount
+  name: grpc-client
+  namespace: $namespace
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: grpc-client
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: grpc-client-token
+  annotations:
+    kubernetes.io/service-account.name: grpc-client
+type: kubernetes.io/service-account-token
+---
+EOF
+
+# patch the maestro deployment to mount the grpc certs and mqtt certs
+maestroServerPatch='[{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"maestro-grpc-cert","secret":{"secretName":"maestro-grpc-cert"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"maestro-grpc-cert","mountPath":"/secrets/maestro-grpc-cert"}},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-client-ca-file=/secrets/maestro-grpc-cert/ca.crt"},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-authn-type=token"},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-tls-cert-file=/secrets/maestro-grpc-cert/server.crt"},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-tls-key-file=/secrets/maestro-grpc-cert/server.key"},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
 if [ -n "${ENABLE_BROADCAST_SUBSCRIPTION}" ] && [ "${ENABLE_BROADCAST_SUBSCRIPTION}" = "true" ]; then
-    maestroServerPatch='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--subscription-type=broadcast"},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
+    maestroServerPatch='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--subscription-type=broadcast"},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-server-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"maestro-grpc-cert","secret":{"secretName":"maestro-grpc-cert"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"maestro-grpc-cert","mountPath":"/secrets/maestro-grpc-cert"}},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-client-ca-file=/secrets/maestro-grpc-cert/ca.crt"},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-authn-type=token"},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-tls-cert-file=/secrets/maestro-grpc-cert/server.crt"},{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--grpc-tls-key-file=/secrets/maestro-grpc-cert/server.key"},{"op":"replace","path":"/spec/template/spec/containers/0/livenessProbe/initialDelaySeconds","value":1},{"op":"replace","path":"/spec/template/spec/containers/0/readinessProbe/initialDelaySeconds","value":1}]'
     cat << EOF | kubectl -n $namespace apply -f -
 apiVersion: v1
 kind: Secret
@@ -189,7 +235,7 @@ EOF
 fi
 
 # create secret containing the client certs to mqtt broker and patch the maestro deployment
-kubectl create secret generic maestro-server-certs -n $namespace --from-file=ca.crt=${certDir}/ca.crt --from-file=client.crt=${certDir}/server-client.crt --from-file=client.key=${certDir}/server-client.key
+kubectl create secret generic maestro-server-certs -n $namespace --from-file=ca.crt=${mqttCertDir}/ca.crt --from-file=client.crt=${mqttCertDir}/server-client.crt --from-file=client.key=${mqttCertDir}/server-client.key
 kubectl patch deploy/maestro -n $namespace --type='json' -p=${maestroServerPatch}
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
@@ -218,7 +264,7 @@ metadata:
   name: maestro-agent-mqtt
 stringData:
   config.yaml: |
-    brokerHost: maestro-mqtt-agent.maestro:1883
+    brokerHost: maestro-mqtt-agent.${namespace}:1883
     caFile: /secrets/mqtt-certs/ca.crt
     clientCertFile: /secrets/mqtt-certs/client.crt
     clientKeyFile: /secrets/mqtt-certs/client.key
@@ -228,9 +274,9 @@ stringData:
 EOF
 
 # create secret containing the client certs to mqtt broker and patch the maestro-agent deployment
-kubectl create secret generic maestro-agent-certs -n ${agent_namespace} --from-file=ca.crt=${certDir}/ca.crt --from-file=client.crt=${certDir}/agent-client.crt --from-file=client.key=${certDir}/agent-client.key
+kubectl create secret generic maestro-agent-certs -n ${agent_namespace} --from-file=ca.crt=${mqttCertDir}/ca.crt --from-file=client.crt=${mqttCertDir}/agent-client.crt --from-file=client.key=${mqttCertDir}/agent-client.key
 kubectl patch deploy/maestro-agent -n ${agent_namespace} --type='json' -p='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--appliedmanifestwork-eviction-grace-period=30s"},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-agent-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}}]'
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s
 
 # remove the certs
-rm -rf ${certDir}
+rm -rf ${mqttCertDir} ${grpcCertDir}

@@ -48,6 +48,9 @@ func handleUpdateError(resourceType string, err error) *errors.ServiceError {
 }
 
 func handleDeleteError(resourceType string, err error) *errors.ServiceError {
+	if strings.Contains(err.Error(), "violates foreign key constraint") {
+		return errors.Forbidden("Unable to delete %s: %s", resourceType, err)
+	}
 	return errors.GeneralError("Unable to delete %s: %s", resourceType, err.Error())
 }
 

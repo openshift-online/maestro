@@ -15,6 +15,7 @@ import (
 	gorillahandlers "github.com/gorilla/handlers"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/openshift-online/ocm-sdk-go/authentication"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/data/generated/openapi"
@@ -124,9 +125,8 @@ func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 		Handler: mainHandler,
 	}
 
-	// TODO: support authn and authz for gRPC
 	if env().Config.GRPCServer.EnableGRPCServer {
-		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventBroadcaster, *env().Config.GRPCServer)
+		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventBroadcaster, *env().Config.GRPCServer, env().Clients.GRPCAuthorizer)
 	}
 	return s
 }
@@ -145,16 +145,16 @@ func (s apiServer) Serve(listener net.Listener) {
 		}
 
 		// Serve with TLS
-		glog.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindPort)
+		klog.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.ServeTLS(listener, env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		glog.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindPort)
+		klog.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.Serve(listener)
 	}
 
 	// Web server terminated.
 	check(err, "Web server terminated with errors")
-	glog.Info("Web server terminated")
+	klog.Info("Web server terminated")
 }
 
 // Listen only start the listener, not the server.
@@ -174,7 +174,7 @@ func (s apiServer) Start() {
 
 	listener, err := s.Listen()
 	if err != nil {
-		glog.Fatalf("Unable to start API server: %s", err)
+		klog.Fatalf("Unable to start API server: %s", err)
 	}
 	s.Serve(listener)
 

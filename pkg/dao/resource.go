@@ -11,14 +11,15 @@ import (
 
 type ResourceDao interface {
 	Get(ctx context.Context, id string) (*api.Resource, error)
-	GetBundle(ctx context.Context, id string) (*api.Resource, error)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Delete(ctx context.Context, id string, unscoped bool) error
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
+	FindByConsumerNameAndResourceType(ctx context.Context, consumerName string, resourceType api.ResourceType) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
+	FirstByConsumerName(ctx context.Context, name string, unscoped bool) (api.Resource, error)
 }
 
 var _ ResourceDao = &sqlResourceDao{}
@@ -35,15 +36,6 @@ func (d *sqlResourceDao) Get(ctx context.Context, id string) (*api.Resource, err
 	g2 := (*d.sessionFactory).New(ctx)
 	var resource api.Resource
 	if err := g2.Unscoped().Take(&resource, "id = ?", id).Error; err != nil {
-		return nil, err
-	}
-	return &resource, nil
-}
-
-func (d *sqlResourceDao) GetBundle(ctx context.Context, id string) (*api.Resource, error) {
-	g2 := (*d.sessionFactory).New(ctx)
-	var resource api.Resource
-	if err := g2.Unscoped().Take(&resource, "id = ? AND type = ?", id, api.ResourceTypeBundle).Error; err != nil {
 		return nil, err
 	}
 	return &resource, nil
@@ -107,6 +99,15 @@ func (d *sqlResourceDao) FindByConsumerName(ctx context.Context, consumerName st
 	return resources, nil
 }
 
+func (d *sqlResourceDao) FindByConsumerNameAndResourceType(ctx context.Context, consumerName string, resourceType api.ResourceType) (api.ResourceList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	resources := api.ResourceList{}
+	if err := g2.Unscoped().Where("consumer_name = ? and type = ?", consumerName, resourceType).Find(&resources).Error; err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
 func (d *sqlResourceDao) All(ctx context.Context) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
@@ -114,4 +115,16 @@ func (d *sqlResourceDao) All(ctx context.Context) (api.ResourceList, error) {
 		return nil, err
 	}
 	return resources, nil
+}
+
+// FirstByConsumerName will take the first item of the resources on the consumer. it can be used to determine whether the resource exists for the consumer.
+func (d *sqlResourceDao) FirstByConsumerName(ctx context.Context, consumerName string, unscoped bool) (api.Resource, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	if unscoped {
+		// Unscoped is used to find the deleting resources
+		g2 = g2.Unscoped()
+	}
+	resource := api.Resource{}
+	err := g2.Where("consumer_name = ?", consumerName).First(&resource).Error
+	return resource, err
 }

@@ -2,14 +2,16 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
-	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -26,6 +28,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
@@ -34,14 +37,16 @@ import (
 // GRPCServer includes a gRPC server and a resource service
 type GRPCServer struct {
 	pbv1.UnimplementedCloudEventServiceServer
-	grpcServer       *grpc.Server
-	eventBroadcaster *event.EventBroadcaster
-	resourceService  services.ResourceService
-	bindAddress      string
+	grpcServer        *grpc.Server
+	eventBroadcaster  *event.EventBroadcaster
+	resourceService   services.ResourceService
+	disableAuthorizer bool
+	grpcAuthorizer    grpcauthorizer.GRPCAuthorizer
+	bindAddress       string
 }
 
 // NewGRPCServer creates a new GRPCServer
-func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *event.EventBroadcaster, config config.GRPCServerConfig) *GRPCServer {
+func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *event.EventBroadcaster, config config.GRPCServerConfig, grpcAuthorizer grpcauthorizer.GRPCAuthorizer) *GRPCServer {
 	grpcServerOptions := make([]grpc.ServerOption, 0)
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxRecvMsgSize(config.MaxReceiveMessageSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxSendMsgSize(config.MaxSendMessageSize))
@@ -53,7 +58,7 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 		MaxConnectionAge: config.MaxConnectionAge,
 	}))
 
-	if config.EnableTLS {
+	if !config.DisableTLS {
 		// Check tls cert and key path path
 		if config.TLSCertFile == "" || config.TLSKeyFile == "" {
 			check(
@@ -63,29 +68,75 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 		}
 
 		// Serve with TLS
-		creds, err := credentials.NewServerTLSFromFile(config.TLSCertFile, config.TLSKeyFile)
+		serverCerts, err := tls.LoadX509KeyPair(config.TLSCertFile, config.TLSKeyFile)
 		if err != nil {
-			glog.Fatalf("Failed to generate credentials %v", err)
+			check(fmt.Errorf("failed to load server certificates: %v", err), "Can't start gRPC server")
 		}
-		grpcServerOptions = append(grpcServerOptions, grpc.Creds(creds))
-		glog.Infof("Serving gRPC service with TLS at %s", config.BindPort)
+
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{serverCerts},
+			MinVersion:   tls.VersionTLS13,
+			MaxVersion:   tls.VersionTLS13,
+		}
+
+		// add metrics and auth interceptors
+		grpcServerOptions = append(grpcServerOptions,
+			grpc.ChainUnaryInterceptor(newMetricsUnaryInterceptor(), newAuthUnaryInterceptor(config.GRPCAuthNType, grpcAuthorizer)),
+			grpc.ChainStreamInterceptor(newMetricsStreamInterceptor(), newAuthStreamInterceptor(config.GRPCAuthNType, grpcAuthorizer)))
+
+		if config.GRPCAuthNType == "mtls" {
+			if len(config.ClientCAFile) == 0 {
+				check(fmt.Errorf("no client CA file specified when using mtls authorization type"), "Can't start gRPC server")
+			}
+
+			certPool, err := x509.SystemCertPool()
+			if err != nil {
+				check(fmt.Errorf("failed to load system cert pool: %v", err), "Can't start gRPC server")
+			}
+
+			caPEM, err := os.ReadFile(config.ClientCAFile)
+			if err != nil {
+				check(fmt.Errorf("failed to read client CA file: %v", err), "Can't start gRPC server")
+			}
+
+			if ok := certPool.AppendCertsFromPEM(caPEM); !ok {
+				check(fmt.Errorf("failed to append client CA to cert pool"), "Can't start gRPC server")
+			}
+
+			tlsConfig.ClientCAs = certPool
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
+			klog.Infof("Serving gRPC service with mTLS at %s", config.ServerBindPort)
+		} else {
+			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
+			klog.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
+		}
 	} else {
-		glog.Infof("Serving gRPC service without TLS at %s", config.BindPort)
+		// append metrics interceptor
+		grpcServerOptions = append(grpcServerOptions,
+			grpc.UnaryInterceptor(newMetricsUnaryInterceptor()),
+			grpc.StreamInterceptor(newMetricsStreamInterceptor()))
+		// Note: Do not use this in production.
+		klog.Infof("Serving gRPC service without TLS at %s", config.ServerBindPort)
 	}
 
 	return &GRPCServer{
-		grpcServer:       grpc.NewServer(grpcServerOptions...),
-		eventBroadcaster: eventBroadcaster,
-		resourceService:  resourceService,
-		bindAddress:      env().Config.HTTPServer.Hostname + ":" + config.BindPort,
+		grpcServer:        grpc.NewServer(grpcServerOptions...),
+		eventBroadcaster:  eventBroadcaster,
+		resourceService:   resourceService,
+		disableAuthorizer: config.DisableTLS,
+		grpcAuthorizer:    grpcAuthorizer,
+		bindAddress:       env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
 	}
 }
 
 // Start starts the gRPC server
 func (svr *GRPCServer) Start() error {
+	klog.Info("Starting gRPC server")
 	lis, err := net.Listen("tcp", svr.bindAddress)
 	if err != nil {
-		glog.Fatalf("failed to listen: %v", err)
+		klog.Errorf("failed to listen: %v", err)
 		return err
 	}
 	pbv1.RegisterCloudEventServiceServer(svr.grpcServer, svr)
@@ -105,12 +156,25 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to convert protobuf to cloudevent: %v", err)
 	}
 
+	if !svr.disableAuthorizer {
+		// check if the event is from the authorized source
+		user := ctx.Value(contextUserKey).(string)
+		groups := ctx.Value(contextGroupsKey).([]string)
+		allowed, err := svr.grpcAuthorizer.AccessReview(ctx, "pub", "source", evt.Source(), user, groups)
+		if err != nil {
+			return nil, fmt.Errorf("failed to authorize the request: %v", err)
+		}
+		if !allowed {
+			return nil, fmt.Errorf("unauthorized to publish the event from source %s", evt.Source())
+		}
+	}
+
 	eventType, err := types.ParseCloudEventsType(evt.Type())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	glog.V(4).Infof("receive the event with grpc, %s", evt)
+	klog.V(4).Infof("receive the event with grpc server, %s", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -121,7 +185,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return &emptypb.Empty{}, nil
 	}
 
-	res, err := decode(eventType.CloudEventsDataType, evt)
+	res, err := decodeResourceSpec(eventType.CloudEventsDataType, evt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
@@ -152,7 +216,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	case common.DeleteRequestAction:
 		err := svr.resourceService.MarkAsDeleting(ctx, res.ID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update resource: %v", err)
+			return nil, fmt.Errorf("failed to delete resource: %v", err)
 		}
 	default:
 		return nil, fmt.Errorf("unsupported action %s", eventType.Action)
@@ -163,13 +227,27 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 
 // Subscribe implements the Subscribe method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv1.CloudEventService_SubscribeServer) error {
+	if !svr.disableAuthorizer {
+		// check if the client is authorized to subscribe the event from the source
+		ctx := subServer.Context()
+		user := ctx.Value(contextUserKey).(string)
+		groups := ctx.Value(contextGroupsKey).([]string)
+		allowed, err := svr.grpcAuthorizer.AccessReview(ctx, "sub", "source", subReq.Source, user, groups)
+		if err != nil {
+			return fmt.Errorf("failed to authorize the request: %v", err)
+		}
+		if !allowed {
+			return fmt.Errorf("unauthorized to subscribe the event from source %s", subReq.Source)
+		}
+	}
+
 	clientID, errChan := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
-		evt, err := encode(res)
+		evt, err := encodeResourceStatus(res)
 		if err != nil {
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
 
-		glog.V(4).Infof("send the event with grpc, %s", evt)
+		klog.V(4).Infof("send the event to status subscribers, %s", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
@@ -188,18 +266,18 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 
 	select {
 	case err := <-errChan:
-		glog.Errorf("unregister client %s, error= %v", clientID, err)
+		klog.Errorf("unregister client %s, error= %v", clientID, err)
 		svr.eventBroadcaster.Unregister(clientID)
 		return err
 	case <-subServer.Context().Done():
-		glog.V(10).Infof("unregister client %s", clientID)
+		klog.V(10).Infof("unregister client %s", clientID)
 		svr.eventBroadcaster.Unregister(clientID)
 		return nil
 	}
 }
 
-// decode translates a cloudevent to a resource
-func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resource, error) {
+// decodeResourceSpec translates a CloudEvent into a resource containing the spec JSON map.
+func decodeResourceSpec(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resource, error) {
 	evtExtensions := evt.Context.GetExtensions()
 
 	clusterName, err := cetypes.ToString(evtExtensions[types.ExtensionClusterName])
@@ -252,8 +330,8 @@ func decode(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resour
 	return resource, nil
 }
 
-// encode translates a resource to a cloudevent
-func encode(resource *api.Resource) (*ce.Event, error) {
+// encodeResourceStatus translates a resource status JSON map into a CloudEvent.
+func encodeResourceStatus(resource *api.Resource) (*ce.Event, error) {
 	if resource.Type == api.ResourceTypeSingle {
 		// single resource, return the status directly
 		return api.JSONMAPToCloudEvent(resource.Status)
@@ -289,11 +367,6 @@ func encode(resource *api.Resource) (*ce.Event, error) {
 		specEvt, err := api.JSONMAPToCloudEvent(resource.Payload)
 		if err != nil {
 			return nil, err
-		}
-
-		// set work meta back from spec event
-		if workMeta, ok := specEvt.Extensions()[codec.ExtensionWorkMeta]; ok {
-			evt.SetExtension(codec.ExtensionWorkMeta, workMeta)
 		}
 
 		// set work spec back from spec event

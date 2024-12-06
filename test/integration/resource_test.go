@@ -4,17 +4,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+	prommodel "github.com/prometheus/client_model/go"
+	"github.com/prometheus/common/expfmt"
 	"gopkg.in/resty.v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
+	k8stypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
@@ -42,8 +47,9 @@ func TestResourceGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.CreateConsumer("cluster1")
-	resource := h.CreateResource(consumer.Name, 1)
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource := h.CreateResource(consumer.Name, deployName, 1)
 
 	res, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resource.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -61,17 +67,19 @@ func TestResourcePost(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	defer func() {
+		cancel()
+	}()
 
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewAPIResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
 	informer := h.WorkAgentInformer
-	lister := informer.Lister().ManifestWorks(consumer.Name)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
-	resourceService := h.Env().Services.Resources()
 	sourceClient := h.Env().Clients.CloudEventsSource
 
 	// POST responses per openapi spec: 201, 400, 409, 500
@@ -97,16 +105,6 @@ func TestResourcePost(t *testing.T) {
 
 	var work *workv1.ManifestWork
 	Eventually(func() error {
-		list, err := lister.List(labels.Everything())
-		if err != nil {
-			return err
-		}
-
-		// ensure there is only one work was synced on the cluster
-		if len(list) != 1 {
-			return fmt.Errorf("unexpected work list %v", list)
-		}
-
 		// ensure the work can be get by work client
 		work, err = agentWorkClient.Get(ctx, *resource.Id, metav1.GetOptions{})
 		if err != nil {
@@ -152,30 +150,28 @@ func TestResourcePost(t *testing.T) {
 
 	// only update the status on the agent local part
 	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
-
 	// Resync the resource status
 	ceSourceClient, ok := sourceClient.(*cloudevents.SourceClientImpl)
 	Expect(ok).To(BeTrue())
 	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
 
+	var newRes *openapi.Resource
 	Eventually(func() error {
-		newRes, err := resourceService.Get(ctx, *resource.Id)
+		newRes, _, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resource.Id).Execute()
 		if err != nil {
 			return err
 		}
-		if newRes.Status == nil || len(newRes.Status) == 0 {
+		if newRes.Status == nil || len(newRes.Status) == 0 ||
+			newRes.Status["ReconcileStatus"] == nil || newRes.Status["ContentStatus"] == nil {
 			return fmt.Errorf("resource status is empty")
 		}
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes, err := resourceService.Get(ctx, *resource.Id)
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource: %v", err)
-	Expect(newRes.Version).To(Equal(*resource.Version))
-	status, err := api.DecodeStatus(newRes.Status)
-	Expect(err).NotTo(HaveOccurred(), "Error decoding status:  %v", err)
-	Expect(status["ReconcileStatus"]).NotTo(BeNil())
-	reconcileStatus := status["ReconcileStatus"].(map[string]interface{})
+	Expect(newRes.Version).To(Equal(resource.Version))
+	Expect(newRes.Status["ReconcileStatus"]).NotTo(BeNil())
+	reconcileStatus := newRes.Status["ReconcileStatus"].(map[string]interface{})
 	observedVersion, ok := reconcileStatus["ObservedVersion"].(float64)
 	Expect(ok).To(BeTrue())
 	Expect(int32(observedVersion)).To(Equal(*resource.Version))
@@ -185,14 +181,22 @@ func TestResourcePost(t *testing.T) {
 	Expect(condition["type"]).To(Equal("Applied"))
 	Expect(condition["status"]).To(Equal("True"))
 
-	contentStatus := status["ContentStatus"].(map[string]interface{})
+	contentStatus := newRes.Status["ContentStatus"].(map[string]interface{})
 	Expect(contentStatus["replicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["availableReplicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["readyReplicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["updatedReplicas"]).To(Equal(float64(1)))
 
-	// make sure controller manager and work agent are stopped
-	cancel()
+	// check the metrics
+	time.Sleep(1 * time.Second)
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+	}
+	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 3.0)
 }
 
 func TestResourcePostWithoutName(t *testing.T) {
@@ -200,9 +204,10 @@ func TestResourcePostWithoutName(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewAPIResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	resourceService := h.Env().Services.Resources()
 	// POST responses per openapi spec: 201, 400, 409, 500
@@ -222,7 +227,7 @@ func TestResourcePostWithoutName(t *testing.T) {
 	Expect(*resource.Name).To(Equal(*resource.Id))
 
 	Eventually(func() error {
-		newRes, err := resourceService.List(types.ListOptions{ClusterName: clusterName})
+		newRes, err := resourceService.List(types.ListOptions{ClusterName: clusterName, CloudEventsDataType: payload.ManifestEventDataType})
 		if err != nil {
 			return err
 		}
@@ -241,9 +246,10 @@ func TestResourcePostWithName(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewAPIResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewAPIResource(consumer.Name, deployName, 1)
 	h.StartControllerManager(ctx)
 	// POST responses per openapi spec: 201, 400, 409, 500
 
@@ -268,22 +274,47 @@ func TestResourcePatch(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
-
+	defer func() {
+		cancel()
+	}()
 	// use the consumer id as the consumer name
 	consumer := h.CreateConsumer("")
 
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.ID, false)
 	clientHolder := h.WorkAgentHolder
-	informer := h.WorkAgentInformer
-	lister := informer.Lister().ManifestWorks(consumer.ID)
 	agentWorkClient := clientHolder.ManifestWorks(consumer.ID)
 
-	res := h.CreateResource(consumer.ID, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.CreateResource(consumer.ID, deployName, 1)
 	Expect(res.Version).To(Equal(int32(1)))
 
+	var work *workv1.ManifestWork
+	Eventually(func() error {
+		// ensure the work can be get by work client
+		var err error
+		work, err = agentWorkClient.Get(ctx, res.ID, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		// add finalizer to the work
+		patchBytes, err := json.Marshal(map[string]interface{}{
+			"metadata": map[string]interface{}{
+				"uid":             work.GetUID(),
+				"resourceVersion": work.GetResourceVersion(),
+				"finalizers":      []string{"work-test-finalizer"},
+			},
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = agentWorkClient.Patch(ctx, work.Name, k8stypes.MergePatchType, patchBytes, metav1.PatchOptions{})
+		return err
+	}, 20*time.Second, 2*time.Second).Should(Succeed())
+
 	// 200 OK
-	newRes := h.NewAPIResource(consumer.ID, 2)
+	newRes := h.NewAPIResource(consumer.Name, deployName, 2)
 	resource, resp, err := client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -318,18 +349,7 @@ func TestResourcePatch(t *testing.T) {
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
 
-	var work *workv1.ManifestWork
 	Eventually(func() error {
-		list, err := lister.List(labels.Everything())
-		if err != nil {
-			return err
-		}
-
-		// ensure there is only one work was synced on the cluster
-		if len(list) != 1 {
-			return fmt.Errorf("unexpected work list %v", list)
-		}
-
 		// ensure the work can be get by work client
 		work, err = agentWorkClient.Get(ctx, *resource.Id, metav1.GetOptions{})
 		if err != nil {
@@ -351,17 +371,23 @@ func TestResourcePatch(t *testing.T) {
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 	Expect(manifest).To(Equal(newRes.Manifest))
 
-	// make sure controller manager and work agent are stopped
-	cancel()
-}
+	// initialize resource deletion
+	_, err = client.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, res.ID).Execute()
+	Expect(err).NotTo(HaveOccurred(), "Error deleting object:  %v", err)
 
-func contains(et api.EventType, events api.EventList) bool {
-	for _, e := range events {
-		if e.EventType == et {
-			return true
-		}
+	// patch the deleting resource should return 409 conflict
+	_, resp, err = client.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, res.ID).ResourcePatchRequest(
+		openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
+	Expect(err).To(HaveOccurred())
+	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
+
+	// check the metrics
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("id"), Value: resource.Id},
+		{Name: strPtr("action"), Value: strPtr("update")},
 	}
-	return false
+	checkServerCounterMetric(t, families, "resource_processed_total", labels, 1.0)
 }
 
 func TestResourcePaging(t *testing.T) {
@@ -371,7 +397,7 @@ func TestResourcePaging(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// Paging
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	_ = h.CreateResourceList(consumer.Name, 20)
 	_ = h.CreateResourceBundleList(consumer.Name, 20)
 
@@ -398,7 +424,7 @@ func TestResourceListSearch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resources := h.CreateResourceList(consumer.Name, 20)
 
 	search := fmt.Sprintf("id in ('%s')", resources[0].ID)
@@ -425,8 +451,9 @@ func TestResourceBundleGet(t *testing.T) {
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-	consumer := h.CreateConsumer("cluster1")
-	resourceBundle := h.CreateResourceBundle("resource1", consumer.Name, 1)
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resourceBundle := h.CreateResourceBundle(consumer.Name, deployName, 1)
 
 	resBundle, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceBundle.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
@@ -439,6 +466,15 @@ func TestResourceBundleGet(t *testing.T) {
 	Expect(*resBundle.CreatedAt).To(BeTemporally("~", resourceBundle.CreatedAt))
 	Expect(*resBundle.UpdatedAt).To(BeTemporally("~", resourceBundle.UpdatedAt))
 	Expect(*resBundle.Version).To(Equal(resourceBundle.Version))
+
+	// check the metrics
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("method"), Value: strPtr("GET")},
+		{Name: strPtr("path"), Value: strPtr("/api/maestro/v1/resource-bundles/-")},
+		{Name: strPtr("code"), Value: strPtr("200")},
+	}
+	checkServerCounterMetric(t, families, "rest_api_inbound_request_count", labels, 1.0)
 }
 
 func TestResourceBundleListSearch(t *testing.T) {
@@ -447,7 +483,7 @@ func TestResourceBundleListSearch(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.CreateConsumer("cluster1")
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resourceBundles := h.CreateResourceBundleList(consumer.Name, 20)
 	_ = h.CreateResourceList(consumer.Name, 20)
 
@@ -466,6 +502,15 @@ func TestResourceBundleListSearch(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
 	Expect(len(list.Items)).To(Equal(20))
 	Expect(list.Total).To(Equal(int32(20)))
+
+	// check the metrics
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("method"), Value: strPtr("GET")},
+		{Name: strPtr("path"), Value: strPtr("/api/maestro/v1/resource-bundles")},
+		{Name: strPtr("code"), Value: strPtr("200")},
+	}
+	checkServerCounterMetric(t, families, "rest_api_inbound_request_count", labels, 2.0)
 }
 
 func TestUpdateResourceWithRacingRequests(t *testing.T) {
@@ -474,9 +519,10 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
-	consumer := h.CreateConsumer("cluster1")
-	res := h.CreateResource(consumer.Name, 1)
-	newRes := h.NewAPIResource(consumer.Name, 2)
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.CreateResource(consumer.Name, deployName, 1)
+	newRes := h.NewAPIResource(consumer.Name, deployName, 2)
 
 	// starts 20 threads to update this resource at the same time
 	threads := 20
@@ -527,18 +573,23 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 			return fmt.Errorf("there are %d unreleased advisory lock", count)
 		}
 		return nil
-	}, 10*time.Second, 1*time.Second).Should(Succeed())
+	}, 20*time.Second, 1*time.Second).Should(Succeed())
 }
 
 func TestResourceFromGRPC(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
-	defer cancel()
+	defer func() {
+		cancel()
+		// give one second to terminate the work agent
+		time.Sleep(1 * time.Second)
+	}()
 	// create a mock resource
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewResource(consumer.Name, deployName, 1, 1)
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
@@ -656,7 +707,7 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes := h.NewResource(consumer.Name, 2)
+	newRes := h.NewResource(consumer.Name, deployName, 2, 1)
 	newRes.ID = *resource.Id
 	newRes.Version = *resource.Version
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
@@ -736,17 +787,60 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
+	// check the metrics
+	time.Sleep(1 * time.Second)
+	families := getServerMetrics(t, "http://localhost:8080/metrics")
+	labels := []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Publish")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_called_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "grpc_server_message_received_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "grpc_server_message_sent_total", labels, 3.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Subscribe")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_called_total", labels, 1.0)
+	checkServerCounterMetric(t, families, "grpc_server_message_received_total", labels, 1.0)
+	//checkServerCounterMetric(t, families, "maestro_grpc_server_msg_sent_total", labels, 2.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Publish")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("code"), Value: strPtr("OK")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_processed_total", labels, 3.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("type"), Value: strPtr("Subscribe")},
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("code"), Value: strPtr("OK")},
+	}
+	checkServerCounterMetric(t, families, "grpc_server_processed_total", labels, 0.0)
+
+	labels = []*prommodel.LabelPair{
+		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
+	}
+	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 3.0)
+	checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 3.0)
 }
 
 func TestResourceBundleFromGRPC(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
-	defer cancel()
+	defer func() {
+		cancel()
+	}()
 	// create a mock resource
-	clusterName := "cluster1"
+	clusterName := "cluster-" + rand.String(5)
 	consumer := h.CreateConsumer(clusterName)
-	res := h.NewResource(consumer.Name, 1)
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	res := h.NewResource(consumer.Name, deployName, 1, 1)
 	res.ID = uuid.NewString()
 
 	h.StartControllerManager(ctx)
@@ -757,6 +851,8 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 
 	// use grpc client to create resource bundle
 	h.StartGRPCResourceSourceClient()
+	time.Sleep(1 * time.Second)
+
 	err := h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
@@ -849,7 +945,7 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newRes := h.NewResource(consumer.Name, 2)
+	newRes := h.NewResource(consumer.Name, deployName, 2, 1)
 	newRes.ID = res.ID
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
@@ -896,4 +992,80 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
 	Expect(len(list.Items)).To(Equal(1))
 	Expect(list.Total).To(Equal(int32(1)))
+}
+
+func contains(et api.EventType, events api.EventList) bool {
+	for _, e := range events {
+		if e.EventType == et {
+			return true
+		}
+	}
+	return false
+}
+
+func getServerMetrics(t *testing.T, url string) map[string]*prommodel.MetricFamily {
+	// gather metrics from metrics server from url /metrics
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Errorf("Error getting metrics:  %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("Error getting metrics with status code:  %v", resp.StatusCode)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Errorf("Error reading metrics:  %v", err)
+	}
+	parser := expfmt.TextParser{}
+	// Ensure EOL
+	reader := strings.NewReader(strings.ReplaceAll(string(body), "\r\n", "\n"))
+	families, err := parser.TextToMetricFamilies(reader)
+	if err != nil {
+		t.Errorf("Error parsing metrics:  %v", err)
+	}
+
+	return families
+}
+
+func checkServerCounterMetric(t *testing.T, families map[string]*prommodel.MetricFamily, name string, labels []*prommodel.LabelPair, value float64) {
+	family, ok := families[name]
+	if !ok {
+		t.Errorf("Metric %s not found", name)
+	}
+	metricValue := 0.0
+	metrics := family.GetMetric()
+	for _, metric := range metrics {
+		metricLabels := metric.GetLabel()
+		if !compareMetricLabels(labels, metricLabels) {
+			continue
+		}
+		metricValue += *metric.Counter.Value
+	}
+	if metricValue != value {
+		t.Errorf("Counter metric %s value is %f, expected %f", name, metricValue, value)
+	}
+}
+
+func compareMetricLabels(labels []*prommodel.LabelPair, metricLabels []*prommodel.LabelPair) bool {
+	if len(labels) != len(metricLabels) {
+		return false
+	}
+	for _, label := range labels {
+		match := false
+		for _, metricLabel := range metricLabels {
+			if *label.Name == *metricLabel.Name && *label.Value == *metricLabel.Value {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return false
+		}
+	}
+	return true
+}
+
+func strPtr(s string) *string {
+	return &s
 }

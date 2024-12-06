@@ -52,6 +52,7 @@ hack/mosquitto-passwd.txt
 vendor/
 
 # Ignore test data
+_output
 test/e2e/.kubeconfig
 test/e2e/.consumer_id
 test/e2e/.consumer_name
@@ -59,3 +60,4 @@ test/e2e/.external_host_ip
 test/e2e/report/*
 unit-test-results.json
 integration-test-results.json
+test/e2e/setup/aro/aro-hcp

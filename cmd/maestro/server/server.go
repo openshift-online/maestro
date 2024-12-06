@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/golang/glog"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 )
@@ -29,7 +29,7 @@ func removeTrailingSlash(next http.Handler) http.Handler {
 // Exit on error
 func check(err error, msg string) {
 	if err != nil && err != http.ErrServerClosed {
-		glog.Errorf("%s: %s", msg, err)
+		klog.Errorf("%s: %s", msg, err)
 		sentry.CaptureException(err)
 		sentry.Flush(environments.Environment().Config.Sentry.Timeout)
 		os.Exit(1)

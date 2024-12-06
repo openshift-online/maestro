@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
@@ -27,7 +27,7 @@ import (
 
 var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 	Context("GRPC Manifest Tests", func() {
-		source := "grpc-e2e"
+		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 		resourceID := uuid.NewString()
 		resourceStatus := &api.ResourceStatus{
 			ReconcileStatus: &api.ReconcileStatus{},
@@ -35,7 +35,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("subscribe to resource status with grpc client", func() {
 			go func() {
-				subClient, err := grpcClient.Subscribe(ctx, &pbv1.SubscriptionRequest{Source: source})
+				subClient, err := grpcClient.Subscribe(ctx, &pbv1.SubscriptionRequest{Source: sourceID})
 				if err != nil {
 					return
 				}
@@ -95,14 +95,10 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec using grpc client", func() {
-			evt, err := helper.ManifestToEvent(1, source, "create_request", consumer.Name, resourceID, 1, false)
-			Expect(err).ShouldNot(HaveOccurred())
-
+			evt := helper.NewEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
 			pbEvt := &pbv1.CloudEvent{}
-			if err = grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt); err != nil {
-				log.Fatalf("failed to convert spec from cloudevent to protobuf: %v", err)
-			}
-
+			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
+			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
 			_, err = grpcClient.Publish(ctx, &pbv1.PublishRequest{Event: pbEvt})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -136,7 +132,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the nginx deployment from cluster", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -156,14 +152,10 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec with update request using grpc client", func() {
-			evt, err := helper.ManifestToEvent(2, source, "update_request", consumer.Name, resourceID, 1, false)
-			Expect(err).ShouldNot(HaveOccurred())
-
+			evt := helper.NewEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
 			pbEvt := &pbv1.CloudEvent{}
-			if err = grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt); err != nil {
-				log.Fatalf("failed to convert spec from cloudevent to protobuf: %v", err)
-			}
-
+			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
+			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
 			_, err = grpcClient.Publish(ctx, &pbv1.PublishRequest{Event: pbEvt})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -197,7 +189,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the nginx deployment from cluster", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -217,14 +209,10 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec with delete request using grpc client", func() {
-			evt, err := helper.ManifestToEvent(2, source, "delete_request", consumer.Name, resourceID, 1, true)
-			Expect(err).ShouldNot(HaveOccurred())
-
+			evt := helper.NewEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
 			pbEvt := &pbv1.CloudEvent{}
-			if err = grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt); err != nil {
-				log.Fatalf("failed to convert spec from cloudevent to protobuf: %v", err)
-			}
-
+			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
+			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
 			_, err = grpcClient.Publish(ctx, &pbv1.PublishRequest{Event: pbEvt})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -245,7 +233,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the nginx deployment from cluster", func() {
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -258,13 +246,13 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the resource with the maestro api", func() {
 			_, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resourceID).Execute()
-			Expect(err).To(HaveOccurred(), "Expected 404")
+			Expect(err).To(HaveOccurred(), "Expected 404 error")
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 		})
 	})
 
 	Context("GRPC Manifest Bundle Tests", func() {
-		source := "grpc-e2e"
+		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 		resourceID := uuid.NewString()
 		resourceBundleStatus := &api.ResourceBundleStatus{
 			ManifestBundleStatus: &payload.ManifestBundleStatus{},
@@ -272,7 +260,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("subscribe to resource bundle status with grpc client", func() {
 			go func() {
-				subClient, err := grpcClient.Subscribe(ctx, &pbv1.SubscriptionRequest{Source: source})
+				subClient, err := grpcClient.Subscribe(ctx, &pbv1.SubscriptionRequest{Source: sourceID})
 				if err != nil {
 					return
 				}
@@ -314,14 +302,10 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource bundle spec using grpc client", func() {
-			evt, err := helper.ManifestsToBundleEvent(1, source, "create_request", consumer.Name, resourceID, 1, false)
-			Expect(err).ShouldNot(HaveOccurred())
-
+			evt := helper.NewBundleEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
 			pbEvt := &pbv1.CloudEvent{}
-			if err = grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt); err != nil {
-				log.Fatalf("failed to convert spec from cloudevent to protobuf: %v", err)
-			}
-
+			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
+			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
 			_, err = grpcClient.Publish(ctx, &pbv1.PublishRequest{Event: pbEvt})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -370,7 +354,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the nginx deployment from cluster", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -390,14 +374,10 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource bundle spec with update request using grpc client", func() {
-			evt, err := helper.ManifestsToBundleEvent(2, source, "update_request", consumer.Name, resourceID, 1, false)
-			Expect(err).ShouldNot(HaveOccurred())
-
+			evt := helper.NewBundleEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
 			pbEvt := &pbv1.CloudEvent{}
-			if err = grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt); err != nil {
-				log.Fatalf("failed to convert spec from cloudevent to protobuf: %v", err)
-			}
-
+			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
+			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
 			_, err = grpcClient.Publish(ctx, &pbv1.PublishRequest{Event: pbEvt})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -446,7 +426,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the nginx deployment from cluster", func() {
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -466,14 +446,10 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource bundle spec with delete request using grpc client", func() {
-			evt, err := helper.ManifestsToBundleEvent(2, source, "delete_request", consumer.Name, resourceID, 1, true)
-			Expect(err).ShouldNot(HaveOccurred())
-
+			evt := helper.NewBundleEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
 			pbEvt := &pbv1.CloudEvent{}
-			if err = grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt); err != nil {
-				log.Fatalf("failed to convert spec from cloudevent to protobuf: %v", err)
-			}
-
+			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
+			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
 			_, err = grpcClient.Publish(ctx, &pbv1.PublishRequest{Event: pbEvt})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
@@ -494,7 +470,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the nginx deployment from cluster", func() {
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -507,7 +483,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 
 		It("get the resource with the maestro api", func() {
 			_, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
-			Expect(err).To(HaveOccurred(), "Expected 404")
+			Expect(err).To(HaveOccurred(), "Expected 404 error")
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 		})
 	})

@@ -10,7 +10,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 
-	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -34,6 +33,9 @@ import (
 type RESTFulAPIWatcherStore struct {
 	sync.RWMutex
 
+	// the context for RESTful API request, it is passed with RESTful API client together
+	ctx context.Context
+
 	sourceID  string
 	apiClient *openapi.APIClient
 
@@ -45,6 +47,7 @@ var _ store.WorkClientWatcherStore = &RESTFulAPIWatcherStore{}
 
 func newRESTFulAPIWatcherStore(ctx context.Context, apiClient *openapi.APIClient, sourceID string) *RESTFulAPIWatcherStore {
 	s := &RESTFulAPIWatcherStore{
+		ctx:       ctx,
 		sourceID:  sourceID,
 		apiClient: apiClient,
 		watchers:  make(map[string]*workWatcher),
@@ -83,11 +86,8 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 		searches = append(searches, labelSearch)
 	}
 
-	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
-		Search(strings.Join(searches, " and ")).
-		Page(1).
-		Size(-1).
-		Execute()
+	// for watch, we need list all works with the search condition from maestro server
+	rbs, _, err := pageList(m.ctx, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -126,32 +126,29 @@ func (m *RESTFulAPIWatcherStore) HandleReceivedWork(action types.ResourceAction,
 }
 
 // Get a work from maestro server with its namespace and name
-func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, error) {
+func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
 	id := utils.UID(m.sourceID, namespace, name)
-	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(context.Background(), id).Execute()
+	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(m.ctx, id).Execute()
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
-			return nil, errors.NewNotFound(common.ManifestWorkGR, id)
+			return nil, false, nil
 		}
 
-		return nil, err
+		return nil, false, err
 	}
 
-	return ToManifestWork(rb)
+	work, err := ToManifestWork(rb)
+	if err != nil {
+		return nil, false, err
+	}
+
+	return work, true, nil
 }
 
 // List works from maestro server with a specified namespace and list options.
-// Using `metav1.NamespaceAll` to specify all namespace
-func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions) ([]*workv1.ManifestWork, error) {
-	works := []*workv1.ManifestWork{}
-
-	// TODO consider how to support configuring page
-	var page int32 = 1
-
-	var size int32 = -1
-	if opts.Limit > 0 {
-		size = int32(opts.Limit)
-	}
+// Using `metav1.NamespaceAll` to specify all namespace.
+func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions) (*workv1.ManifestWorkList, error) {
+	works := []workv1.ManifestWork{}
 
 	_, labelSearch, selectable, err := ToLabelSearch(opts)
 	if err != nil {
@@ -167,14 +164,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 		searches = append(searches, labelSearch)
 	}
 
-	search := strings.Join(searches, " and ")
-	klog.V(4).Infof("list works with search=%s", search)
-
-	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
-		Search(search).
-		Page(page).
-		Size(size).
-		Execute()
+	rbs, nextPage, err := pageList(m.ctx, m.apiClient, strings.Join(searches, " and "), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -185,28 +175,32 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 			return nil, err
 		}
 
-		works = append(works, work)
+		works = append(works, *work)
 	}
 
-	return works, nil
+	return &workv1.ManifestWorkList{
+		ListMeta: metav1.ListMeta{Continue: nextPage},
+		Items:    works,
+	}, nil
 }
 
 func (m *RESTFulAPIWatcherStore) ListAll() ([]*workv1.ManifestWork, error) {
-	return m.List(metav1.NamespaceAll, metav1.ListOptions{})
+	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
+	return nil, nil
 }
 
 func (m *RESTFulAPIWatcherStore) Add(work *workv1.ManifestWork) error {
-	// do nothing
+	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
 	return nil
 }
 
 func (m *RESTFulAPIWatcherStore) Update(work *workv1.ManifestWork) error {
-	// do nothing
+	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
 	return nil
 }
 
 func (m *RESTFulAPIWatcherStore) Delete(work *workv1.ManifestWork) error {
-	// do nothing
+	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
 	return nil
 }
 
@@ -239,11 +233,8 @@ func (m *RESTFulAPIWatcherStore) Sync() error {
 		search = append(search, namespaces...)
 	}
 
-	rbs, _, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(context.Background()).
-		Search(strings.Join(search, " or ")).
-		Page(1).
-		Size(-1).
-		Execute()
+	// for sync, we need list all works with the search condition from maestro server
+	rbs, _, err := pageList(m.ctx, m.apiClient, strings.Join(search, " or "), metav1.ListOptions{})
 	if err != nil {
 		return err
 	}

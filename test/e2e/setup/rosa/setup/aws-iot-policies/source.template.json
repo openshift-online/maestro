@@ -1,0 +1,43 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iot:Connect"
+            ],
+            "Resource": [
+                "*"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iot:Publish"
+            ],
+            "Resource": [
+                "arn:aws:iot:{region}:{aws_account}:topic/sources/maestro/consumers/*/sourceevents"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iot:Subscribe"
+            ],
+            "Resource": [
+                "arn:aws:iot:{region}:{aws_account}:topicfilter/sources/maestro/consumers/+/agentevents",
+                "arn:aws:iot:{region}:{aws_account}:topicfilter/$share/statussubscribers/sources/maestro/consumers/+/agentevents"
+            ]
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "iot:Receive"
+            ],
+            "Resource": [
+                "arn:aws:iot:{region}:{aws_account}:topic/sources/maestro/consumers/*/agentevents",
+                "arn:aws:iot:{region}:{aws_account}:topic/$share/statussubscribers/sources/maestro/consumers/*/agentevents"
+            ]
+        }
+    ]
+}

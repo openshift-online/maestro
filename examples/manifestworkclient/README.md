@@ -1,6 +1,6 @@
 # gRPC Source ManifestWork Client
 
-This example shows how to build a source ManifestWork client with Maestro gRPC service and watch/create/get/update/delete works by this client.
+This example shows how to build a source ManifestWork client with Maestro gRPC service and watch/get/list/create/patch/delete works by this client.
 
 ## Build the client
 
@@ -18,7 +18,47 @@ if err != nil {
 		log.Fatal(err)
 }
 
-// watch/create/patch/get/delete/list by workClient
+// watch/get/list/create/patch/delete by workClient
+```
+
+## List works
+
+The `List` of the gRPC source ManifestWork client supports to paging list works, this will help to list the works when there are a lot of works in the maestro sever, e.g.
+
+```golang
+
+workClient, err := ...
+
+// There are 2500 works in the maestro, we will list these works with paging
+
+// First list: this will return 1000 (this is controlled by `ListOptions.Limit`) works and
+// with a next page (2) in the `workList.ListMeta.Continue`
+workList, err := workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+		Limit: 1000
+})
+if err != nil {
+  log.Fatal(err)
+}
+
+// Second list: we list works with last returned `ListMeta.Continue`, this will also return
+// 1000 works and with a next page (3) in the `workList.ListMeta.Continue`
+workList, err = workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+		Limit: 1000,
+    Continue: workList.ListMeta.Continue,
+})
+if err != nil {
+  log.Fatal(err)
+}
+
+// Third list: we also list works with last returned `ListMeta.Continue`, this will return
+// all remaining works (500) and the `workList.ListMeta.Continue` will be empty
+workList, err = workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
+		Limit: 1000,
+    Continue: workList.ListMeta.Continue,
+})
+if err != nil {
+  log.Fatal(err)
+}
 ```
 
 

@@ -1,6 +1,6 @@
 ---
+apiVersion: template.openshift.io/v1
 kind: Template
-apiVersion: v1
 metadata:
   name: maestro-agent
   annotations:
@@ -32,6 +32,11 @@ parameters:
 - name: IMAGE_TAG
   displayName: Image tag
   value: latest
+
+- name: MESSAGE_DRIVER_TYPE
+  displayName: Message Driver Type
+  description: Message driver type, mqtt or grpc.
+  value: mqtt
 
 - name: MQTT_HOST
   description: Hostname for the mqtt broker.
@@ -289,16 +294,24 @@ objects:
             - /usr/local/bin/maestro
             - agent
             - --consumer-name=${CONSUMER_NAME}
-            - --workload-source-driver=mqtt
-            - --workload-source-config=/secrets/mqtt/config.yaml
+            - --workload-source-driver=${MESSAGE_DRIVER_TYPE}
+            - --workload-source-config=/secrets/${MESSAGE_DRIVER_TYPE}/config.yaml
             - --cloudevents-client-id=${CONSUMER_NAME}-work-agent
           volumeMounts:
-          - name: mqtt
-            mountPath: /secrets/mqtt
+          - name: ${MESSAGE_DRIVER_TYPE}
+            mountPath: /secrets/${MESSAGE_DRIVER_TYPE}
         volumes:
-        - name: mqtt
+        - name: ${MESSAGE_DRIVER_TYPE}
           secret:
-            secretName: maestro-agent-mqtt
+            secretName: maestro-agent-${MESSAGE_DRIVER_TYPE}
+
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: maestro-agent-grpc
+  stringData:
+    config.yaml: |
+      url: maestro-grpc-broker.maestro:8091
 
 - apiVersion: v1
   kind: Secret

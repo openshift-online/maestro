@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/golang/glog"
 	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/api"
+	"k8s.io/klog/v2"
 )
 
 // resourceHandler is a function that can handle resource status change events.
@@ -51,7 +51,7 @@ func (h *EventBroadcaster) Register(source string, handler resourceHandler) (str
 		errChan: errChan,
 	}
 
-	glog.V(4).Infof("register a broadcaster client %s (source=%s)", id, source)
+	klog.V(4).Infof("register a broadcaster client %s (source=%s)", id, source)
 
 	return id, errChan
 }
@@ -72,7 +72,7 @@ func (h *EventBroadcaster) Broadcast(res *api.Resource) {
 
 // Start starts the event broadcaster and waits for events to broadcast.
 func (h *EventBroadcaster) Start(ctx context.Context) {
-	glog.Infof("Starting event broadcaster")
+	klog.Infof("Starting event broadcaster")
 
 	for {
 		select {

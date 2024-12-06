@@ -1,42 +1,65 @@
 package e2e_test
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
+	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/test"
+	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
 )
 
+type agentTestOptions struct {
+	agentNamespace string
+	consumerName   string
+	kubeConfig     string
+	kubeClientSet  kubernetes.Interface
+	workClientSet  workclientset.Interface
+}
+
+type serverTestOptions struct {
+	serverNamespace string
+	kubeConfig      string
+	kubeClientSet   kubernetes.Interface
+}
+
 var (
+	serverTestOpts    *serverTestOptions
+	agentTestOpts     *agentTestOptions
 	apiServerAddress  string
-	grpcServerAddress string
-	grpcClient        pbv1.CloudEventServiceClient
-	workClient        workv1client.WorkV1Interface
 	apiClient         *openapi.APIClient
-	sourceID          string
+	grpcServerAddress string
+	grpcCertDir       string
 	grpcConn          *grpc.ClientConn
+	grpcClient        pbv1.CloudEventServiceClient
 	grpcOptions       *grpcoptions.GRPCOptions
-	consumer          *ConsumerOptions
+	sourceID          string
+	sourceWorkClient  workv1client.WorkV1Interface
 	helper            *test.Helper
 	cancel            context.CancelFunc
 	ctx               context.Context
@@ -49,12 +72,16 @@ func TestE2E(t *testing.T) {
 }
 
 func init() {
-	consumer = &ConsumerOptions{}
+	serverTestOpts = &serverTestOptions{}
+	agentTestOpts = &agentTestOptions{}
 	klog.SetOutput(GinkgoWriter)
-	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro API server address")
+	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro Restful API server address")
 	flag.StringVar(&grpcServerAddress, "grpc-server", "", "Maestro gRPC server address")
-	flag.StringVar(&consumer.Name, "consumer-name", "", "Consumer name is used to identify the consumer")
-	flag.StringVar(&consumer.KubeConfig, "consumer-kubeconfig", "", "Path to kubeconfig file")
+	flag.StringVar(&serverTestOpts.serverNamespace, "server-namespace", "maestro", "Namespace where the maestro server is running")
+	flag.StringVar(&serverTestOpts.kubeConfig, "server-kubeconfig", "", "Path to the kubeconfig file for the maestro server")
+	flag.StringVar(&agentTestOpts.agentNamespace, "agent-namespace", "maestro-agent", "Namespace where the maestro agent is running")
+	flag.StringVar(&agentTestOpts.consumerName, "consumer-name", "", "Consumer name is used to identify the consumer")
+	flag.StringVar(&agentTestOpts.kubeConfig, "agent-kubeconfig", "", "Path to the kubeconfig file for the maestro agent")
 }
 
 var _ = BeforeSuite(func() {
@@ -83,39 +110,118 @@ var _ = BeforeSuite(func() {
 	apiClient = openapi.NewAPIClient(cfg)
 
 	var err error
-	grpcConn, err = grpc.Dial(grpcServerAddress, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("fail to dial grpc server: %v", err)
-	}
-	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
+	grpcCertDir, err = os.MkdirTemp("/tmp", "maestro-grpc-certs-")
+	Expect(err).To(Succeed())
 
-	sourceID = "sourceclient-test" + rand.String(5)
+	// validate the server kubeconfig and initialize the kube client
+	serverRestConfig, err := clientcmd.BuildConfigFromFlags("", serverTestOpts.kubeConfig)
+	Expect(err).To(Succeed())
+	serverTestOpts.kubeClientSet, err = kubernetes.NewForConfig(serverRestConfig)
+	Expect(err).To(Succeed())
+
+	// validate the agent consumer name && kubeconfig and initialize the kube client & work client
+	Expect(agentTestOpts.consumerName).NotTo(BeEmpty(), "consumer name is not provided")
+	agentRestConfig, err := clientcmd.BuildConfigFromFlags("", agentTestOpts.kubeConfig)
+	Expect(err).To(Succeed())
+	agentTestOpts.kubeClientSet, err = kubernetes.NewForConfig(agentRestConfig)
+	Expect(err).To(Succeed())
+	agentTestOpts.workClientSet, err = workclientset.NewForConfig(agentRestConfig)
+	Expect(err).To(Succeed())
+
+	// initialize the grpc source options
 	grpcOptions = grpcoptions.NewGRPCOptions()
 	grpcOptions.URL = grpcServerAddress
+	sourceID = "sourceclient-test" + rand.String(5)
+	grpcCertSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "maestro-grpc-cert", metav1.GetOptions{})
+	if !errors.IsNotFound(err) {
+		// retrieve the grpc cert from the maestro server and write to the grpc cert dir
+		grpcServerCAFile := fmt.Sprintf("%s/ca.crt", grpcCertDir)
+		grpcClientCert := fmt.Sprintf("%s/client.crt", grpcCertDir)
+		grpcClientKey := fmt.Sprintf("%s/client.key", grpcCertDir)
+		Expect(os.WriteFile(grpcServerCAFile, grpcCertSrt.Data["ca.crt"], 0644)).To(Succeed())
+		Expect(os.WriteFile(grpcClientCert, grpcCertSrt.Data["client.crt"], 0644)).To(Succeed())
+		Expect(os.WriteFile(grpcClientKey, grpcCertSrt.Data["client.key"], 0644)).To(Succeed())
+		grpcClientTokenSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "grpc-client-token", metav1.GetOptions{})
+		Expect(err).To(Succeed())
+		grpcClientTokenFile := fmt.Sprintf("%s/token", grpcCertDir)
+		Expect(os.WriteFile(grpcClientTokenFile, grpcClientTokenSrt.Data["token"], 0644)).To(Succeed())
+		// set CAFile and TokenFile for grpc authz
+		grpcOptions.CAFile = grpcServerCAFile
+		grpcOptions.TokenFile = grpcClientTokenFile
+		// create the clusterrole for grpc authz
+		Expect(helper.CreateGRPCAuthRule(ctx, serverTestOpts.kubeClientSet, "grpc-pub-sub", "source", sourceID, []string{"pub", "sub"})).To(Succeed())
 
-	workClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
+		grpcConn, err = helper.CreateGRPCConn(grpcServerAddress, grpcServerCAFile, grpcClientTokenFile)
+		Expect(err).To(Succeed())
+	} else {
+		grpcConn, err = helper.CreateGRPCConn(grpcServerAddress, "", "")
+		Expect(err).To(Succeed())
+	}
+
+	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
+	sourceWorkClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
 		apiClient,
 		grpcOptions,
 		sourceID,
 	)
 	Expect(err).ShouldNot(HaveOccurred())
-
-	// validate the consumer kubeconfig and name
-	restConfig, err := clientcmd.BuildConfigFromFlags("", consumer.KubeConfig)
-	Expect(err).To(Succeed())
-	consumer.ClientSet, err = kubernetes.NewForConfig(restConfig)
-	Expect(err).To(Succeed())
-	Expect(consumer.Name).NotTo(BeEmpty(), "consumer name is not provided")
 })
 
 var _ = AfterSuite(func() {
+	// dump debug info
+	dumpDebugInfo()
 	grpcConn.Close()
+	os.RemoveAll(grpcCertDir)
 	cancel()
 })
 
-type ConsumerOptions struct {
-	Name       string
-	KubeConfig string
-	ClientSet  *kubernetes.Clientset
+var _ = ReportAfterSuite("Maestro e2e Test Report", func(report Report) {
+	junitReportFile := os.Getenv("JUNIT_REPORT_FILE")
+	if junitReportFile != "" {
+		err := reporter.GenerateJUnitReport(report, junitReportFile)
+		if err != nil {
+			log.Printf("Failed to generate the report due to: %v", err)
+		}
+	}
+})
+
+func dumpDebugInfo() {
+	// dump the maestro server logs
+	dumpPodLogs(ctx, serverTestOpts.kubeClientSet, "app=maestro", serverTestOpts.serverNamespace)
+	// dump the maestro agent ogs
+	dumpPodLogs(ctx, agentTestOpts.kubeClientSet, "app=maestro-agent", agentTestOpts.agentNamespace)
+}
+
+func dumpPodLogs(ctx context.Context, kubeClient kubernetes.Interface, podSelector, podNamespace string) error {
+	// get pods from podSelector
+	pods, err := kubeClient.CoreV1().Pods(podNamespace).List(ctx, metav1.ListOptions{LabelSelector: podSelector})
+	if err != nil {
+		return fmt.Errorf("failed to list pods with pod selector (%s): %v", podSelector, err)
+	}
+
+	for _, pod := range pods.Items {
+		logReq := kubeClient.CoreV1().Pods(podNamespace).GetLogs(pod.Name, &corev1.PodLogOptions{})
+		logs, err := logReq.Stream(context.Background())
+		if err != nil {
+			return fmt.Errorf("failed to open log stream: %v", err)
+		}
+		defer logs.Close()
+
+		buf := new(bytes.Buffer)
+		_, err = buf.ReadFrom(logs)
+		if err != nil {
+			return fmt.Errorf("failed to read pod logs: %v", err)
+		}
+
+		log.Printf("=========================================== POD LOGS START ===========================================")
+		log.Printf("Pod %s/%s phase: %s", pod.Name, podNamespace, string(pod.Status.Phase))
+		for _, containerStatus := range pod.Status.ContainerStatuses {
+			log.Printf("Container %s status: %v", containerStatus.Name, containerStatus.State)
+		}
+		log.Printf("Pod %s/%s logs: \n%s", pod.Name, podNamespace, buf.String())
+		log.Printf("=========================================== POD LOGS STOP ===========================================")
+	}
+
+	return nil
 }

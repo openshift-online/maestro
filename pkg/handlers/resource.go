@@ -35,6 +35,7 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 			validateEmpty(&rs, "Id", "id"),
 			validateNotEmpty(&rs, "ConsumerName", "consumer_name"),
 			validateNotEmpty(&rs, "Manifest", "manifest"),
+			validateDeleteOptionAndUpdateStrategy(&rs),
 		},
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
@@ -187,7 +188,7 @@ func (h resourceHandler) GetBundle(w http.ResponseWriter, r *http.Request) {
 		Action: func() (interface{}, *errors.ServiceError) {
 			id := mux.Vars(r)["id"]
 			ctx := r.Context()
-			resource, serviceErr := h.resource.GetBundle(ctx, id)
+			resource, serviceErr := h.resource.Get(ctx, id)
 			if serviceErr != nil {
 				return nil, serviceErr
 			}
@@ -215,7 +216,7 @@ func (h resourceHandler) ListBundle(w http.ResponseWriter, r *http.Request) {
 				listArgs.Search = fmt.Sprintf("%s and type='%s'", listArgs.Search, api.ResourceTypeBundle)
 			}
 			var resources []api.Resource
-			paging, serviceErr := h.generic.List(ctx, "username", listArgs, &resources)
+			paging, serviceErr := h.resource.ListWithArgs(ctx, "username", listArgs, &resources)
 			if serviceErr != nil {
 				return nil, serviceErr
 			}

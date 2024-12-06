@@ -10,8 +10,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 )
 
-func NewControllersServer(pulseServer *PulseServer) *ControllersServer {
-
+func NewControllersServer(eventServer EventServer) *ControllersServer {
 	s := &ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
 			db.NewAdvisoryLockFactory(env().Database.SessionFactory),
@@ -22,19 +21,18 @@ func NewControllersServer(pulseServer *PulseServer) *ControllersServer {
 		),
 	}
 
-	sourceClient := env().Clients.CloudEventsSource
 	s.KindControllerManager.Add(&controllers.ControllerConfig{
 		Source: "Resources",
 		Handlers: map[api.EventType][]controllers.ControllerHandlerFunc{
-			api.CreateEventType: {sourceClient.OnCreate},
-			api.UpdateEventType: {sourceClient.OnUpdate},
-			api.DeleteEventType: {sourceClient.OnDelete},
+			api.CreateEventType: {eventServer.OnCreate},
+			api.UpdateEventType: {eventServer.OnUpdate},
+			api.DeleteEventType: {eventServer.OnDelete},
 		},
 	})
 
 	s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
-		api.StatusUpdateEventType: {pulseServer.OnStatusUpdate},
-		api.StatusDeleteEventType: {pulseServer.OnStatusUpdate},
+		api.StatusUpdateEventType: {eventServer.OnStatusUpdate},
+		api.StatusDeleteEventType: {eventServer.OnStatusUpdate},
 	})
 
 	return s

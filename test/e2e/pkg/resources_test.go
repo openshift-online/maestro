@@ -12,7 +12,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -21,13 +20,12 @@ import (
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
-// go test -v ./test/e2e/pkg -args -api-server=$api_server -consumer-name=$consumer.Name -consumer-kubeconfig=$consumer_kubeconfig -ginkgo.focus "Resources"
 var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
-	var resource *openapi.Resource
-
 	Context("Resource CRUD Tests", func() {
+		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+		var resource *openapi.Resource
 		It("post the nginx resource to the maestro api", func() {
-			res := helper.NewAPIResource(consumer.Name, 1)
+			res := helper.NewAPIResource(agentTestOpts.consumerName, deployName, 1)
 			var resp *http.Response
 			var err error
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
@@ -37,7 +35,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(*resource.Version).To(Equal(int32(1)))
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -57,7 +55,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("patch the nginx resource with the maestro api", func() {
-			newRes := helper.NewAPIResource(consumer.Name, 2)
+			newRes := helper.NewAPIResource(agentTestOpts.consumerName, deployName, 2)
 			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, *resource.Id).
 				ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resource.Version, Manifest: newRes.Manifest}).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
@@ -65,7 +63,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(*patchedResource.Version).To(Equal(*resource.Version + 1))
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -82,7 +80,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -95,18 +93,20 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 	})
 
 	Context("Resource Delete Option Tests", func() {
-		res := helper.NewAPIResource(consumer.Name, 1)
+		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+		var resource *openapi.Resource
 		It("post the nginx resource to the maestro api", func() {
+			res := helper.NewAPIResource(agentTestOpts.consumerName, deployName, 1)
+			res.DeleteOption = map[string]interface{}{"propagationPolicy": "Orphan"}
 			var resp *http.Response
 			var err error
-			res.DeleteOption = map[string]interface{}{"propagationPolicy": "Orphan"}
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -124,7 +124,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 			// ensure the "nginx" deployment in the "default" namespace is not deleted
 			Consistently(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return fmt.Errorf("nginx deployment is deleted")
@@ -135,11 +135,11 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("delete the nginx deployment", func() {
-			err := consumer.ClientSet.AppsV1().Deployments("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
+			err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Delete(ctx, deployName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -152,18 +152,20 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 	})
 
 	Context("Resource CreateOnly UpdateStrategy Tests", func() {
+		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+		var resource *openapi.Resource
 		It("post the nginx resource to the maestro api with createOnly updateStrategy", func() {
-			res := helper.NewAPIResource(consumer.Name, 1)
+			res := helper.NewAPIResource(agentTestOpts.consumerName, deployName, 1)
+			res.UpdateStrategy = map[string]interface{}{"type": "CreateOnly"}
 			var resp *http.Response
 			var err error
-			res.UpdateStrategy = map[string]interface{}{"type": "CreateOnly"}
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*resource.Id).ShouldNot(BeEmpty())
 
 			Eventually(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -175,15 +177,16 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("patch the nginx resource", func() {
-			newRes := helper.NewAPIResource(consumer.Name, 2)
+			newRes := helper.NewAPIResource(agentTestOpts.consumerName, deployName, 2)
 			patchedResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdPatch(ctx, *resource.Id).
 				ResourcePatchRequest(openapi.ResourcePatchRequest{Version: resource.Version, Manifest: newRes.Manifest}).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(*patchedResource.Version).To(Equal(*resource.Version + 1))
 
+			// ensure the "nginx" deployment in the "default" namespace is not updated
 			Consistently(func() error {
-				deploy, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return nil
 				}
@@ -200,7 +203,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -213,18 +216,27 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 	})
 
 	Context("Resource ReadOnly UpdateStrategy Tests via restful api", func() {
-		It("create a sample deployment in the target cluster", func() {
+		var resource *openapi.Resource
+		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+		It("create a nginx deployment in the target cluster", func() {
 			nginxDeploy := &appsv1.Deployment{}
-			err := json.Unmarshal(helper.GetTestNginxJSON(1), nginxDeploy)
+			err := json.Unmarshal([]byte(helper.NewResourceManifestJSON(deployName, 1)), nginxDeploy)
 			Expect(err).ShouldNot(HaveOccurred())
-			_, err = consumer.ClientSet.AppsV1().Deployments("default").Create(ctx, nginxDeploy, metav1.CreateOptions{})
+			_, err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Create(ctx, nginxDeploy, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("post the resource to the maestro api with readonly updateStrategy", func() {
-			res := helper.NewReadOnlyAPIResource(consumer.Name)
 			var resp *http.Response
 			var err error
+			// post the resource with readonly updateStrategy and foreground delete option should fail
+			invalidRes := helper.NewReadOnlyAPIResource(agentTestOpts.consumerName, deployName)
+			invalidRes.DeleteOption = map[string]interface{}{"propagationPolicy": "Foreground"}
+			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(invalidRes).Execute()
+			Expect(err).Should(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusBadRequest))
+
+			res := helper.NewReadOnlyAPIResource(agentTestOpts.consumerName, deployName)
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
@@ -236,6 +248,15 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				res, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, *resource.Id).Execute()
 				if err != nil {
 					return err
+				}
+
+				// ensure the delete option is set to Orphan
+				deleteType, ok := res.DeleteOption["propagationPolicy"]
+				if !ok {
+					return fmt.Errorf("delete option is not set")
+				}
+				if deleteType != "Orphan" {
+					return fmt.Errorf("delete option is not Orphan")
 				}
 
 				statusJSON, err := json.Marshal(res.Status)
@@ -255,6 +276,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 						return nil
 					}
 				}
+
 				return fmt.Errorf("contentStatus should not be empty")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
@@ -264,11 +286,11 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-			err = consumer.ClientSet.AppsV1().Deployments("default").Delete(ctx, "nginx", metav1.DeleteOptions{})
+			err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Delete(ctx, deployName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.AppsV1().Deployments("default").Get(ctx, "nginx", metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil
@@ -282,9 +304,10 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 	Context("Resource ReadOnly UpdateStrategy Tests via gRPC", func() {
 		workName := "work-readonly-" + rand.String(5)
-		secretName := "auth"
-		It("create a sample secret in the target cluster", func() {
-			_, err := consumer.ClientSet.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
+		secretName := "auth-" + rand.String(5)
+		manifest := fmt.Sprintf("{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"%s\",\"namespace\":\"default\"}}", secretName)
+		It("create a secret in the target cluster", func() {
+			_, err := agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      secretName,
 					Namespace: "default",
@@ -297,20 +320,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("post the resource bundle via gRPC client", func() {
-			obj := &unstructured.Unstructured{
-				Object: map[string]interface{}{
-					"apiVersion": "v1",
-					"kind":       "Secret",
-					"metadata": map[string]interface{}{
-						"namespace": "default",
-						"name":      "auth",
-					},
-				},
-			}
-			objectStr, _ := obj.MarshalJSON()
-			manifest := workv1.Manifest{}
-			manifest.Raw = objectStr
-			_, err := workClient.ManifestWorks(consumer.Name).Create(ctx, &workv1.ManifestWork{
+			work := &workv1.ManifestWork{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: workName,
 				},
@@ -319,7 +329,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 						Manifests: []workv1.Manifest{
 							{
 								RawExtension: runtime.RawExtension{
-									Raw: []byte("{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"auth\",\"namespace\":\"default\"}}"),
+									Raw: []byte(manifest),
 								},
 							},
 						},
@@ -348,39 +358,58 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 						},
 					},
 				},
-			}, metav1.CreateOptions{})
+			}
+			Eventually(func() error {
+				_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+				return err
+			}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+		})
+
+		It("get the resource via restful API", func() {
+			gotResourceBundleList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(len(gotResourceBundleList.Items)).To(Equal(1))
+			resourceBundle := gotResourceBundleList.Items[0]
+			Expect(resourceBundle.Metadata["creationTimestamp"]).ShouldNot(BeEmpty())
+			gotResourceBundle, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, *resourceBundle.Id).Execute()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(gotResourceBundle.Metadata["creationTimestamp"]).ShouldNot(BeEmpty())
 		})
 
 		It("get the resource status back", func() {
 			Eventually(func() error {
-				work, err := workClient.ManifestWorks(consumer.Name).Get(ctx, workName, metav1.GetOptions{})
+				work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
+				if work.CreationTimestamp.Time.IsZero() {
+					return fmt.Errorf("work creationTimestamp is empty")
+				}
 
-				manifest := work.Status.ResourceStatus.Manifests
-				if len(manifest) > 0 && len(manifest[0].StatusFeedbacks.Values) != 0 {
-					feedback := manifest[0].StatusFeedbacks.Values
+				manifests := work.Status.ResourceStatus.Manifests
+				if len(manifests) > 0 && len(manifests[0].StatusFeedbacks.Values) != 0 {
+					feedback := manifests[0].StatusFeedbacks.Values
 					if feedback[0].Name == "credential" && *feedback[0].Value.JsonRaw == "{\"token\":\"dG9rZW4=\"}" {
 						return nil
 					}
-					return fmt.Errorf("the result %v is not expected", feedback[0])
+					return fmt.Errorf("the status feedback value %v is not expected", feedback[0])
 				}
 
-				return fmt.Errorf("manifest should be empty")
+				return fmt.Errorf("manifests are empty")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the readonly resource", func() {
-			err := workClient.ManifestWorks(consumer.Name).Delete(ctx, workName, metav1.DeleteOptions{})
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = consumer.ClientSet.CoreV1().Secrets("default").Delete(ctx, secretName, metav1.DeleteOptions{})
+			err = agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Delete(ctx, secretName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
-				_, err := consumer.ClientSet.CoreV1().Secrets("default").Get(ctx, secretName, metav1.GetOptions{})
+				_, err := agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Get(ctx, secretName, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
 						return nil

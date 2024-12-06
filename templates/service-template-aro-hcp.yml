@@ -1,6 +1,6 @@
 ---
+apiVersion: template.openshift.io/v1
 kind: Template
-apiVersion: v1
 metadata:
   name: maestro-service
   annotations:
@@ -35,8 +35,8 @@ parameters:
   displayName: Image tag
   value: latest
 
-- name: GLOG_V
-  displayName: GLOG V Level
+- name: KLOG_V
+  displayName: KLOG V Level
   description: Log verbosity level
   value: "10"
 
@@ -65,7 +65,7 @@ parameters:
   description: Debug mode for OCM API client
   value: "false"
 
-- name: REPLICAS
+- name: SERVER_REPLICAS
   description: Number of replicas of the service to run.
   value: "1"
 
@@ -84,7 +84,7 @@ parameters:
   description: HTTP server bind port
   value: "8000"
 
-- nane: ENABLE_GRPC_SERVER
+- name: ENABLE_GRPC_SERVER
   displayName: Enable gRPC Server
   description: Enable gRPC server
   value: "true"
@@ -174,7 +174,7 @@ objects:
       selector:
         matchLabels:
           app: maestro
-      replicas: ${{REPLICAS}}
+      replicas: ${{SERVER_REPLICAS}}
       strategy:
         rollingUpdate:
           maxSurge: 25%
@@ -184,6 +184,7 @@ objects:
         metadata:
           labels:
             app: maestro
+            azure.workload.identity/use: "true" # Required. Only pods with this label can use workload identity.
         spec:
           serviceAccountName: maestro
           volumes:
@@ -216,7 +217,7 @@ objects:
             - --db-name-file=/secrets/db/db.name
             - --db-sslmode=${DB_SSLMODE}
             - --alsologtostderr
-            - -v=${GLOG_V}
+            - -v=${KLOG_V}
           containers:
           - name: service
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
@@ -269,7 +270,7 @@ objects:
             - --http-write-timeout=${HTTP_WRITE_TIMEOUT}
             - --label-metrics-inclusion-duration=${LABEL_METRICS_INCLUSION_DURATION}
             - --alsologtostderr
-            - -v=${GLOG_V}
+            - -v=${KLOG_V}
             resources:
               requests:
                 cpu: ${CPU_REQUEST}
