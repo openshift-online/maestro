@@ -15,6 +15,7 @@ func addStatusEvents() *gormigrate.Migration {
 		ResourceID      string `gorm:"index"` // resource id
 		ResourceSource  string
 		ResourceType    string
+		Payload         datatypes.JSON `gorm:"type:json"`
 		Status          datatypes.JSON `gorm:"type:json"`
 		StatusEventType string         // Update|Delete, any string
 		ReconciledDate  *time.Time     `gorm:"null;index"`

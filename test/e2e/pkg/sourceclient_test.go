@@ -452,6 +452,10 @@ func AssertWatchResult(result *WatchedResult) error {
 		}
 
 		if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ManifestsDeleted) && !watchedWork.DeletionTimestamp.IsZero() {
+			if len(watchedWork.Spec.Workload.Manifests) == 0 {
+				return fmt.Errorf("expected the deleted work has spec, but failed %v", watchedWork.Spec)
+			}
+
 			hasDeletedWork = true
 		}
 	}
