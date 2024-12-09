@@ -429,6 +429,7 @@ func (bkr *GRPCBroker) OnDelete(ctx context.Context, id string) error {
 // It does two things:
 // 1. build the resource status and broadcast it to subscribers
 // 2. add the event instance record to mark the event has been processed by the current instance
+// TODO consider using a same way (pulse_server.OnStatusUpdate) to handle this
 func (bkr *GRPCBroker) OnStatusUpdate(ctx context.Context, eventID, resourceID string) error {
 	statusEvent, sErr := bkr.statusEventService.Get(ctx, eventID)
 	if sErr != nil {
@@ -443,9 +444,10 @@ func (bkr *GRPCBroker) OnStatusUpdate(ctx context.Context, eventID, resourceID s
 			Meta: api.Meta{
 				ID: resourceID,
 			},
-			Source: statusEvent.ResourceSource,
-			Type:   statusEvent.ResourceType,
-			Status: statusEvent.Status,
+			Source:  statusEvent.ResourceSource,
+			Type:    statusEvent.ResourceType,
+			Payload: statusEvent.Payload,
+			Status:  statusEvent.Status,
 		}
 	} else {
 		resource, sErr = bkr.resourceService.Get(ctx, resourceID)
