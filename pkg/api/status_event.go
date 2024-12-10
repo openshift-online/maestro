@@ -19,6 +19,7 @@ type StatusEvent struct {
 	ResourceID      string
 	ResourceSource  string
 	ResourceType    ResourceType
+	Payload         datatypes.JSONMap
 	Status          datatypes.JSONMap
 	StatusEventType StatusEventType // Update|Delete
 	ReconciledDate  *time.Time      `json:"gorm:null"`

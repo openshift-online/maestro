@@ -232,9 +232,10 @@ func (s *PulseServer) OnStatusUpdate(ctx context.Context, eventID, resourceID st
 			Meta: api.Meta{
 				ID: resourceID,
 			},
-			Source: statusEvent.ResourceSource,
-			Type:   statusEvent.ResourceType,
-			Status: statusEvent.Status,
+			Source:  statusEvent.ResourceSource,
+			Type:    statusEvent.ResourceType,
+			Payload: statusEvent.Payload,
+			Status:  statusEvent.Status,
 		}
 	} else {
 		resource, sErr = s.resourceService.Get(ctx, resourceID)
@@ -317,6 +318,7 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 			ResourceID:      resource.ID,
 			ResourceSource:  resource.Source,
 			ResourceType:    resource.Type,
+			Payload:         found.Payload,
 			Status:          resource.Status,
 			StatusEventType: api.StatusDeleteEventType,
 		})
