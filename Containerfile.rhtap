@@ -4,25 +4,15 @@ ENV SOURCE_DIR=/maestro
 WORKDIR $SOURCE_DIR
 COPY . $SOURCE_DIR
 
-ENV GOFLAGS=""
-RUN make binary
-RUN pwd
+ENV GOEXPERIMENT=strictfipsruntime
+ENV CGO_ENABLED=1
+RUN make binary BUILD_OPTS="-tags strictfipsruntime"
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
-RUN \
-    microdnf update -y \
-    && \
-    microdnf install -y util-linux \
-    && \
-    microdnf clean all
-
-COPY --from=builder \
-    /maestro/maestro \
-    /usr/local/bin/
-
+RUN microdnf update -y && microdnf install -y util-linux && microdnf clean all
+COPY --from=builder /maestro/maestro /usr/local/bin/
 EXPOSE 8000
-
 ENTRYPOINT ["/usr/local/bin/maestro", "server"]
 
 LABEL name="maestro" \
