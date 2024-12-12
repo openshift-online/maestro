@@ -1,6 +1,8 @@
 package migrations
 
 import (
+	"time"
+
 	"gorm.io/gorm"
 
 	"github.com/go-gormigrate/gormigrate/v2"
@@ -9,6 +11,8 @@ import (
 func addServerInstances() *gormigrate.Migration {
 	type ServerInstance struct {
 		Model
+		LastPulse time.Time
+		Ready     bool `gorm:"default:false"`
 	}
 
 	return &gormigrate.Migration{

@@ -6,37 +6,38 @@ import (
 	"net"
 	"net/http"
 
-	health "github.com/docker/go-healthcheck"
 	"github.com/gorilla/mux"
+	"github.com/openshift-online/maestro/pkg/dao"
 	"k8s.io/klog/v2"
-)
-
-var (
-	updater = health.NewStatusUpdater()
 )
 
 var _ Server = &healthCheckServer{}
 
 type healthCheckServer struct {
-	httpServer *http.Server
+	httpServer  *http.Server
+	instanceDao dao.InstanceDao
+	instanceID  string
+	brokerType  string
 }
 
 func NewHealthCheckServer() *healthCheckServer {
 	router := mux.NewRouter()
-	health.DefaultRegistry = health.NewRegistry()
-	health.Register("maintenance_status", updater)
-	router.HandleFunc("/healthcheck", health.StatusHandler).Methods(http.MethodGet)
-	router.HandleFunc("/healthcheck/down", downHandler).Methods(http.MethodPost)
-	router.HandleFunc("/healthcheck/up", upHandler).Methods(http.MethodPost)
-
 	srv := &http.Server{
 		Handler: router,
 		Addr:    env().Config.HTTPServer.Hostname + ":" + env().Config.HealthCheck.BindPort,
 	}
 
-	return &healthCheckServer{
-		httpServer: srv,
+	sessionFactory := env().Database.SessionFactory
+	server := &healthCheckServer{
+		httpServer:  srv,
+		instanceDao: dao.NewInstanceDao(&sessionFactory),
+		instanceID:  env().Config.MessageBroker.ClientID,
+		brokerType:  env().Config.MessageBroker.MessageBrokerType,
 	}
+
+	router.HandleFunc("/healthcheck", server.healthCheckHandler).Methods(http.MethodGet)
+
+	return server
 }
 
 func (s healthCheckServer) Start() {
@@ -73,10 +74,44 @@ func (s healthCheckServer) Listen() (listener net.Listener, err error) {
 func (s healthCheckServer) Serve(listener net.Listener) {
 }
 
-func upHandler(w http.ResponseWriter, r *http.Request) {
-	updater.Update(nil)
-}
+// healthCheckHandler returns a 200 OK if the instance is ready, 503 Service Unavailable otherwise.
+func (s healthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	// For MQTT, check if the instance is ready
+	if s.brokerType == "mqtt" {
+		instance, err := s.instanceDao.Get(r.Context(), s.instanceID)
+		if err != nil {
+			klog.Errorf("Error getting instance: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, err := w.Write([]byte(`{"status": "error"}`))
+			if err != nil {
+				klog.Errorf("Error writing healthcheck response: %v", err)
+			}
+			return
+		}
+		if instance.Ready {
+			klog.Infof("Instance is ready")
+			w.WriteHeader(http.StatusOK)
+			_, err := w.Write([]byte(`{"status": "ok"}`))
+			if err != nil {
+				klog.Errorf("Error writing healthcheck response: %v", err)
+			}
+			return
+		}
 
-func downHandler(w http.ResponseWriter, r *http.Request) {
-	updater.Update(fmt.Errorf("maintenance mode"))
+		klog.Infof("Instance not ready")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, err = w.Write([]byte(`{"status": "not ready"}`))
+		if err != nil {
+			klog.Errorf("Error writing healthcheck response: %v", err)
+		}
+		return
+	}
+
+	// For gRPC broker, return 200 OK for now
+	klog.Infof("Instance is ready")
+	w.WriteHeader(http.StatusOK)
+	_, err := w.Write([]byte(`{"status": "ok"}`))
+	if err != nil {
+		klog.Errorf("Error writing healthcheck response: %v", err)
+	}
 }

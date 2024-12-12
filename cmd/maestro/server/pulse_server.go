@@ -116,9 +116,9 @@ func (s *PulseServer) pulse(ctx context.Context) {
 	log.V(10).Infof("Updating heartbeat for maestro instance: %s", s.instanceID)
 	instance := &api.ServerInstance{
 		Meta: api.Meta{
-			ID:        s.instanceID,
-			UpdatedAt: time.Now(),
+			ID: s.instanceID,
 		},
+		LastPulse: time.Now(),
 	}
 	_, err := s.instanceDao.UpSert(ctx, instance)
 	if err != nil {
@@ -149,19 +149,29 @@ func (s *PulseServer) checkInstances(ctx context.Context) {
 		return
 	}
 
+	activeInstanceIDs := []string{}
 	inactiveInstanceIDs := []string{}
 	for _, instance := range instances {
 		// Instances pulsing within the last three check intervals are considered as active.
-		if instance.UpdatedAt.After(time.Now().Add(time.Duration(int64(-3*time.Second) * s.pulseInterval))) {
+		if instance.LastPulse.After(time.Now().Add(time.Duration(int64(-3*time.Second) * s.pulseInterval))) {
 			if err := s.statusDispatcher.OnInstanceUp(instance.ID); err != nil {
 				log.Error(fmt.Sprintf("Error to call OnInstanceUp handler for maestro instance %s: %s", instance.ID, err.Error()))
 			}
+			// mark the instance as active after it is added to the status dispatcher
+			activeInstanceIDs = append(activeInstanceIDs, instance.ID)
 		} else {
 			if err := s.statusDispatcher.OnInstanceDown(instance.ID); err != nil {
 				log.Error(fmt.Sprintf("Error to call OnInstanceDown handler for maestro instance %s: %s", instance.ID, err.Error()))
 			} else {
 				inactiveInstanceIDs = append(inactiveInstanceIDs, instance.ID)
 			}
+		}
+	}
+
+	if len(activeInstanceIDs) > 0 {
+		// batch mark active instances
+		if err := s.instanceDao.MarkReadyByIDs(ctx, activeInstanceIDs); err != nil {
+			log.Error(fmt.Sprintf("Unable to mark active maestro instances (%s): %s", activeInstanceIDs, err.Error()))
 		}
 	}
 

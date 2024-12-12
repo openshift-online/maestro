@@ -15,6 +15,7 @@ type InstanceDao interface {
 	Create(ctx context.Context, instance *api.ServerInstance) (*api.ServerInstance, error)
 	Replace(ctx context.Context, instance *api.ServerInstance) (*api.ServerInstance, error)
 	UpSert(ctx context.Context, instance *api.ServerInstance) (*api.ServerInstance, error)
+	MarkReadyByIDs(ctx context.Context, ids []string) error
 	Delete(ctx context.Context, id string) error
 	DeleteByIDs(ctx context.Context, ids []string) error
 	FindByIDs(ctx context.Context, ids []string) (api.ServerInstanceList, error)
@@ -66,6 +67,15 @@ func (d *sqlInstanceDao) UpSert(ctx context.Context, instance *api.ServerInstanc
 		return nil, err
 	}
 	return instance, nil
+}
+
+func (d *sqlInstanceDao) MarkReadyByIDs(ctx context.Context, ids []string) error {
+	g2 := (*d.sessionFactory).New(ctx)
+	if err := g2.Model(&api.ServerInstance{}).Where("id in (?)", ids).Update("ready", true).Error; err != nil {
+		db.MarkForRollback(ctx, err)
+		return err
+	}
+	return nil
 }
 
 func (d *sqlInstanceDao) Delete(ctx context.Context, id string) error {
