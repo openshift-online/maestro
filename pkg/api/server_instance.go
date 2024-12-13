@@ -8,8 +8,8 @@ import "time"
 // However, it is not meant for direct exposure to end users through the API.
 type ServerInstance struct {
 	Meta
-	LastPulse time.Time // LastPulse indicates the last time the instance pulsed.
-	Ready     bool      // Ready indicates whether the instance is ready to serve requests.
+	LastHeartbeat time.Time // LastHeartbeat indicates the last time the instance sent a heartbeat.
+	Ready         bool      // Ready indicates whether the instance is ready to serve requests.
 }
 
 type ServerInstanceList []*ServerInstance

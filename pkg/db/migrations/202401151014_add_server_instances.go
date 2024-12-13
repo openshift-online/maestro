@@ -11,8 +11,8 @@ import (
 func addServerInstances() *gormigrate.Migration {
 	type ServerInstance struct {
 		Model
-		LastPulse time.Time
-		Ready     bool `gorm:"default:false"`
+		LastHeartbeat time.Time
+		Ready         bool `gorm:"default:false"`
 	}
 
 	return &gormigrate.Migration{

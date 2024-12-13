@@ -16,7 +16,7 @@ import (
 	"github.com/openshift-online/maestro/test"
 )
 
-func TestPulseServer(t *testing.T) {
+func TestEventServer(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
@@ -25,10 +25,11 @@ func TestPulseServer(t *testing.T) {
 
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
 	// insert one existing instances
-	_, err := instanceDao.UpSert(ctx, &api.ServerInstance{
+	_, err := instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{
 			ID: "instance1",
 		},
+		LastHeartbeat: time.Now(),
 	})
 	Expect(err).NotTo(HaveOccurred())
 
@@ -39,13 +40,23 @@ func TestPulseServer(t *testing.T) {
 			return err
 		}
 
-		if len(instances) != 1 {
+		if len(instances) != 2 {
 			return fmt.Errorf("expected 1 instance, got %d", len(instances))
 		}
 
-		instance := instances[0]
-		if instance.UpdatedAt.IsZero() {
-			return fmt.Errorf("expected instance.UpdatedAt to be non-zero")
+		var instance *api.ServerInstance
+		for _, i := range instances {
+			if i.ID == *instanceID {
+				instance = i
+			}
+		}
+
+		if instance.LastHeartbeat.IsZero() {
+			return fmt.Errorf("expected instance.LastHeartbeat to be non-zero")
+		}
+
+		if !instance.Ready {
+			return fmt.Errorf("expected instance.Ready to be true")
 		}
 
 		if instance.ID != *instanceID {
@@ -65,10 +76,12 @@ func TestPulseServer(t *testing.T) {
 	// to make sure the consumer is hashed to the new instance firstly.
 	// after the new instance is stale after 3*pulseInterval (3s), the current
 	// instance will take over the consumer and resync the resource status.
-	_, err = instanceDao.UpSert(ctx, &api.ServerInstance{
+	_, err = instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{
 			ID: clusterName,
 		},
+		LastHeartbeat: time.Now(),
+		Ready:         true,
 	})
 	Expect(err).NotTo(HaveOccurred())
 
