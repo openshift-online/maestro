@@ -68,13 +68,13 @@ func TestEventServer(t *testing.T) {
 
 	// the cluster1 name cannot be changed, because consistent hash makes it allocate to different instance.
 	// the case here we want to the new consumer allocate to new instance(cluster1) which is a fake instance.
-	// after 3*pulseInterval (3s), it will relocate to maestro instance.
+	// after 3*heartbeatInterval (3s), it will relocate to maestro instance.
 	clusterName := "cluster1"
 	consumer := h.CreateConsumer(clusterName)
 
 	// insert a new instance with the same name to consumer name
 	// to make sure the consumer is hashed to the new instance firstly.
-	// after the new instance is stale after 3*pulseInterval (3s), the current
+	// after the new instance is stale after 3*heartbeatInterval (3s), the current
 	// instance will take over the consumer and resync the resource status.
 	_, err = instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{

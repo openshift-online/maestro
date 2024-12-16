@@ -45,11 +45,13 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	// Create the event server based on the message broker type:
 	// For gRPC, create a gRPC broker to handle resource spec and status events.
-	// For MQTT, create a Pulse server to handle resource spec and status events.
+	// For MQTT/Kafka, create a message queue based event server to handle resource spec and status events.
 	var eventServer server.EventServer
-	switch environments.Environment().Config.MessageBroker.MessageBrokerType {
-	case "mqtt":
-		klog.Info("Setting up pulse server")
+	if environments.Environment().Config.MessageBroker.MessageBrokerType == "grpc" {
+		klog.Info("Setting up grpc broker")
+		eventServer = server.NewGRPCBroker(eventBroadcaster)
+	} else {
+		klog.Info("Setting up message queue event server")
 		var statusDispatcher dispatcher.Dispatcher
 		subscriptionType := environments.Environment().Config.EventServer.SubscriptionType
 		switch config.SubscriptionType(subscriptionType) {
@@ -64,12 +66,7 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		// Set the status dispatcher for the healthcheck server
 		healthcheckServer.SetStatusDispatcher(statusDispatcher)
-		eventServer = server.NewMQTTEventServer(eventBroadcaster, statusDispatcher)
-	case "grpc":
-		klog.Info("Setting up grpc broker")
-		eventServer = server.NewGRPCBroker(eventBroadcaster)
-	default:
-		klog.Errorf("Unsupported message broker type: %s", environments.Environment().Config.MessageBroker.MessageBrokerType)
+		eventServer = server.NewMessageQueueEventServer(eventBroadcaster, statusDispatcher)
 	}
 
 	// Create the servers

@@ -214,7 +214,7 @@ func (helper *Helper) sendShutdownSignal() error {
 
 func (helper *Helper) startEventServer(ctx context.Context) {
 	// helper.Env().Config.EventServer.SubscriptionType = "broadcast"
-	helper.EventServer = server.NewMQTTEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
+	helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
 	go func() {
 		klog.V(10).Info("Test event server started")
 		helper.EventServer.Start(ctx)

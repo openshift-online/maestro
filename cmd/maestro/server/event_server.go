@@ -41,13 +41,13 @@ type EventServer interface {
 	OnStatusUpdate(ctx context.Context, eventID, resourceID string) error
 }
 
-var _ EventServer = &MQTTEventServer{}
+var _ EventServer = &MessageQueueEventServer{}
 
-// MQTTEventServer represents a server responsible for publish resource spec events from
-// resource controller and handle resource status update events from the maestro agent.
-// It also periodic heartbeat updates and checking the liveness of Maestro instances,
-// triggering status resync based on instances' status and other conditions.
-type MQTTEventServer struct {
+// MessageQueueEventServer represents a event server responsible for publish resource spec events
+// from resource controller and handle resource status update events from the message queue.
+// It also maintains a status dispatcher to dispatch status update events to the corresponding
+// maestro instances.
+type MessageQueueEventServer struct {
 	instanceID         string
 	eventInstanceDao   dao.EventInstanceDao
 	lockFactory        db.LockFactory
@@ -58,9 +58,9 @@ type MQTTEventServer struct {
 	statusDispatcher   dispatcher.Dispatcher
 }
 
-func NewMQTTEventServer(eventBroadcaster *event.EventBroadcaster, statusDispatcher dispatcher.Dispatcher) EventServer {
+func NewMessageQueueEventServer(eventBroadcaster *event.EventBroadcaster, statusDispatcher dispatcher.Dispatcher) EventServer {
 	sessionFactory := env().Database.SessionFactory
-	return &MQTTEventServer{
+	return &MessageQueueEventServer{
 		instanceID:         env().Config.MessageBroker.ClientID,
 		eventInstanceDao:   dao.NewEventInstanceDao(&sessionFactory),
 		lockFactory:        db.NewAdvisoryLockFactory(sessionFactory),
@@ -72,11 +72,10 @@ func NewMQTTEventServer(eventBroadcaster *event.EventBroadcaster, statusDispatch
 	}
 }
 
-// Start initializes and runs the pulse server, updating and checking Maestro instances' liveness,
-// initializes subscription to status update messages and triggers status resync based on
-// instances' status and other conditions.
-func (s *MQTTEventServer) Start(ctx context.Context) {
-	log.Infof("Starting pulse server")
+// Start initializes and runs the event server. It starts the subscription
+// to resource status update messages and the status dispatcher.
+func (s *MessageQueueEventServer) Start(ctx context.Context) {
+	log.Infof("Starting message queue event server")
 
 	// start subscribing to resource status update messages.
 	s.startSubscription(ctx)
@@ -85,12 +84,12 @@ func (s *MQTTEventServer) Start(ctx context.Context) {
 
 	// wait until context is canceled
 	<-ctx.Done()
-	log.Infof("Shutting down pulse server")
+	log.Infof("Shutting down message queue event server")
 }
 
 // startSubscription initiates the subscription to resource status update messages.
 // It runs asynchronously in the background until the provided context is canceled.
-func (s *MQTTEventServer) startSubscription(ctx context.Context) {
+func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 	s.sourceClient.Subscribe(ctx, func(action types.ResourceAction, resource *api.Resource) error {
 		log.V(4).Infof("received action %s for resource %s", action, resource.ID)
 
@@ -115,17 +114,17 @@ func (s *MQTTEventServer) startSubscription(ctx context.Context) {
 }
 
 // OnCreate will be called on each new resource creation event inserted into db.
-func (s *MQTTEventServer) OnCreate(ctx context.Context, resourceID string) error {
+func (s *MessageQueueEventServer) OnCreate(ctx context.Context, resourceID string) error {
 	return s.sourceClient.OnCreate(ctx, resourceID)
 }
 
 // OnUpdate will be called on each new resource update event inserted into db.
-func (s *MQTTEventServer) OnUpdate(ctx context.Context, resourceID string) error {
+func (s *MessageQueueEventServer) OnUpdate(ctx context.Context, resourceID string) error {
 	return s.sourceClient.OnUpdate(ctx, resourceID)
 }
 
 // OnDelete will be called on each new resource deletion event inserted into db.
-func (s *MQTTEventServer) OnDelete(ctx context.Context, resourceID string) error {
+func (s *MessageQueueEventServer) OnDelete(ctx context.Context, resourceID string) error {
 	return s.sourceClient.OnDelete(ctx, resourceID)
 }
 
@@ -133,7 +132,7 @@ func (s *MQTTEventServer) OnDelete(ctx context.Context, resourceID string) error
 // It does two things:
 // 1. build the resource status and broadcast it to subscribers
 // 2. add the event instance record to mark the event has been processed by the current instance
-func (s *MQTTEventServer) OnStatusUpdate(ctx context.Context, eventID, resourceID string) error {
+func (s *MessageQueueEventServer) OnStatusUpdate(ctx context.Context, eventID, resourceID string) error {
 	statusEvent, sErr := s.statusEventService.Get(ctx, eventID)
 	if sErr != nil {
 		return fmt.Errorf("failed to get status event %s: %s", eventID, sErr.Error())

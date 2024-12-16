@@ -11,7 +11,7 @@ const (
 	BroadcastSubscriptionType SubscriptionType = "broadcast"
 )
 
-// EventServerConfig contains the configuration for the maestro pulse server.
+// EventServerConfig contains the configuration for the message queue event server.
 type EventServerConfig struct {
 	SubscriptionType     string                `json:"subscription_type"`
 	ConsistentHashConfig *ConsistentHashConfig `json:"consistent_hash_config"`
@@ -45,8 +45,7 @@ func NewConsistentHashConfig() *ConsistentHashConfig {
 }
 
 // AddFlags configures the EventServerConfig with command line flags.
-// It allows users to customize the interval for maestro instance pulses and subscription type.
-//   - "pulse-interval" sets the time between maestro instance pulses (in seconds) to indicate its liveness (default: 15 seconds).
+// It allows users to customize the subscription type and ConsistentHashConfig settings.
 //   - "subscription-type" specifies the subscription type for resource status updates from message broker, either "shared" or "broadcast".
 //     "shared" subscription type uses MQTT feature to ensure only one Maestro instance receives resource status messages.
 //     "broadcast" subscription type will make all Maestro instances to receive resource status messages and hash the message to determine which instance should process it.
