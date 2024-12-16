@@ -217,5 +217,5 @@ func (f *Test) ResetDB() {
 }
 
 func (f *Test) NewListener(ctx context.Context, channel string, callback func(id string)) {
-	newListener(ctx, f.config.ConnectionString(true), channel, callback)
+	newListener(ctx, f.config, channel, callback)
 }
