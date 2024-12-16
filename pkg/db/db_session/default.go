@@ -6,13 +6,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/lib/pq"
-
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/constants"
 	"github.com/openshift-online/maestro/pkg/db"
 	ocmlogger "github.com/openshift-online/maestro/pkg/logger"
 )
@@ -48,20 +53,16 @@ func (f *Default) Init(config *config.DatabaseConfig) {
 			err error
 		)
 
-		// Open connection to DB via standard library
-		dbx, err = sql.Open(config.Dialect, config.ConnectionString(config.SSLMode != disable))
+		connConfig, err := pgx.ParseConfig(config.ConnectionString(config.SSLMode != disable))
 		if err != nil {
-			dbx, err = sql.Open(config.Dialect, config.ConnectionString(false))
-			if err != nil {
-				panic(fmt.Sprintf(
-					"SQL failed to connect to %s database %s with connection string: %s\nError: %s",
-					config.Dialect,
-					config.Name,
-					config.LogSafeConnectionString(config.SSLMode != disable),
-					err.Error(),
-				))
-			}
+			panic(fmt.Sprintf(
+				"GORM failed to parse the connection string: %s\nError: %s",
+				config.LogSafeConnectionString(config.SSLMode != disable),
+				err.Error(),
+			))
 		}
+
+		dbx = stdlib.OpenDB(*connConfig, stdlib.OptionBeforeConnect(f.setPassword()))
 		dbx.SetMaxOpenConns(config.MaxOpenConnections)
 
 		// Connect GORM to use the same connection
@@ -91,6 +92,37 @@ func (f *Default) Init(config *config.DatabaseConfig) {
 		f.g2 = g2
 		f.db = dbx
 	})
+}
+
+func (f *Default) setPassword() func(ctx context.Context, connConfig *pgx.ConnConfig) error {
+
+	return func(ctx context.Context, connConfig *pgx.ConnConfig) error {
+		if f.config.AuthMethod == constants.AuthMethodPassword {
+			connConfig.Password = f.config.Password
+			return nil
+		} else if f.config.AuthMethod == constants.AuthMethodMicrosoftEntra {
+			if isExpired(f.config.Token) {
+				// ARO-HCP environment variable configuration is set by the Azure workload identity webhook.
+				// Use [WorkloadIdentityCredential] directly when not using the webhook or needing more control over its configuration.
+				cred, err := azidentity.NewDefaultAzureCredential(nil)
+				if err != nil {
+					return err
+				}
+				token, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{f.config.TokenRequestScope}})
+				if err != nil {
+					return err
+				}
+				connConfig.Password = token.Token
+				f.config.Token = &token
+			}
+		}
+		return nil
+	}
+}
+
+func isExpired(accessToken *azcore.AccessToken) bool {
+	return accessToken == nil ||
+		time.Until(accessToken.ExpiresOn).Seconds() < constants.MinTokenLifeThreshold
 }
 
 func (f *Default) DirectDB() *sql.DB {
