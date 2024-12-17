@@ -34,6 +34,7 @@ var MigrationList = []*gormigrate.Migration{
 	addServerInstances(),
 	addStatusEvents(),
 	addEventInstances(),
+	addLastHeartBeatAndReadyColumnInServerInstancesTable(),
 }
 
 // Model represents the base model struct. All entities will have this struct embedded.
