@@ -107,6 +107,8 @@ func setPassword(dbConfig *config.DatabaseConfig) func(ctx context.Context, conn
 				}
 				connConfig.Password = token.Token
 				dbConfig.Token = token
+			} else {
+				connConfig.Password = dbConfig.Token.Token
 			}
 		}
 		return nil
