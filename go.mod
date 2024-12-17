@@ -13,7 +13,6 @@ require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/cloudevents/sdk-go/v2 v2.15.3-0.20240911135016-682f3a9684e4
 	github.com/deckarep/golang-set/v2 v2.6.0
-	github.com/docker/go-healthcheck v0.1.0
 	github.com/evanphx/json-patch v5.9.0+incompatible
 	github.com/getsentry/sentry-go v0.20.0
 	github.com/ghodss/yaml v1.0.0
@@ -79,7 +78,6 @@ require (
 	github.com/coreos/go-systemd/v22 v22.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
-	github.com/docker/distribution v2.8.1+incompatible // indirect
 	github.com/eclipse/paho.golang v0.21.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/felixge/fgprof v0.9.4 // indirect
