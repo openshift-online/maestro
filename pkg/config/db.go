@@ -102,7 +102,7 @@ func (c *DatabaseConfig) ConnectionStringWithName(name string, withSSL bool) str
 	var cmd string
 	if withSSL {
 		cmd = fmt.Sprintf(
-			"host=%s port=%d user=%s dbname=%s sslmode=%s sslrootcert=%s",
+			"host=%s port=%d user=%s dbname=%s sslmode=%s sslrootcert='%s'",
 			c.Host, c.Port, c.Username, name, c.SSLMode, c.RootCertFile,
 		)
 	} else {

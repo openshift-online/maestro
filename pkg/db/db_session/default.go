@@ -154,7 +154,10 @@ func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id s
 			logger.V(10).Infof("Received no events on channel during interval. Pinging source")
 			go func() {
 				// TODO: Need to handle the error, especially in cases of network failure.
-				l.Ping()
+				err := l.Ping()
+				if err != nil {
+					logger.Error(err.Error())
+				}
 			}()
 		}
 	}
