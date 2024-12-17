@@ -6,13 +6,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
+	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/lib/pq"
-
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/constants"
 	"github.com/openshift-online/maestro/pkg/db"
 	ocmlogger "github.com/openshift-online/maestro/pkg/logger"
 )
@@ -48,20 +53,16 @@ func (f *Default) Init(config *config.DatabaseConfig) {
 			err error
 		)
 
-		// Open connection to DB via standard library
-		dbx, err = sql.Open(config.Dialect, config.ConnectionString(config.SSLMode != disable))
+		connConfig, err := pgx.ParseConfig(config.ConnectionString(config.SSLMode != disable))
 		if err != nil {
-			dbx, err = sql.Open(config.Dialect, config.ConnectionString(false))
-			if err != nil {
-				panic(fmt.Sprintf(
-					"SQL failed to connect to %s database %s with connection string: %s\nError: %s",
-					config.Dialect,
-					config.Name,
-					config.LogSafeConnectionString(config.SSLMode != disable),
-					err.Error(),
-				))
-			}
+			panic(fmt.Sprintf(
+				"GORM failed to parse the connection string: %s\nError: %s",
+				config.LogSafeConnectionString(config.SSLMode != disable),
+				err.Error(),
+			))
 		}
+
+		dbx = stdlib.OpenDB(*connConfig, stdlib.OptionBeforeConnect(setPassword(config)))
 		dbx.SetMaxOpenConns(config.MaxOpenConnections)
 
 		// Connect GORM to use the same connection
@@ -93,6 +94,46 @@ func (f *Default) Init(config *config.DatabaseConfig) {
 	})
 }
 
+func setPassword(dbConfig *config.DatabaseConfig) func(ctx context.Context, connConfig *pgx.ConnConfig) error {
+	return func(ctx context.Context, connConfig *pgx.ConnConfig) error {
+		if dbConfig.AuthMethod == constants.AuthMethodPassword {
+			connConfig.Password = dbConfig.Password
+			return nil
+		} else if dbConfig.AuthMethod == constants.AuthMethodMicrosoftEntra {
+			if isExpired(dbConfig.Token) {
+				token, err := getAccessToken(ctx, dbConfig)
+				if err != nil {
+					return err
+				}
+				connConfig.Password = token.Token
+				dbConfig.Token = token
+			} else {
+				connConfig.Password = dbConfig.Token.Token
+			}
+		}
+		return nil
+	}
+}
+
+func getAccessToken(ctx context.Context, dbConfig *config.DatabaseConfig) (*azcore.AccessToken, error) {
+	// ARO-HCP environment variable configuration is set by the Azure workload identity webhook.
+	// Use [WorkloadIdentityCredential] directly when not using the webhook or needing more control over its configuration.
+	cred, err := azidentity.NewDefaultAzureCredential(nil)
+	if err != nil {
+		return nil, err
+	}
+	token, err := cred.GetToken(ctx, policy.TokenRequestOptions{Scopes: []string{dbConfig.TokenRequestScope}})
+	if err != nil {
+		return nil, err
+	}
+	return &token, nil
+}
+
+func isExpired(accessToken *azcore.AccessToken) bool {
+	return accessToken == nil ||
+		time.Until(accessToken.ExpiresOn).Seconds() < constants.MinTokenLifeThreshold
+}
+
 func (f *Default) DirectDB() *sql.DB {
 	return f.db
 }
@@ -112,13 +153,17 @@ func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id s
 		case <-time.After(10 * time.Second):
 			logger.V(10).Infof("Received no events on channel during interval. Pinging source")
 			go func() {
-				l.Ping()
+				// TODO: Need to handle the error, especially in cases of network failure.
+				err := l.Ping()
+				if err != nil {
+					logger.Error(err.Error())
+				}
 			}()
 		}
 	}
 }
 
-func newListener(ctx context.Context, connstr, channel string, callback func(id string)) {
+func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel string, callback func(id string)) {
 	logger := ocmlogger.NewOCMLogger(ctx)
 
 	plog := func(ev pq.ListenerEventType, err error) {
@@ -126,6 +171,18 @@ func newListener(ctx context.Context, connstr, channel string, callback func(id 
 			logger.Error(err.Error())
 		}
 	}
+	connstr := dbConfig.ConnectionString(true)
+	// append the password to the connection string
+	if dbConfig.AuthMethod == constants.AuthMethodPassword {
+		connstr += fmt.Sprintf(" password='%s'", dbConfig.Password)
+	} else if dbConfig.AuthMethod == constants.AuthMethodMicrosoftEntra {
+		token, err := getAccessToken(ctx, dbConfig)
+		if err != nil {
+			panic(err)
+		}
+		connstr += fmt.Sprintf(" password='%s'", token.Token)
+	}
+
 	listener := pq.NewListener(connstr, 10*time.Second, time.Minute, plog)
 	err := listener.Listen(channel)
 	if err != nil {
@@ -137,7 +194,7 @@ func newListener(ctx context.Context, connstr, channel string, callback func(id 
 }
 
 func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) {
-	newListener(ctx, f.config.ConnectionString(true), channel, callback)
+	newListener(ctx, f.config, channel, callback)
 }
 
 func (f *Default) New(ctx context.Context) *gorm.DB {
