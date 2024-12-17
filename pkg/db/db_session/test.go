@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm/logger"
 	"k8s.io/klog/v2"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
 )
@@ -65,7 +67,7 @@ func (f *Test) Init(config *config.DatabaseConfig) {
 
 func initDatabase(config *config.DatabaseConfig, migrate func(db2 *gorm.DB) error) error {
 	// - Connect to `template1` DB
-	dbx, g2, cleanup := connect("template1", config)
+	dbx, g2, cleanup := connect(config)
 	defer cleanup()
 
 	for _, err := dbx.Exec(`select 1`); err != nil; {
@@ -78,7 +80,7 @@ func initDatabase(config *config.DatabaseConfig, migrate func(db2 *gorm.DB) erro
 
 func resetDB(config *config.DatabaseConfig) error {
 	// Reconnect to the default `postgres` database, so we can drop the existing db and recreate it
-	dbx, _, cleanup := connect("postgres", config)
+	dbx, _, cleanup := connect(config)
 	defer cleanup()
 
 	// Drop `all` connections to both `template1` and AMS DB, so it can be dropped and created
@@ -103,26 +105,23 @@ func resetDB(config *config.DatabaseConfig) error {
 }
 
 // connect to database specified by `name` and return connections + cleanup function
-func connect(name string, config *config.DatabaseConfig) (*sql.DB, *gorm.DB, func()) {
+func connect(config *config.DatabaseConfig) (*sql.DB, *gorm.DB, func()) {
 	var (
 		dbx *sql.DB
 		g2  *gorm.DB
 		err error
 	)
 
-	dbx, err = sql.Open(config.Dialect, config.ConnectionStringWithName(name, config.SSLMode != disable))
+	connConfig, err := pgx.ParseConfig(config.ConnectionString(config.SSLMode != disable))
 	if err != nil {
-		dbx, err = sql.Open(config.Dialect, config.ConnectionStringWithName(name, false))
-		if err != nil {
-			panic(fmt.Sprintf(
-				"SQL failed to connect to %s database %s with connection string: %s\nError: %s",
-				config.Dialect,
-				name,
-				config.LogSafeConnectionStringWithName(name, config.SSLMode != disable),
-				err.Error(),
-			))
-		}
+		panic(fmt.Sprintf(
+			"GORM failed to parse the connection string: %s\nError: %s",
+			config.LogSafeConnectionString(config.SSLMode != disable),
+			err.Error(),
+		))
 	}
+
+	dbx = stdlib.OpenDB(*connConfig, stdlib.OptionBeforeConnect(setPassword(config)))
 
 	// Connect GORM to use the same connection
 	conf := &gorm.Config{
@@ -174,7 +173,7 @@ func connectFactory(config *config.DatabaseConfig) (*sql.DB, *gorm.DB) {
 		dbx *sql.DB
 		g2  *gorm.DB
 	)
-	dbx, g2, _ = connect(config.Name, config)
+	dbx, g2, _ = connect(config)
 	dbx.SetMaxOpenConns(config.MaxOpenConnections)
 
 	return dbx, g2
