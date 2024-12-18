@@ -34,8 +34,8 @@ type exampleController struct {
 func (d *exampleController) OnAdd(ctx context.Context, eventID, resourceID string) error {
 	d.addCounter++
 	_, err := d.eventInstancesDao.Create(ctx, &api.EventInstance{
-		EventID:    eventID,
-		InstanceID: d.instanceID,
+		SpecEventID: eventID,
+		InstanceID:  d.instanceID,
 	})
 	return err
 }
@@ -43,8 +43,8 @@ func (d *exampleController) OnAdd(ctx context.Context, eventID, resourceID strin
 func (d *exampleController) OnUpdate(ctx context.Context, eventID, resourceID string) error {
 	d.updateCounter++
 	_, err := d.eventInstancesDao.Create(ctx, &api.EventInstance{
-		EventID:    eventID,
-		InstanceID: d.instanceID,
+		SpecEventID: eventID,
+		InstanceID:  d.instanceID,
 	})
 	return err
 }
@@ -52,8 +52,8 @@ func (d *exampleController) OnUpdate(ctx context.Context, eventID, resourceID st
 func (d *exampleController) OnDelete(ctx context.Context, eventID, resourceID string) error {
 	d.deleteCounter++
 	_, err := d.eventInstancesDao.Create(ctx, &api.EventInstance{
-		EventID:    eventID,
-		InstanceID: d.instanceID,
+		SpecEventID: eventID,
+		InstanceID:  d.instanceID,
 	})
 	return err
 }
@@ -105,6 +105,12 @@ func TestControllerFrameworkWithLockBasedEventHandler(t *testing.T) {
 
 	eve, _ := eventsDao.Get(ctx, "1")
 	Expect(eve.ReconciledDate).ToNot(BeNil(), "event reconcile date should be set")
+
+	eve, _ = eventsDao.Get(ctx, "2")
+	Expect(eve.ReconciledDate).ToNot(BeNil(), "event reconcile date should be set")
+
+	eve, _ = eventsDao.Get(ctx, "3")
+	Expect(eve.ReconciledDate).ToNot(BeNil(), "event reconcile date should be set")
 }
 
 type exampleEventServer struct {
@@ -123,6 +129,7 @@ func TestControllerFrameworkWithPredicatedEventHandler(t *testing.T) {
 	RegisterTestingT(t)
 
 	currentInstanceID := "test-instance"
+	anotherInstanceID := "another-instance"
 	ctx := context.Background()
 	eventsDao := mocks.NewEventDao()
 	events := services.NewEventService(eventsDao)
@@ -145,7 +152,7 @@ func TestControllerFrameworkWithPredicatedEventHandler(t *testing.T) {
 	})
 
 	_, _ = instancesDao.Create(ctx, &api.ServerInstance{
-		Meta:  api.Meta{ID: "another-instance"},
+		Meta:  api.Meta{ID: anotherInstanceID},
 		Ready: false,
 	})
 

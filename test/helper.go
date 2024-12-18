@@ -24,6 +24,7 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -71,8 +72,8 @@ type Helper struct {
 	Ctx               context.Context
 	ContextCancelFunc context.CancelFunc
 
+	Broker            string
 	EventBroadcaster  *event.EventBroadcaster
-	StatusDispatcher  dispatcher.Dispatcher
 	Store             *MemoryStore
 	GRPCSourceClient  *generic.CloudEventSourceClient[*api.Resource]
 	DBFactory         db.SessionFactory
@@ -81,6 +82,7 @@ type Helper struct {
 	MetricsServer     server.Server
 	HealthCheckServer *server.HealthCheckServer
 	EventServer       server.EventServer
+	EventHandler      controllers.EventHandler
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
 	WorkAgentInformer workv1informers.ManifestWorkInformer
@@ -111,6 +113,12 @@ func NewHelper(t *testing.T) *Helper {
 		}
 		pflag.Parse()
 
+		// Set the message broker type if it is set in the environment
+		broker := os.Getenv("BROKER")
+		if broker != "" {
+			env.Config.MessageBroker.MessageBrokerType = broker
+		}
+
 		err = env.Initialize()
 		if err != nil {
 			klog.Fatalf("Unable to initialize testing environment: %s", err.Error())
@@ -120,18 +128,32 @@ func NewHelper(t *testing.T) *Helper {
 		helper = &Helper{
 			Ctx:               ctx,
 			ContextCancelFunc: cancel,
+			Broker:            env.Config.MessageBroker.MessageBrokerType,
 			EventBroadcaster:  event.NewEventBroadcaster(),
-			StatusDispatcher: dispatcher.NewHashDispatcher(
+			AppConfig:         env.Config,
+			DBFactory:         env.Database.SessionFactory,
+			JWTPrivateKey:     jwtKey,
+			JWTCA:             jwtCA,
+		}
+
+		// Set the healthcheck interval to 1 second for testing
+		helper.Env().Config.HealthCheck.HeartbeartInterval = 1
+		helper.HealthCheckServer = server.NewHealthCheckServer()
+
+		if helper.Broker != "grpc" {
+			statusDispatcher := dispatcher.NewHashDispatcher(
 				helper.Env().Config.MessageBroker.ClientID,
 				dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
 				dao.NewConsumerDao(&helper.Env().Database.SessionFactory),
 				helper.Env().Clients.CloudEventsSource,
 				helper.Env().Config.EventServer.ConsistentHashConfig,
-			),
-			AppConfig:     env.Config,
-			DBFactory:     env.Database.SessionFactory,
-			JWTPrivateKey: jwtKey,
-			JWTCA:         jwtCA,
+			)
+			helper.HealthCheckServer.SetStatusDispatcher(statusDispatcher)
+			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, statusDispatcher)
+			helper.EventHandler = controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory), helper.Env().Services.Events())
+		} else {
+			helper.EventServer = server.NewGRPCBroker(helper.EventBroadcaster)
+			helper.EventHandler = controllers.NewPredicatedEventHandler(helper.EventServer.PredicateEvent, helper.Env().Services.Events(), dao.NewEventInstanceDao(&helper.Env().Database.SessionFactory), dao.NewInstanceDao(&helper.Env().Database.SessionFactory))
 		}
 
 		// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
@@ -206,9 +228,6 @@ func (helper *Helper) stopMetricsServer() error {
 }
 
 func (helper *Helper) startHealthCheckServer(ctx context.Context) {
-	helper.Env().Config.HealthCheck.HeartbeartInterval = 1
-	helper.HealthCheckServer = server.NewHealthCheckServer()
-	helper.HealthCheckServer.SetStatusDispatcher(helper.StatusDispatcher)
 	go func() {
 		klog.V(10).Info("Test health check server started")
 		helper.HealthCheckServer.Start(ctx)
@@ -222,8 +241,6 @@ func (helper *Helper) sendShutdownSignal() error {
 }
 
 func (helper *Helper) startEventServer(ctx context.Context) {
-	// helper.Env().Config.EventServer.SubscriptionType = "broadcast"
-	helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
 	go func() {
 		klog.V(10).Info("Test event server started")
 		helper.EventServer.Start(ctx)
@@ -242,7 +259,7 @@ func (helper *Helper) startEventBroadcaster() {
 func (helper *Helper) StartControllerManager(ctx context.Context) {
 	helper.ControllerManager = &server.ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
-			controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory), helper.Env().Services.Events()),
+			helper.EventHandler,
 			helper.Env().Services.Events(),
 		),
 		StatusController: controllers.NewStatusController(
@@ -270,10 +287,19 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 }
 
 func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bundle bool) {
-	// initilize the mqtt options
-	mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
-	if err != nil {
-		klog.Fatalf("Unable to build MQTT options: %s", err.Error())
+	var brokerConfig any
+	if helper.Broker != "grpc" {
+		// initilize the mqtt options
+		mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
+		if err != nil {
+			klog.Fatalf("Unable to build MQTT options: %s", err.Error())
+		}
+		brokerConfig = mqttOptions
+	} else {
+		// initilize the grpc options
+		grpcOptions := grpc.NewGRPCOptions()
+		grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BrokerBindPort)
+		brokerConfig = grpcOptions
 	}
 
 	var workCodec generic.Codec[*workv1.ManifestWork]
@@ -285,7 +311,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 
 	watcherStore := store.NewAgentInformerWatcherStore()
 
-	clientHolder, err := work.NewClientHolderBuilder(mqttOptions).
+	clientHolder, err := work.NewClientHolderBuilder(brokerConfig).
 		WithClientID(clusterName).
 		WithClusterName(clusterName).
 		WithCodecs(workCodec).

@@ -33,20 +33,6 @@ func (d *eventInstanceDaoMock) Get(ctx context.Context, eventID, instanceID stri
 	return nil, fmt.Errorf("event instance not found")
 }
 
-func (d *eventInstanceDaoMock) GetInstancesByEventID(ctx context.Context, eventID string) ([]string, error) {
-	d.mux.RLock()
-	defer d.mux.RUnlock()
-
-	var instanceIDs []string
-	for _, ei := range d.eventInstances {
-		if ei.EventID == eventID {
-			instanceIDs = append(instanceIDs, ei.InstanceID)
-		}
-	}
-
-	return instanceIDs, nil
-}
-
 func (d *eventInstanceDaoMock) Create(ctx context.Context, eventInstance *api.EventInstance) (*api.EventInstance, error) {
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -54,4 +40,51 @@ func (d *eventInstanceDaoMock) Create(ctx context.Context, eventInstance *api.Ev
 	d.eventInstances = append(d.eventInstances, eventInstance)
 
 	return eventInstance, nil
+}
+
+func (d *eventInstanceDaoMock) GetInstancesBySpecEventID(ctx context.Context, specEventID string) ([]string, error) {
+	d.mux.RLock()
+	defer d.mux.RUnlock()
+
+	var instanceIDs []string
+	for _, ei := range d.eventInstances {
+		if ei.SpecEventID == specEventID {
+			instanceIDs = append(instanceIDs, ei.InstanceID)
+		}
+	}
+
+	return instanceIDs, nil
+}
+
+func (d *eventInstanceDaoMock) FindEventInstancesByEventIDs(ctx context.Context, ids []string) (api.EventInstanceList, error) {
+	d.mux.RLock()
+	defer d.mux.RUnlock()
+
+	var eventInstances api.EventInstanceList
+	for _, id := range ids {
+		for _, ei := range d.eventInstances {
+			if ei.EventID == id {
+				eventInstances = append(eventInstances, ei)
+			}
+		}
+	}
+
+	return eventInstances, nil
+}
+
+func (d *eventInstanceDaoMock) GetEventsAssociatedWithInstances(ctx context.Context, instanceIDs []string) ([]string, error) {
+	d.mux.RLock()
+	defer d.mux.RUnlock()
+
+	var eventIDs []string
+	for _, ei := range d.eventInstances {
+		if contains(instanceIDs, ei.InstanceID) {
+			if ei.EventID == "" {
+				continue
+			}
+			eventIDs = append(eventIDs, ei.EventID)
+		}
+	}
+
+	return eventIDs, nil
 }

@@ -126,15 +126,26 @@ func (h *PredicatedEventHandler) PostProcess(ctx context.Context, event *api.Eve
 		return fmt.Errorf("error finding ready instances: %v", err)
 	}
 
-	eventInstances, err := h.eventInstanceDao.GetInstancesByEventID(ctx, event.ID)
+	processedInstances, err := h.eventInstanceDao.GetInstancesBySpecEventID(ctx, event.ID)
 	if err != nil {
-		return fmt.Errorf("error finding processed server instances for event %s: %v", event.ID, err)
+		return fmt.Errorf("error finding processed instances for event %s: %v", event.ID, err)
+	}
+
+	// should never happen. If the event is not processed by any instance, return an error
+	if len(processedInstances) == 0 {
+		klog.V(10).Infof("Event %s is not processed by any instance", event.ID)
+		return fmt.Errorf("event %s is not processed by any instance", event.ID)
 	}
 
 	// check if all instances have processed the event
-	if !compareStrings(activeInstances, eventInstances) {
-		klog.V(10).Infof("Event %s is not processed by all instances, handled by %v, active instances %v", event.ID, eventInstances, activeInstances)
-		return fmt.Errorf("event %s is not processed by all instances", event.ID)
+	// 1. In normal case, the activeInstances == eventInstances, mark the event as reconciled
+	// 2. If maestro server instance is up, but has't been marked as ready, then activeInstances < eventInstances,
+	// it's ok to mark the event as reconciled, as the instance is not ready to sever the request, no connected agents.
+	// 3. If maestro server instance is down, but has been marked as unready, it may still have connected agents, but
+	// the instance has stopped to handle the event, so activeInstances > eventInstances, the event should be equeued.
+	if !isSubSet(activeInstances, processedInstances) {
+		klog.V(10).Infof("Event %s is not processed by all active instances %v, handled by %v", event.ID, activeInstances, processedInstances)
+		return fmt.Errorf("event %s is not processed by all active instances", event.ID)
 	}
 
 	// update the event with the reconciled date
@@ -147,12 +158,8 @@ func (h *PredicatedEventHandler) PostProcess(ctx context.Context, event *api.Eve
 	return nil
 }
 
-// compareStrings compares two string slices and returns true if they are equal
-func compareStrings(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
-
+// isSubSet checks if slice a is a subset of slice b
+func isSubSet(a, b []string) bool {
 	for _, v := range a {
 		found := false
 		for _, vv := range b {
