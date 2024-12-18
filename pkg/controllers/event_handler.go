@@ -131,10 +131,21 @@ func (h *PredicatedEventHandler) PostProcess(ctx context.Context, event *api.Eve
 		return fmt.Errorf("error finding processed server instances for event %s: %v", event.ID, err)
 	}
 
+	// should never happen. If the event is not processed by any instance, return an error
+	if len(eventInstances) == 0 {
+		klog.V(10).Infof("Event %s is not processed by any instance", event.ID)
+		return fmt.Errorf("event %s is not processed by any instance", event.ID)
+	}
+
 	// check if all instances have processed the event
-	if !compareStrings(activeInstances, eventInstances) {
-		klog.V(10).Infof("Event %s is not processed by all instances, handled by %v, active instances %v", event.ID, eventInstances, activeInstances)
-		return fmt.Errorf("event %s is not processed by all instances", event.ID)
+	// 1. In normal case, the activeInstances == eventInstances, mark the event as reconciled
+	// 2. If maestro server instance is up, but has't been marked as ready, then activeInstances < eventInstances,
+	// it's ok to mark the event as reconciled, as the instance is not ready to sever the request, no connected agents.
+	// 3. If maestro server instance is down, but has been marked as unready, it may still have connected agents, but
+	// the instance has stopped to handle the event, so activeInstances > eventInstances, the event should be equeued.
+	if !isSubSet(activeInstances, eventInstances) {
+		klog.V(10).Infof("Event %s is not processed by all active instances %v, handled by %v, active instances ", event.ID, activeInstances, eventInstances)
+		return fmt.Errorf("event %s is not processed by all active instances", event.ID)
 	}
 
 	// update the event with the reconciled date
@@ -153,6 +164,24 @@ func compareStrings(a, b []string) bool {
 		return false
 	}
 
+	for _, v := range a {
+		found := false
+		for _, vv := range b {
+			if v == vv {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+
+	return true
+}
+
+// isSubSet checks if slice a is a subset of slice b
+func isSubSet(a, b []string) bool {
 	for _, v := range a {
 		found := false
 		for _, vv := range b {

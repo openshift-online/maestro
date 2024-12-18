@@ -200,6 +200,7 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		// TODO: error handling to address errors beyond network issues.
 		if err := subServer.Send(pbEvt); err != nil {
 			klog.Errorf("failed to send grpc event, %v", err)
+			return err // return error to requeue the spec event
 		}
 
 		return nil
@@ -488,9 +489,26 @@ func (bkr *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool
 	if err != nil {
 		return false, fmt.Errorf("failed to get event %s: %s", eventID, err.Error())
 	}
-	resource, err := bkr.resourceService.Get(ctx, evt.SourceID)
-	if err != nil {
-		return false, fmt.Errorf("failed to get resource %s: %s", evt.SourceID, err.Error())
+
+	// fast return if the event is already reconciled
+	if evt.ReconciledDate != nil {
+		return false, nil
+	}
+
+	resource, svcErr := bkr.resourceService.Get(ctx, evt.SourceID)
+	if svcErr != nil {
+		// if the resource is not found, it indicates the resource has been handled by
+		// other instances, so we can mark the event as reconciled and ignore it.
+		if svcErr.Is404() {
+			klog.V(10).Infof("The resource %s has been deleted, mark the event as reconciled", evt.SourceID)
+			now := time.Now()
+			evt.ReconciledDate = &now
+			if _, svcErr := bkr.eventService.Replace(ctx, evt); svcErr != nil {
+				return false, fmt.Errorf("failed to update event %s: %s", evt.ID, svcErr.Error())
+			}
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to get resource %s: %s", evt.SourceID, svcErr.Error())
 	}
 
 	if bkr.IsConsumerSubscribed(resource.ConsumerName) {
