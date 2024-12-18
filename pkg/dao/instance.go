@@ -19,6 +19,7 @@ type InstanceDao interface {
 	Delete(ctx context.Context, id string) error
 	DeleteByIDs(ctx context.Context, ids []string) error
 	FindByIDs(ctx context.Context, ids []string) (api.ServerInstanceList, error)
+	FindReadyIDs(ctx context.Context) ([]string, error)
 	FindByUpdatedTime(ctx context.Context, updatedTime time.Time) (api.ServerInstanceList, error)
 	FindReadyIDs(ctx context.Context) ([]string, error)
 	All(ctx context.Context) (api.ServerInstanceList, error)
@@ -109,6 +110,19 @@ func (d *sqlInstanceDao) FindByIDs(ctx context.Context, ids []string) (api.Serve
 		return nil, err
 	}
 	return instances, nil
+}
+
+func (d *sqlInstanceDao) FindReadyIDs(ctx context.Context) ([]string, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	instances := api.ServerInstanceList{}
+	if err := g2.Where("ready = ?", true).Find(&instances).Error; err != nil {
+		return nil, err
+	}
+	ids := make([]string, len(instances))
+	for i, instance := range instances {
+		ids[i] = instance.ID
+	}
+	return ids, nil
 }
 
 func (d *sqlInstanceDao) FindByUpdatedTime(ctx context.Context, updatedTime time.Time) (api.ServerInstanceList, error) {

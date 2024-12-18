@@ -11,6 +11,7 @@ import (
 
 type EventInstanceDao interface {
 	Get(ctx context.Context, eventID, instanceID string) (*api.EventInstance, error)
+	GetInstancesByEventID(ctx context.Context, eventID string) ([]string, error)
 	Create(ctx context.Context, eventInstance *api.EventInstance) (*api.EventInstance, error)
 
 	FindStatusEvents(ctx context.Context, ids []string) (api.EventInstanceList, error)
@@ -36,6 +37,19 @@ func (d *sqlEventInstanceDao) Get(ctx context.Context, eventID, instanceID strin
 	}
 
 	return &eventInstance, nil
+}
+
+func (d *sqlEventInstanceDao) GetInstancesByEventID(ctx context.Context, eventID string) ([]string, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var eventInstances []api.EventInstance
+	if err := g2.Model(&api.EventInstance{}).Where("event_id = ?", eventID).Find(&eventInstances).Error; err != nil {
+		return nil, err
+	}
+	instanceIDs := make([]string, len(eventInstances))
+	for i, eventInstance := range eventInstances {
+		instanceIDs[i] = eventInstance.InstanceID
+	}
+	return instanceIDs, nil
 }
 
 func (d *sqlEventInstanceDao) Create(ctx context.Context, eventInstance *api.EventInstance) (*api.EventInstance, error) {

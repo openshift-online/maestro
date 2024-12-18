@@ -35,7 +35,13 @@ func (d *eventDaoMock) Create(ctx context.Context, event *api.Event) (*api.Event
 }
 
 func (d *eventDaoMock) Replace(ctx context.Context, event *api.Event) (*api.Event, error) {
-	return nil, errors.NotImplemented("Event").AsError()
+	for i, e := range d.events {
+		if e.ID == event.ID {
+			d.events[i] = event
+			return event, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (d *eventDaoMock) Delete(ctx context.Context, id string) error {

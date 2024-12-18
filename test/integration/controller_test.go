@@ -32,13 +32,13 @@ func TestControllerRacing(t *testing.T) {
 	// the event with create type. Due to the event lock, each create event
 	// should be only processed once.
 	var proccessedEvent, processedStatusEvent []string
-	onUpsert := func(ctx context.Context, id string) error {
+	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
 		events, err := eventDao.All(ctx)
 		if err != nil {
 			return err
 		}
 		for _, evt := range events {
-			if evt.SourceID != id {
+			if evt.SourceID != resourceID {
 				continue
 			}
 			if evt.EventType != api.CreateEventType {
@@ -48,7 +48,7 @@ func TestControllerRacing(t *testing.T) {
 			if evt.ReconciledDate != nil {
 				continue
 			}
-			proccessedEvent = append(proccessedEvent, id)
+			proccessedEvent = append(proccessedEvent, resourceID)
 		}
 
 		return nil
@@ -80,7 +80,7 @@ func TestControllerRacing(t *testing.T) {
 		go func() {
 			s := &server.ControllersServer{
 				KindControllerManager: controllers.NewKindControllerManager(
-					db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+					controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory), h.Env().Services.Events()),
 					h.Env().Services.Events(),
 				),
 				StatusController: controllers.NewStatusController(
@@ -153,7 +153,7 @@ func TestControllerReconcile(t *testing.T) {
 	processedEventTimes := 0
 	// this handler will return an error at the first time to simulate an error happened when handing an event,
 	// and then, the controller will requeue this event, at that time, we handle this event successfully.
-	onUpsert := func(ctx context.Context, id string) error {
+	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
 		processedEventTimes = processedEventTimes + 1
 		if processedEventTimes == 1 {
 			return fmt.Errorf("failed to process the event")
@@ -178,7 +178,7 @@ func TestControllerReconcile(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+				controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory), h.Env().Services.Events()),
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(
@@ -299,9 +299,9 @@ func TestControllerSync(t *testing.T) {
 	}
 
 	var proccessedEvents []string
-	onUpsert := func(ctx context.Context, id string) error {
+	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
 		// we just record the processed event
-		proccessedEvents = append(proccessedEvents, id)
+		proccessedEvents = append(proccessedEvents, resourceID)
 		return nil
 	}
 
@@ -311,7 +311,7 @@ func TestControllerSync(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+				controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory), h.Env().Services.Events()),
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(

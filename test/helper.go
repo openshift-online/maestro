@@ -242,7 +242,7 @@ func (helper *Helper) startEventBroadcaster() {
 func (helper *Helper) StartControllerManager(ctx context.Context) {
 	helper.ControllerManager = &server.ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
-			db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory),
+			controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory), helper.Env().Services.Events()),
 			helper.Env().Services.Events(),
 		),
 		StatusController: controllers.NewStatusController(

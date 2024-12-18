@@ -51,6 +51,7 @@ type GRPCBroker struct {
 	instanceID         string
 	eventInstanceDao   dao.EventInstanceDao
 	resourceService    services.ResourceService
+	eventService       services.EventService
 	statusEventService services.StatusEventService
 	bindAddress        string
 	subscribers        map[string]*subscriber  // registered subscribers
@@ -79,6 +80,7 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 		instanceID:         env().Config.MessageBroker.ClientID,
 		eventInstanceDao:   dao.NewEventInstanceDao(&sessionFactory),
 		resourceService:    env().Services.Resources(),
+		eventService:       env().Services.Events(),
 		statusEventService: env().Services.StatusEvents(),
 		bindAddress:        env().Config.HTTPServer.Hostname + ":" + config.BrokerBindPort,
 		subscribers:        make(map[string]*subscriber),
@@ -389,40 +391,49 @@ func (bkr *GRPCBroker) handleRes(resource *api.Resource) {
 	}
 }
 
+// handleResEvent publish the resource to the correct subscriber and add the event instance record.
+func (bkr *GRPCBroker) handleResEvent(ctx context.Context, eventID string, resource *api.Resource) error {
+	bkr.handleRes(resource)
+
+	// add the event instance record to mark the event has been processed by the current instance
+	if _, err := bkr.eventInstanceDao.Create(ctx, &api.EventInstance{
+		EventID:    eventID,
+		InstanceID: bkr.instanceID,
+	}); err != nil {
+		return fmt.Errorf("failed to create event instance record %s: %s", eventID, err.Error())
+	}
+
+	return nil
+}
+
 // OnCreate is called by the controller when a resource is created on the maestro server.
-func (bkr *GRPCBroker) OnCreate(ctx context.Context, id string) error {
-	resource, err := bkr.resourceService.Get(ctx, id)
+func (bkr *GRPCBroker) OnCreate(ctx context.Context, eventID, resourceID string) error {
+	resource, err := bkr.resourceService.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
 
-	bkr.handleRes(resource)
-
-	return nil
+	return bkr.handleResEvent(ctx, eventID, resource)
 }
 
 // OnUpdate is called by the controller when a resource is updated on the maestro server.
-func (bkr *GRPCBroker) OnUpdate(ctx context.Context, id string) error {
-	resource, err := bkr.resourceService.Get(ctx, id)
+func (bkr *GRPCBroker) OnUpdate(ctx context.Context, eventID, resourceID string) error {
+	resource, err := bkr.resourceService.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
 
-	bkr.handleRes(resource)
-
-	return nil
+	return bkr.handleResEvent(ctx, eventID, resource)
 }
 
 // OnDelete is called by the controller when a resource is deleted from the maestro server.
-func (bkr *GRPCBroker) OnDelete(ctx context.Context, id string) error {
-	resource, err := bkr.resourceService.Get(ctx, id)
+func (bkr *GRPCBroker) OnDelete(ctx context.Context, eventID, resourceID string) error {
+	resource, err := bkr.resourceService.Get(ctx, resourceID)
 	if err != nil {
 		return err
 	}
 
-	bkr.handleRes(resource)
-
-	return nil
+	return bkr.handleResEvent(ctx, eventID, resource)
 }
 
 // On StatusUpdate will be called on each new status event inserted into db.
@@ -440,6 +451,36 @@ func (bkr *GRPCBroker) OnStatusUpdate(ctx context.Context, eventID, resourceID s
 		eventID,
 		resourceID,
 	)
+}
+
+// PredicateEvent checks if the event should be processed by the current instance
+// by verifying the resource consumer name is in the subscriber list, ensuring the
+// event will be only processed when the consumer is subscribed to the current broker.
+func (bkr *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool, error) {
+	evt, err := bkr.eventService.Get(ctx, eventID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get event %s: %s", eventID, err.Error())
+	}
+	resource, err := bkr.resourceService.Get(ctx, evt.SourceID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get resource %s: %s", evt.SourceID, err.Error())
+	}
+
+	if bkr.IsConsumerSubscribed(resource.ConsumerName) {
+		return true, nil
+	}
+
+	// if the consumer is not subscribed to the broker, then add the event instance record
+	// to indicate the event has been processed by the instance
+	if _, err := bkr.eventInstanceDao.Create(ctx, &api.EventInstance{
+		EventID:    eventID,
+		InstanceID: bkr.instanceID,
+	}); err != nil {
+		return false, fmt.Errorf("failed to create event instance record %s: %s", eventID, err.Error())
+	}
+	klog.V(10).Infof("The consumer %s is not subscribed to the broker, added the event instance record", resource.ConsumerName)
+
+	return false, nil
 }
 
 // IsConsumerSubscribed returns true if the consumer is subscribed to the broker for resource spec.
