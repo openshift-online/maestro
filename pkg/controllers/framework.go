@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/db"
 	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 
@@ -45,7 +44,7 @@ var logger = maestrologger.NewOCMLogger(context.Background())
 // events sync will help us to handle unexpected errors (e.g. sever restart), it ensures we will not miss any events
 var defaultEventsSyncPeriod = 10 * time.Hour
 
-type ControllerHandlerFunc func(ctx context.Context, id string) error
+type ControllerHandlerFunc func(ctx context.Context, eventID, sourceID string) error
 
 type ControllerConfig struct {
 	Source   string
@@ -53,18 +52,18 @@ type ControllerConfig struct {
 }
 
 type KindControllerManager struct {
-	controllers map[string]map[api.EventType][]ControllerHandlerFunc
-	lockFactory db.LockFactory
-	events      services.EventService
-	eventsQueue workqueue.RateLimitingInterface
+	controllers  map[string]map[api.EventType][]ControllerHandlerFunc
+	eventHandler EventHandler
+	events       services.EventService
+	eventsQueue  workqueue.RateLimitingInterface
 }
 
-func NewKindControllerManager(lockFactory db.LockFactory, events services.EventService) *KindControllerManager {
+func NewKindControllerManager(eventHandler EventHandler, events services.EventService) *KindControllerManager {
 	return &KindControllerManager{
-		controllers: map[string]map[api.EventType][]ControllerHandlerFunc{},
-		lockFactory: lockFactory,
-		events:      events,
-		eventsQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "event-controller"),
+		controllers:  map[string]map[api.EventType][]ControllerHandlerFunc{},
+		eventHandler: eventHandler,
+		events:       events,
+		eventsQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "event-controller"),
 	}
 }
 
@@ -108,35 +107,34 @@ func (km *KindControllerManager) add(source string, ev api.EventType, fns []Cont
 }
 
 func (km *KindControllerManager) handleEvent(id string) error {
-	ctx := context.Background()
-	// lock the Event with a fail-fast advisory lock context.
-	// this allows concurrent processing of many events by one or many controller managers.
-	// allow the lock to be released by the handler goroutine and allow this function to continue.
-	// subsequent events will be locked by their own distinct IDs.
-	lockOwnerID, acquired, err := km.lockFactory.NewNonBlockingLock(ctx, id, db.Events)
-	// Ensure that the transaction related to this lock always end.
-	defer km.lockFactory.Unlock(ctx, lockOwnerID)
+	reqContext := context.WithValue(context.Background(), EventID, id)
+
+	// check if the event should be processed by this instance
+	shouldProcess, err := km.eventHandler.ShouldHandleEvent(reqContext, id)
+	defer km.eventHandler.DeferredAction(reqContext, id)
 	if err != nil {
-		return fmt.Errorf("error obtaining the event lock: %v", err)
+		return fmt.Errorf("error filtering event with id (%s): %s", id, err)
 	}
 
-	if !acquired {
-		logger.Infof("Event %s is processed by another worker, continue to process the next", id)
+	// if the event should not be processed by this instance, we can ignore it
+	if !shouldProcess {
+		logger.Infof("Event with id (%s) should not be processed by this instance", id)
 		return nil
 	}
-
-	reqContext := context.WithValue(ctx, EventID, id)
 
 	event, svcErr := km.events.Get(reqContext, id)
 	if svcErr != nil {
 		if svcErr.Is404() {
 			// the event is already deleted, we can ignore it
+			logger.V(4).Infof("Event with id (%s) is not found", id)
 			return nil
 		}
-		return fmt.Errorf("error getting event with id(%s): %s", id, svcErr)
+		return fmt.Errorf("error getting event with id (%s): %s", id, svcErr)
 	}
 
 	if event.ReconciledDate != nil {
+		// the event is already reconciled, we can ignore it
+		logger.V(4).Infof("Event with id (%s) is already reconciled", id)
 		return nil
 	}
 
@@ -153,20 +151,13 @@ func (km *KindControllerManager) handleEvent(id string) error {
 	}
 
 	for _, fn := range handlerFns {
-		err := fn(reqContext, event.SourceID)
+		err := fn(reqContext, id, event.SourceID)
 		if err != nil {
-			return fmt.Errorf("error handing event %s, %s, %s: %s", event.Source, event.EventType, id, err)
+			return fmt.Errorf("error handing event %s-%s (%s): %s", event.Source, event.EventType, id, err)
 		}
 	}
 
-	// all handlers successfully executed
-	now := time.Now()
-	event.ReconciledDate = &now
-	_, svcErr = km.events.Replace(reqContext, event)
-	if svcErr != nil {
-		return fmt.Errorf("error updating event with id(%s): %s", id, svcErr)
-	}
-	return nil
+	return km.eventHandler.PostProcess(reqContext, event)
 }
 
 func (km *KindControllerManager) runWorker() {

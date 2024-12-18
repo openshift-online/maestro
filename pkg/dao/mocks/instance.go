@@ -124,6 +124,18 @@ func (d *instanceDaoMock) FindByIDs(ctx context.Context, ids []string) (api.Serv
 	return nil, errors.NotImplemented("Instance").AsError()
 }
 
+func (d *instanceDaoMock) FindReadyIDs(ctx context.Context) ([]string, error) {
+	d.mux.RLock()
+	defer d.mux.RUnlock()
+	ids := make([]string, 0, len(d.instances))
+	for _, instance := range d.instances {
+		if instance.Ready {
+			ids = append(ids, instance.ID)
+		}
+	}
+	return ids, nil
+}
+
 func (d *instanceDaoMock) FindByUpdatedTime(ctx context.Context, updatedTime time.Time) (api.ServerInstanceList, error) {
 	d.mux.RLock()
 	defer d.mux.RUnlock()
