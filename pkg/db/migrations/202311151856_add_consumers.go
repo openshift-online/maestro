@@ -22,7 +22,7 @@ func addConsumers() *gormigrate.Migration {
 			}
 
 			if err := CreateFK(tx, fkMigration{
-				"resources", "consumers", "consumer_name", "consumers(name)",
+				"resources", "consumers", "consumer_name", "consumers(name)", "ON DELETE RESTRICT ON UPDATE RESTRICT",
 			}); err != nil {
 				return err
 			}

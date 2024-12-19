@@ -133,42 +133,16 @@ func (s *MessageQueueEventServer) OnDelete(ctx context.Context, resourceID strin
 // 1. build the resource status and broadcast it to subscribers
 // 2. add the event instance record to mark the event has been processed by the current instance
 func (s *MessageQueueEventServer) OnStatusUpdate(ctx context.Context, eventID, resourceID string) error {
-	statusEvent, sErr := s.statusEventService.Get(ctx, eventID)
-	if sErr != nil {
-		return fmt.Errorf("failed to get status event %s: %s", eventID, sErr.Error())
-	}
-
-	var resource *api.Resource
-	// check if the status event is delete event
-	if statusEvent.StatusEventType == api.StatusDeleteEventType {
-		// build resource with resource id and delete status
-		resource = &api.Resource{
-			Meta: api.Meta{
-				ID: resourceID,
-			},
-			Source:  statusEvent.ResourceSource,
-			Type:    statusEvent.ResourceType,
-			Payload: statusEvent.Payload,
-			Status:  statusEvent.Status,
-		}
-	} else {
-		resource, sErr = s.resourceService.Get(ctx, resourceID)
-		if sErr != nil {
-			return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
-		}
-	}
-
-	// broadcast the resource status to subscribers
-	log.V(4).Infof("Broadcast the resource status %s", resource.ID)
-	s.eventBroadcaster.Broadcast(resource)
-
-	// add the event instance record
-	_, err := s.eventInstanceDao.Create(ctx, &api.EventInstance{
-		EventID:    eventID,
-		InstanceID: s.instanceID,
-	})
-
-	return err
+	return broadcastStatusEvent(
+		ctx,
+		s.statusEventService,
+		s.resourceService,
+		s.eventInstanceDao,
+		s.eventBroadcaster,
+		s.instanceID,
+		eventID,
+		resourceID,
+	)
 }
 
 // handleStatusUpdate processes the resource status update from the agent.
@@ -262,4 +236,48 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	}
 
 	return nil
+}
+
+func broadcastStatusEvent(ctx context.Context,
+	statusEventService services.StatusEventService,
+	resourceService services.ResourceService,
+	eventInstanceDao dao.EventInstanceDao,
+	eventBroadcaster *event.EventBroadcaster,
+	instanceID, eventID, resourceID string) error {
+	statusEvent, sErr := statusEventService.Get(ctx, eventID)
+	if sErr != nil {
+		return fmt.Errorf("failed to get status event %s: %s", eventID, sErr.Error())
+	}
+
+	var resource *api.Resource
+	// check if the status event is delete event
+	if statusEvent.StatusEventType == api.StatusDeleteEventType {
+		// build resource with resource id and delete status
+		resource = &api.Resource{
+			Meta: api.Meta{
+				ID: resourceID,
+			},
+			Source:  statusEvent.ResourceSource,
+			Type:    statusEvent.ResourceType,
+			Payload: statusEvent.Payload,
+			Status:  statusEvent.Status,
+		}
+	} else {
+		resource, sErr = resourceService.Get(ctx, resourceID)
+		if sErr != nil {
+			return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
+		}
+	}
+
+	// broadcast the resource status to subscribers
+	log.V(4).Infof("Broadcast the resource status %s", resource.ID)
+	eventBroadcaster.Broadcast(resource)
+
+	// add the event instance record
+	_, err := eventInstanceDao.Create(ctx, &api.EventInstance{
+		EventID:    eventID,
+		InstanceID: instanceID,
+	})
+
+	return err
 }
