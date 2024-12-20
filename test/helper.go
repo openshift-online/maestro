@@ -121,8 +121,13 @@ func NewHelper(t *testing.T) *Helper {
 			Ctx:               ctx,
 			ContextCancelFunc: cancel,
 			EventBroadcaster:  event.NewEventBroadcaster(),
-			StatusDispatcher: dispatcher.NewHashDispatcher(helper.Env().Config.MessageBroker.ClientID, dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
-				dao.NewConsumerDao(&helper.Env().Database.SessionFactory), helper.Env().Clients.CloudEventsSource, helper.Env().Config.EventServer.ConsistentHashConfig),
+			StatusDispatcher: dispatcher.NewHashDispatcher(
+				helper.Env().Config.MessageBroker.ClientID,
+				dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
+				dao.NewConsumerDao(&helper.Env().Database.SessionFactory),
+				helper.Env().Clients.CloudEventsSource,
+				helper.Env().Config.EventServer.ConsistentHashConfig,
+			),
 			AppConfig:     env.Config,
 			DBFactory:     env.Database.SessionFactory,
 			JWTPrivateKey: jwtKey,
@@ -136,6 +141,10 @@ func NewHelper(t *testing.T) *Helper {
 			helper.stopAPIServer,
 			helper.stopMetricsServer,
 			jwkMockTeardown,
+		}
+
+		if err := helper.MigrateDB(); err != nil {
+			panic(err)
 		}
 
 		helper.startEventBroadcaster()
@@ -238,6 +247,8 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 		),
 		StatusController: controllers.NewStatusController(
 			helper.Env().Services.StatusEvents(),
+			dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
+			dao.NewEventInstanceDao(&helper.Env().Database.SessionFactory),
 		),
 	}
 
@@ -481,11 +492,9 @@ func (helper *Helper) CleanDB() error {
 	for _, table := range []string{
 		"events",
 		"status_events",
-		"event_instances",
 		"resources",
 		"consumers",
 		"server_instances",
-		"migrations",
 	} {
 		if g2.Migrator().HasTable(table) {
 			// remove table contents instead of dropping table
@@ -501,10 +510,6 @@ func (helper *Helper) CleanDB() error {
 
 func (helper *Helper) ResetDB() error {
 	if err := helper.CleanDB(); err != nil {
-		return err
-	}
-
-	if err := helper.MigrateDB(); err != nil {
 		return err
 	}
 
