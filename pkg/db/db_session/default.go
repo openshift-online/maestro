@@ -138,7 +138,7 @@ func (f *Default) DirectDB() *sql.DB {
 	return f.db
 }
 
-func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id string)) {
+func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.DatabaseConfig, channel string, callback func(id string)) {
 	logger := ocmlogger.NewOCMLogger(ctx)
 	for {
 		select {
@@ -153,10 +153,11 @@ func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id s
 		case <-time.After(10 * time.Second):
 			logger.V(10).Infof("Received no events on channel during interval. Pinging source")
 			go func() {
-				// TODO: Need to handle the error, especially in cases of network failure.
-				err := l.Ping()
-				if err != nil {
-					logger.Error(err.Error())
+				if err := l.Ping(); err != nil {
+					logger.Infof("recreate the listener due to %s", err.Error())
+					l.Close()
+					// recreate the listener
+					newListener(ctx, dbConfig, channel, callback)
 				}
 			}()
 		}
@@ -190,7 +191,7 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 	}
 
 	logger.Infof("Starting channeling monitor for %s", channel)
-	waitForNotification(ctx, listener, callback)
+	waitForNotification(ctx, listener, dbConfig, channel, callback)
 }
 
 func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) {
