@@ -1,8 +1,9 @@
 package api
 
 type EventInstance struct {
-	EventID    string
-	InstanceID string
+	EventID     string `gorm:"default:null"`
+	SpecEventID string `gorm:"default:null"`
+	InstanceID  string
 }
 
 type EventInstanceList []*EventInstance

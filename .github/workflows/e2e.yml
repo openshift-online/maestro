@@ -65,4 +65,5 @@ jobs:
           make e2e-test
         env:
           container_tool: docker
+          SERVER_REPLICAS: 2
           MESSAGE_DRIVER_TYPE: grpc
