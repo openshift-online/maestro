@@ -44,7 +44,7 @@ var logger = maestrologger.NewOCMLogger(context.Background())
 // events sync will help us to handle unexpected errors (e.g. sever restart), it ensures we will not miss any events
 var defaultEventsSyncPeriod = 10 * time.Hour
 
-type ControllerHandlerFunc func(ctx context.Context, eventID, sourceID string) error
+type ControllerHandlerFunc func(ctx context.Context, id string) error
 
 type ControllerConfig struct {
 	Source   string
@@ -52,18 +52,18 @@ type ControllerConfig struct {
 }
 
 type KindControllerManager struct {
-	controllers  map[string]map[api.EventType][]ControllerHandlerFunc
-	eventHandler EventHandler
-	events       services.EventService
-	eventsQueue  workqueue.RateLimitingInterface
+	controllers map[string]map[api.EventType][]ControllerHandlerFunc
+	eventFilter EventFilter
+	events      services.EventService
+	eventsQueue workqueue.RateLimitingInterface
 }
 
-func NewKindControllerManager(eventHandler EventHandler, events services.EventService) *KindControllerManager {
+func NewKindControllerManager(eventFilter EventFilter, events services.EventService) *KindControllerManager {
 	return &KindControllerManager{
-		controllers:  map[string]map[api.EventType][]ControllerHandlerFunc{},
-		eventHandler: eventHandler,
-		events:       events,
-		eventsQueue:  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "event-controller"),
+		controllers: map[string]map[api.EventType][]ControllerHandlerFunc{},
+		eventFilter: eventFilter,
+		events:      events,
+		eventsQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "event-controller"),
 	}
 }
 
@@ -110,8 +110,8 @@ func (km *KindControllerManager) handleEvent(id string) error {
 	reqContext := context.WithValue(context.Background(), EventID, id)
 
 	// check if the event should be processed by this instance
-	shouldProcess, err := km.eventHandler.ShouldHandleEvent(reqContext, id)
-	defer km.eventHandler.DeferredAction(reqContext, id)
+	shouldProcess, err := km.eventFilter.Filter(reqContext, id)
+	defer km.eventFilter.DeferredAction(reqContext, id)
 	if err != nil {
 		return fmt.Errorf("error filtering event with id (%s): %s", id, err)
 	}
@@ -151,13 +151,20 @@ func (km *KindControllerManager) handleEvent(id string) error {
 	}
 
 	for _, fn := range handlerFns {
-		err := fn(reqContext, id, event.SourceID)
+		err := fn(reqContext, event.SourceID)
 		if err != nil {
 			return fmt.Errorf("error handing event %s-%s (%s): %s", event.Source, event.EventType, id, err)
 		}
 	}
 
-	return km.eventHandler.PostProcess(reqContext, event)
+	// all handlers successfully executed
+	now := time.Now()
+	event.ReconciledDate = &now
+	if _, svcErr := km.events.Replace(reqContext, event); svcErr != nil {
+		return fmt.Errorf("error updating event with id (%s): %s", id, svcErr)
+	}
+
+	return nil
 }
 
 func (km *KindControllerManager) runWorker() {

@@ -49,14 +49,11 @@ func runServer(cmd *cobra.Command, args []string) {
 	// For gRPC, create a gRPC broker to handle resource spec and status events.
 	// For MQTT/Kafka, create a message queue based event server to handle resource spec and status events.
 	var eventServer server.EventServer
-	var eventHandler controllers.EventHandler
+	var eventFilter controllers.EventFilter
 	if environments.Environment().Config.MessageBroker.MessageBrokerType == "grpc" {
 		klog.Info("Setting up grpc broker")
 		eventServer = server.NewGRPCBroker(eventBroadcaster)
-		eventHandler = controllers.NewPredicatedEventHandler(eventServer.PredicateEvent,
-			environments.Environment().Services.Events(),
-			dao.NewEventInstanceDao(&environments.Environment().Database.SessionFactory),
-			dao.NewInstanceDao(&environments.Environment().Database.SessionFactory))
+		eventFilter = controllers.NewPredicatedEventFilter(eventServer.PredicateEvent)
 	} else {
 		klog.Info("Setting up message queue event server")
 		var statusDispatcher dispatcher.Dispatcher
@@ -74,14 +71,13 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Set the status dispatcher for the healthcheck server
 		healthcheckServer.SetStatusDispatcher(statusDispatcher)
 		eventServer = server.NewMessageQueueEventServer(eventBroadcaster, statusDispatcher)
-		eventHandler = controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(environments.Environment().Database.SessionFactory),
-			environments.Environment().Services.Events())
+		eventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(environments.Environment().Database.SessionFactory))
 	}
 
 	// Create the servers
 	apiserver := server.NewAPIServer(eventBroadcaster)
 	metricsServer := server.NewMetricsServer()
-	controllersServer := server.NewControllersServer(eventServer, eventHandler)
+	controllersServer := server.NewControllersServer(eventServer, eventFilter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

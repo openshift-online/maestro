@@ -29,7 +29,12 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
-type resourceHandler func(res *api.Resource) error
+// resourceHandler processes a resource spec by encoding it to a CloudEvent and sending it to the subscriber.
+// It returns a bool indicating if the connection is closed and an error if one occurs.
+// - Returns true and an error if the connection is closed.
+// - Returns false and an error if encoding fails.
+// - Returns false and nil if successful.
+type resourceHandler func(res *api.Resource) (bool, error)
 
 // subscriber defines a subscriber that can receive and handle resource spec.
 type subscriber struct {
@@ -182,36 +187,55 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		return fmt.Errorf("invalid subscription request: missing cluster name")
 	}
 	// register the cluster for subscription to the resource spec
-	subscriberID, errChan := bkr.register(subReq.ClusterName, func(res *api.Resource) error {
+	subscriberID, errChan := bkr.register(subReq.ClusterName, func(res *api.Resource) (bool, error) {
 		evt, err := encodeResourceSpec(res)
 		if err != nil {
-			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
+			// return the error to requeue the event if encoding fails (e.g., due to invalid resource spec).
+			return false, fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
-
-		klog.V(4).Infof("send the event to spec subscribers, %s", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
 		if err = grpcprotocol.WritePBMessage(context.TODO(), binding.ToMessage(evt), pbEvt); err != nil {
-			return fmt.Errorf("failed to convert cloudevent to protobuf: %v", err)
+			// return the error to requeue the event if converting to protobuf fails (e.g., due to invalid cloudevent).
+			return false, fmt.Errorf("failed to convert cloudevent to protobuf for resource(%s): %v", res.ID, err)
 		}
 
 		// send the cloudevent to the subscriber
-		// TODO: error handling to address errors beyond network issues.
+		klog.V(4).Infof("sending the event to spec subscribers, %s", evt)
 		if err := subServer.Send(pbEvt); err != nil {
 			klog.Errorf("failed to send grpc event, %v", err)
-			return err // return error to requeue the spec event
+			// Return true to ensure the subscriber will be unregistered when sending fails, which will close the subserver stream.
+			// See: https://github.com/grpc/grpc-go/blob/b615b35c4feb932a0ac658fb86b7127f10ef664e/stream.go#L1537 for more details.
+			// Return the error without wrapping, as it contains the gRPC error code and message for future (TODO) handling beyond network issues.
+			// This will also not requeue the event, as the error will cause the connection to the subscriber to be closed.
+			// If the subscriber (agent) reconnects, rely on the agent's resync to retrieve the missing resource spec.
+			return true, err
 		}
 
-		return nil
+		return false, nil
 	})
 
 	select {
 	case err := <-errChan:
+		// An error occurred while sending the event to the subscriber.
+		// This could be due to multiple reasons:
+		// see: https://grpc.io/docs/guides/error/
+		// 1. general errors such as: deadline exceeded before return the response.
+		// 2. network errors such as: connection closed by intermidiate proxy.
+		// 3. protocol errors such as: compression error or flow control error.
+		// In all above cases, unregister the subscriber.
+		// TODO: unregister the subscriber if the error is a network error and the connection could be re-established.
 		klog.Errorf("unregister subscriber %s, error= %v", subscriberID, err)
 		bkr.unregister(subscriberID)
 		return err
 	case <-subServer.Context().Done():
+		// The context of the stream has been canceled or completed.
+		// This could happen if:
+		// - The client closed the connection or canceled the stream.
+		// - The server closed the stream, potentially due to a shutdown.
+		// Regardless of the reason, unregister the subscriber and stop processing.
+		// No error is returned here because the stream closure is expected.
 		bkr.unregister(subscriberID)
 		return nil
 	}
@@ -380,61 +404,53 @@ func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, eventDataTy
 }
 
 // handleRes publish the resource to the correct subscriber.
-func (bkr *GRPCBroker) handleRes(resource *api.Resource) {
+func (bkr *GRPCBroker) handleRes(resource *api.Resource) error {
 	bkr.mu.RLock()
 	defer bkr.mu.RUnlock()
 	for _, subscriber := range bkr.subscribers {
 		if subscriber.clusterName == resource.ConsumerName {
-			if err := subscriber.handler(resource); err != nil {
-				subscriber.errChan <- err
+			if isConnClosed, err := subscriber.handler(resource); err != nil {
+				if isConnClosed {
+					// if the connection is closed, write the error to the subscriber's error channel
+					// to ensure the subscriber is unregistered
+					subscriber.errChan <- err
+				}
+				// return the error to requeue the event if handling fails.
+				return err
 			}
 		}
 	}
-}
-
-// handleResEvent publish the resource to the correct subscriber and add the event instance record.
-func (bkr *GRPCBroker) handleResEvent(ctx context.Context, eventID string, resource *api.Resource) error {
-	bkr.handleRes(resource)
-
-	// add the event instance record to mark the event has been processed by the current instance
-	if _, err := bkr.eventInstanceDao.Create(ctx, &api.EventInstance{
-		SpecEventID: eventID,
-		InstanceID:  bkr.instanceID,
-	}); err != nil {
-		return fmt.Errorf("failed to create event instance record %s: %s", eventID, err.Error())
-	}
-
 	return nil
 }
 
 // OnCreate is called by the controller when a resource is created on the maestro server.
-func (bkr *GRPCBroker) OnCreate(ctx context.Context, eventID, resourceID string) error {
-	resource, err := bkr.resourceService.Get(ctx, resourceID)
+func (bkr *GRPCBroker) OnCreate(ctx context.Context, id string) error {
+	resource, err := bkr.resourceService.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	return bkr.handleResEvent(ctx, eventID, resource)
+	return bkr.handleRes(resource)
 }
 
 // OnUpdate is called by the controller when a resource is updated on the maestro server.
-func (bkr *GRPCBroker) OnUpdate(ctx context.Context, eventID, resourceID string) error {
-	resource, err := bkr.resourceService.Get(ctx, resourceID)
+func (bkr *GRPCBroker) OnUpdate(ctx context.Context, id string) error {
+	resource, err := bkr.resourceService.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	return bkr.handleResEvent(ctx, eventID, resource)
+	return bkr.handleRes(resource)
 }
 
 // OnDelete is called by the controller when a resource is deleted from the maestro server.
-func (bkr *GRPCBroker) OnDelete(ctx context.Context, eventID, resourceID string) error {
-	resource, err := bkr.resourceService.Get(ctx, resourceID)
+func (bkr *GRPCBroker) OnDelete(ctx context.Context, id string) error {
+	resource, err := bkr.resourceService.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	return bkr.handleResEvent(ctx, eventID, resource)
+	return bkr.handleRes(resource)
 }
 
 // On StatusUpdate will be called on each new status event inserted into db.
@@ -470,35 +486,16 @@ func (bkr *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool
 
 	resource, svcErr := bkr.resourceService.Get(ctx, evt.SourceID)
 	if svcErr != nil {
-		// if the resource is not found, it indicates the resource has been handled by
-		// other instances, so we can mark the event as reconciled and ignore it.
+		// if the resource is not found, it indicates the resource has been handled by other instances.
 		if svcErr.Is404() {
 			klog.V(10).Infof("The resource %s has been deleted, mark the event as reconciled", evt.SourceID)
-			now := time.Now()
-			evt.ReconciledDate = &now
-			if _, svcErr := bkr.eventService.Replace(ctx, evt); svcErr != nil {
-				return false, fmt.Errorf("failed to update event %s: %s", evt.ID, svcErr.Error())
-			}
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to get resource %s: %s", evt.SourceID, svcErr.Error())
 	}
 
-	if bkr.IsConsumerSubscribed(resource.ConsumerName) {
-		return true, nil
-	}
-
-	// if the consumer is not subscribed to the broker, then add the event instance record
-	// to indicate the event has been processed by the instance
-	if _, err := bkr.eventInstanceDao.Create(ctx, &api.EventInstance{
-		SpecEventID: eventID,
-		InstanceID:  bkr.instanceID,
-	}); err != nil {
-		return false, fmt.Errorf("failed to create event instance record %s: %s", eventID, err.Error())
-	}
-	klog.V(10).Infof("The consumer %s is not subscribed to the broker, added the event instance record", resource.ConsumerName)
-
-	return false, nil
+	// check if the consumer is subscribed to the broker
+	return bkr.IsConsumerSubscribed(resource.ConsumerName), nil
 }
 
 // IsConsumerSubscribed returns true if the consumer is subscribed to the broker for resource spec.

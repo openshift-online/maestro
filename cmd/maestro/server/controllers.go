@@ -11,10 +11,10 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 )
 
-func NewControllersServer(eventServer EventServer, eventHandler controllers.EventHandler) *ControllersServer {
+func NewControllersServer(eventServer EventServer, eventFilter controllers.EventFilter) *ControllersServer {
 	s := &ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
-			eventHandler,
+			eventFilter,
 			env().Services.Events(),
 		),
 		StatusController: controllers.NewStatusController(

@@ -42,21 +42,7 @@ func (d *eventInstanceDaoMock) Create(ctx context.Context, eventInstance *api.Ev
 	return eventInstance, nil
 }
 
-func (d *eventInstanceDaoMock) GetInstancesBySpecEventID(ctx context.Context, specEventID string) ([]string, error) {
-	d.mux.RLock()
-	defer d.mux.RUnlock()
-
-	var instanceIDs []string
-	for _, ei := range d.eventInstances {
-		if ei.SpecEventID == specEventID {
-			instanceIDs = append(instanceIDs, ei.InstanceID)
-		}
-	}
-
-	return instanceIDs, nil
-}
-
-func (d *eventInstanceDaoMock) FindEventInstancesByEventIDs(ctx context.Context, ids []string) (api.EventInstanceList, error) {
+func (d *eventInstanceDaoMock) FindStatusEvents(ctx context.Context, ids []string) (api.EventInstanceList, error) {
 	d.mux.RLock()
 	defer d.mux.RUnlock()
 

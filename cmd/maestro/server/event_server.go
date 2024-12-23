@@ -29,13 +29,13 @@ type EventServer interface {
 	Start(ctx context.Context)
 
 	// OnCreate handles the creation of a resource.
-	OnCreate(ctx context.Context, eventID, resourceID string) error
+	OnCreate(ctx context.Context, resourceID string) error
 
 	// OnUpdate handles updates to a resource.
-	OnUpdate(ctx context.Context, eventID, resourceID string) error
+	OnUpdate(ctx context.Context, resourceID string) error
 
 	// OnDelete handles the deletion of a resource.
-	OnDelete(ctx context.Context, eventID, resourceID string) error
+	OnDelete(ctx context.Context, resourceID string) error
 
 	// OnStatusUpdate handles status update events for a resource.
 	OnStatusUpdate(ctx context.Context, eventID, resourceID string) error
@@ -117,17 +117,17 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 }
 
 // OnCreate will be called on each new resource creation event inserted into db.
-func (s *MessageQueueEventServer) OnCreate(ctx context.Context, eventID, resourceID string) error {
+func (s *MessageQueueEventServer) OnCreate(ctx context.Context, resourceID string) error {
 	return s.sourceClient.OnCreate(ctx, resourceID)
 }
 
 // OnUpdate will be called on each new resource update event inserted into db.
-func (s *MessageQueueEventServer) OnUpdate(ctx context.Context, eventID, resourceID string) error {
+func (s *MessageQueueEventServer) OnUpdate(ctx context.Context, resourceID string) error {
 	return s.sourceClient.OnUpdate(ctx, resourceID)
 }
 
 // OnDelete will be called on each new resource deletion event inserted into db.
-func (s *MessageQueueEventServer) OnDelete(ctx context.Context, eventID, resourceID string) error {
+func (s *MessageQueueEventServer) OnDelete(ctx context.Context, resourceID string) error {
 	return s.sourceClient.OnDelete(ctx, resourceID)
 }
 

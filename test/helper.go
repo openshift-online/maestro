@@ -82,7 +82,7 @@ type Helper struct {
 	MetricsServer     server.Server
 	HealthCheckServer *server.HealthCheckServer
 	EventServer       server.EventServer
-	EventHandler      controllers.EventHandler
+	EventFilter       controllers.EventFilter
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
 	WorkAgentInformer workv1informers.ManifestWorkInformer
@@ -150,10 +150,10 @@ func NewHelper(t *testing.T) *Helper {
 			)
 			helper.HealthCheckServer.SetStatusDispatcher(statusDispatcher)
 			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, statusDispatcher)
-			helper.EventHandler = controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory), helper.Env().Services.Events())
+			helper.EventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory))
 		} else {
 			helper.EventServer = server.NewGRPCBroker(helper.EventBroadcaster)
-			helper.EventHandler = controllers.NewPredicatedEventHandler(helper.EventServer.PredicateEvent, helper.Env().Services.Events(), dao.NewEventInstanceDao(&helper.Env().Database.SessionFactory), dao.NewInstanceDao(&helper.Env().Database.SessionFactory))
+			helper.EventFilter = controllers.NewPredicatedEventFilter(helper.EventServer.PredicateEvent)
 		}
 
 		// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
@@ -259,7 +259,7 @@ func (helper *Helper) startEventBroadcaster() {
 func (helper *Helper) StartControllerManager(ctx context.Context) {
 	helper.ControllerManager = &server.ControllersServer{
 		KindControllerManager: controllers.NewKindControllerManager(
-			helper.EventHandler,
+			helper.EventFilter,
 			helper.Env().Services.Events(),
 		),
 		StatusController: controllers.NewStatusController(

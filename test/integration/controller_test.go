@@ -20,9 +20,6 @@ import (
 func TestControllerRacing(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	// sleep for a while to wait for server instance is added
-	time.Sleep(1 * time.Second)
-
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 	defer func() {
@@ -35,19 +32,18 @@ func TestControllerRacing(t *testing.T) {
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
-	eventInstanceDao := dao.NewEventInstanceDao(&h.Env().Database.SessionFactory)
 
 	// The handler filters the events by source id/type/reconciled, and only record
 	// the event with create type. Due to the event lock, each create event
 	// should be only processed once.
 	var proccessedEvent, processedStatusEvent []string
-	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
+	onUpsert := func(ctx context.Context, id string) error {
 		events, err := eventDao.All(ctx)
 		if err != nil {
 			return err
 		}
 		for _, evt := range events {
-			if evt.SourceID != resourceID {
+			if evt.SourceID != id {
 				continue
 			}
 			if evt.EventType != api.CreateEventType {
@@ -57,15 +53,7 @@ func TestControllerRacing(t *testing.T) {
 			if evt.ReconciledDate != nil {
 				continue
 			}
-			proccessedEvent = append(proccessedEvent, resourceID)
-			// add the event instance record
-			_, err := eventInstanceDao.Create(ctx, &api.EventInstance{
-				SpecEventID: eventID,
-				InstanceID:  h.Env().Config.MessageBroker.ClientID,
-			})
-			if err != nil {
-				return err
-			}
+			proccessedEvent = append(proccessedEvent, id)
 		}
 
 		return nil
@@ -91,21 +79,23 @@ func TestControllerRacing(t *testing.T) {
 		return nil
 	}
 
-	// Start 3 controllers concurrently
+	// Start 3 controllers concurrently for message queue event server
 	threads := 3
-	if h.Broker == "grpc" {
-		threads = 1
-	}
+	randNum := rand.Intn(3)
 	for i := 0; i < threads; i++ {
-		// each controller has its own event handler, otherwise, the event lock will block the event processing.
-		eventHandler := controllers.NewLockBasedEventHandler(db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory), h.Env().Services.Events())
+		// each controller has its own event filter, otherwise, the event lock will block the event processing.
+		eventFilter := controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory))
 		if h.Broker == "grpc" {
-			eventHandler = controllers.NewPredicatedEventHandler(h.EventServer.PredicateEvent, h.Env().Services.Events(), dao.NewEventInstanceDao(&h.Env().Database.SessionFactory), dao.NewInstanceDao(&h.Env().Database.SessionFactory))
+			eventFilter = controllers.NewPredicatedEventFilter(func(ctx context.Context, eventID string) (bool, error) {
+				// simulate the event filter, where the agent randomly connects to a grpc broker instance.
+				// in theory, only one broker instance should process the event.
+				return i == randNum, nil
+			})
 		}
 		go func() {
 			s := &server.ControllersServer{
 				KindControllerManager: controllers.NewKindControllerManager(
-					eventHandler,
+					eventFilter,
 					h.Env().Services.Events(),
 				),
 				StatusController: controllers.NewStatusController(
@@ -168,9 +158,6 @@ func TestControllerRacing(t *testing.T) {
 func TestControllerReconcile(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	// sleep for a while to wait for server instance is added
-	time.Sleep(1 * time.Second)
-
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
@@ -180,24 +167,14 @@ func TestControllerReconcile(t *testing.T) {
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
-	eventInstanceDao := dao.NewEventInstanceDao(&h.Env().Database.SessionFactory)
 
 	processedEventTimes := 0
 	// this handler will return an error at the first time to simulate an error happened when handing an event,
 	// and then, the controller will requeue this event, at that time, we handle this event successfully.
-	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
+	onUpsert := func(ctx context.Context, id string) error {
 		processedEventTimes = processedEventTimes + 1
 		if processedEventTimes == 1 {
 			return fmt.Errorf("failed to process the event")
-		}
-
-		// add the event instance record
-		_, err := eventInstanceDao.Create(ctx, &api.EventInstance{
-			SpecEventID: eventID,
-			InstanceID:  h.Env().Config.MessageBroker.ClientID,
-		})
-		if err != nil {
-			return err
 		}
 
 		return nil
@@ -219,7 +196,7 @@ func TestControllerReconcile(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				h.EventHandler,
+				h.EventFilter,
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(
@@ -244,7 +221,7 @@ func TestControllerReconcile(t *testing.T) {
 		s.Start(ctx)
 	}()
 	// wait for the listener to start
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Second)
 
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 	resource := h.CreateResource(consumer.Name, deployName, 1)
@@ -303,9 +280,6 @@ func TestControllerReconcile(t *testing.T) {
 func TestControllerSync(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	// sleep for a while to wait for server instance is added
-	time.Sleep(1 * time.Second)
-
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
@@ -338,7 +312,6 @@ func TestControllerSync(t *testing.T) {
 	}
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
-	eventInstanceDao := dao.NewEventInstanceDao(&h.Env().Database.SessionFactory)
 	now := time.Now()
 	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
 		SourceID:       "resource1",
@@ -370,15 +343,10 @@ func TestControllerSync(t *testing.T) {
 	}
 
 	var proccessedEvents []string
-	onUpsert := func(ctx context.Context, eventID, resourceID string) error {
+	onUpsert := func(ctx context.Context, id string) error {
 		// we just record the processed event
-		proccessedEvents = append(proccessedEvents, resourceID)
-		// add the event instance record
-		_, err := eventInstanceDao.Create(ctx, &api.EventInstance{
-			SpecEventID: eventID,
-			InstanceID:  h.Env().Config.MessageBroker.ClientID,
-		})
-		return err
+		proccessedEvents = append(proccessedEvents, id)
+		return nil
 	}
 
 	// start the controller, once the controller started, it will sync the events:
@@ -387,7 +355,7 @@ func TestControllerSync(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				h.EventHandler,
+				h.EventFilter,
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(
@@ -509,7 +477,7 @@ func TestStatusControllerSync(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				h.EventHandler,
+				h.EventFilter,
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(
@@ -543,7 +511,7 @@ func TestStatusControllerSync(t *testing.T) {
 			return fmt.Errorf("should purge the events %s, but got %+v", purged, events)
 		}
 
-		eventInstances, err := eventInstanceDao.FindEventInstancesByEventIDs(ctx, purged)
+		eventInstances, err := eventInstanceDao.FindStatusEvents(ctx, purged)
 		if err != nil {
 			return err
 		}
