@@ -193,11 +193,7 @@ spec:
         - name: name
           value: prefetch-dependencies
         - name: bundle
-<<<<<<< HEAD:.tekton/maestro-main-pull-request.yaml
           value: quay.io/redhat-appstudio-tekton-catalog/task-prefetch-dependencies:0.1@sha256:befbcd715d146f52e6421a3cce34d1b93ffcb069a0271621c04d4f6f334ddb35
-=======
-          value: quay.io/redhat-appstudio-tekton-catalog/task-prefetch-dependencies:0.1@sha256:cd873246e0d830d8b3d0dc76334348474361101487457f65bc02aab9861aad2c
->>>>>>> upstream/main:.tekton/maestro-pull-request.yaml
         - name: kind
           value: task
         resolver: bundles
