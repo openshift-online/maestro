@@ -67,6 +67,28 @@ func (d *instanceDaoMock) UpSert(ctx context.Context, instance *api.ServerInstan
 	return instance, nil
 }
 
+func (d *instanceDaoMock) MarkReadyByIDs(ctx context.Context, ids []string) error {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	for _, instance := range d.instances {
+		if contains(ids, instance.ID) {
+			instance.Ready = true
+		}
+	}
+	return nil
+}
+
+func (d *instanceDaoMock) MarkUnreadyByIDs(ctx context.Context, ids []string) error {
+	d.mux.Lock()
+	defer d.mux.Unlock()
+	for _, instance := range d.instances {
+		if contains(ids, instance.ID) {
+			instance.Ready = false
+		}
+	}
+	return nil
+}
+
 func (d *instanceDaoMock) Delete(ctx context.Context, ID string) error {
 	d.mux.Lock()
 	defer d.mux.Unlock()
@@ -112,6 +134,19 @@ func (d *instanceDaoMock) FindByUpdatedTime(ctx context.Context, updatedTime tim
 		}
 	}
 	return instances, nil
+}
+
+func (d *instanceDaoMock) FindReadyIDs(ctx context.Context) ([]string, error) {
+	d.mux.RLock()
+	defer d.mux.RUnlock()
+
+	ids := []string{}
+	for _, instance := range d.instances {
+		if instance.Ready {
+			ids = append(ids, instance.ID)
+		}
+	}
+	return ids, nil
 }
 
 func (d *instanceDaoMock) All(ctx context.Context) (api.ServerInstanceList, error) {

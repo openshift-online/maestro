@@ -7,17 +7,16 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func TestPulseServerConfig(t *testing.T) {
+func TestEventServerConfig(t *testing.T) {
 	cases := []struct {
 		name  string
 		input map[string]string
-		want  *PulseServerConfig
+		want  *EventServerConfig
 	}{
 		{
 			name:  "default subscription type",
 			input: map[string]string{},
-			want: &PulseServerConfig{
-				PulseInterval:    15,
+			want: &EventServerConfig{
 				SubscriptionType: "shared",
 				ConsistentHashConfig: &ConsistentHashConfig{
 					PartitionCount:    7,
@@ -31,8 +30,7 @@ func TestPulseServerConfig(t *testing.T) {
 			input: map[string]string{
 				"subscription-type": "broadcast",
 			},
-			want: &PulseServerConfig{
-				PulseInterval:    15,
+			want: &EventServerConfig{
 				SubscriptionType: "broadcast",
 				ConsistentHashConfig: &ConsistentHashConfig{
 					PartitionCount:    7,
@@ -49,8 +47,7 @@ func TestPulseServerConfig(t *testing.T) {
 				"consistent-hash-replication-factor": "30",
 				"consistent-hash-load":               "1.5",
 			},
-			want: &PulseServerConfig{
-				PulseInterval:    15,
+			want: &EventServerConfig{
 				SubscriptionType: "broadcast",
 				ConsistentHashConfig: &ConsistentHashConfig{
 					PartitionCount:    10,
@@ -61,7 +58,7 @@ func TestPulseServerConfig(t *testing.T) {
 		},
 	}
 
-	config := NewPulseServerConfig()
+	config := NewEventServerConfig()
 	pflag.NewFlagSet("test", pflag.ContinueOnError)
 	fs := pflag.CommandLine
 	config.AddFlags(fs)
@@ -72,7 +69,7 @@ func TestPulseServerConfig(t *testing.T) {
 				fs.Set(key, value)
 			}
 			if !reflect.DeepEqual(config, tc.want) {
-				t.Errorf("NewPulseServerConfig() = %v; want %v", config, tc.want)
+				t.Errorf("NewEventServerConfig() = %v; want %v", config, tc.want)
 			}
 			// clear flags
 			fs.VisitAll(func(f *pflag.Flag) {
