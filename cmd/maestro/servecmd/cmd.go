@@ -11,6 +11,9 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
+	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
 )
 
@@ -35,24 +38,40 @@ func runServer(cmd *cobra.Command, args []string) {
 		klog.Fatalf("Unable to initialize environment: %s", err.Error())
 	}
 
+	healthcheckServer := server.NewHealthCheckServer()
+
 	// Create event broadcaster to broadcast resource status update events to subscribers
 	eventBroadcaster := event.NewEventBroadcaster()
 
 	// Create the event server based on the message broker type:
 	// For gRPC, create a gRPC broker to handle resource spec and status events.
-	// For MQTT, create a Pulse server to handle resource spec and status events.
+	// For MQTT/Kafka, create a message queue based event server to handle resource spec and status events.
 	var eventServer server.EventServer
 	if environments.Environment().Config.MessageBroker.MessageBrokerType == "grpc" {
 		klog.Info("Setting up grpc broker")
 		eventServer = server.NewGRPCBroker(eventBroadcaster)
 	} else {
-		klog.Info("Setting up pulse server")
-		eventServer = server.NewPulseServer(eventBroadcaster)
+		klog.Info("Setting up message queue event server")
+		var statusDispatcher dispatcher.Dispatcher
+		subscriptionType := environments.Environment().Config.EventServer.SubscriptionType
+		switch config.SubscriptionType(subscriptionType) {
+		case config.SharedSubscriptionType:
+			statusDispatcher = dispatcher.NewNoopDispatcher(dao.NewConsumerDao(&environments.Environment().Database.SessionFactory), environments.Environment().Clients.CloudEventsSource)
+		case config.BroadcastSubscriptionType:
+			statusDispatcher = dispatcher.NewHashDispatcher(environments.Environment().Config.MessageBroker.ClientID, dao.NewInstanceDao(&environments.Environment().Database.SessionFactory),
+				dao.NewConsumerDao(&environments.Environment().Database.SessionFactory), environments.Environment().Clients.CloudEventsSource, environments.Environment().Config.EventServer.ConsistentHashConfig)
+		default:
+			klog.Errorf("Unsupported subscription type: %s", subscriptionType)
+		}
+
+		// Set the status dispatcher for the healthcheck server
+		healthcheckServer.SetStatusDispatcher(statusDispatcher)
+		eventServer = server.NewMessageQueueEventServer(eventBroadcaster, statusDispatcher)
 	}
+
 	// Create the servers
 	apiserver := server.NewAPIServer(eventBroadcaster)
 	metricsServer := server.NewMetricsServer()
-	healthcheckServer := server.NewHealthCheckServer()
 	controllersServer := server.NewControllersServer(eventServer)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -70,10 +89,6 @@ func runServer(cmd *cobra.Command, args []string) {
 		if err := metricsServer.Stop(); err != nil {
 			klog.Errorf("Failed to stop metrics server, %v", err)
 		}
-
-		if err := healthcheckServer.Stop(); err != nil {
-			klog.Errorf("Failed to stop healthcheck server, %v", err)
-		}
 	}()
 
 	// Start the event broadcaster
@@ -82,7 +97,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	// Run the servers
 	go apiserver.Start()
 	go metricsServer.Start()
-	go healthcheckServer.Start()
+	go healthcheckServer.Start(ctx)
 	go eventServer.Start(ctx)
 	go controllersServer.Start(ctx)
 

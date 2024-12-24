@@ -1,13 +1,12 @@
 package config
 
 import (
-	"context"
 	"fmt"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
-	"github.com/openshift-online/maestro/pkg/constants"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/spf13/pflag"
+
+	"github.com/openshift-online/maestro/pkg/constants"
 )
 
 type DatabaseConfig struct {
@@ -31,6 +30,7 @@ type DatabaseConfig struct {
 
 	AuthMethod        string `json:"auth_method"`
 	TokenRequestScope string `json:"token_request_scope"`
+	Token             *azcore.AccessToken
 }
 
 func NewDatabaseConfig() *DatabaseConfig {
@@ -83,22 +83,7 @@ func (c *DatabaseConfig) ReadFiles() error {
 		return err
 	}
 
-	if c.AuthMethod == constants.AuthMethodMicrosoftEntra {
-		// ARO-HCP environment variable configuration is set by the Azure workload identity webhook.
-		// Use [WorkloadIdentityCredential] directly when not using the webhook or needing more control over its configuration.
-		cred, err := azidentity.NewDefaultAzureCredential(nil)
-		if err != nil {
-			return err
-		}
-		// The access token can be expired. but the existing connections are not invalidated.
-		// TODO: how to reconnect due to the network is broken etc. Right now, gorm does not have this feature.
-		// refer to https://github.com/go-gorm/gorm/issues/5602 & https://github.com/go-gorm/gorm/pull/1721.
-		token, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{c.TokenRequestScope}})
-		if err != nil {
-			return err
-		}
-		c.Password = token.Token
-	} else {
+	if c.AuthMethod == constants.AuthMethodPassword {
 		err = readFileValueString(c.PasswordFile, &c.Password)
 		if err != nil {
 			return err
@@ -117,13 +102,13 @@ func (c *DatabaseConfig) ConnectionStringWithName(name string, withSSL bool) str
 	var cmd string
 	if withSSL {
 		cmd = fmt.Sprintf(
-			"host=%s port=%d user=%s password='%s' dbname=%s sslmode=%s sslrootcert=%s",
-			c.Host, c.Port, c.Username, c.Password, name, c.SSLMode, c.RootCertFile,
+			"host=%s port=%d user=%s dbname=%s sslmode=%s sslrootcert='%s'",
+			c.Host, c.Port, c.Username, name, c.SSLMode, c.RootCertFile,
 		)
 	} else {
 		cmd = fmt.Sprintf(
-			"host=%s port=%d user=%s password='%s' dbname=%s sslmode=disable",
-			c.Host, c.Port, c.Username, c.Password, name,
+			"host=%s port=%d user=%s dbname=%s sslmode=disable",
+			c.Host, c.Port, c.Username, name,
 		)
 	}
 

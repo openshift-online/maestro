@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/controllers"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"k8s.io/klog/v2"
@@ -70,13 +72,14 @@ type Helper struct {
 	ContextCancelFunc context.CancelFunc
 
 	EventBroadcaster  *event.EventBroadcaster
+	StatusDispatcher  dispatcher.Dispatcher
 	Store             *MemoryStore
 	GRPCSourceClient  *generic.CloudEventSourceClient[*api.Resource]
 	DBFactory         db.SessionFactory
 	AppConfig         *config.ApplicationConfig
 	APIServer         server.Server
 	MetricsServer     server.Server
-	HealthCheckServer server.Server
+	HealthCheckServer *server.HealthCheckServer
 	EventServer       server.EventServer
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
@@ -95,7 +98,7 @@ func NewHelper(t *testing.T) *Helper {
 			fmt.Println("Unable to read JWT keys - this may affect tests that make authenticated server requests")
 		}
 
-		env := environments.Environment()
+		env := helper.Env()
 		// Manually set environment name, ignoring environment variables
 		env.Name = environments.TestingEnv
 		err = env.AddFlags(pflag.CommandLine)
@@ -118,10 +121,17 @@ func NewHelper(t *testing.T) *Helper {
 			Ctx:               ctx,
 			ContextCancelFunc: cancel,
 			EventBroadcaster:  event.NewEventBroadcaster(),
-			AppConfig:         env.Config,
-			DBFactory:         env.Database.SessionFactory,
-			JWTPrivateKey:     jwtKey,
-			JWTCA:             jwtCA,
+			StatusDispatcher: dispatcher.NewHashDispatcher(
+				helper.Env().Config.MessageBroker.ClientID,
+				dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
+				dao.NewConsumerDao(&helper.Env().Database.SessionFactory),
+				helper.Env().Clients.CloudEventsSource,
+				helper.Env().Config.EventServer.ConsistentHashConfig,
+			),
+			AppConfig:     env.Config,
+			DBFactory:     env.Database.SessionFactory,
+			JWTPrivateKey: jwtKey,
+			JWTCA:         jwtCA,
 		}
 
 		// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
@@ -130,14 +140,17 @@ func NewHelper(t *testing.T) *Helper {
 			helper.sendShutdownSignal,
 			helper.stopAPIServer,
 			helper.stopMetricsServer,
-			helper.stopHealthCheckServer,
 			jwkMockTeardown,
+		}
+
+		if err := helper.MigrateDB(); err != nil {
+			panic(err)
 		}
 
 		helper.startEventBroadcaster()
 		helper.startAPIServer()
 		helper.startMetricsServer()
-		helper.startHealthCheckServer()
+		helper.startHealthCheckServer(helper.Ctx)
 		helper.startEventServer(helper.Ctx)
 	})
 	helper.T = t
@@ -192,20 +205,15 @@ func (helper *Helper) stopMetricsServer() error {
 	return nil
 }
 
-func (helper *Helper) startHealthCheckServer() {
+func (helper *Helper) startHealthCheckServer(ctx context.Context) {
+	helper.Env().Config.HealthCheck.HeartbeartInterval = 1
 	helper.HealthCheckServer = server.NewHealthCheckServer()
+	helper.HealthCheckServer.SetStatusDispatcher(helper.StatusDispatcher)
 	go func() {
 		klog.V(10).Info("Test health check server started")
-		helper.HealthCheckServer.Start()
+		helper.HealthCheckServer.Start(ctx)
 		klog.V(10).Info("Test health check server stopped")
 	}()
-}
-
-func (helper *Helper) stopHealthCheckServer() error {
-	if err := helper.HealthCheckServer.Stop(); err != nil {
-		return fmt.Errorf("unable to stop health check server: %s", err.Error())
-	}
-	return nil
 }
 
 func (helper *Helper) sendShutdownSignal() error {
@@ -214,9 +222,8 @@ func (helper *Helper) sendShutdownSignal() error {
 }
 
 func (helper *Helper) startEventServer(ctx context.Context) {
-	helper.Env().Config.PulseServer.PulseInterval = 1
-	helper.Env().Config.PulseServer.SubscriptionType = "broadcast"
-	helper.EventServer = server.NewPulseServer(helper.EventBroadcaster)
+	// helper.Env().Config.EventServer.SubscriptionType = "broadcast"
+	helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
 	go func() {
 		klog.V(10).Info("Test event server started")
 		helper.EventServer.Start(ctx)
@@ -240,6 +247,8 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 		),
 		StatusController: controllers.NewStatusController(
 			helper.Env().Services.StatusEvents(),
+			dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
+			dao.NewEventInstanceDao(&helper.Env().Database.SessionFactory),
 		),
 	}
 
@@ -339,7 +348,7 @@ func (helper *Helper) RestartMetricsServer() {
 
 func (helper *Helper) Reset() {
 	klog.Infof("Reseting testing environment")
-	env := environments.Environment()
+	env := helper.Env()
 	// Reset the configuration
 	env.Config = config.NewApplicationConfig()
 
@@ -483,11 +492,9 @@ func (helper *Helper) CleanDB() error {
 	for _, table := range []string{
 		"events",
 		"status_events",
-		"event_instances",
 		"resources",
 		"consumers",
 		"server_instances",
-		"migrations",
 	} {
 		if g2.Migrator().HasTable(table) {
 			// remove table contents instead of dropping table
@@ -503,10 +510,6 @@ func (helper *Helper) CleanDB() error {
 
 func (helper *Helper) ResetDB() error {
 	if err := helper.CleanDB(); err != nil {
-		return err
-	}
-
-	if err := helper.MigrateDB(); err != nil {
 		return err
 	}
 

@@ -19,6 +19,7 @@ type StatusEventDao interface {
 	All(ctx context.Context) (api.StatusEventList, error)
 
 	DeleteAllReconciledEvents(ctx context.Context) error
+	DeleteAllEvents(ctx context.Context, eventIDs []string) error
 	FindAllUnreconciledEvents(ctx context.Context) (api.StatusEventList, error)
 }
 
@@ -88,6 +89,19 @@ func (d *sqlStatusEventDao) FindByIDs(ctx context.Context, ids []string) (api.St
 func (d *sqlStatusEventDao) DeleteAllReconciledEvents(ctx context.Context) error {
 	g2 := (*d.sessionFactory).New(ctx)
 	if err := g2.Unscoped().Omit(clause.Associations).Where("reconciled_date IS NOT NULL").Delete(&api.StatusEvent{}).Error; err != nil {
+		db.MarkForRollback(ctx, err)
+		return err
+	}
+	return nil
+}
+
+func (d *sqlStatusEventDao) DeleteAllEvents(ctx context.Context, eventIDs []string) error {
+	if len(eventIDs) == 0 {
+		return nil
+	}
+
+	g2 := (*d.sessionFactory).New(ctx)
+	if err := g2.Unscoped().Omit(clause.Associations).Where("id IN ?", eventIDs).Delete(&api.StatusEvent{}).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return err
 	}

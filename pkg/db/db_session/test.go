@@ -11,6 +11,8 @@ import (
 	"gorm.io/gorm/logger"
 	"k8s.io/klog/v2"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
 )
@@ -41,7 +43,7 @@ func NewTestFactory(config *config.DatabaseConfig) *Test {
 
 // Init will:
 // - initialize a template1 DB with migrations
-// - rebuild AMS DB from template1
+// - rebuild Maestro DB from template1
 // - return a new connection factory
 // Go includes database connection pooling in the platform. Gorm uses the same and provides a method to
 // clone a connection via New(), which is safe for use by concurrent Goroutines.
@@ -81,7 +83,7 @@ func resetDB(config *config.DatabaseConfig) error {
 	dbx, _, cleanup := connect("postgres", config)
 	defer cleanup()
 
-	// Drop `all` connections to both `template1` and AMS DB, so it can be dropped and created
+	// Drop `all` connections to both `template1` and Maestro DB, so it can be dropped and created
 	if err := dropConnections(dbx, "template1"); err != nil {
 		return err
 	}
@@ -89,7 +91,7 @@ func resetDB(config *config.DatabaseConfig) error {
 		return err
 	}
 
-	// Rebuild AMS DB
+	// Rebuild Maestro DB
 	query := fmt.Sprintf("DROP DATABASE IF EXISTS %s", config.Name)
 	if _, err := dbx.Exec(query); err != nil {
 		return fmt.Errorf("SQL failed to DROP database %s: %s", config.Name, err.Error())
@@ -98,7 +100,7 @@ func resetDB(config *config.DatabaseConfig) error {
 	if _, err := dbx.Exec(query); err != nil {
 		return fmt.Errorf("SQL failed to CREATE database %s: %s", config.Name, err.Error())
 	}
-	// As `template1` had all migrations, so now AMS DB has them too!
+	// As `template1` had all migrations, so now Maestro DB has them too!
 	return nil
 }
 
@@ -110,19 +112,16 @@ func connect(name string, config *config.DatabaseConfig) (*sql.DB, *gorm.DB, fun
 		err error
 	)
 
-	dbx, err = sql.Open(config.Dialect, config.ConnectionStringWithName(name, config.SSLMode != disable))
+	connConfig, err := pgx.ParseConfig(config.ConnectionStringWithName(name, config.SSLMode != disable))
 	if err != nil {
-		dbx, err = sql.Open(config.Dialect, config.ConnectionStringWithName(name, false))
-		if err != nil {
-			panic(fmt.Sprintf(
-				"SQL failed to connect to %s database %s with connection string: %s\nError: %s",
-				config.Dialect,
-				name,
-				config.LogSafeConnectionStringWithName(name, config.SSLMode != disable),
-				err.Error(),
-			))
-		}
+		panic(fmt.Sprintf(
+			"GORM failed to parse the connection string: %s\nError: %s",
+			config.LogSafeConnectionStringWithName(name, config.SSLMode != disable),
+			err.Error(),
+		))
 	}
+
+	dbx = stdlib.OpenDB(*connConfig, stdlib.OptionBeforeConnect(setPassword(config)))
 
 	// Connect GORM to use the same connection
 	conf := &gorm.Config{
@@ -217,5 +216,5 @@ func (f *Test) ResetDB() {
 }
 
 func (f *Test) NewListener(ctx context.Context, channel string, callback func(id string)) {
-	newListener(ctx, f.config.ConnectionString(true), channel, callback)
+	newListener(ctx, f.config, channel, callback)
 }
