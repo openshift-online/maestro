@@ -12,7 +12,9 @@ import (
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
 )
@@ -47,9 +49,11 @@ func runServer(cmd *cobra.Command, args []string) {
 	// For gRPC, create a gRPC broker to handle resource spec and status events.
 	// For MQTT/Kafka, create a message queue based event server to handle resource spec and status events.
 	var eventServer server.EventServer
+	var eventFilter controllers.EventFilter
 	if environments.Environment().Config.MessageBroker.MessageBrokerType == "grpc" {
 		klog.Info("Setting up grpc broker")
 		eventServer = server.NewGRPCBroker(eventBroadcaster)
+		eventFilter = controllers.NewPredicatedEventFilter(eventServer.PredicateEvent)
 	} else {
 		klog.Info("Setting up message queue event server")
 		var statusDispatcher dispatcher.Dispatcher
@@ -67,12 +71,13 @@ func runServer(cmd *cobra.Command, args []string) {
 		// Set the status dispatcher for the healthcheck server
 		healthcheckServer.SetStatusDispatcher(statusDispatcher)
 		eventServer = server.NewMessageQueueEventServer(eventBroadcaster, statusDispatcher)
+		eventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(environments.Environment().Database.SessionFactory))
 	}
 
 	// Create the servers
 	apiserver := server.NewAPIServer(eventBroadcaster)
 	metricsServer := server.NewMetricsServer()
-	controllersServer := server.NewControllersServer(eventServer)
+	controllersServer := server.NewControllersServer(eventServer, eventFilter)
 
 	ctx, cancel := context.WithCancel(context.Background())
 

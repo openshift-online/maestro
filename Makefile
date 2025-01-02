@@ -90,7 +90,8 @@ MQTT_IMAGE ?= docker.io/library/eclipse-mosquitto:2.0.18
 
 # Test output files
 unit_test_json_output ?= ${PWD}/unit-test-results.json
-integration_test_json_output ?= ${PWD}/integration-test-results.json
+mqtt_integration_test_json_output ?= ${PWD}/mqtt-integration-test-results.json
+grpc_integration_test_json_output ?= ${PWD}/grpc-integration-test-results.json
 
 # Prints a list of useful targets.
 help:
@@ -218,10 +219,18 @@ test:
 #   make test-integration TESTFLAGS="-run TestAccounts"     acts as TestAccounts* and run TestAccountsGet, TestAccountsPost, etc.
 #   make test-integration TESTFLAGS="-run TestAccountsGet"  runs TestAccountsGet
 #   make test-integration TESTFLAGS="-short"                skips long-run tests
-test-integration:
-	OCM_ENV=testing gotestsum --jsonfile-timing-events=$(integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
-			./test/integration
+test-integration: test-integration-mqtt test-integration-grpc
 .PHONY: test-integration
+
+test-integration-mqtt:
+	BROKER=mqtt OCM_ENV=testing gotestsum --jsonfile-timing-events=$(mqtt_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+			./test/integration
+.PHONY: test-integration-mqtt
+
+test-integration-grpc:
+	BROKER=grpc OCM_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h -run TestController \
+			./test/integration
+.PHONY: test-integration-grpc
 
 # Regenerate openapi client and models
 generate:
