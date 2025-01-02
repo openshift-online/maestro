@@ -418,6 +418,10 @@ func (bkr *GRPCBroker) handleRes(resource *api.Resource) error {
 func (bkr *GRPCBroker) OnCreate(ctx context.Context, id string) error {
 	resource, err := bkr.resourceService.Get(ctx, id)
 	if err != nil {
+		// if the resource is not found, it indicates the resource has been processed.
+		if err.Is404() {
+			return nil
+		}
 		return err
 	}
 
@@ -428,6 +432,10 @@ func (bkr *GRPCBroker) OnCreate(ctx context.Context, id string) error {
 func (bkr *GRPCBroker) OnUpdate(ctx context.Context, id string) error {
 	resource, err := bkr.resourceService.Get(ctx, id)
 	if err != nil {
+		// if the resource is not found, it indicates the resource has been processed.
+		if err.Is404() {
+			return nil
+		}
 		return err
 	}
 
@@ -438,6 +446,10 @@ func (bkr *GRPCBroker) OnUpdate(ctx context.Context, id string) error {
 func (bkr *GRPCBroker) OnDelete(ctx context.Context, id string) error {
 	resource, err := bkr.resourceService.Get(ctx, id)
 	if err != nil {
+		// if the resource is not found, it indicates the resource has been processed.
+		if err.Is404() {
+			return nil
+		}
 		return err
 	}
 
