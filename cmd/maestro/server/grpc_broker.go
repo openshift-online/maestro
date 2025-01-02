@@ -13,7 +13,9 @@ import (
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
@@ -29,12 +31,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
-// resourceHandler processes a resource spec by encoding it to a CloudEvent and sending it to the subscriber.
-// It returns a bool indicating if the connection is closed and an error if one occurs.
-// - Returns true and an error if the connection is closed.
-// - Returns false and an error if encoding fails.
-// - Returns false and nil if successful.
-type resourceHandler func(res *api.Resource) (bool, error)
+type resourceHandler func(res *api.Resource) error
 
 // subscriber defines a subscriber that can receive and handle resource spec.
 type subscriber struct {
@@ -187,45 +184,37 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		return fmt.Errorf("invalid subscription request: missing cluster name")
 	}
 	// register the cluster for subscription to the resource spec
-	subscriberID, errChan := bkr.register(subReq.ClusterName, func(res *api.Resource) (bool, error) {
+	subscriberID, errChan := bkr.register(subReq.ClusterName, func(res *api.Resource) error {
 		evt, err := encodeResourceSpec(res)
 		if err != nil {
 			// return the error to requeue the event if encoding fails (e.g., due to invalid resource spec).
-			return false, fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
+			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
 		if err = grpcprotocol.WritePBMessage(context.TODO(), binding.ToMessage(evt), pbEvt); err != nil {
 			// return the error to requeue the event if converting to protobuf fails (e.g., due to invalid cloudevent).
-			return false, fmt.Errorf("failed to convert cloudevent to protobuf for resource(%s): %v", res.ID, err)
+			return fmt.Errorf("failed to convert cloudevent to protobuf for resource(%s): %v", res.ID, err)
 		}
 
 		// send the cloudevent to the subscriber
 		klog.V(4).Infof("sending the event to spec subscribers, %s", evt)
 		if err := subServer.Send(pbEvt); err != nil {
 			klog.Errorf("failed to send grpc event, %v", err)
-			// Return true to ensure the subscriber will be unregistered when sending fails, which will close the subserver stream.
-			// See: https://github.com/grpc/grpc-go/blob/b615b35c4feb932a0ac658fb86b7127f10ef664e/stream.go#L1537 for more details.
-			// Return the error without wrapping, as it contains the gRPC error code and message for future (TODO) handling beyond network issues.
-			// This will also not requeue the event, as the error will cause the connection to the subscriber to be closed.
-			// If the subscriber (agent) reconnects, rely on the agent's resync to retrieve the missing resource spec.
-			return true, err
+			// Return the error without wrapping, as it includes the gRPC error code and message for further handling.
+			// For unrecoverable errors, such as a connection closed by an intermediate proxy, push the error to subscriber's
+			// error channel to unregister the subscriber.
+			return err
 		}
 
-		return false, nil
+		return nil
 	})
 
 	select {
 	case err := <-errChan:
-		// An error occurred while sending the event to the subscriber.
-		// This could be due to multiple reasons:
-		// see: https://grpc.io/docs/guides/error/
-		// 1. general errors such as: deadline exceeded before return the response.
-		// 2. network errors such as: connection closed by intermidiate proxy.
-		// 3. protocol errors such as: compression error or flow control error.
-		// In all above cases, unregister the subscriber.
-		// TODO: unregister the subscriber if the error is a network error and the connection could be re-established.
+		// When reaching this point, an unrecoverable error occurred while sending the event,
+		// such as the connection being closed. Unregister the subscriber to trigger agent reconnection.
 		klog.Errorf("unregister subscriber %s, error= %v", subscriberID, err)
 		bkr.unregister(subscriberID)
 		return err
@@ -409,13 +398,15 @@ func (bkr *GRPCBroker) handleRes(resource *api.Resource) error {
 	defer bkr.mu.RUnlock()
 	for _, subscriber := range bkr.subscribers {
 		if subscriber.clusterName == resource.ConsumerName {
-			if isConnClosed, err := subscriber.handler(resource); err != nil {
-				if isConnClosed {
-					// if the connection is closed, write the error to the subscriber's error channel
-					// to ensure the subscriber is unregistered
+			if err := subscriber.handler(resource); err != nil {
+				// check if the error is recoverable. For unrecoverable errors,
+				// such as a connection closed by an intermediate proxy, push
+				// the error to subscriber's error channel to unregister the subscriber.
+				st, ok := status.FromError(err)
+				if ok && st.Code() == codes.Unavailable {
+					// TODO: handle more error codes that can't be recovered
 					subscriber.errChan <- err
 				}
-				// return the error to requeue the event if handling fails.
 				return err
 			}
 		}

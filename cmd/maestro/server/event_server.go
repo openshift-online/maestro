@@ -40,7 +40,7 @@ type EventServer interface {
 	// OnStatusUpdate handles status update events for a resource.
 	OnStatusUpdate(ctx context.Context, eventID, resourceID string) error
 
-	// returns true if the event should be processed by the current instance, otherwise false and an error.
+	// returns true if the event should be processed by the current instance, otherwise false and an error if it occurs.
 	PredicateEvent(ctx context.Context, eventID string) (bool, error)
 }
 
@@ -148,7 +148,7 @@ func (s *MessageQueueEventServer) OnStatusUpdate(ctx context.Context, eventID, r
 	)
 }
 
-// EventPredicate for the message queue event server is no-op, as the message queue server filter event based on lock.
+// EventPredicate for the message queue event server is no-op, as the message queue server filter event based on advisory lock.
 func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID string) (bool, error) {
 	return true, nil
 }
