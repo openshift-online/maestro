@@ -2,8 +2,11 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
+
+	. "github.com/onsi/gomega"
 
 	"github.com/openshift-online/maestro/test"
 )
@@ -34,18 +37,20 @@ func TestWaitForNotification(t *testing.T) {
 
 	// Simulate an errListenerClosed and wait for the listener to be recreated
 	listener.Close()
-	time.Sleep(2 * time.Second)
 
-	var newListenerId string
-	g2.Raw("SELECT pid FROM pg_stat_activity WHERE query LIKE 'LISTEN%'").Scan(&newListenerId)
-	if newListenerId == "" {
-		t.Errorf("the new Listener was not created")
-	}
+	Eventually(func() error {
+		var newListenerId string
+		g2.Raw("SELECT pid FROM pg_stat_activity WHERE query LIKE 'LISTEN%'").Scan(&newListenerId)
+		if newListenerId == "" {
+			return fmt.Errorf("the new Listener was not created")
+		}
+		// Validate the listener was recreated
+		if originalListenerId == newListenerId {
+			return fmt.Errorf("Listener was not recreated")
+		}
+		return nil
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	// Validate the listener was recreated
-	if originalListenerId == newListenerId {
-		t.Errorf("Listener was not recreated")
-	}
 	// send a notification to the new listener
 	g2.Exec("NOTIFY events, 'test'")
 
