@@ -138,7 +138,7 @@ func (f *Default) DirectDB() *sql.DB {
 	return f.db
 }
 
-func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id string)) {
+func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.DatabaseConfig, channel string, callback func(id string)) {
 	logger := ocmlogger.NewOCMLogger(ctx)
 	for {
 		select {
@@ -149,21 +149,26 @@ func waitForNotification(ctx context.Context, l *pq.Listener, callback func(id s
 			if n != nil {
 				logger.V(4).Infof("Received event from channel [%s] : %s", n.Channel, n.Extra)
 				callback(n.Extra)
+			} else {
+				// nil notification means the connection was closed
+				logger.Infof("recreate the listener due to the connection loss")
+				l.Close()
+				// recreate the listener
+				l = newListener(ctx, dbConfig, channel)
 			}
 		case <-time.After(10 * time.Second):
 			logger.V(10).Infof("Received no events on channel during interval. Pinging source")
-			go func() {
-				// TODO: Need to handle the error, especially in cases of network failure.
-				err := l.Ping()
-				if err != nil {
-					logger.Error(err.Error())
-				}
-			}()
+			if err := l.Ping(); err != nil {
+				logger.Infof("recreate the listener due to %s", err.Error())
+				l.Close()
+				// recreate the listener
+				l = newListener(ctx, dbConfig, channel)
+			}
 		}
 	}
 }
 
-func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel string, callback func(id string)) {
+func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel string) *pq.Listener {
 	logger := ocmlogger.NewOCMLogger(ctx)
 
 	plog := func(ev pq.ListenerEventType, err error) {
@@ -189,12 +194,17 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 		panic(err)
 	}
 
-	logger.Infof("Starting channeling monitor for %s", channel)
-	waitForNotification(ctx, listener, callback)
+	return listener
 }
 
-func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) {
-	newListener(ctx, f.config, channel, callback)
+func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) *pq.Listener {
+	logger := ocmlogger.NewOCMLogger(ctx)
+
+	listener := newListener(ctx, f.config, channel)
+
+	logger.Infof("Starting channeling monitor for %s", channel)
+	go waitForNotification(ctx, listener, f.config, channel, callback)
+	return listener
 }
 
 func (f *Default) New(ctx context.Context) *gorm.DB {

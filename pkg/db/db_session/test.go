@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -215,6 +216,8 @@ func (f *Test) ResetDB() {
 	f.wasDisconnected = true
 }
 
-func (f *Test) NewListener(ctx context.Context, channel string, callback func(id string)) {
-	newListener(ctx, f.config, channel, callback)
+func (f *Test) NewListener(ctx context.Context, channel string, callback func(id string)) *pq.Listener {
+	listener := newListener(ctx, f.config, channel)
+	go waitForNotification(ctx, listener, f.config, channel, callback)
+	return listener
 }
