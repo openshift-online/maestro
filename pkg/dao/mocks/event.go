@@ -7,7 +7,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/errors"
 )
 
 var _ dao.EventDao = &eventDaoMock{}
@@ -35,7 +34,13 @@ func (d *eventDaoMock) Create(ctx context.Context, event *api.Event) (*api.Event
 }
 
 func (d *eventDaoMock) Replace(ctx context.Context, event *api.Event) (*api.Event, error) {
-	return nil, errors.NotImplemented("Event").AsError()
+	for i, e := range d.events {
+		if e.ID == event.ID {
+			d.events[i] = event
+			return event, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (d *eventDaoMock) Delete(ctx context.Context, id string) error {
@@ -53,7 +58,15 @@ func (d *eventDaoMock) Delete(ctx context.Context, id string) error {
 }
 
 func (d *eventDaoMock) FindByIDs(ctx context.Context, ids []string) (api.EventList, error) {
-	return nil, errors.NotImplemented("Event").AsError()
+	filteredEvents := api.EventList{}
+	for _, id := range ids {
+		for _, e := range d.events {
+			if e.ID == id {
+				filteredEvents = append(filteredEvents, e)
+			}
+		}
+	}
+	return filteredEvents, nil
 }
 
 func (d *eventDaoMock) All(ctx context.Context) (api.EventList, error) {

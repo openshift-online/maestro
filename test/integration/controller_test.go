@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/api"
@@ -24,6 +25,10 @@ func TestControllerRacing(t *testing.T) {
 	defer func() {
 		cancel()
 	}()
+
+	// start work agent so that grpc broker can work
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	h.StartWorkAgent(ctx, consumer.Name, false)
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
@@ -74,13 +79,23 @@ func TestControllerRacing(t *testing.T) {
 		return nil
 	}
 
-	// Start 3 controllers concurrently
+	// Start 3 controllers concurrently for message queue event server
 	threads := 3
+	randNum := rand.Intn(3)
 	for i := 0; i < threads; i++ {
+		// each controller has its own event filter, otherwise, the event lock will block the event processing.
+		eventFilter := controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory))
+		if h.Broker == "grpc" {
+			eventFilter = controllers.NewPredicatedEventFilter(func(ctx context.Context, eventID string) (bool, error) {
+				// simulate the event filter, where the agent randomly connects to a grpc broker instance.
+				// in theory, only one broker instance should process the event.
+				return i == randNum, nil
+			})
+		}
 		go func() {
 			s := &server.ControllersServer{
 				KindControllerManager: controllers.NewKindControllerManager(
-					db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+					eventFilter,
 					h.Env().Services.Events(),
 				),
 				StatusController: controllers.NewStatusController(
@@ -107,7 +122,6 @@ func TestControllerRacing(t *testing.T) {
 	// wait for controller service starts
 	time.Sleep(3 * time.Second)
 
-	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	resources := h.CreateResourceList(consumer.Name, 50)
 
 	// This is to check only 50 create events are processed. It waits for 5 seconds to ensure all events have been
@@ -147,6 +161,10 @@ func TestControllerReconcile(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
+	// start work agent so that grpc broker can work
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	h.StartWorkAgent(ctx, consumer.Name, false)
+
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
 
@@ -178,7 +196,7 @@ func TestControllerReconcile(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+				h.EventFilter,
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(
@@ -203,9 +221,8 @@ func TestControllerReconcile(t *testing.T) {
 		s.Start(ctx)
 	}()
 	// wait for the listener to start
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(time.Second)
 
-	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 	resource := h.CreateResource(consumer.Name, deployName, 1)
 
@@ -266,8 +283,35 @@ func TestControllerSync(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
-	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	// start work agent so that grpc broker can work
+	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	h.StartWorkAgent(ctx, consumer.Name, false)
 
+	// create two resources with resource dao
+	resource4ID := uuid.New().String()
+	resourceDao := dao.NewResourceDao(&h.Env().Database.SessionFactory)
+	if _, err := resourceDao.Create(ctx, &api.Resource{
+		Meta: api.Meta{
+			ID: resource4ID,
+		},
+		ConsumerName: consumer.Name,
+		Name:         "resource4",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	resource5ID := uuid.New().String()
+	if _, err := resourceDao.Create(ctx, &api.Resource{
+		Meta: api.Meta{
+			ID: resource5ID,
+		},
+		ConsumerName: consumer.Name,
+		Name:         "resource5",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	now := time.Now()
 	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
 		SourceID:       "resource1",
@@ -288,12 +332,12 @@ func TestControllerSync(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
-		SourceID:  "resource4",
+		SourceID:  resource4ID,
 		EventType: api.UpdateEventType}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := eventDao.Create(ctx, &api.Event{Source: "Resources",
-		SourceID:  "resource5",
+		SourceID:  resource5ID,
 		EventType: api.UpdateEventType}); err != nil {
 		t.Fatal(err)
 	}
@@ -311,7 +355,7 @@ func TestControllerSync(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+				h.EventFilter,
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(
@@ -433,7 +477,7 @@ func TestStatusControllerSync(t *testing.T) {
 	go func() {
 		s := &server.ControllersServer{
 			KindControllerManager: controllers.NewKindControllerManager(
-				db.NewAdvisoryLockFactory(h.Env().Database.SessionFactory),
+				h.EventFilter,
 				h.Env().Services.Events(),
 			),
 			StatusController: controllers.NewStatusController(
