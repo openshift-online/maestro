@@ -139,6 +139,8 @@ func NewHelper(t *testing.T) *Helper {
 		// Set the healthcheck interval to 1 second for testing
 		helper.Env().Config.HealthCheck.HeartbeartInterval = 1
 		helper.HealthCheckServer = server.NewHealthCheckServer()
+		// Disable TLS for testing
+		helper.Env().Config.GRPCServer.DisableTLS = true
 
 		if helper.Broker != "grpc" {
 			statusDispatcher := dispatcher.NewHashDispatcher(
@@ -195,7 +197,6 @@ func (helper *Helper) Teardown() {
 func (helper *Helper) startAPIServer() {
 	// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
-	helper.Env().Config.GRPCServer.DisableTLS = true
 	helper.APIServer = server.NewAPIServer(helper.EventBroadcaster)
 	go func() {
 		klog.V(10).Info("Test API server started")

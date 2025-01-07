@@ -39,5 +39,20 @@ objects:
       kind: Service
       name: maestro-grpc
     tls:
-      termination: reencrypt
-      insecureEdgeTerminationPolicy: Redirect
+      termination: passthrough
+      insecureEdgeTerminationPolicy: None
+
+- apiVersion: route.openshift.io/v1
+  kind: Route
+  metadata:
+    name: maestro-grpc-broker
+    labels:
+      app: maestro-grpc-broker
+  spec:
+    host: maestro-grpc-broker.${EXTERNAL_APPS_DOMAIN}
+    to:
+      kind: Service
+      name: maestro-grpc-broker
+    tls:
+      termination: passthrough 
+      insecureEdgeTerminationPolicy: None

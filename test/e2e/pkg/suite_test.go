@@ -131,6 +131,9 @@ var _ = BeforeSuite(func() {
 	// initialize the grpc source options
 	grpcOptions = grpcoptions.NewGRPCOptions()
 	grpcOptions.URL = grpcServerAddress
+	grpcOptions.KeepAliveOptions.Enable = true
+	grpcOptions.KeepAliveOptions.Time = 6 * time.Second
+	grpcOptions.KeepAliveOptions.Timeout = 1 * time.Second
 	sourceID = "sourceclient-test" + rand.String(5)
 	grpcCertSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "maestro-grpc-cert", metav1.GetOptions{})
 	if !errors.IsNotFound(err) {
