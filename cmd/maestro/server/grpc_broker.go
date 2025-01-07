@@ -492,6 +492,11 @@ func (bkr *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool
 		// if the resource is not found, it indicates the resource has been handled by other instances.
 		if svcErr.Is404() {
 			klog.V(10).Infof("The resource %s has been deleted, mark the event as reconciled", evt.SourceID)
+			now := time.Now()
+			evt.ReconciledDate = &now
+			if _, svcErr := bkr.eventService.Replace(ctx, evt); svcErr != nil {
+				return false, fmt.Errorf("failed to mark event with id (%s) as reconciled: %s", evt.ID, svcErr)
+			}
 			return false, nil
 		}
 		return false, fmt.Errorf("failed to get resource %s: %s", evt.SourceID, svcErr.Error())
