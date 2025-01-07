@@ -519,6 +519,17 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	account := h.NewRandAccount()
 	ctx := h.NewAuthenticatedContext(account)
 
+	var objids []string
+	rows, err := h.DBFactory.DirectDB().Query("SELECT objid FROM pg_locks WHERE locktype='advisory'")
+	Expect(err).NotTo(HaveOccurred(), "Error querying pg_locks: %v", err)
+	for rows.Next() {
+		var objid string
+		Expect(rows.Scan(&objid)).NotTo(HaveOccurred(), "Error scanning pg_locks value: %v", err)
+		objids = append(objids, objid)
+	}
+	rows.Close()
+	time.Sleep(time.Second)
+
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 	res := h.CreateResource(consumer.Name, deployName, 1)
@@ -561,11 +572,17 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	// the resource patch request is protected by the advisory lock, so there should only be one update
 	Expect(updatedCount).To(Equal(1))
 
-	// all the locks should be released finally
+	// ensure the locks for current test are released
+	query := fmt.Sprintf("select count(*) from pg_locks where locktype='advisory' and objid not in (%s)", strings.Join(objids, ","))
+	if len(objids) == 0 {
+		query = "select count(*) from pg_locks where locktype='advisory'"
+	}
+
+	// ensure the locks for current test are released finally
 	Eventually(func() error {
 		var count int
 		err := h.DBFactory.DirectDB().
-			QueryRow("select count(*) from pg_locks where locktype='advisory';").
+			QueryRow(query).
 			Scan(&count)
 		Expect(err).NotTo(HaveOccurred(), "Error querying pg_locks:  %v", err)
 
