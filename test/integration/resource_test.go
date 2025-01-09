@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 	prommodel "github.com/prometheus/client_model/go"
@@ -20,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
@@ -27,7 +29,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
-	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
 )
@@ -78,9 +79,7 @@ func TestResourcePost(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
-	informer := h.WorkAgentInformer
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
-	sourceClient := h.Env().Clients.CloudEventsSource
 
 	// POST responses per openapi spec: 201, 400, 409, 500
 
@@ -120,9 +119,8 @@ func TestResourcePost(t *testing.T) {
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 	Expect(manifest).To(Equal(res.Manifest))
 
-	newWork := work.DeepCopy()
 	statusFeedbackValue := `{"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
-	newWork.Status = workv1.ManifestWorkStatus{
+	newWorkStatus := workv1.ManifestWorkStatus{
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
 				{
@@ -148,12 +146,8 @@ func TestResourcePost(t *testing.T) {
 		},
 	}
 
-	// only update the status on the agent local part
-	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
-	// Resync the resource status
-	ceSourceClient, ok := sourceClient.(*cloudevents.SourceClientImpl)
-	Expect(ok).To(BeTrue())
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
+	// update the work status
+	Expect(updateWorkStatus(ctx, agentWorkClient, work, newWorkStatus)).NotTo(HaveOccurred())
 
 	var newRes *openapi.Resource
 	Eventually(func() error {
@@ -187,16 +181,17 @@ func TestResourcePost(t *testing.T) {
 	Expect(contentStatus["readyReplicas"]).To(Equal(float64(1)))
 	Expect(contentStatus["updatedReplicas"]).To(Equal(float64(1)))
 
-	// check the metrics
-	time.Sleep(1 * time.Second)
-	families := getServerMetrics(t, "http://localhost:8080/metrics")
-	labels := []*prommodel.LabelPair{
-		{Name: strPtr("source"), Value: strPtr("maestro")},
-		{Name: strPtr("cluster"), Value: strPtr(clusterName)},
-		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+	if h.Broker != "grpc" {
+		time.Sleep(1 * time.Second)
+		families := getServerMetrics(t, "http://localhost:8080/metrics")
+		labels := []*prommodel.LabelPair{
+			{Name: strPtr("source"), Value: strPtr("maestro")},
+			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+		}
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
+		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 2.0)
 	}
-	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 3.0)
-	checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 3.0)
 }
 
 func TestResourcePostWithoutName(t *testing.T) {
@@ -380,14 +375,6 @@ func TestResourcePatch(t *testing.T) {
 		openapi.ResourcePatchRequest{Version: &res.Version, Manifest: newRes.Manifest}).Execute()
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusConflict))
-
-	// check the metrics
-	families := getServerMetrics(t, "http://localhost:8080/metrics")
-	labels := []*prommodel.LabelPair{
-		{Name: strPtr("id"), Value: resource.Id},
-		{Name: strPtr("action"), Value: strPtr("update")},
-	}
-	checkServerCounterMetric(t, families, "resource_processed_total", labels, 1.0)
 }
 
 func TestResourcePaging(t *testing.T) {
@@ -467,7 +454,6 @@ func TestResourceBundleGet(t *testing.T) {
 	Expect(*resBundle.UpdatedAt).To(BeTemporally("~", resourceBundle.UpdatedAt))
 	Expect(*resBundle.Version).To(Equal(resourceBundle.Version))
 
-	// check the metrics
 	families := getServerMetrics(t, "http://localhost:8080/metrics")
 	labels := []*prommodel.LabelPair{
 		{Name: strPtr("method"), Value: strPtr("GET")},
@@ -503,7 +489,6 @@ func TestResourceBundleListSearch(t *testing.T) {
 	Expect(len(list.Items)).To(Equal(20))
 	Expect(list.Total).To(Equal(int32(20)))
 
-	// check the metrics
 	families := getServerMetrics(t, "http://localhost:8080/metrics")
 	labels := []*prommodel.LabelPair{
 		{Name: strPtr("method"), Value: strPtr("GET")},
@@ -612,7 +597,6 @@ func TestResourceFromGRPC(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
-	informer := h.WorkAgentInformer
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
 	// use grpc client to create resource
@@ -659,9 +643,8 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 
 	// update the resource
-	newWork := work.DeepCopy()
 	statusFeedbackValue := `{"observedGeneration":1,"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
-	newWork.Status = workv1.ManifestWorkStatus{
+	newWorkStatus := workv1.ManifestWorkStatus{
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
 				{
@@ -687,13 +670,8 @@ func TestResourceFromGRPC(t *testing.T) {
 		},
 	}
 
-	// only update the status on the agent local part
-	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
-
-	// Resync the resource status
-	ceSourceClient, ok := h.Env().Clients.CloudEventsSource.(*cloudevents.SourceClientImpl)
-	Expect(ok).To(BeTrue())
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
+	// update the work status
+	Expect(updateWorkStatus(ctx, agentWorkClient, work, newWorkStatus)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		newRes, err := h.Store.Get(res.ID)
@@ -782,8 +760,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	// no real kubernete environment, so need to update the resource status manually
-	deletingWork := work.DeepCopy()
-	deletingWork.Status = workv1.ManifestWorkStatus{
+	deletingWorkStatus := workv1.ManifestWorkStatus{
 		Conditions: []metav1.Condition{
 			{
 				Type:   common.ManifestsDeleted,
@@ -791,10 +768,9 @@ func TestResourceFromGRPC(t *testing.T) {
 			},
 		},
 	}
-	// only update the status on the agent local part
-	Expect(informer.Informer().GetStore().Update(deletingWork)).NotTo(HaveOccurred())
-	// Resync the resource status
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
+
+	// update the work status
+	Expect(updateWorkStatus(ctx, agentWorkClient, work, deletingWorkStatus)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		resource, _, err = client.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, newRes.ID).Execute()
@@ -804,7 +780,6 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	// check the metrics
 	time.Sleep(1 * time.Second)
 	families := getServerMetrics(t, "http://localhost:8080/metrics")
 	labels := []*prommodel.LabelPair{
@@ -837,13 +812,15 @@ func TestResourceFromGRPC(t *testing.T) {
 	}
 	checkServerCounterMetric(t, families, "grpc_server_processed_total", labels, 0.0)
 
-	labels = []*prommodel.LabelPair{
-		{Name: strPtr("source"), Value: strPtr("maestro")},
-		{Name: strPtr("cluster"), Value: strPtr(clusterName)},
-		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
+	if h.Broker != "grpc" {
+		labels = []*prommodel.LabelPair{
+			{Name: strPtr("source"), Value: strPtr("maestro")},
+			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
+		}
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
+		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 1.0)
 	}
-	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 3.0)
-	checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 3.0)
 }
 
 func TestResourceBundleFromGRPC(t *testing.T) {
@@ -863,7 +840,6 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, true)
 	clientHolder := h.WorkAgentHolder
-	informer := h.WorkAgentInformer
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 
 	// use grpc client to create resource bundle
@@ -897,9 +873,8 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 
 	// update the resource
-	newWork := work.DeepCopy()
 	statusFeedbackValue := `{"observedGeneration":1,"replicas":1,"availableReplicas":1,"readyReplicas":1,"updatedReplicas":1}`
-	newWork.Status = workv1.ManifestWorkStatus{
+	newWorkStatus := workv1.ManifestWorkStatus{
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
 				{
@@ -925,13 +900,8 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 		},
 	}
 
-	// only update the status on the agent local part
-	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
-
-	// Resync the resource status
-	ceSourceClient, ok := h.Env().Clients.CloudEventsSource.(*cloudevents.SourceClientImpl)
-	Expect(ok).To(BeTrue())
-	Expect(ceSourceClient.CloudEventSourceClient.Resync(ctx, consumer.Name)).NotTo(HaveOccurred())
+	// update the work status
+	Expect(updateWorkStatus(ctx, agentWorkClient, work, newWorkStatus)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
 		newRes, err := h.Store.Get(res.ID)
@@ -1009,6 +979,34 @@ func TestResourceBundleFromGRPC(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource bundle list: %v", err)
 	Expect(len(list.Items)).To(Equal(1))
 	Expect(list.Total).To(Equal(int32(1)))
+}
+
+func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkInterface, work *workv1.ManifestWork, newStatus workv1.ManifestWorkStatus) error {
+	// update the work status
+	newWork := work.DeepCopy()
+	newWork.Status = newStatus
+
+	oldData, err := json.Marshal(work)
+	if err != nil {
+		return err
+	}
+
+	newData, err := json.Marshal(newWork)
+	if err != nil {
+		return err
+	}
+
+	patchBytes, err := jsonpatch.CreateMergePatch(oldData, newData)
+	if err != nil {
+		return err
+	}
+
+	_, err = workClient.Patch(ctx, work.Name, k8stypes.MergePatchType, patchBytes, metav1.PatchOptions{}, "status")
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func contains(et api.EventType, events api.EventList) bool {

@@ -90,7 +90,6 @@ func TestEventServer(t *testing.T) {
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name, false)
 	clientHolder := h.WorkAgentHolder
-	informer := h.WorkAgentInformer
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
 	resourceService := h.Env().Services.Resources()
 
@@ -109,8 +108,7 @@ func TestEventServer(t *testing.T) {
 	Expect(work.Spec.Workload).NotTo(BeNil())
 	Expect(len(work.Spec.Workload.Manifests)).To(Equal(1))
 
-	newWork := work.DeepCopy()
-	newWork.Status = workv1.ManifestWorkStatus{
+	newWorkStatus := workv1.ManifestWorkStatus{
 		ResourceStatus: workv1.ManifestResourceStatus{
 			Manifests: []workv1.ManifestCondition{
 				{
@@ -125,8 +123,8 @@ func TestEventServer(t *testing.T) {
 		},
 	}
 
-	// only update the status on the agent local part
-	Expect(informer.Informer().GetStore().Update(newWork)).NotTo(HaveOccurred())
+	// update the work status to make sure the resource status is updated
+	Expect(updateWorkStatus(ctx, agentWorkClient, work, newWorkStatus)).To(Succeed())
 
 	// after the instance ("cluster") is stale, the current instance ("maestro") will take over the consumer
 	// and resync status, then the resource status will be updated finally
