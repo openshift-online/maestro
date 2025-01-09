@@ -24,13 +24,12 @@ func TestWaitForNotification(t *testing.T) {
 	}()
 
 	g2 := h.Env().Database.SessionFactory.New(ctx)
-
-	listener := h.Env().Database.SessionFactory.NewListener(ctx, "events", func(id string) {
+	listener := h.Env().Database.SessionFactory.NewListener(ctx, "channel", func(id string) {
 		result <- id
 	})
 	var originalListenerId string
 	// find the original listener id in the pg_stat_activity table
-	g2.Raw("SELECT pid FROM pg_stat_activity WHERE query LIKE 'LISTEN%'").Scan(&originalListenerId)
+	g2.Raw("SELECT pid FROM pg_stat_activity WHERE query LIKE 'LISTEN%channel%'").Scan(&originalListenerId)
 	if originalListenerId == "" {
 		t.Errorf("the original Listener was not recreated")
 	}
@@ -40,19 +39,19 @@ func TestWaitForNotification(t *testing.T) {
 
 	Eventually(func() error {
 		var newListenerId string
-		g2.Raw("SELECT pid FROM pg_stat_activity WHERE query LIKE 'LISTEN%'").Scan(&newListenerId)
+		g2.Raw("SELECT pid FROM pg_stat_activity WHERE query LIKE 'LISTEN%channel%'").Scan(&newListenerId)
 		if newListenerId == "" {
 			return fmt.Errorf("the new Listener was not created")
 		}
-		// Validate the listener was recreated
+		// Validate the listener was re-created
 		if originalListenerId == newListenerId {
-			return fmt.Errorf("Listener was not recreated")
+			return fmt.Errorf("Listener was not re-created")
 		}
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
 	// send a notification to the new listener
-	g2.Exec("NOTIFY events, 'test'")
+	g2.Exec("NOTIFY channel, 'test'")
 
 	// wait for the notification to be received
 	time.Sleep(1 * time.Second)
