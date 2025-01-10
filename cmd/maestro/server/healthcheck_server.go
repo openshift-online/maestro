@@ -153,7 +153,7 @@ func (s *HealthCheckServer) checkInstances(ctx context.Context) {
 	inactiveInstanceIDs := []string{}
 	for _, instance := range instances {
 		// Instances pulsing within the last three check intervals are considered as active.
-		if instance.LastHeartbeat.After(time.Now().Add(time.Duration(int(-3*time.Second) * s.heartbeatInterval))) {
+		if instance.LastHeartbeat.After(time.Now().Add(time.Duration(int(-3*time.Second)*s.heartbeatInterval))) && !instance.Ready {
 			if s.brokerType == "mqtt" {
 				if err := s.statusDispatcher.OnInstanceUp(instance.ID); err != nil {
 					klog.Errorf("Error to call OnInstanceUp handler for maestro instance %s: %s", instance.ID, err.Error())
@@ -161,7 +161,7 @@ func (s *HealthCheckServer) checkInstances(ctx context.Context) {
 			}
 			// mark the instance as active after it is added to the status dispatcher
 			activeInstanceIDs = append(activeInstanceIDs, instance.ID)
-		} else {
+		} else if instance.LastHeartbeat.Before(time.Now().Add(time.Duration(int(-3*time.Second)*s.heartbeatInterval))) && instance.Ready {
 			if s.brokerType == "mqtt" {
 				if err := s.statusDispatcher.OnInstanceDown(instance.ID); err != nil {
 					klog.Errorf("Error to call OnInstanceDown handler for maestro instance %s: %s", instance.ID, err.Error())
