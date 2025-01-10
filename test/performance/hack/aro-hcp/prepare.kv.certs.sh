@@ -4,16 +4,16 @@ REPO_DIR="$(cd "$(dirname ${BASH_SOURCE[0]})/../../../.." ; pwd -P)"
 
 index=${index:-1}
 
-subscription_id="${subscription_id}"
 resource_groups="${resource_groups}"
 region="${region}"
+event_grid="${event_grid}"
 
 work_dir=${REPO_DIR}/_output/performance/aro
 cert_dir=${REPO_DIR}/_output/performance/aro/cert
 
 mkdir -p ${cert_dir}
 
-vault_name=$(az keyvault list --query "[?starts_with(name, 'maestro-kv')].name"  -g ${resource_groups} --output tsv)
+vault_name=$(az keyvault list --query "[?starts_with(name, 'arohcp-etcd')].name"  -g ${resource_groups}-svc --output tsv)
 
 # prepare consumer client 
 consumer_name="maestro-cluster-$index"
@@ -57,7 +57,7 @@ cat > ${cert_dir}/${consumer_name}.json <<EOF
     "subject": "CN=${consumer_name}",
     "subjectAlternativeNames": {
     "dnsNames": [
-      "${consumer_name}.selfsigned.maestro.keyvault.aro-int.azure.com"
+      "${consumer_name}.selfsigned.maestro.keyvault.azure.com"
     ]
   },
     "validityInMonths": 12
@@ -79,22 +79,20 @@ openssl pkcs12 -in ${cert_dir}/${consumer_name}.pfx -passin "pass:" -nokeys -out
 
 thumbprint=$(openssl x509 -fingerprint -in ${cert_dir}/${consumer_name}.pem | grep "SHA1 Fingerprint" | sed -e 's/SHA1 Fingerprint=//g' | sed -e 's/://g')
 
-event_grid="${resource_groups}-eventgrid"
 echo "Prepare client in event grid ${event_grid} for $consumer_name"
 az eventgrid namespace client create -g ${resource_groups} \
     --namespace-name ${event_grid} \
     -n ${consumer_name} \
-    --authentication-name ${consumer_name}.selfsigned.maestro.keyvault.aro-int.azure.com \
+    --authentication-name ${consumer_name}.selfsigned.maestro.keyvault.azure.com \
     --attributes "{'role':'consumer','consumer_name':'${consumer_name}'}" \
     --client-certificate-authentication "{validationScheme:ThumbprintMatch,allowed-thumbprints:[$thumbprint]}"
 
-host="${resource_groups}-eventgrid.${region}.ts.eventgrid.azure.net"
+host="${event_grid}.${region}.ts.eventgrid.azure.net"
 src_topic="sources/maestro/consumers/${consumer_name}/sourceevents"
 agent_topic="sources/maestro/consumers/${consumer_name}/agentevents"
 
 cat > "${cert_dir}/${consumer_name}-config.yaml" << EOF
 brokerHost: "$host:8883"
-caFile: ${cert_dir}/ca.crt
 clientCertFile: ${cert_dir}/${consumer_name}.pem
 clientKeyFile: ${cert_dir}/${consumer_name}.key
 topics:
@@ -102,4 +100,4 @@ topics:
   agentEvents: $agent_topic
 EOF
 
-echo "The certificates is creaed for $consumer_name"
+echo "The certificates is created for $consumer_name"

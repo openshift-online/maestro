@@ -21,7 +21,6 @@ echo "Start ${counts} agents ..."
 echo "The kind cluster ${spoke_kube_dir}/test.kubeconfig is used"
 
 args="--agent-config-dir=${agent_config_dir}"
-args="${args} --hub-kubeconfig=${KUBECONFIG}"
 args="${args} --spoke-kubeconfig=${spoke_kube_dir}/test.kubeconfig"
 args="${args} --cluster-begin-index=1"
 args="${args} --cluster-counts=${counts}"

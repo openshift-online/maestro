@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-total=${total:-10}
+total=${counts:-1}
 begin_index=${begin_index:-1}
 
 lastIndex=$(($begin_index + $total - 1))

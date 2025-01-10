@@ -28,7 +28,7 @@ require (
 	github.com/lib/pq v1.10.7
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
 	github.com/onsi/ginkgo/v2 v2.22.0
-	github.com/onsi/gomega v1.35.1
+	github.com/onsi/gomega v1.36.1
 	github.com/openshift-online/ocm-common v0.0.0-20240620110211-2ecfa6ec5707
 	github.com/openshift-online/ocm-sdk-go v0.1.421
 	github.com/openshift/library-go v0.0.0-20241107160307-0064ad7bd060
@@ -47,14 +47,14 @@ require (
 	gorm.io/datatypes v1.2.0
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
-	k8s.io/api v0.31.3
-	k8s.io/apimachinery v0.31.3
-	k8s.io/apiserver v0.31.3
-	k8s.io/client-go v0.31.3
-	k8s.io/component-base v0.31.3
+	k8s.io/api v0.31.4
+	k8s.io/apimachinery v0.31.4
+	k8s.io/apiserver v0.31.4
+	k8s.io/client-go v0.31.4
+	k8s.io/component-base v0.31.4
 	k8s.io/klog/v2 v2.130.1
-	open-cluster-management.io/api v0.15.1-0.20241120090202-cb7ce98ab874
-	open-cluster-management.io/ocm v0.15.1-0.20241125065026-7a190f1a2b18
+	open-cluster-management.io/api v0.15.1-0.20241210025410-0ba6809d0ae2
+	open-cluster-management.io/ocm v0.15.1-0.20250108154653-2397c4e91119
 	open-cluster-management.io/sdk-go v0.15.1-0.20241224013925-71378a533f22
 	sigs.k8s.io/yaml v1.4.0
 )
@@ -107,7 +107,7 @@ require (
 	github.com/imdario/mergo v0.3.16 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
-	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -146,13 +146,13 @@ require (
 	go.opentelemetry.io/otel/trace v1.28.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.3.1 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.29.0 // indirect
+	golang.org/x/crypto v0.32.0 // indirect
 	golang.org/x/exp v0.0.0-20240719175910-8a7402abbf56 // indirect
-	golang.org/x/net v0.31.0 // indirect
-	golang.org/x/sync v0.9.0 // indirect
-	golang.org/x/sys v0.27.0 // indirect
-	golang.org/x/term v0.26.0 // indirect
-	golang.org/x/text v0.20.0 // indirect
+	golang.org/x/net v0.34.0 // indirect
+	golang.org/x/sync v0.10.0 // indirect
+	golang.org/x/sys v0.29.0 // indirect
+	golang.org/x/term v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.26.0 // indirect
 	google.golang.org/genproto v0.0.0-20240123012728-ef4313101c80 // indirect
@@ -165,12 +165,12 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.4.7 // indirect
 	k8s.io/apiextensions-apiserver v0.31.3 // indirect
-	k8s.io/kms v0.31.3 // indirect
-	k8s.io/kube-aggregator v0.31.3 // indirect
+	k8s.io/kms v0.31.4 // indirect
+	k8s.io/kube-aggregator v0.31.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 // indirect
-	sigs.k8s.io/controller-runtime v0.19.2 // indirect
+	sigs.k8s.io/controller-runtime v0.19.3 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect

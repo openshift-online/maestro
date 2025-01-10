@@ -48,7 +48,7 @@ func (s *CreateOnlyWatcherStore) ListAll() ([]*workv1.ManifestWork, error) {
 }
 
 func (s *CreateOnlyWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
-	return nil, false, fmt.Errorf("unsupported")
+	return nil, false, nil
 }
 
 func (s *CreateOnlyWatcherStore) HasInitiated() bool {
