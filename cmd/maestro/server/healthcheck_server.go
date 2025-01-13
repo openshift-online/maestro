@@ -11,7 +11,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
-	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
@@ -19,7 +18,6 @@ import (
 
 type HealthCheckServer struct {
 	httpServer        *http.Server
-	statusDispatcher  dispatcher.Dispatcher
 	lockFactory       db.LockFactory
 	instanceDao       dao.InstanceDao
 	instanceID        string
@@ -47,10 +45,6 @@ func NewHealthCheckServer() *HealthCheckServer {
 	router.HandleFunc("/healthcheck", server.healthCheckHandler).Methods(http.MethodGet)
 
 	return server
-}
-
-func (s *HealthCheckServer) SetStatusDispatcher(dispatcher dispatcher.Dispatcher) {
-	s.statusDispatcher = dispatcher
 }
 
 func (s *HealthCheckServer) Start(ctx context.Context) {
@@ -154,33 +148,21 @@ func (s *HealthCheckServer) checkInstances(ctx context.Context) {
 	for _, instance := range instances {
 		// Instances pulsing within the last three check intervals are considered as active.
 		if instance.LastHeartbeat.After(time.Now().Add(time.Duration(int(-3*time.Second)*s.heartbeatInterval))) && !instance.Ready {
-			if s.brokerType == "mqtt" {
-				if err := s.statusDispatcher.OnInstanceUp(instance.ID); err != nil {
-					klog.Errorf("Error to call OnInstanceUp handler for maestro instance %s: %s", instance.ID, err.Error())
-				}
-			}
-			// mark the instance as active after it is added to the status dispatcher
 			activeInstanceIDs = append(activeInstanceIDs, instance.ID)
 		} else if instance.LastHeartbeat.Before(time.Now().Add(time.Duration(int(-3*time.Second)*s.heartbeatInterval))) && instance.Ready {
-			if s.brokerType == "mqtt" {
-				if err := s.statusDispatcher.OnInstanceDown(instance.ID); err != nil {
-					klog.Errorf("Error to call OnInstanceDown handler for maestro instance %s: %s", instance.ID, err.Error())
-				}
-			}
-			// mark the instance as inactive after it is removed from the status dispatcher
 			inactiveInstanceIDs = append(inactiveInstanceIDs, instance.ID)
 		}
 	}
 
 	if len(activeInstanceIDs) > 0 {
-		// batch mark active instances
+		// batch mark active instances, this will tigger status dispatcher to call onInstanceUp handler.
 		if err := s.instanceDao.MarkReadyByIDs(ctx, activeInstanceIDs); err != nil {
 			klog.Errorf("Unable to mark active maestro instances (%s): %s", activeInstanceIDs, err.Error())
 		}
 	}
 
 	if len(inactiveInstanceIDs) > 0 {
-		// batch mark inactive instances
+		// batch mark inactive instances, this will tigger status dispatcher to call onInstanceDown handler.
 		if err := s.instanceDao.MarkUnreadyByIDs(ctx, inactiveInstanceIDs); err != nil {
 			klog.Errorf("Unable to mark inactive maestro instances (%s): %s", inactiveInstanceIDs, err.Error())
 		}

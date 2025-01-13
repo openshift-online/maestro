@@ -10,8 +10,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
-	prommodel "github.com/prometheus/client_model/go"
-	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 func TestHealthCheckServer(t *testing.T) {
@@ -22,19 +20,26 @@ func TestHealthCheckServer(t *testing.T) {
 	}()
 
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
-	// insert one existing instances
+	// insert two existing instances, one is ready and the other is not
 	_, err := instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{
 			ID: "instance1",
 		},
-		LastHeartbeat: time.Now(),
+		// last heartbeat is 3 seconds ago
+		LastHeartbeat: time.Now().Add(-3 * time.Second),
 		Ready:         true,
 	})
 	Expect(err).NotTo(HaveOccurred())
 
-	// create a consumer
-	clusterName := "cluster-" + rand.String(5)
-	_ = h.CreateConsumer(clusterName)
+	_, err = instanceDao.Create(ctx, &api.ServerInstance{
+		Meta: api.Meta{
+			ID: "instance2",
+		},
+		// last heartbeat is 3 seconds ago
+		LastHeartbeat: time.Now().Add(-3 * time.Second),
+		Ready:         false,
+	})
+	Expect(err).NotTo(HaveOccurred())
 
 	instanceID := &h.Env().Config.MessageBroker.ClientID
 	Eventually(func() error {
@@ -43,47 +48,23 @@ func TestHealthCheckServer(t *testing.T) {
 			return err
 		}
 
-		if len(instances) != 2 {
-			return fmt.Errorf("expected 1 instance, got %d", len(instances))
+		if len(instances) != 3 {
+			return fmt.Errorf("expected 3 instances, got %d", len(instances))
 		}
 
-		var instance *api.ServerInstance
-		for _, i := range instances {
-			if i.ID == *instanceID {
-				instance = i
-			}
+		readyInstanceIDs, err := instanceDao.FindReadyIDs(ctx)
+		if err != nil {
+			return err
 		}
 
-		if instance.LastHeartbeat.IsZero() {
-			return fmt.Errorf("expected instance.LastHeartbeat to be non-zero")
+		if len(readyInstanceIDs) != 1 {
+			return fmt.Errorf("expected 1 ready instance, got %d", len(readyInstanceIDs))
 		}
 
-		if !instance.Ready {
-			return fmt.Errorf("expected instance.Ready to be true")
-		}
-
-		if instance.ID != *instanceID {
-			return fmt.Errorf("expected instance.ID to be %s, got %s", *instanceID, instance.ID)
+		if readyInstanceIDs[0] != *instanceID {
+			return fmt.Errorf("expected instance %s to be ready, got %s", *instanceID, readyInstanceIDs[0])
 		}
 
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
-
-	if h.Broker != "grpc" {
-		// check the metrics to ensure only status resync request is sent for manifets and manifestbundles
-		time.Sleep(2 * time.Second)
-		families := getServerMetrics(t, "http://localhost:8080/metrics")
-		labels := []*prommodel.LabelPair{
-			{Name: strPtr("source"), Value: strPtr("maestro")},
-			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
-			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
-		}
-		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
-		labels = []*prommodel.LabelPair{
-			{Name: strPtr("source"), Value: strPtr("maestro")},
-			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
-			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
-		}
-		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
-	}
 }

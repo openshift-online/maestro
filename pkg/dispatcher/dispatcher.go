@@ -13,8 +13,4 @@ type Dispatcher interface {
 	Start(ctx context.Context)
 	// Dispatch determines if the current Maestro instance should process the resource status update based on the consumer ID.
 	Dispatch(consumerName string) bool
-	// OnInstanceUp is called when a new maestro instance is up.
-	OnInstanceUp(instanceID string) error
-	// OnInstanceDown is called when a maestro instance is inactive.
-	OnInstanceDown(instanceID string) error
 }

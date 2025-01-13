@@ -145,12 +145,10 @@ func NewHelper(t *testing.T) *Helper {
 		if helper.Broker != "grpc" {
 			statusDispatcher := dispatcher.NewHashDispatcher(
 				helper.Env().Config.MessageBroker.ClientID,
-				dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
-				dao.NewConsumerDao(&helper.Env().Database.SessionFactory),
+				helper.Env().Database.SessionFactory,
 				helper.Env().Clients.CloudEventsSource,
 				helper.Env().Config.EventServer.ConsistentHashConfig,
 			)
-			helper.HealthCheckServer.SetStatusDispatcher(statusDispatcher)
 			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, statusDispatcher)
 			helper.EventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory))
 		} else {

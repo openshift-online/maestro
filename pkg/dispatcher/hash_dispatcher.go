@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,9 +14,11 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/logger"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 )
 
 var _ Dispatcher = &HashDispatcher{}
@@ -24,23 +27,25 @@ var _ Dispatcher = &HashDispatcher{}
 // Only the maestro instance that is mapped to a consumer will process the resource status update from that consumer.
 // Need to trigger status resync for the consumer when an instance is up or down.
 type HashDispatcher struct {
-	instanceID   string
-	instanceDao  dao.InstanceDao
-	consumerDao  dao.ConsumerDao
-	sourceClient cloudevents.SourceClient
-	consumerSet  mapset.Set[string]
-	workQueue    workqueue.RateLimitingInterface
-	consistent   *consistent.Consistent
+	instanceID     string
+	sessionFactory db.SessionFactory
+	instanceDao    dao.InstanceDao
+	consumerDao    dao.ConsumerDao
+	sourceClient   cloudevents.SourceClient
+	consumerSet    mapset.Set[string]
+	workQueue      workqueue.RateLimitingInterface
+	consistent     *consistent.Consistent
 }
 
-func NewHashDispatcher(instanceID string, instanceDao dao.InstanceDao, consumerDao dao.ConsumerDao, sourceClient cloudevents.SourceClient, consistentHashingConfig *config.ConsistentHashConfig) *HashDispatcher {
+func NewHashDispatcher(instanceID string, sessionFactory db.SessionFactory, sourceClient cloudevents.SourceClient, consistentHashingConfig *config.ConsistentHashConfig) *HashDispatcher {
 	return &HashDispatcher{
-		instanceID:   instanceID,
-		instanceDao:  instanceDao,
-		consumerDao:  consumerDao,
-		sourceClient: sourceClient,
-		consumerSet:  mapset.NewSet[string](),
-		workQueue:    workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "hash-dispatcher"),
+		instanceID:     instanceID,
+		sessionFactory: sessionFactory,
+		instanceDao:    dao.NewInstanceDao(&sessionFactory),
+		consumerDao:    dao.NewConsumerDao(&sessionFactory),
+		sourceClient:   sourceClient,
+		consumerSet:    mapset.NewSet[string](),
+		workQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "hash-dispatcher"),
 		consistent: consistent.New(nil, consistent.Config{
 			PartitionCount:    consistentHashingConfig.PartitionCount,
 			ReplicationFactor: consistentHashingConfig.ReplicationFactor,
@@ -58,12 +63,38 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 	// start a goroutine to periodically check the instances and consumers.
 	go wait.UntilWithContext(ctx, d.check, 5*time.Second)
 
+	// listen for server_instance update
+	klog.Infof("HashDispatcher listening for server_instances updates")
+	go d.sessionFactory.NewListener(ctx, "server_instances", d.onInstanceUpdate)
+
 	// start a goroutine to resync current consumers for this source when the client is reconnected
 	go d.resyncOnReconnect(ctx)
 
 	// wait until context is canceled
 	<-ctx.Done()
 	d.workQueue.ShutDown()
+}
+
+func (d *HashDispatcher) onInstanceUpdate(ids string) {
+	states := strings.Split(ids, ":")
+	if len(states) != 2 {
+		klog.Infof("watched server instances updated with invalid ids: %s", ids)
+		return
+	}
+	idList := strings.Split(states[1], ",")
+	if states[0] == "ready" {
+		for _, id := range idList {
+			if err := d.onInstanceUp(id); err != nil {
+				klog.Errorf("failed to call OnInstancesUp for instance %s: %s", id, err)
+			}
+		}
+	} else {
+		for _, id := range idList {
+			if err := d.onInstanceDown(id); err != nil {
+				klog.Errorf("failed to call OnInstancesDown for instance %s: %s", id, err)
+			}
+		}
+	}
 }
 
 // resyncOnReconnect listens for the client reconnected signal and resyncs current consumers for this source.
@@ -90,8 +121,8 @@ func (d *HashDispatcher) Dispatch(consumerName string) bool {
 	return d.consumerSet.Contains(consumerName)
 }
 
-// OnInstanceUp adds the new instance to the hashing ring and updates the consumer set for the current instance.
-func (d *HashDispatcher) OnInstanceUp(instanceID string) error {
+// onInstanceUp adds the new instance to the hashing ring and updates the consumer set for the current instance.
+func (d *HashDispatcher) onInstanceUp(instanceID string) error {
 	members := d.consistent.GetMembers()
 	for _, member := range members {
 		if member.String() == instanceID {
@@ -110,8 +141,8 @@ func (d *HashDispatcher) OnInstanceUp(instanceID string) error {
 	return d.updateConsumerSet()
 }
 
-// OnInstanceDown removes the instance from the hashing ring and updates the consumer set for the current instance.
-func (d *HashDispatcher) OnInstanceDown(instanceID string) error {
+// onInstanceDown removes the instance from the hashing ring and updates the consumer set for the current instance.
+func (d *HashDispatcher) onInstanceDown(instanceID string) error {
 	members := d.consistent.GetMembers()
 	deletedMember := true
 	for _, member := range members {
