@@ -1,13 +1,13 @@
 # Performance Test
 
-## ARO HCP
+## Resource usage (ARO HCP)
 
 ### Workloads
 
 There are 10 consumers in the maestro server and each consumer has 600 resource bundles, include
 
-- 300 managed cluster resource bundles, one managed cluster resource bundle contains a [ManagedCluster](./pkg/hub/workloads/manifests/aro-hpc/managedcluster.yaml) CR
-- 300 manifestworks resource bundles, one managed cluster resource bundle contains two ManifestWork CRs: [namespace](./pkg/hub/workloads/manifests/aro-hpc/manifestwork.namespace.yaml) and [hypershift](./pkg/hub/workloads/manifests/aro-hpc/manifestwork.hypershift.yaml)
+- 300 managed cluster resource bundles, each managed cluster resource bundle contains a [ManagedCluster](./pkg/hub/workloads/manifests/aro-hpc/managedcluster.yaml) CR
+- 300 manifestworks resource bundles, each manifestworks resource bundle contains two ManifestWork CRs: [namespace](./pkg/hub/workloads/manifests/aro-hpc/manifestwork.namespace.yaml) and [hypershift](./pkg/hub/workloads/manifests/aro-hpc/manifestwork.hypershift.yaml)
 
 And after the resources are applied on the consumer agent part, there is a status simulator to add the mock status for the resources, finally, one resource will have spec and status, the whole sample can be found from [here](https://drive.google.com/file/d/1OXJX_RFsMqvHgVmroR1XiOAU6LrNYF0y/view?usp=sharing) for managed cluster and manifestworks resources.
 
@@ -24,39 +24,39 @@ total_size_records=15x10=150M
 
 ### Test Steps
 
-1. Follow [ARO-HCP doc](https://github.com/Azure/ARO-HCP/blob/38b459d9e88898d79780e6aa0eacb841828aab07/dev-infrastructure/docs/development-setup.md#maestro-infrastructure) to deploy maestro in the ARO
+1. Follow [ARO-HCP doc](https://github.com/Azure/ARO-HCP/blob/main/dev-infrastructure/docs/development-setup.md) to deploy maestro in the ARO
 
 2. Add 10 consumers in the maestro 
 
 ```sh
-counts=10 test/performance/hack/aro-hpc/prepare.consumer.sh
+counts=10 test/performance/hack/aro-hcp/prepare.consumer.sh
 ```
 
 3. Prepare a KinD cluster to run consumer agents
 
 ```sh
-test/performance/hack/aro-hpc/prepare.kind.sh
+test/performance/hack/aro-hcp/prepare.kind.sh
 ```
 
 4. Start 10 consumer agents
 
 ```sh
 # tail -f _output/performance/aro/logs/agents.log
-counts=10 test/performance/hack/aro-hpc/start-consumer-agents.sh
+counts=10 test/performance/hack/aro-hcp/start-consumer-agents.sh
 ```
 
 5. Start a watcher to simulate a controller to update the resource status
 
 ```sh
 # tail -f _output/performance/aro/logs/watcher.log
-counts=10 test/performance/hack/aro-hpc/start-spoke-watcher.sh
+counts=10 test/performance/hack/aro-hcp/start-spoke-watcher.sh
 ```
 
 6. Create resource bundles for two consumers: 1 and 2
 
 ```sh
-index=9 test/performance/hack/aro-hpc/create-works.sh
-index=10 test/performance/hack/aro-hpc/create-works.sh
+index=9 test/performance/hack/aro-hcp/create-works.sh
+index=10 test/performance/hack/aro-hcp/create-works.sh
 ```
 
 7. Wait the resources are updated on spoke, repeat the step 6 
@@ -165,3 +165,182 @@ lists resources 4800 from 8 consumers, time=22623ms
 lists resources 5400 from 9 consumers, time=25392ms
 lists resources 6000 from 10 consumers, time=28377ms
 ```
+
+## Apply Time (ARO HCP)
+
+### Workloads
+
+There is 1 consumer in the maestro server and we apply 600 resource bundles in it, include
+
+- 300 managed cluster resource bundles, each managed cluster resource bundle contains a [ManagedCluster](./pkg/hub/workloads/manifests/aro-hpc/managedcluster.yaml) CR
+- 300 manifestworks resource bundles, each manifestworks resource bundle contains two ManifestWork CRs: [namespace](./pkg/hub/workloads/manifests/aro-hpc/manifestwork.namespace.yaml) and [hypershift](./pkg/hub/workloads/manifests/aro-hpc/manifestwork.hypershift.yaml)
+
+And after the resources are applied on the consumer agent part, there is a status simulator to add the mock status for the resources, finally, one resource will have spec and status, the whole sample can be found from [here](https://drive.google.com/file/d/1OXJX_RFsMqvHgVmroR1XiOAU6LrNYF0y/view?usp=sharing) for managed cluster and manifestworks resources.
+
+### Test Steps
+
+1. Follow [ARO-HCP doc](https://github.com/Azure/ARO-HCP/blob/main/dev-infrastructure/docs/development-setup.md) to deploy maestro in the ARO
+
+2. Add 1 consumer in the maestro 
+
+```sh
+test/performance/hack/aro-hcp/prepare.consumer.sh
+```
+
+3. Prepare a KinD cluster to run consumer agents
+
+```sh
+test/performance/hack/aro-hcp/prepare.kind.sh
+```
+
+4. Start 1 consumer agents
+
+```sh
+test/performance/hack/aro-hcp/start-consumer-agents.sh
+```
+
+5. Start a watcher to simulate a controller to update the resource status
+
+```sh
+test/performance/hack/aro-hcp/start-spoke-watcher.sh
+```
+
+6. Perform three rounds of tests, each creating 600 workloads in fixed intervals: 20 every 30s, 50 every 30s, and 100 every 30s.
+
+### Test Result
+
+The applied time (in ms) of a resource equals the timestamp of its first status return to the Maestro server minus the timestamp of its publication from the Maestro server.
+
+All test data can be found from [here](https://docs.google.com/spreadsheets/d/19GsECb9CKpdz98KnRs6UpgXxDXGXLCo75g0u9PovuiU/edit?usp=sharing)
+
+#### Round 1 (20 every 30s)
+
+##### Total avg applied time
+
+|Applied Resources|AVG Applied Time(ms)|
+|:-------------:|:--------------:|
+|20|759|
+|40|833|
+|60|875|
+|80|937|
+|100|1061|
+|120|1286|
+|140|1451|
+|160|1579|
+|180|1673|
+|200|1750|
+|220|1811|
+|240|1861|
+|260|1905|
+|280|1943|
+|300|1974|
+|320|2001|
+|340|2027|
+|360|2050|
+|380|2069|
+|400|2087|
+|420|2101|
+|440|2117|
+|460|2131|
+|480|2144|
+|500|2154|
+|520|2164|
+|540|2173|
+|560|2181|
+|580|2212|
+|600|2233|
+
+##### Each period avg applied time
+
+|Applied Resources|AVG Applied Time(ms)|
+|:-------------:|:--------------:|
+|20|759|
+|20|907|
+|20|957|
+|20|1126|
+|20|1558|
+|20|2409|
+|20|2444|
+|20|2474|
+|20|2423|
+|20|2440|
+|20|2422|
+|20|2407|
+|20|2443|
+|20|2438|
+|20|2395|
+|20|2413|
+|20|2441|
+|20|2446|
+|20|2411|
+|20|2423|
+|20|2385|
+|20|2460|
+|20|2427|
+|20|2438|
+|20|2415|
+|20|2395|
+|20|2408|
+|20|2403|
+|20|3072|
+|20|2850|
+
+#### Round 2 (50 every 30s)
+
+##### Total avg applied time
+
+|Applied Resources|AVG Applied Time(ms)|
+|:-------------:|:--------------:|
+|50|2812|
+|100|3019|
+|150|3626|
+|200|3876|
+|250|4028|
+|300|4109|
+|350|4187|
+|400|4235|
+|450|4122|
+|500|4198|
+|550|4285|
+|600|4354|
+
+##### Each period avg applied time
+
+|Applied Resources|AVG Applied Time(ms)|
+|:-------------:|:--------------:|
+|50|2812|
+|50|3227|
+|50|4840|
+|50|4624|
+|50|4640|
+|50|4513|
+|50|4655|
+|50|4573|
+|50|3214|
+|50|4883|
+|50|5159|
+|50|5105|
+
+#### Round 3 (100 every 30s)
+
+##### Total avg applied time
+
+|Applied Resources|AVG applied Time(ms)|
+|:-------------:|:--------------:|
+|100|6763|
+|200|7577|
+|300|7598|
+|400|7588|
+|500|7745|
+|600|7874|
+
+##### Each period avg applied time
+
+|Applied Resources|AVG Applied Time(ms)|
+|:-------------:|:--------------:|
+|100|6763|
+|100|8392|
+|100|7638|
+|100|7559|
+|100|8372|
+|100|8521|

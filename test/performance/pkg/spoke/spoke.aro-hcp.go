@@ -31,7 +31,6 @@ import (
 type AROHCPSpokeOptions struct {
 	AgentConfigDir string
 
-	HubKubeConfigPath   string
 	SpokeKubeConfigPath string
 
 	MaestroNamespace string
@@ -50,7 +49,6 @@ func NewAROHCPSpokeOptions() *AROHCPSpokeOptions {
 
 func (o *AROHCPSpokeOptions) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&o.AgentConfigDir, "agent-config-dir", o.AgentConfigDir, "The dir to save the agent configs")
-	fs.StringVar(&o.HubKubeConfigPath, "hub-kubeconfig", o.HubKubeConfigPath, "Location of the Hub kubeconfig")
 	fs.StringVar(&o.SpokeKubeConfigPath, "spoke-kubeconfig", o.SpokeKubeConfigPath, "Location of the Spoke kubeconfig")
 	fs.IntVar(&o.ClusterBeginIndex, "cluster-begin-index", o.ClusterBeginIndex, "Begin index of the clusters")
 	fs.IntVar(&o.ClusterCounts, "cluster-counts", o.ClusterCounts, "Counts of the clusters")

@@ -147,7 +147,11 @@ func (o *AROHCPWatcherOptions) Run(ctx context.Context) error {
 					}
 
 					o.clusterTotals = o.clusterTotals + 1
-					klog.Infof("cluster %v is updated, total=%d, time=%d", obj.GetName(), o.clusterTotals, util.UsedTime(startTime, time.Millisecond))
+					klog.Infof("cluster %v is updated, created at: %s, watched at: %s, total=%d, time=%dms",
+						cluster.CreationTimestamp.UTC().Format(time.RFC3339),
+						startTime.UTC().Format(time.RFC3339),
+						obj.GetName(), o.clusterTotals,
+						util.UsedTime(startTime, time.Millisecond))
 				}
 			}
 		}
@@ -252,7 +256,12 @@ func (o *AROHCPWatcherOptions) Run(ctx context.Context) error {
 						}
 
 						o.addWorks()
-						klog.Infof("work %v/%v is updated, total=%d, time=%d", obj.GetNamespace(), obj.GetName(), o.getWorks(), util.UsedTime(startTime, time.Millisecond))
+						klog.Infof("work %v/%v is updated, created at: %s, watched at: %s, total=%d, used=%dms",
+							obj.GetNamespace(), obj.GetName(),
+							work.CreationTimestamp.UTC().Format(time.RFC3339),
+							startTime.UTC().Format(time.RFC3339),
+							o.getWorks(),
+							util.UsedTime(startTime, time.Millisecond))
 					}
 				}
 			}

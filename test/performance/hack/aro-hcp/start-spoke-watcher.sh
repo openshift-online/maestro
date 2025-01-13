@@ -3,7 +3,7 @@
 REPO_DIR="$(cd "$(dirname ${BASH_SOURCE[0]})/../../../.." ; pwd -P)"
 
 index=${index:-1}
-counts=${counts:-2}
+counts=${counts:-1}
 
 # work dir
 work_dir=${REPO_DIR}/_output/performance/aro
