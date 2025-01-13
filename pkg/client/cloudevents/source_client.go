@@ -10,9 +10,11 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 	"github.com/prometheus/client_golang/prometheus"
+	workv1 "open-cluster-management.io/api/work/v1"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
 // SourceClient is an interface for publishing resource events to consumers
@@ -154,15 +156,38 @@ func (s *SourceClientImpl) ReconnectedChan() <-chan struct{} {
 	return s.CloudEventSourceClient.ReconnectedChan()
 }
 
+// ResourceStatusHashGetter returns a hash of the resource status.
+// It calculates the hash based on the manifestwork status to ensure consistency
+// with the agent's status calculation. The resource status is converted to
+// manifestwork status based on resource type before calculating the hash.
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {
-	status, err := api.DecodeStatus(res.Status)
+	evt, err := api.JSONMAPToCloudEvent(res.Status)
 	if err != nil {
-		return "", fmt.Errorf("failed to decode resource status, %v", err)
+		return "", fmt.Errorf("failed to convert resource status to cloud event, %v", err)
 	}
-	statusBytes, err := json.Marshal(status)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal resource status, %v", err)
+	workStatus := workv1.ManifestWorkStatus{}
+	if res.Type == api.ResourceTypeSingle {
+		eventPayload := &workpayload.ManifestStatus{}
+		if err := evt.DataAs(eventPayload); err != nil {
+			return "", fmt.Errorf("failed to decode cloudevent data as manifest status: %v", err)
+		}
+		workStatus.Conditions = eventPayload.Conditions
+		workStatus.ResourceStatus = workv1.ManifestResourceStatus{
+			Manifests: []workv1.ManifestCondition{*eventPayload.Status},
+		}
+	} else if res.Type == api.ResourceTypeBundle {
+		eventPayload := &workpayload.ManifestBundleStatus{}
+		if err := evt.DataAs(eventPayload); err != nil {
+			return "", fmt.Errorf("failed to decode cloudevent data as manifest bundle status: %v", err)
+		}
+		workStatus.Conditions = eventPayload.Conditions
+		workStatus.ResourceStatus.Manifests = eventPayload.ResourceStatus
 	}
 
-	return fmt.Sprintf("%x", sha256.Sum256(statusBytes)), nil
+	workStatusBytes, err := json.Marshal(workStatus)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal work status, %v", err)
+	}
+
+	return fmt.Sprintf("%x", sha256.Sum256(workStatusBytes)), nil
 }
