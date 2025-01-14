@@ -24,7 +24,6 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -81,6 +80,7 @@ type Helper struct {
 	APIServer         server.Server
 	MetricsServer     server.Server
 	HealthCheckServer *server.HealthCheckServer
+	StatusDispatcher  dispatcher.Dispatcher
 	EventServer       server.EventServer
 	EventFilter       controllers.EventFilter
 	ControllerManager *server.ControllersServer
@@ -143,13 +143,13 @@ func NewHelper(t *testing.T) *Helper {
 		helper.Env().Config.GRPCServer.DisableTLS = true
 
 		if helper.Broker != "grpc" {
-			statusDispatcher := dispatcher.NewHashDispatcher(
+			helper.StatusDispatcher = dispatcher.NewHashDispatcher(
 				helper.Env().Config.MessageBroker.ClientID,
 				helper.Env().Database.SessionFactory,
 				helper.Env().Clients.CloudEventsSource,
 				helper.Env().Config.EventServer.ConsistentHashConfig,
 			)
-			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, statusDispatcher)
+			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
 			helper.EventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory))
 		} else {
 			helper.EventServer = server.NewGRPCBroker(helper.EventBroadcaster)
@@ -296,7 +296,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 		brokerConfig = mqttOptions
 	} else {
 		// initilize the grpc options
-		grpcOptions := grpc.NewGRPCOptions()
+		grpcOptions := grpcoptions.NewGRPCOptions()
 		grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BrokerBindPort)
 		brokerConfig = grpcOptions
 	}
