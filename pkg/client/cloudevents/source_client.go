@@ -161,6 +161,9 @@ func (s *SourceClientImpl) ReconnectedChan() <-chan struct{} {
 // with the agent's status calculation. The resource status is converted to
 // manifestwork status based on resource type before calculating the hash.
 func ResourceStatusHashGetter(res *api.Resource) (string, error) {
+	if len(res.Status) == 0 {
+		return fmt.Sprintf("%x", sha256.Sum256([]byte(""))), nil
+	}
 	evt, err := api.JSONMAPToCloudEvent(res.Status)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert resource status to cloud event, %v", err)

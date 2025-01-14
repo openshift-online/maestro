@@ -265,6 +265,12 @@ objects:
           - name: tls
             secret:
               secretName: maestro-tls
+          - name: grpc-server-tls
+            secret:
+              secretName: maestro-grpc-server-tls
+          - name: grpc-broker-tls
+            secret:
+              secretName: maestro-grpc-broker-tls
           - name: service
             secret:
               secretName: maestro
@@ -305,6 +311,10 @@ objects:
             volumeMounts:
             - name: tls
               mountPath: /secrets/tls
+            - name: grpc-server-tls
+              mountPath: /secrets/grpc-server-tls
+            - name: grpc-broker-tls
+              mountPath: /secrets/grpc-broker-tls
             - name: service
               mountPath: /secrets/service
             - name: rds
@@ -342,8 +352,10 @@ objects:
             - --https-key-file=/secrets/tls/tls.key
             - --enable-grpc-server=${ENABLE_GRPC_SERVER}
             - --disable-grpc-tls=${DISABLE_GRPC_TLS}
-            - --grpc-tls-cert-file=/secrets/tls/tls.crt
-            - --grpc-tls-key-file=/secrets/tls/tls.key
+            - --grpc-tls-cert-file=/secrets/grpc-server-tls/tls.crt
+            - --grpc-tls-key-file=/secrets/grpc-server-tls/tls.key
+            - --grpc-broker-tls-cert-file=/secrets/grpc-broker-tls/tls.crt
+            - --grpc-broker-tls-key-file=/secrets/grpc-broker-tls/tls.key
             - --acl-file=/configs/authentication/acl.yml
             - --jwk-cert-file=/configs/authentication/jwks.json
             - --jwk-cert-url=${JWKS_URL}
@@ -442,6 +454,7 @@ objects:
         port: grpc
       annotations:
         description: Exposes and load balances the maestro pods grpc endpoint
+        service.alpha.openshift.io/serving-cert-secret-name: maestro-grpc-server-tls
     spec:
       selector:
         app: maestro

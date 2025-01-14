@@ -54,8 +54,14 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 	grpcServerOptions = append(grpcServerOptions, grpc.ConnectionTimeout(config.ConnectionTimeout))
 	grpcServerOptions = append(grpcServerOptions, grpc.WriteBufferSize(config.WriteBufferSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.ReadBufferSize(config.ReadBufferSize))
+	grpcServerOptions = append(grpcServerOptions, grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+		MinTime:             config.ClientMinPingInterval,
+		PermitWithoutStream: config.PermitPingWithoutStream,
+	}))
 	grpcServerOptions = append(grpcServerOptions, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge: config.MaxConnectionAge,
+		Time:             config.ServerPingInterval,
+		Timeout:          config.ServerPingTimeout,
 	}))
 
 	if !config.DisableTLS {
@@ -266,11 +272,10 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 
 	select {
 	case err := <-errChan:
-		klog.Errorf("unregister client %s, error= %v", clientID, err)
+		klog.Infof("unregistering client %s due to error= %v", clientID, err)
 		svr.eventBroadcaster.Unregister(clientID)
 		return err
 	case <-subServer.Context().Done():
-		klog.V(10).Infof("unregister client %s", clientID)
 		svr.eventBroadcaster.Unregister(clientID)
 		return nil
 	}

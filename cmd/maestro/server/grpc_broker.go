@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -14,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -71,11 +75,55 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 	grpcServerOptions = append(grpcServerOptions, grpc.ConnectionTimeout(config.ConnectionTimeout))
 	grpcServerOptions = append(grpcServerOptions, grpc.WriteBufferSize(config.WriteBufferSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.ReadBufferSize(config.ReadBufferSize))
+	grpcServerOptions = append(grpcServerOptions, grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+		MinTime:             config.ClientMinPingInterval,
+		PermitWithoutStream: config.PermitPingWithoutStream,
+	}))
 	grpcServerOptions = append(grpcServerOptions, grpc.KeepaliveParams(keepalive.ServerParameters{
 		MaxConnectionAge: config.MaxConnectionAge,
+		Time:             config.ServerPingInterval,
+		Timeout:          config.ServerPingTimeout,
 	}))
 
-	klog.Infof("Serving gRPC broker without TLS at %s", config.BrokerBindPort)
+	if !config.DisableTLS {
+		// Check tls cert and key path path
+		if config.BrokerTLSCertFile == "" || config.BrokerTLSKeyFile == "" {
+			check(
+				fmt.Errorf("unspecified required --grpc-broker-tls-cert-file, --grpc-broker-tls-key-file"),
+				"Can't start gRPC broker",
+			)
+		}
+		// Serve with TLS
+		serverCerts, err := tls.LoadX509KeyPair(config.BrokerTLSCertFile, config.BrokerTLSKeyFile)
+		if err != nil {
+			check(fmt.Errorf("failed to load broker certificates: %v", err), "Can't start gRPC broker")
+		}
+		tlsConfig := &tls.Config{
+			Certificates: []tls.Certificate{serverCerts},
+			MinVersion:   tls.VersionTLS13,
+			MaxVersion:   tls.VersionTLS13,
+		}
+		if config.BrokerClientCAFile != "" {
+			certPool, err := x509.SystemCertPool()
+			if err != nil {
+				check(fmt.Errorf("failed to load system cert pool: %v", err), "Can't start gRPC broker")
+			}
+			caPEM, err := os.ReadFile(config.BrokerClientCAFile)
+			if err != nil {
+				check(fmt.Errorf("failed to read broker client CA file: %v", err), "Can't start gRPC broker")
+			}
+			if ok := certPool.AppendCertsFromPEM(caPEM); !ok {
+				check(fmt.Errorf("failed to append broker client CA to cert pool"), "Can't start gRPC broker")
+			}
+			tlsConfig.ClientCAs = certPool
+			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		}
+		grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
+		klog.Infof("Serving gRPC broker with TLS at %s", config.ServerBindPort)
+	} else {
+		klog.Infof("Serving gRPC broker without TLS at %s", config.ServerBindPort)
+	}
+
 	sessionFactory := env().Database.SessionFactory
 	return &GRPCBroker{
 		grpcServer:         grpc.NewServer(grpcServerOptions...),
@@ -160,8 +208,7 @@ func (bkr *GRPCBroker) register(clusterName string, handler resourceHandler) (st
 		errChan:     errChan,
 	}
 
-	klog.V(4).Infof("register a subscriber %s (cluster name = %s)", id, clusterName)
-
+	klog.V(4).Infof("registered a subscriber %s (cluster name = %s)", id, clusterName)
 	return id, errChan
 }
 
@@ -170,9 +217,9 @@ func (bkr *GRPCBroker) unregister(id string) {
 	bkr.mu.Lock()
 	defer bkr.mu.Unlock()
 
-	klog.V(10).Infof("unregister subscriber %s", id)
 	close(bkr.subscribers[id].errChan)
 	delete(bkr.subscribers, id)
+	klog.V(4).Infof("unregistered subscriber %s", id)
 }
 
 // Subscribe in stub implementation for maestro agent subscribe resource spec from maestro server.
@@ -215,7 +262,7 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 	case err := <-errChan:
 		// When reaching this point, an unrecoverable error occurred while sending the event,
 		// such as the connection being closed. Unregister the subscriber to trigger agent reconnection.
-		klog.Errorf("unregister subscriber %s, error= %v", subscriberID, err)
+		klog.Infof("unregistering subscriber %s because unrecoverable error= %v", subscriberID, err)
 		bkr.unregister(subscriberID)
 		return err
 	case <-subServer.Context().Done():

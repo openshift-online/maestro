@@ -51,8 +51,7 @@ func (h *EventBroadcaster) Register(source string, handler resourceHandler) (str
 		errChan: errChan,
 	}
 
-	klog.V(4).Infof("register a broadcaster client %s (source=%s)", id, source)
-
+	klog.V(4).Infof("registered a broadcaster client %s (source=%s)", id, source)
 	return id, errChan
 }
 
@@ -63,6 +62,7 @@ func (h *EventBroadcaster) Unregister(id string) {
 
 	close(h.clients[id].errChan)
 	delete(h.clients, id)
+	klog.V(4).Infof("unregistered broadcaster client %s", id)
 }
 
 // Broadcast broadcasts a resource status change event to all registered clients.

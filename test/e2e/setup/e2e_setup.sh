@@ -58,7 +58,7 @@ if command -v docker &> /dev/null; then
     kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
 elif command -v podman &> /dev/null; then
     podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
-    kind load image-archive /tmp/maestro.tar --name maestro 
+    kind load image-archive /tmp/maestro.tar --name maestro
     rm /tmp/maestro.tar
 else 
     echo "Neither Docker nor Podman is installed, exiting"
@@ -119,6 +119,9 @@ kubectl patch service maestro -n $namespace -p '{"spec":{"type":"NodePort", "por
 
 # expose the maestro grpc server via nodeport
 kubectl patch service maestro-grpc -n $namespace -p '{"spec":{"type":"NodePort", "ports":  [{"nodePort": 30090, "port": 8090, "targetPort": 8090}]}}' --type merge
+
+# annotate maestro broker service for serving cert
+kubectl -n $namespace annotate svc/maestro-grpc-broker service.alpha.openshift.io/serving-cert-secret-name=maestro-grpc-broker-tls
 
 # 5. create a self-signed certificate for mqtt
 mqttCertDir=$(mktemp -d)
@@ -253,10 +256,12 @@ echo $consumer_name > ./test/e2e/.consumer_name
 # 7. deploy maestro agent into maestro-agent namespace
 export agent_namespace=maestro-agent
 kubectl create namespace ${agent_namespace} || true
+kubectl -n ${agent_namespace} create cm maestro-grpc-broker-ca
+kubectl -n ${agent_namespace} annotate cm/maestro-grpc-broker-ca service.alpha.openshift.io/inject-cabundle=true
 make agent-template
 kubectl apply -n ${agent_namespace} --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
 
-# apply the maestro-mqtt secret
+# apply the maestro-agent-mqtt secret
 cat << EOF | kubectl -n ${agent_namespace} apply -f -
 apiVersion: v1
 kind: Secret
@@ -273,9 +278,21 @@ stringData:
       agentEvents: sources/maestro/consumers/${consumer_name}/agentevents
 EOF
 
+# apply the maestro-agent-grpc secret
+cat << EOF | kubectl -n ${agent_namespace} apply -f -
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maestro-agent-grpc
+stringData:
+  config.yaml: |
+    url: maestro-grpc-broker.maestro.svc:8091
+    caFile: /configmaps/grpc-broker-ca/service-ca.crt
+EOF
+
 # create secret containing the client certs to mqtt broker and patch the maestro-agent deployment
 kubectl create secret generic maestro-agent-certs -n ${agent_namespace} --from-file=ca.crt=${mqttCertDir}/ca.crt --from-file=client.crt=${mqttCertDir}/agent-client.crt --from-file=client.key=${mqttCertDir}/agent-client.key
-kubectl patch deploy/maestro-agent -n ${agent_namespace} --type='json' -p='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--appliedmanifestwork-eviction-grace-period=30s"},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-agent-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}}]'
+kubectl patch deploy/maestro-agent -n ${agent_namespace} --type='json' -p='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--appliedmanifestwork-eviction-grace-period=30s"},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"mqtt-certs","secret":{"secretName":"maestro-agent-certs"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"mqtt-certs","mountPath":"/secrets/mqtt-certs"}},{"op":"add","path":"/spec/template/spec/volumes/-","value":{"name":"grpc-broker-ca","configMap":{"name":"maestro-grpc-broker-ca"}}},{"op":"add","path":"/spec/template/spec/containers/0/volumeMounts/-","value":{"name":"grpc-broker-ca","mountPath":"/configmaps/grpc-broker-ca"}}]'
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s
 
 # remove the certs
