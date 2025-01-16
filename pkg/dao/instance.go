@@ -2,6 +2,8 @@ package dao
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm/clause"
@@ -67,7 +69,10 @@ func (d *sqlInstanceDao) MarkReadyByIDs(ctx context.Context, ids []string) error
 		db.MarkForRollback(ctx, err)
 		return err
 	}
-	return nil
+
+	// call pg_notify to notify the server_instances channel
+	notify := fmt.Sprintf("select pg_notify('%s', '%s')", "server_instances", fmt.Sprintf("ready:%s", strings.Join(ids, ",")))
+	return g2.Exec(notify).Error
 }
 
 func (d *sqlInstanceDao) MarkUnreadyByIDs(ctx context.Context, ids []string) error {
@@ -76,7 +81,9 @@ func (d *sqlInstanceDao) MarkUnreadyByIDs(ctx context.Context, ids []string) err
 		db.MarkForRollback(ctx, err)
 		return err
 	}
-	return nil
+	// call pg_notify to notify the server_instances channel
+	notify := fmt.Sprintf("select pg_notify('%s', '%s')", "server_instances", fmt.Sprintf("unready:%s", strings.Join(ids, ",")))
+	return g2.Exec(notify).Error
 }
 
 func (d *sqlInstanceDao) Delete(ctx context.Context, id string) error {
