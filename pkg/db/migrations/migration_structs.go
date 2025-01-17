@@ -1,13 +1,17 @@
 package migrations
 
 import (
+	"context"
 	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/go-gormigrate/gormigrate/v2"
+	"github.com/openshift-online/maestro/pkg/logger"
 )
+
+var log = logger.NewOCMLogger(context.Background())
 
 // gormigrate is a wrapper for gorm's migration functions that adds schema versioning and rollback capabilities.
 // For help writing migration steps, see the gorm documentation on migrations: http://doc.gorm.io/database.html#migration
@@ -36,6 +40,13 @@ var MigrationList = []*gormigrate.Migration{
 	addEventInstances(),
 	addLastHeartBeatAndReadyColumnInServerInstancesTable(),
 	alterEventInstances(),
+}
+
+// CleanUpDirtyData clean up the dirty data before migrating the tables.
+// Note: when new constraints will be added to old tables, we should especially consider the possibility of dirty data.
+func CleanUpDirtyData(db *gorm.DB) error {
+	//TODO: cleanup dirty data before add new constraints to old tables
+	return nil
 }
 
 // Model represents the base model struct. All entities will have this struct embedded.

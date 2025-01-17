@@ -14,6 +14,10 @@ import (
 // For help writing migration steps, see the gorm documentation on migrations: http://doc.gorm.io/database.html#migration
 
 func Migrate(g2 *gorm.DB) error {
+	if err := migrations.CleanUpDirtyData(g2); err != nil {
+		return err
+	}
+
 	m := newGormigrate(g2)
 
 	if err := m.Migrate(); err != nil {

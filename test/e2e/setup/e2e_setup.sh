@@ -144,7 +144,7 @@ kubectl -n $namespace annotate svc/maestro-grpc-broker service.alpha.openshift.i
 kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
-sleep 5 # wait 5 seconds for the service ready
+sleep 30 # wait 30 seconds for the service ready
 
 # 8. create a consumer
 export external_host_ip="127.0.0.1"
