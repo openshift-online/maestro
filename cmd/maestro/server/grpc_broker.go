@@ -174,7 +174,7 @@ func (bkr *GRPCBroker) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
-		err := bkr.respondResyncSpecRequest(ctx, eventType.CloudEventsDataType, evt)
+		err := bkr.respondResyncSpecRequest(ctx, evt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to respond resync spec request: %v", err)
 		}
@@ -182,7 +182,7 @@ func (bkr *GRPCBroker) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	}
 
 	// decode the cloudevent data as resource with status
-	resource, err := decodeResourceStatus(eventType.CloudEventsDataType, evt)
+	resource, err := decodeResourceStatus(evt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
@@ -278,7 +278,7 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 }
 
 // decodeResourceStatus translates a CloudEvent into a resource containing the status JSON map.
-func decodeResourceStatus(eventDataType types.CloudEventsDataType, evt *ce.Event) (*api.Resource, error) {
+func decodeResourceStatus(evt *ce.Event) (*api.Resource, error) {
 	evtExtensions := evt.Context.GetExtensions()
 
 	clusterName, err := cetypes.ToString(evtExtensions[types.ExtensionClusterName])
@@ -311,15 +311,6 @@ func decodeResourceStatus(eventDataType types.CloudEventsDataType, evt *ce.Event
 		Status: status,
 	}
 
-	switch eventDataType {
-	case workpayload.ManifestEventDataType:
-		resource.Type = api.ResourceTypeSingle
-	case workpayload.ManifestBundleEventDataType:
-		resource.Type = api.ResourceTypeBundle
-	default:
-		return nil, fmt.Errorf("unsupported cloudevents data type %s", eventDataType)
-	}
-
 	return resource, nil
 }
 
@@ -331,12 +322,9 @@ func encodeResourceSpec(resource *api.Resource) (*ce.Event, error) {
 	}
 
 	eventType := types.CloudEventsType{
-		CloudEventsDataType: workpayload.ManifestEventDataType,
+		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              types.EventAction("create_request"),
-	}
-	if resource.Type == api.ResourceTypeBundle {
-		eventType.CloudEventsDataType = workpayload.ManifestBundleEventDataType
 	}
 	evt.SetType(eventType.String())
 	evt.SetSource("maestro")
@@ -360,13 +348,10 @@ func encodeResourceSpec(resource *api.Resource) (*ce.Event, error) {
 //     resend the resource.
 //   - If the requested resource version is older than the source's current maintained resource version, the source
 //     sends the resource.
-func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, eventDataType types.CloudEventsDataType, evt *ce.Event) error {
+//   - If the resource does not exist on the source, but exists on the agent, the source sends a delete event for the
+//     resource.
+func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, evt *ce.Event) error {
 	log := logger.NewOCMLogger(ctx)
-
-	resyncType := api.ResourceTypeSingle
-	if eventDataType == workpayload.ManifestBundleEventDataType {
-		resyncType = api.ResourceTypeBundle
-	}
 
 	resourceVersions, err := payload.DecodeSpecResyncRequest(*evt)
 	if err != nil {
@@ -379,7 +364,7 @@ func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, eventDataTy
 	}
 	clusterName := fmt.Sprintf("%s", clusterNameValue)
 
-	objs, err := bkr.resourceService.List(types.ListOptions{ClusterName: clusterName, CloudEventsDataType: eventDataType})
+	objs, err := bkr.resourceService.List(types.ListOptions{ClusterName: clusterName})
 	if err != nil {
 		return err
 	}
@@ -390,10 +375,6 @@ func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, eventDataTy
 	}
 
 	for _, obj := range objs {
-		// only respond with the resource of the resync type
-		if obj.Type != resyncType {
-			continue
-		}
 		// respond with the deleting resource regardless of the resource version
 		if !obj.GetDeletionTimestamp().IsZero() {
 			bkr.handleRes(obj)
@@ -427,7 +408,6 @@ func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, eventDataTy
 			},
 			Version:      int32(rv.ResourceVersion),
 			ConsumerName: clusterName,
-			Type:         resyncType,
 		}
 		// mark the resource as deleting
 		obj.Meta.DeletedAt.Time = time.Now()

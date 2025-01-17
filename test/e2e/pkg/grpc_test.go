@@ -69,25 +69,26 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					}
 					resourceStatus.ReconcileStatus.ObservedVersion = resourceVersion
 
-					manifestStatus := &payload.ManifestStatus{}
-					if err := evt.DataAs(manifestStatus); err != nil {
+					manifestBundleStatus := &payload.ManifestBundleStatus{}
+					if err := evt.DataAs(manifestBundleStatus); err != nil {
 						continue
 					}
 
-					if manifestStatus.Status != nil {
-						resourceStatus.ReconcileStatus.Conditions = manifestStatus.Status.Conditions
-						if meta.IsStatusConditionTrue(manifestStatus.Conditions, common.ManifestsDeleted) {
-							deletedCondition := meta.FindStatusCondition(manifestStatus.Conditions, common.ManifestsDeleted)
-							resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, *deletedCondition)
-						}
-						for _, value := range manifestStatus.Status.StatusFeedbacks.Values {
-							if value.Name == "status" {
-								contentStatus := make(map[string]interface{})
-								if err := json.Unmarshal([]byte(*value.Value.JsonRaw), &contentStatus); err != nil {
-									continue
-								}
-								resourceStatus.ContentStatus = contentStatus
+					if len(manifestBundleStatus.ResourceStatus) != 1 {
+						return
+					}
+					resourceStatus.ReconcileStatus.Conditions = manifestBundleStatus.ResourceStatus[0].Conditions
+					if meta.IsStatusConditionTrue(manifestBundleStatus.Conditions, common.ManifestsDeleted) {
+						deletedCondition := meta.FindStatusCondition(manifestBundleStatus.Conditions, common.ManifestsDeleted)
+						resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, *deletedCondition)
+					}
+					for _, value := range manifestBundleStatus.ResourceStatus[0].StatusFeedbacks.Values {
+						if value.Name == "status" {
+							contentStatus := make(map[string]interface{})
+							if err := json.Unmarshal([]byte(*value.Value.JsonRaw), &contentStatus); err != nil {
+								continue
 							}
+							resourceStatus.ContentStatus = contentStatus
 						}
 					}
 				}
@@ -95,7 +96,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec using grpc client", func() {
-			evt := helper.NewEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
+			evt := helper.NewBundleEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -152,7 +153,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec with update request using grpc client", func() {
-			evt := helper.NewEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
+			evt := helper.NewBundleEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -209,7 +210,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec with delete request using grpc client", func() {
-			evt := helper.NewEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
+			evt := helper.NewBundleEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -223,7 +224,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("reconcile status is empty")
 				}
 
-				if !meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, "Deleted") {
+				if !meta.IsStatusConditionTrue(resourceStatus.ReconcileStatus.Conditions, common.ManifestsDeleted) {
 					return fmt.Errorf("resource not deleted")
 				}
 
@@ -460,7 +461,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("resource bundle status is empty")
 				}
 
-				if !meta.IsStatusConditionTrue(resourceBundleStatus.ManifestBundleStatus.Conditions, "Deleted") {
+				if !meta.IsStatusConditionTrue(resourceBundleStatus.ManifestBundleStatus.Conditions, common.ManifestsDeleted) {
 					return fmt.Errorf("resource bundle not applied")
 				}
 

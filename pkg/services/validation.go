@@ -48,12 +48,9 @@ func ValidateManifest(resType api.ResourceType, manifest datatypes.JSONMap) erro
 		if err != nil {
 			return fmt.Errorf("failed to decode manifest: %v", err)
 		}
-		if len(obj) == 0 {
-			return fmt.Errorf("manifest is empty")
-		}
 		return ValidateObject(obj)
 	case api.ResourceTypeBundle:
-		objs, err := api.DecodeManifestBundleToObjects(manifest)
+		_, objs, _, _, err := api.DecodeManifestBundle(manifest)
 		if err != nil {
 			return fmt.Errorf("failed to decode manifest bundle: %v", err)
 		}
@@ -113,16 +110,13 @@ func ValidateManifestUpdate(resType api.ResourceType, new, old datatypes.JSONMap
 		if err != nil {
 			return fmt.Errorf("failed to decode old manifest: %v", err)
 		}
-		if len(newObj) == 0 || len(oldObj) == 0 {
-			return fmt.Errorf("new or old manifest is empty")
-		}
 		return ValidateObjectUpdate(newObj, oldObj)
 	case api.ResourceTypeBundle:
-		newObjs, err := api.DecodeManifestBundleToObjects(new)
+		_, newObjs, _, _, err := api.DecodeManifestBundle(new)
 		if err != nil {
 			return fmt.Errorf("failed to decode new manifest bundle: %v", err)
 		}
-		oldObjs, err := api.DecodeManifestBundleToObjects(old)
+		_, oldObjs, _, _, err := api.DecodeManifestBundle(old)
 		if err != nil {
 			return fmt.Errorf("failed to decode old manifest bundle: %v", err)
 		}

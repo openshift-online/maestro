@@ -11,8 +11,12 @@ import (
 	"gorm.io/gorm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
+	"open-cluster-management.io/api/utils/work/v1/utils"
 	workv1 "open-cluster-management.io/api/work/v1"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
@@ -109,7 +113,7 @@ func JSONMAPToCloudEvent(res datatypes.JSONMap) (*cloudevents.Event, error) {
 
 		metaJson, err := json.Marshal(metadata)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to marshal metadata to JSON: %v", err)
 		}
 
 		resCopy[codec.ExtensionWorkMeta] = string(metaJson)
@@ -151,7 +155,7 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 		objectMeta := map[string]any{}
 
 		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", metadata)), &objectMeta); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to unmarshal metadata extension to object: %v", err)
 		}
 		res[codec.ExtensionWorkMeta] = objectMeta
 	}
@@ -205,22 +209,61 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 
 	// create a cloud event with the manifest as the data
 	evt := cetypes.NewEventBuilder("maestro", cetypes.CloudEventsType{}).NewEvent()
-	eventPayload := &workpayload.Manifest{
-		Manifest:     unstructured.Unstructured{Object: manifest},
+
+	// TODO: get the GVR from the manifest...
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load in-cluster config: %v", err)
+	}
+	httpClient, err := rest.HTTPClientFor(restConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create http client: %v", err)
+	}
+	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create dynamic rest mapper: %v", err)
+	}
+
+	manifestBytes, err := json.Marshal(manifest)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal manifest: %v", err)
+	}
+	unstructuredObj := &unstructured.Unstructured{
+		Object: manifest,
+	}
+	_, gvr, err := utils.BuildResourceMeta(0, unstructuredObj, restMapper)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get manifest GVR from manifest: %v", err)
+	}
+
+	eventPayload := &workpayload.ManifestBundle{
+		Manifests: []workv1.Manifest{
+			{
+				RawExtension: runtime.RawExtension{Raw: manifestBytes},
+			},
+		},
 		DeleteOption: delOption,
-		ConfigOption: &workpayload.ManifestConfigOption{
-			FeedbackRules: []workv1.FeedbackRule{
-				{
-					Type: workv1.JSONPathsType,
-					JsonPaths: []workv1.JsonPath{
-						{
-							Name: "status",
-							Path: ".status",
+		ManifestConfigs: []workv1.ManifestConfigOption{
+			{
+				ResourceIdentifier: workv1.ResourceIdentifier{
+					Group:     gvr.Group,
+					Resource:  gvr.Resource,
+					Name:      unstructuredObj.GetName(),
+					Namespace: unstructuredObj.GetNamespace(),
+				},
+				FeedbackRules: []workv1.FeedbackRule{
+					{
+						Type: workv1.JSONPathsType,
+						JsonPaths: []workv1.JsonPath{
+							{
+								Name: "status",
+								Path: ".status",
+							},
 						},
 					},
 				},
+				UpdateStrategy: upStrategy,
 			},
-			UpdateStrategy: upStrategy,
 		},
 	}
 
@@ -229,7 +272,7 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 	}
 
 	// convert cloudevent to JSONMap
-	manifest, err := CloudEventToJSONMap(&evt)
+	manifest, err = CloudEventToJSONMap(&evt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert cloudevent to resource manifest: %v", err)
 	}
@@ -238,7 +281,7 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 }
 
 // DecodeManifest converts a CloudEvent JSONMap representation of a resource manifest
-// into resource manifest, deleteOption and updateStrategy (map[string]interface{}).
+// into resource manifest, deleteOption and updateStrategy (map[string]interface{}) for openapi output.
 func DecodeManifest(manifest datatypes.JSONMap) (map[string]interface{}, map[string]interface{}, map[string]interface{}, error) {
 	if len(manifest) == 0 {
 		return nil, nil, nil, nil
@@ -249,34 +292,43 @@ func DecodeManifest(manifest datatypes.JSONMap) (map[string]interface{}, map[str
 		return nil, nil, nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
 	}
 
-	eventPayload := &workpayload.Manifest{}
+	eventPayload := &workpayload.ManifestBundle{}
 	if err := evt.DataAs(eventPayload); err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to decode cloudevent payload as resource manifest: %v", err)
 	}
 
-	deleteOptionObj := &map[string]interface{}{}
+	deleteOptionObj := map[string]interface{}{}
 	if eventPayload.DeleteOption != nil {
 		deleteOptionJsonData, err := json.Marshal(eventPayload.DeleteOption)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
 		}
-		if err := json.Unmarshal(deleteOptionJsonData, deleteOptionObj); err != nil {
+		if err := json.Unmarshal(deleteOptionJsonData, &deleteOptionObj); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to unmarshal deleteOption to cloudevent: %v", err)
 		}
 	}
-
-	updateStrategyObj := &map[string]interface{}{}
-	if eventPayload.ConfigOption != nil && eventPayload.ConfigOption.UpdateStrategy != nil {
-		updateStrategyJsonData, err := json.Marshal(eventPayload.ConfigOption.UpdateStrategy)
+	manifestObj := map[string]interface{}{}
+	if len(eventPayload.Manifests) != 1 {
+		return nil, nil, nil, fmt.Errorf("invalid number of manifests in the event payload: %d", len(eventPayload.Manifests))
+	}
+	if err := json.Unmarshal(eventPayload.Manifests[0].Raw, &manifestObj); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to unmarshal manifest raw to manifest: %v", err)
+	}
+	if len(eventPayload.ManifestConfigs) != 1 {
+		return nil, nil, nil, fmt.Errorf("invalid number of manifestConfigs in the event payload: %d", len(eventPayload.ManifestConfigs))
+	}
+	updateStrategyObj := map[string]interface{}{}
+	if eventPayload.ManifestConfigs[0].UpdateStrategy != nil {
+		updateStrategyJsonData, err := json.Marshal(eventPayload.ManifestConfigs[0].UpdateStrategy)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to marshal updateStrategy to json: %v", err)
 		}
-		if err := json.Unmarshal(updateStrategyJsonData, updateStrategyObj); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to unmarshal updateStrategy to cloudevent: %v", err)
+		if err := json.Unmarshal(updateStrategyJsonData, &updateStrategyObj); err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to unmarshal updateStrategy json to object: %v", err)
 		}
 	}
 
-	return eventPayload.Manifest.Object, *deleteOptionObj, *updateStrategyObj, nil
+	return manifestObj, deleteOptionObj, updateStrategyObj, nil
 }
 
 // DecodeStatus converts a CloudEvent JSONMap representation of a resource status
@@ -309,21 +361,22 @@ func DecodeStatus(status datatypes.JSONMap) (map[string]interface{}, error) {
 		},
 	}
 
-	eventPayload := &workpayload.ManifestStatus{}
+	eventPayload := &workpayload.ManifestBundleStatus{}
 	if err := evt.DataAs(eventPayload); err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
 	}
 
-	if eventPayload.Status != nil {
-		resourceStatus.ReconcileStatus.Conditions = eventPayload.Status.Conditions
-		for _, value := range eventPayload.Status.StatusFeedbacks.Values {
-			if value.Name == "status" {
-				contentStatus := make(map[string]interface{})
-				if err := json.Unmarshal([]byte(*value.Value.JsonRaw), &contentStatus); err != nil {
-					return nil, fmt.Errorf("failed to convert status feedback value to content status: %v", err)
-				}
-				resourceStatus.ContentStatus = contentStatus
+	if len(eventPayload.ResourceStatus) != 1 {
+		return nil, fmt.Errorf("invalid number of resource status in the event payload: %d", len(eventPayload.ResourceStatus))
+	}
+	resourceStatus.ReconcileStatus.Conditions = eventPayload.ResourceStatus[0].Conditions
+	for _, value := range eventPayload.ResourceStatus[0].StatusFeedbacks.Values {
+		if value.Name == "status" {
+			contentStatus := make(map[string]interface{})
+			if err := json.Unmarshal([]byte(*value.Value.JsonRaw), &contentStatus); err != nil {
+				return nil, fmt.Errorf("failed to convert status feedback value to content status: %v", err)
 			}
+			resourceStatus.ContentStatus = contentStatus
 		}
 	}
 
@@ -333,7 +386,7 @@ func DecodeStatus(status datatypes.JSONMap) (map[string]interface{}, error) {
 	}
 	statusMap := make(map[string]interface{})
 	if err := json.Unmarshal(resourceStatusJSON, &statusMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal resource status JSON to map: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal resource status JSON to object: %v", err)
 	}
 
 	return statusMap, nil

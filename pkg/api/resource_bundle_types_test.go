@@ -6,121 +6,64 @@ import (
 
 	"gorm.io/datatypes"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/runtime"
-	workv1 "open-cluster-management.io/api/work/v1"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
 func TestDecodeManifestBundle(t *testing.T) {
 	cases := []struct {
-		name             string
-		input            datatypes.JSONMap
-		expected         *workpayload.ManifestBundle
-		expectedErrorMsg string
+		name                    string
+		input                   datatypes.JSONMap
+		expectedMetaData        map[string]any
+		expectedManifests       []map[string]any
+		expectedManifestConfigs []map[string]any
+		expectedDeleteOption    map[string]any
+		expectedErrorMsg        string
 	}{
 		{
-			name:             "empty",
-			input:            datatypes.JSONMap{},
-			expected:         nil,
-			expectedErrorMsg: "",
+			name:                    "empty",
+			input:                   datatypes.JSONMap{},
+			expectedMetaData:        map[string]any{},
+			expectedManifests:       []map[string]any{},
+			expectedManifestConfigs: []map[string]any{},
+			expectedDeleteOption:    map[string]any{},
+			expectedErrorMsg:        "",
 		},
 		{
-			name:  "valid",
-			input: newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}"),
-			expected: &workpayload.ManifestBundle{
-				Manifests: []workv1.Manifest{
-					{
-						RawExtension: runtime.RawExtension{
-							Raw: []byte("{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}"),
-						},
-					},
-					{
-						RawExtension: runtime.RawExtension{
-							Raw: []byte("{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"nginx\"}},\"spec\":{\"containers\":[{\"image\":\"nginxinc/nginx-unprivileged\",\"name\":\"nginx\"}]}}}}"),
-						},
-					},
-				},
-				DeleteOption: &workv1.DeleteOption{
-					PropagationPolicy: "Foreground",
-				},
-				ManifestConfigs: []workv1.ManifestConfigOption{
-					{
-						UpdateStrategy: &workv1.UpdateStrategy{
-							Type: "ServerSideApply",
-						},
-						ResourceIdentifier: workv1.ResourceIdentifier{
-							Name:      "nginx",
-							Group:     "apps",
-							Resource:  "deployments",
-							Namespace: "default",
-						},
-					},
-				},
+			name:             "valid",
+			input:            newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}"),
+			expectedMetaData: map[string]any{},
+			expectedManifests: newJSONMAPList(t, []string{
+				"{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}",
+				"{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"metadata\":{\"labels\":{\"app\":\"nginx\"}},\"spec\":{\"containers\":[{\"image\":\"nginxinc/nginx-unprivileged\",\"name\":\"nginx\"}]}}}}",
+			}...),
+			expectedManifestConfigs: newJSONMAPList(t, []string{
+				"{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}",
+			}...),
+			expectedDeleteOption: map[string]any{
+				"propagationPolicy": "Foreground",
 			},
 		},
 	}
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			_, got, err := DecodeManifestBundle(c.input)
+			gotMetaData, gotManifests, gotManifestConfigs, gotDeleteOption, err := DecodeManifestBundle(c.input)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
 				}
 				return
 			}
-			if c.expected != nil && got != nil {
-				if !equality.Semantic.DeepDerivative(c.expected.Manifests[1], got.Manifests[1]) {
-					t.Errorf("expected Manifests %s but got: %s", c.expected.Manifests[1].RawExtension.Raw, got.Manifests[1].RawExtension.Raw)
-				}
+			if !equality.Semantic.DeepEqual(c.expectedMetaData, gotMetaData) {
+				t.Errorf("expected metaData %#v but got: %#v", c.expectedMetaData, gotMetaData)
 			}
-			if !equality.Semantic.DeepDerivative(c.expected, got) {
-				t.Errorf("expected %#v but got: %#v", c.expected, got)
+			if !equality.Semantic.DeepEqual(c.expectedManifests, gotManifests) {
+				t.Errorf("expected manifests %#v but got: %#v", c.expectedManifests, gotManifests)
 			}
-		})
-	}
-
-}
-
-func TestDecodeManifestBundleToObjects(t *testing.T) {
-	cases := []struct {
-		name             string
-		input            datatypes.JSONMap
-		expected         []map[string]interface{}
-		expectedErrorMsg string
-	}{
-		{
-			name:             "empty",
-			input:            datatypes.JSONMap{},
-			expected:         nil,
-			expectedErrorMsg: "",
-		},
-		{
-			name:  "valid",
-			input: newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}"),
-			expected: []map[string]interface{}{
-				newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}"),
-				newJSONMap(t, "{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"nginxinc/nginx-unprivileged\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}"),
-			},
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			gotObjects, err := DecodeManifestBundleToObjects(c.input)
-			if err != nil {
-				if err.Error() != c.expectedErrorMsg {
-					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
-				}
-				return
+			if !equality.Semantic.DeepEqual(c.expectedManifestConfigs, gotManifestConfigs) {
+				t.Errorf("expected manifestConfigs %#v but got: %#v", c.expectedManifestConfigs, gotManifestConfigs)
 			}
-			if len(gotObjects) != len(c.expected) {
-				t.Errorf("expected %d resource in manifest bundle but got: %d", len(c.expected), len(gotObjects))
-				return
-			}
-			for i, expected := range c.expected {
-				if !equality.Semantic.DeepDerivative(expected, gotObjects[i]) {
-					t.Errorf("expected %#v but got: %#v", expected, gotObjects[i])
-				}
+			if !equality.Semantic.DeepEqual(c.expectedDeleteOption, gotDeleteOption) {
+				t.Errorf("expected deleteOption %#v but got: %#v", c.expectedDeleteOption, gotDeleteOption)
 			}
 		})
 	}
