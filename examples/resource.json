@@ -23,7 +23,7 @@
                     }
                 },
                 "spec": {
-                    "serviceAccount": "nginx",
+                    "serviceAccount": "default",
                     "containers": [
                         {
                             "image": "nginxinc/nginx-unprivileged",
@@ -34,5 +34,19 @@
                 }
             }
         }
+    },
+    "manifest_config": {
+        "resourceIdentifier": {
+            "name": "nginx",
+            "namespace": "default",
+            "group": "apps",
+            "resource": "deployments"
+        },
+        "updateStrategy": {
+            "type": "ServerSideApply"
+        }
+    },
+    "delete_option": {
+        "propagationPolicy": "Foreground"
     }
 }

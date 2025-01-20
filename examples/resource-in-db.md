@@ -1,75 +1,87 @@
 # Maestro Resource in Database
 
 ```psql
-# select jsonb_pretty(resources.manifest) from resources;
-                              jsonb_pretty
-------------------------------------------------------------------------
- {                                                                     +
-     "id": "a9c6b876-6e43-4a48-9e17-94ad85bda223",                     +
-     "data": {                                                         +
-         "manifest": {                                                 +
-             "kind": "Deployment",                                     +
-             "spec": {                                                 +
-                 "replicas": 1,                                        +
-                 "selector": {                                         +
-                     "matchLabels": {                                  +
-                         "app": "nginx"                                +
-                     }                                                 +
-                 },                                                    +
-                 "template": {                                         +
-                     "spec": {                                         +
-                         "containers": [                               +
-                             {                                         +
-                                 "name": "nginx",                      +
-                                 "image": "nginxinc/nginx-unprivileged"+
-                             }                                         +
-                         ]                                             +
-                     },                                                +
-                     "metadata": {                                     +
-                         "labels": {                                   +
-                             "app": "nginx"                            +
-                         }                                             +
-                     }                                                 +
-                 }                                                     +
-             },                                                        +
-             "metadata": {                                             +
-                 "name": "nginx1",                                     +
-                 "namespace": "default"                                +
-             },                                                        +
-             "apiVersion": "apps/v1"                                   +
-         },                                                            +
-         "configOption": {                                             +
-             "feedbackRules": [                                        +
-                 {                                                     +
-                     "type": "JSONPaths",                              +
-                     "jsonPaths": [                                    +
-                         {                                             +
-                             "name": "status",                         +
-                             "path": ".status"                         +
-                         }                                             +
-                     ]                                                 +
-                 }                                                     +
-             ],                                                        +
-             "updateStrategy": {                                       +
-                 "type": "ServerSideApply"                             +
-             }                                                         +
-         },                                                            +
-         "deleteOption": {                                             +
-             "propagationPolicy": "Foreground"                         +
-         }                                                             +
-     },                                                                +
-     "time": "2024-03-18T12:57:58.661205844Z",                         +
-     "type": "....",                                                   +
-     "source": "maestro",                                              +
-     "clustername": "",                                                +
-     "specversion": "1.0",                                             +
-     "originalsource": "",                                             +
-     "datacontenttype": "application/json"                             +
+# select jsonb_pretty(payload) from resources;
+                                jsonb_pretty
+-----------------------------------------------------------------------------
+ {                                                                          +
+     "id": "0fd2b15f-e4d5-4ecb-a5fb-455284d27e2b",                          +
+     "data": {                                                              +
+         "manifests": [                                                     +
+             {                                                              +
+                 "kind": "Deployment",                                      +
+                 "spec": {                                                  +
+                     "replicas": 1,                                         +
+                     "selector": {                                          +
+                         "matchLabels": {                                   +
+                             "app": "nginx"                                 +
+                         }                                                  +
+                     },                                                     +
+                     "template": {                                          +
+                         "spec": {                                          +
+                             "containers": [                                +
+                                 {                                          +
+                                     "name": "nginx",                       +
+                                     "image": "nginxinc/nginx-unprivileged",+
+                                     "imagePullPolicy": "IfNotPresent"      +
+                                 }                                          +
+                             ],                                             +
+                             "serviceAccount": "default"                    +
+                         },                                                 +
+                         "metadata": {                                      +
+                             "labels": {                                    +
+                                 "app": "nginx"                             +
+                             }                                              +
+                         }                                                  +
+                     }                                                      +
+                 },                                                         +
+                 "metadata": {                                              +
+                     "name": "nginx",                                       +
+                     "namespace": "default"                                 +
+                 },                                                         +
+                 "apiVersion": "apps/v1"                                    +
+             }                                                              +
+         ],                                                                 +
+         "deleteOption": {                                                  +
+             "propagationPolicy": "Foreground"                              +
+         },                                                                 +
+         "manifestConfigs": [                                               +
+             {                                                              +
+                 "feedbackRules": [                                         +
+                     {                                                      +
+                         "type": "JSONPaths",                               +
+                         "jsonPaths": [                                     +
+                             {                                              +
+                                 "name": "status",                          +
+                                 "path": ".status"                          +
+                             }                                              +
+                         ]                                                  +
+                     }                                                      +
+                 ],                                                         +
+                 "updateStrategy": {                                        +
+                     "type": "ServerSideApply"                              +
+                 },                                                         +
+                 "resourceIdentifier": {                                    +
+                     "name": "nginx",                                       +
+                     "group": "apps",                                       +
+                     "resource": "deployments",                             +
+                     "namespace": "default"                                 +
+                 }                                                          +
+             }                                                              +
+         ]                                                                  +
+     },                                                                     +
+     "time": "2025-01-20T11:04:54.621227032Z",                              +
+     "type": "....",                                                        +
+     "source": "maestro",                                                   +
+     "clustername": "",                                                     +
+     "specversion": "1.0",                                                  +
+     "originalsource": "",                                                  +
+     "datacontenttype": "application/json"                                  +
  }
 (1 row)
 
 
-# select jsonb_pretty(resources.status) from resources;
+# select jsonb_pretty(status) from resources;
                               jsonb_pretty
 --------------------------------------------------------------------
   {
