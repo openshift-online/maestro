@@ -930,9 +930,9 @@ components:
     ResourcePatchRequest:
       example:
         delete_option: "{}"
-        update_strategy: "{}"
         manifest: "{}"
         version: 0
+        manifest_config: "{}"
       properties:
         version:
           type: integer
@@ -940,7 +940,7 @@ components:
           type: object
         delete_option:
           type: object
-        update_strategy:
+        manifest_config:
           type: object
       type: object
     ResourceBundleList:
@@ -1008,7 +1008,7 @@ components:
           type: object
         delete_option:
           type: object
-        update_strategy:
+        manifest_config:
           type: object
         status:
           type: object

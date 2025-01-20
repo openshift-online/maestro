@@ -11,7 +11,7 @@ import (
 
 // ConvertResource converts a resource from the API to the openapi representation.
 func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
-	payload, err := ConvertResourceManifest(resource.Manifest, resource.DeleteOption, resource.UpdateStrategy)
+	payload, err := ConvertResourceManifest(resource.Manifest, resource.DeleteOption, resource.ManifestConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -30,13 +30,13 @@ func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
 }
 
 // ConvertResourceManifest converts a resource manifest from the openapi representation to the API.
-func ConvertResourceManifest(manifest, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
-	return api.EncodeManifest(manifest, deleteOption, updateStrategy)
+func ConvertResourceManifest(manifest, deleteOption, manifestConfig map[string]interface{}) (datatypes.JSONMap, error) {
+	return api.EncodeManifest(manifest, deleteOption, manifestConfig)
 }
 
 // PresentResource converts a resource from the API to the openapi representation.
 func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
-	manifest, deleteOption, updateStrategy, err := api.DecodeManifest(resource.Payload)
+	manifest, deleteOption, manifestConfig, err := api.DecodeManifest(resource.Payload)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,7 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 		UpdatedAt:      openapi.PtrTime(resource.UpdatedAt),
 		Manifest:       manifest,
 		DeleteOption:   deleteOption,
-		UpdateStrategy: updateStrategy,
+		ManifestConfig: manifestConfig,
 		Status:         status,
 	}
 

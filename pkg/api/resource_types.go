@@ -10,13 +10,9 @@ import (
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	ktypes "k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 
-	"open-cluster-management.io/api/utils/work/v1/utils"
 	workv1 "open-cluster-management.io/api/work/v1"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
@@ -163,24 +159,41 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 	return res, nil
 }
 
-// EncodeManifest converts resource manifest, deleteOption and updateStrategy (map[string]interface{}) into a CloudEvent JSONMap representation.
-func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
+// EncodeManifest converts resource manifest, deleteOption and manifestConfig (map[string]interface{}) into a CloudEvent JSONMap representation.
+func EncodeManifest(manifest, deleteOption, manifestConfig map[string]interface{}) (datatypes.JSONMap, error) {
 	if len(manifest) == 0 {
 		return nil, nil
 	}
 
-	// default update strategy is ServerSideApply
-	upStrategy := &workv1.UpdateStrategy{
-		Type: workv1.UpdateStrategyTypeServerSideApply,
+	manifestConfigBytes, err := json.Marshal(manifestConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal manifestConfig to json: %v", err)
 	}
-	if len(updateStrategy) != 0 {
-		updateStrategyBytes, err := json.Marshal(updateStrategy)
-		if err != nil {
-			return nil, fmt.Errorf("failed to marshal updateStrategy to json: %v", err)
+	mc := workv1.ManifestConfigOption{}
+	err = json.Unmarshal(manifestConfigBytes, &mc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal json to manifestConfig: %v", err)
+	}
+
+	// set default update strategy to ServerSideApply if not provided
+	if mc.UpdateStrategy == nil {
+		mc.UpdateStrategy = &workv1.UpdateStrategy{
+			Type: workv1.UpdateStrategyTypeServerSideApply,
 		}
-		err = json.Unmarshal(updateStrategyBytes, upStrategy)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal json to updateStrategy: %v", err)
+	}
+
+	// set default feedback rule to the whole status if not provided
+	if len(mc.FeedbackRules) == 0 {
+		mc.FeedbackRules = []workv1.FeedbackRule{
+			{
+				Type: workv1.JSONPathsType,
+				JsonPaths: []workv1.JsonPath{
+					{
+						Name: "status",
+						Path: ".status",
+					},
+				},
+			},
 		}
 	}
 
@@ -190,11 +203,12 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 	}
 
 	// set delete option to Orphan if update strategy is ReadOnly
-	if upStrategy.Type == workv1.UpdateStrategyTypeReadOnly {
+	if mc.UpdateStrategy.Type == workv1.UpdateStrategyTypeReadOnly {
 		delOption = &workv1.DeleteOption{
 			PropagationPolicy: workv1.DeletePropagationPolicyTypeOrphan,
 		}
 	} else {
+		// override delete option if provided
 		if len(deleteOption) != 0 {
 			deleteOptionBytes, err := json.Marshal(deleteOption)
 			if err != nil {
@@ -207,66 +221,24 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 		}
 	}
 
-	// create a cloud event with the manifest as the data
-	evt := cetypes.NewEventBuilder("maestro", cetypes.CloudEventsType{}).NewEvent()
-
-	// TODO: get the GVR from the manifest...
-	restConfig, err := rest.InClusterConfig()
-	if err != nil {
-		return nil, fmt.Errorf("failed to load in-cluster config: %v", err)
-	}
-	httpClient, err := rest.HTTPClientFor(restConfig)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create http client: %v", err)
-	}
-	restMapper, err := apiutil.NewDynamicRESTMapper(restConfig, httpClient)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create dynamic rest mapper: %v", err)
-	}
-
 	manifestBytes, err := json.Marshal(manifest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal manifest: %v", err)
 	}
-	unstructuredObj := &unstructured.Unstructured{
-		Object: manifest,
-	}
-	_, gvr, err := utils.BuildResourceMeta(0, unstructuredObj, restMapper)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get manifest GVR from manifest: %v", err)
-	}
 
+	// construct the event payload
 	eventPayload := &workpayload.ManifestBundle{
 		Manifests: []workv1.Manifest{
 			{
 				RawExtension: runtime.RawExtension{Raw: manifestBytes},
 			},
 		},
-		DeleteOption: delOption,
-		ManifestConfigs: []workv1.ManifestConfigOption{
-			{
-				ResourceIdentifier: workv1.ResourceIdentifier{
-					Group:     gvr.Group,
-					Resource:  gvr.Resource,
-					Name:      unstructuredObj.GetName(),
-					Namespace: unstructuredObj.GetNamespace(),
-				},
-				FeedbackRules: []workv1.FeedbackRule{
-					{
-						Type: workv1.JSONPathsType,
-						JsonPaths: []workv1.JsonPath{
-							{
-								Name: "status",
-								Path: ".status",
-							},
-						},
-					},
-				},
-				UpdateStrategy: upStrategy,
-			},
-		},
+		DeleteOption:    delOption,
+		ManifestConfigs: []workv1.ManifestConfigOption{mc},
 	}
 
+	// create a cloud event with the manifest as the data
+	evt := cetypes.NewEventBuilder("maestro", cetypes.CloudEventsType{}).NewEvent()
 	if err := evt.SetData(cloudevents.ApplicationJSON, eventPayload); err != nil {
 		return nil, fmt.Errorf("failed to set cloud event data: %v", err)
 	}
@@ -281,7 +253,7 @@ func EncodeManifest(manifest, deleteOption, updateStrategy map[string]interface{
 }
 
 // DecodeManifest converts a CloudEvent JSONMap representation of a resource manifest
-// into resource manifest, deleteOption and updateStrategy (map[string]interface{}) for openapi output.
+// into resource manifest, deleteOption and manifestConfig (map[string]interface{}) for openapi output.
 func DecodeManifest(manifest datatypes.JSONMap) (map[string]interface{}, map[string]interface{}, map[string]interface{}, error) {
 	if len(manifest) == 0 {
 		return nil, nil, nil, nil
@@ -299,11 +271,11 @@ func DecodeManifest(manifest datatypes.JSONMap) (map[string]interface{}, map[str
 
 	deleteOptionObj := map[string]interface{}{}
 	if eventPayload.DeleteOption != nil {
-		deleteOptionJsonData, err := json.Marshal(eventPayload.DeleteOption)
+		deleteOptionBytes, err := json.Marshal(eventPayload.DeleteOption)
 		if err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to marshal deleteOption to json: %v", err)
 		}
-		if err := json.Unmarshal(deleteOptionJsonData, &deleteOptionObj); err != nil {
+		if err := json.Unmarshal(deleteOptionBytes, &deleteOptionObj); err != nil {
 			return nil, nil, nil, fmt.Errorf("failed to unmarshal deleteOption to cloudevent: %v", err)
 		}
 	}
@@ -317,18 +289,16 @@ func DecodeManifest(manifest datatypes.JSONMap) (map[string]interface{}, map[str
 	if len(eventPayload.ManifestConfigs) != 1 {
 		return nil, nil, nil, fmt.Errorf("invalid number of manifestConfigs in the event payload: %d", len(eventPayload.ManifestConfigs))
 	}
-	updateStrategyObj := map[string]interface{}{}
-	if eventPayload.ManifestConfigs[0].UpdateStrategy != nil {
-		updateStrategyJsonData, err := json.Marshal(eventPayload.ManifestConfigs[0].UpdateStrategy)
-		if err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to marshal updateStrategy to json: %v", err)
-		}
-		if err := json.Unmarshal(updateStrategyJsonData, &updateStrategyObj); err != nil {
-			return nil, nil, nil, fmt.Errorf("failed to unmarshal updateStrategy json to object: %v", err)
-		}
+	manifestConfig := map[string]interface{}{}
+	manifestConfigBytes, err := json.Marshal(eventPayload.ManifestConfigs[0])
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to marshal manifestConfig to json: %v", err)
+	}
+	if err := json.Unmarshal(manifestConfigBytes, &manifestConfig); err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to unmarshal manifestConfig json to object: %v", err)
 	}
 
-	return manifestObj, deleteOptionObj, updateStrategyObj, nil
+	return manifestObj, deleteOptionObj, manifestConfig, nil
 }
 
 // DecodeStatus converts a CloudEvent JSONMap representation of a resource status

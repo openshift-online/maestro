@@ -65,6 +65,14 @@ var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply
 		res := openapi.Resource{
 			Manifest:     manifest,
 			ConsumerName: &agentTestOpts.consumerName,
+			ManifestConfig: map[string]interface{}{
+				"resourceIdentifier": map[string]interface{}{
+					"group":     "batch",
+					"resource":  "jobs",
+					"name":      sleepJobName,
+					"namespace": "default",
+				},
+			},
 		}
 
 		created, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()

@@ -31,7 +31,7 @@ type Resource struct {
 	DeletedAt      *time.Time             `json:"deleted_at,omitempty"`
 	Manifest       map[string]interface{} `json:"manifest,omitempty"`
 	DeleteOption   map[string]interface{} `json:"delete_option,omitempty"`
-	UpdateStrategy map[string]interface{} `json:"update_strategy,omitempty"`
+	ManifestConfig map[string]interface{} `json:"manifest_config,omitempty"`
 	Status         map[string]interface{} `json:"status,omitempty"`
 }
 
@@ -404,36 +404,36 @@ func (o *Resource) SetDeleteOption(v map[string]interface{}) {
 	o.DeleteOption = v
 }
 
-// GetUpdateStrategy returns the UpdateStrategy field value if set, zero value otherwise.
-func (o *Resource) GetUpdateStrategy() map[string]interface{} {
-	if o == nil || IsNil(o.UpdateStrategy) {
+// GetManifestConfig returns the ManifestConfig field value if set, zero value otherwise.
+func (o *Resource) GetManifestConfig() map[string]interface{} {
+	if o == nil || IsNil(o.ManifestConfig) {
 		var ret map[string]interface{}
 		return ret
 	}
-	return o.UpdateStrategy
+	return o.ManifestConfig
 }
 
-// GetUpdateStrategyOk returns a tuple with the UpdateStrategy field value if set, nil otherwise
+// GetManifestConfigOk returns a tuple with the ManifestConfig field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *Resource) GetUpdateStrategyOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.UpdateStrategy) {
+func (o *Resource) GetManifestConfigOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.ManifestConfig) {
 		return map[string]interface{}{}, false
 	}
-	return o.UpdateStrategy, true
+	return o.ManifestConfig, true
 }
 
-// HasUpdateStrategy returns a boolean if a field has been set.
-func (o *Resource) HasUpdateStrategy() bool {
-	if o != nil && !IsNil(o.UpdateStrategy) {
+// HasManifestConfig returns a boolean if a field has been set.
+func (o *Resource) HasManifestConfig() bool {
+	if o != nil && !IsNil(o.ManifestConfig) {
 		return true
 	}
 
 	return false
 }
 
-// SetUpdateStrategy gets a reference to the given map[string]interface{} and assigns it to the UpdateStrategy field.
-func (o *Resource) SetUpdateStrategy(v map[string]interface{}) {
-	o.UpdateStrategy = v
+// SetManifestConfig gets a reference to the given map[string]interface{} and assigns it to the ManifestConfig field.
+func (o *Resource) SetManifestConfig(v map[string]interface{}) {
+	o.ManifestConfig = v
 }
 
 // GetStatus returns the Status field value if set, zero value otherwise.
@@ -511,8 +511,8 @@ func (o Resource) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.DeleteOption) {
 		toSerialize["delete_option"] = o.DeleteOption
 	}
-	if !IsNil(o.UpdateStrategy) {
-		toSerialize["update_strategy"] = o.UpdateStrategy
+	if !IsNil(o.ManifestConfig) {
+		toSerialize["manifest_config"] = o.ManifestConfig
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status

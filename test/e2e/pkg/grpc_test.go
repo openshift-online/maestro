@@ -96,7 +96,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec using grpc client", func() {
-			evt := helper.NewBundleEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
+			evt := helper.NewEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -153,7 +153,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec with update request using grpc client", func() {
-			evt := helper.NewBundleEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
+			evt := helper.NewEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -210,7 +210,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource spec with delete request using grpc client", func() {
-			evt := helper.NewBundleEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
+			evt := helper.NewEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -303,7 +303,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource bundle spec using grpc client", func() {
-			evt := helper.NewBundleEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
+			evt := helper.NewEvent(sourceID, "create_request", agentTestOpts.consumerName, resourceID, deployName, 1, 1)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -375,7 +375,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource bundle spec with update request using grpc client", func() {
-			evt := helper.NewBundleEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
+			evt := helper.NewEvent(sourceID, "update_request", agentTestOpts.consumerName, resourceID, deployName, 1, 2)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")
@@ -447,7 +447,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		})
 
 		It("publish a resource bundle spec with delete request using grpc client", func() {
-			evt := helper.NewBundleEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
+			evt := helper.NewEvent(sourceID, "delete_request", agentTestOpts.consumerName, resourceID, deployName, 2, 2)
 			pbEvt := &pbv1.CloudEvent{}
 			err := grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt)
 			Expect(err).To(BeNil(), "failed to convert spec from cloudevent to protobuf")

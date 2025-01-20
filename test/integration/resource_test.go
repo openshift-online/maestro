@@ -750,7 +750,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(manifest["spec"].(map[string]interface{})["replicas"]).To(Equal(float64(2)))
 
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestEventDataType,
+		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              common.DeleteRequestAction,
 	}, newRes)

@@ -95,8 +95,16 @@ func (helper *Helper) NewAPIResourceWithSA(consumerName, deployName, sa string, 
 	}
 
 	return openapi.Resource{
-		Manifest:     testManifest,
 		ConsumerName: &consumerName,
+		Manifest:     testManifest,
+		ManifestConfig: map[string]interface{}{
+			"resourceIdentifier": map[string]string{
+				"group":     "apps",
+				"resource":  "deployments",
+				"name":      deployName,
+				"namespace": namespace,
+			},
+		},
 	}
 }
 
@@ -122,8 +130,16 @@ func (helper *Helper) NewReadOnlyAPIResource(consumerName, deployName string) op
 	return openapi.Resource{
 		Manifest:     testManifest,
 		ConsumerName: &consumerName,
-		UpdateStrategy: map[string]interface{}{
-			"type": "ReadOnly",
+		ManifestConfig: map[string]interface{}{
+			"resourceIdentifier": map[string]string{
+				"group":     "apps",
+				"resource":  "deployments",
+				"name":      deployName,
+				"namespace": namespace,
+			},
+			"updateStrategy": map[string]interface{}{
+				"type": "ReadOnly",
+			},
 		},
 	}
 }
@@ -132,7 +148,7 @@ func (helper *Helper) NewReadOnlyAPIResource(consumerName, deployName string) op
 // It generates a deployment for nginx using the testManifestJSON template, assigning a random deploy name to avoid testing conflicts.
 func (helper *Helper) NewResource(consumerName, deployName string, replicas int, resourceVersion int32) *api.Resource {
 	testResource := helper.NewAPIResource(consumerName, deployName, replicas)
-	testPayload, err := api.EncodeManifest(testResource.Manifest, testResource.DeleteOption, testResource.UpdateStrategy)
+	testPayload, err := api.EncodeManifest(testResource.Manifest, testResource.DeleteOption, testResource.ManifestConfig)
 	if err != nil {
 		helper.T.Errorf("error encoding manifest: %q", err)
 	}
@@ -311,74 +327,10 @@ func (helper *Helper) CreateConsumerList(count int) (consumers []*api.Consumer) 
 	return consumers
 }
 
-// NewEvent creates a CloudEvent with the given source, action, consumer name, resource ID, deploy name, resource version, and replicas.
+// NewEvent creates a CloudEvent with the given source, action, consumer name, resource ID, deployment name, resource version, and replicas.
 // It generates a nginx deployment using the testManifestJSON template, assigning a random deploy name to avoid testing conflicts.
 // If the action is "delete_request," the event includes a deletion timestamp.
 func (helper *Helper) NewEvent(source, action, consumerName, resourceID, deployName string, resourceVersion int64, replicas int) *cloudevents.Event {
-	sa := "default"              // default service account
-	deployNamespace := "default" // default namespace
-	testManifest := map[string]interface{}{}
-	if err := json.Unmarshal([]byte(fmt.Sprintf(testManifestJSON, deployName, deployNamespace, replicas, sa)), &testManifest); err != nil {
-		helper.T.Errorf("error unmarshalling manifest: %q", err)
-	}
-
-	eventType := cetypes.CloudEventsType{
-		CloudEventsDataType: workpayload.ManifestEventDataType,
-		SubResource:         cetypes.SubResourceSpec,
-		Action:              cetypes.EventAction(action),
-	}
-	evtBuilder := cetypes.NewEventBuilder(source, eventType).
-		WithClusterName(consumerName).
-		WithResourceID(resourceID).
-		WithResourceVersion(resourceVersion)
-
-	// add deletion timestamp if action is delete_request
-	if action == "delete_request" {
-		evtBuilder.WithDeletionTimestamp(time.Now())
-	}
-
-	evt := evtBuilder.NewEvent()
-
-	// if action is delete_request, no data is needed
-	if action == "delete_request" {
-		evt.SetData(cloudevents.ApplicationJSON, nil)
-		return &evt
-	}
-
-	eventPayload := &workpayload.Manifest{
-		Manifest: unstructured.Unstructured{Object: testManifest},
-		DeleteOption: &workv1.DeleteOption{
-			PropagationPolicy: workv1.DeletePropagationPolicyTypeForeground,
-		},
-		ConfigOption: &workpayload.ManifestConfigOption{
-			FeedbackRules: []workv1.FeedbackRule{
-				{
-					Type: workv1.JSONPathsType,
-					JsonPaths: []workv1.JsonPath{
-						{
-							Name: "status",
-							Path: ".status",
-						},
-					},
-				},
-			},
-			UpdateStrategy: &workv1.UpdateStrategy{
-				Type: workv1.UpdateStrategyTypeServerSideApply,
-			},
-		},
-	}
-
-	if err := evt.SetData(cloudevents.ApplicationJSON, eventPayload); err != nil {
-		helper.T.Errorf("failed to set cloud event data: %q", err)
-	}
-
-	return &evt
-}
-
-// NewBundleEvent creates a CloudEvent with the given source, action, consumer name, resource ID, resource version, and replicas.
-// It generates a bundle of nginx deployments using the testManifestJSON template, assigning a random deploy name to avoid testing conflicts.
-// If the action is "delete_request," the event includes a deletion timestamp.
-func (helper *Helper) NewBundleEvent(source, action, consumerName, resourceID, deployName string, resourceVersion int64, replicas int) *cloudevents.Event {
 	sa := "default"              // default service account
 	deployNamespace := "default" // default namespace
 	testManifest := map[string]interface{}{}

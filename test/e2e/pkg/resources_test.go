@@ -156,7 +156,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		var resource *openapi.Resource
 		It("post the nginx resource to the maestro api with createOnly updateStrategy", func() {
 			res := helper.NewAPIResource(agentTestOpts.consumerName, deployName, 1)
-			res.UpdateStrategy = map[string]interface{}{"type": "CreateOnly"}
+			res.ManifestConfig["updateStrategy"] = map[string]interface{}{"type": "CreateOnly"}
 			var resp *http.Response
 			var err error
 			resource, resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()

@@ -12,7 +12,7 @@ Name | Type | Description | Notes
 **DeletedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
 **DeleteOption** | Pointer to **map[string]interface{}** |  | [optional] 
-**UpdateStrategy** | Pointer to **map[string]interface{}** |  | [optional] 
+**ManifestConfig** | Pointer to **map[string]interface{}** |  | [optional] 
 **Status** | Pointer to **map[string]interface{}** |  | [optional] 
 
 ## Methods
@@ -234,30 +234,30 @@ SetDeleteOption sets DeleteOption field to given value.
 
 HasDeleteOption returns a boolean if a field has been set.
 
-### GetUpdateStrategy
+### GetManifestConfig
 
-`func (o *ResourceAllOf) GetUpdateStrategy() map[string]interface{}`
+`func (o *ResourceAllOf) GetManifestConfig() map[string]interface{}`
 
-GetUpdateStrategy returns the UpdateStrategy field if non-nil, zero value otherwise.
+GetManifestConfig returns the ManifestConfig field if non-nil, zero value otherwise.
 
-### GetUpdateStrategyOk
+### GetManifestConfigOk
 
-`func (o *ResourceAllOf) GetUpdateStrategyOk() (*map[string]interface{}, bool)`
+`func (o *ResourceAllOf) GetManifestConfigOk() (*map[string]interface{}, bool)`
 
-GetUpdateStrategyOk returns a tuple with the UpdateStrategy field if it's non-nil, zero value otherwise
+GetManifestConfigOk returns a tuple with the ManifestConfig field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
-### SetUpdateStrategy
+### SetManifestConfig
 
-`func (o *ResourceAllOf) SetUpdateStrategy(v map[string]interface{})`
+`func (o *ResourceAllOf) SetManifestConfig(v map[string]interface{})`
 
-SetUpdateStrategy sets UpdateStrategy field to given value.
+SetManifestConfig sets ManifestConfig field to given value.
 
-### HasUpdateStrategy
+### HasManifestConfig
 
-`func (o *ResourceAllOf) HasUpdateStrategy() bool`
+`func (o *ResourceAllOf) HasManifestConfig() bool`
 
-HasUpdateStrategy returns a boolean if a field has been set.
+HasManifestConfig returns a boolean if a field has been set.
 
 ### GetStatus
 
