@@ -35,16 +35,12 @@
             }
         }
     },
-    "manifest_config": {
-        "resourceIdentifier": {
-            "name": "nginx",
-            "namespace": "default",
-            "group": "apps",
-            "resource": "deployments"
-        },
-        "updateStrategy": {
-            "type": "ServerSideApply"
-        }
+    "group_resource": {
+        "group": "apps",
+        "resource": "deployments"
+    },
+    "update_strategy": {
+        "type": "ServerSideApply"
     },
     "delete_option": {
         "propagationPolicy": "Foreground"

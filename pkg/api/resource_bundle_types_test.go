@@ -46,24 +46,26 @@ func TestDecodeManifestBundle(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotMetaData, gotManifests, gotManifestConfigs, gotDeleteOption, err := DecodeManifestBundle(c.input)
+			gotManifestBundle, err := DecodeManifestBundle(c.input)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
 				}
 				return
 			}
-			if !equality.Semantic.DeepEqual(c.expectedMetaData, gotMetaData) {
-				t.Errorf("expected metaData %#v but got: %#v", c.expectedMetaData, gotMetaData)
-			}
-			if !equality.Semantic.DeepEqual(c.expectedManifests, gotManifests) {
-				t.Errorf("expected manifests %#v but got: %#v", c.expectedManifests, gotManifests)
-			}
-			if !equality.Semantic.DeepEqual(c.expectedManifestConfigs, gotManifestConfigs) {
-				t.Errorf("expected manifestConfigs %#v but got: %#v", c.expectedManifestConfigs, gotManifestConfigs)
-			}
-			if !equality.Semantic.DeepEqual(c.expectedDeleteOption, gotDeleteOption) {
-				t.Errorf("expected deleteOption %#v but got: %#v", c.expectedDeleteOption, gotDeleteOption)
+			if gotManifestBundle != nil {
+				if !equality.Semantic.DeepEqual(c.expectedMetaData, gotManifestBundle.Meta) {
+					t.Errorf("expected metaData %#v but got: %#v", c.expectedMetaData, gotManifestBundle.Meta)
+				}
+				if !equality.Semantic.DeepEqual(c.expectedManifests, gotManifestBundle.Manifests) {
+					t.Errorf("expected manifests %#v but got: %#v", c.expectedManifests, gotManifestBundle.Manifests)
+				}
+				if !equality.Semantic.DeepEqual(c.expectedManifestConfigs, gotManifestBundle.ManifestConfigs) {
+					t.Errorf("expected manifestConfigs %#v but got: %#v", c.expectedManifestConfigs, gotManifestBundle.ManifestConfigs)
+				}
+				if !equality.Semantic.DeepEqual(c.expectedDeleteOption, gotManifestBundle.DeleteOption) {
+					t.Errorf("expected deleteOption %#v but got: %#v", c.expectedDeleteOption, gotManifestBundle.DeleteOption)
+				}
 			}
 		})
 	}

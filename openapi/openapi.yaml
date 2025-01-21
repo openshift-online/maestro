@@ -586,9 +586,11 @@ components:
             format: date-time
           manifest:
             type: object
+          group_resource:
+            type: object
           delete_option:
             type: object
-          manifest_config:
+          update_strategy:
             type: object
           status:
             type: object
@@ -610,7 +612,7 @@ components:
           type: object
         delete_option:
           type: object
-        manifest_config:
+        update_strategy:
           type: object
     ResourceBundleList:
       allOf:

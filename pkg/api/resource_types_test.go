@@ -12,8 +12,9 @@ func TestEncodeManifest(t *testing.T) {
 	cases := []struct {
 		name             string
 		manifest         map[string]interface{}
+		groupResource    map[string]interface{}
 		deleteOption     map[string]interface{}
-		manifestConfig   map[string]interface{}
+		updateStrategy   map[string]interface{}
 		expected         datatypes.JSONMap
 		expectedErrorMsg string
 	}{
@@ -23,22 +24,23 @@ func TestEncodeManifest(t *testing.T) {
 			expected: datatypes.JSONMap{},
 		},
 		{
-			name:           "valid",
-			manifest:       newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
-			manifestConfig: newJSONMap(t, "{\"resourceIdentifier\":{\"group\":\"\",\"name\":\"test\",\"namespace\":\"test\",\"resource\":\"configmaps\"},\"updateStrategy\":{\"type\":\"ServerSideApply\"}}"),
-			expected:       newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"feedbackRules\":[{\"jsonPaths\":[{\"name\":\"status\",\"path\":\".status\"}],\"type\":\"JSONPaths\"}],\"resourceIdentifier\":{\"group\":\"\",\"name\":\"test\",\"namespace\":\"test\",\"resource\":\"configmaps\"},\"updateStrategy\":{\"type\":\"ServerSideApply\"}}],\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}]}}"),
+			name:          "valid",
+			manifest:      newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
+			groupResource: newJSONMap(t, "{\"group\":\"\",\"resource\":\"configmaps\"}"),
+			expected:      newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"feedbackRules\":[{\"jsonPaths\":[{\"name\":\"status\",\"path\":\".status\"}],\"type\":\"JSONPaths\"}],\"resourceIdentifier\":{\"group\":\"\",\"name\":\"test\",\"namespace\":\"test\",\"resource\":\"configmaps\"},\"updateStrategy\":{\"type\":\"ServerSideApply\"}}],\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}]}}"),
 		},
 		{
 			name:           "valid",
 			deleteOption:   newJSONMap(t, "{\"propagationPolicy\": \"Orphan\"}"),
 			manifest:       newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
-			manifestConfig: newJSONMap(t, "{\"resourceIdentifier\":{\"group\":\"\",\"name\":\"test\",\"namespace\":\"test\",\"resource\":\"configmaps\"},\"updateStrategy\":{\"type\":\"CreateOnly\"}}"),
+			groupResource:  newJSONMap(t, "{\"group\":\"\",\"resource\":\"configmaps\"}"),
+			updateStrategy: newJSONMap(t, "{\"type\": \"CreateOnly\"}"),
 			expected:       newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"deleteOption\":{\"propagationPolicy\":\"Orphan\"},\"manifestConfigs\":[{\"feedbackRules\":[{\"jsonPaths\":[{\"name\":\"status\",\"path\":\".status\"}],\"type\":\"JSONPaths\"}],\"resourceIdentifier\":{\"group\":\"\",\"name\":\"test\",\"namespace\":\"test\",\"resource\":\"configmaps\"},\"updateStrategy\":{\"type\":\"CreateOnly\"}}],\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}]}}"),
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotManifest, err := EncodeManifest(c.manifest, c.deleteOption, c.manifestConfig)
+			gotManifest, err := EncodeManifest(c.manifest, c.groupResource, c.deleteOption, c.updateStrategy)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
@@ -57,8 +59,9 @@ func TestDecodeManifest(t *testing.T) {
 		name                   string
 		input                  datatypes.JSONMap
 		expectedManifest       map[string]interface{}
+		expectedGroupResource  map[string]interface{}
 		expectedDeleteOption   map[string]interface{}
-		expectedManifestConfig map[string]interface{}
+		expectedUpdateStrategy map[string]interface{}
 		expectedErrorMsg       string
 	}{
 		{
@@ -66,20 +69,21 @@ func TestDecodeManifest(t *testing.T) {
 			input:                  datatypes.JSONMap{},
 			expectedManifest:       nil,
 			expectedDeleteOption:   nil,
-			expectedManifestConfig: nil,
+			expectedUpdateStrategy: nil,
 			expectedErrorMsg:       "",
 		},
 		{
 			name:                   "valid",
 			input:                  newJSONMap(t, "{\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"data\":{\"deleteOption\":{\"propagationPolicy\":\"Orphan\"},\"manifestConfigs\":[{\"feedbackRules\":[{\"jsonPaths\":[{\"name\":\"status\",\"path\":\".status\"}],\"type\":\"JSONPaths\"}],\"resourceIdentifier\":{\"group\":\"\",\"name\":\"test\",\"namespace\":\"test\",\"resource\":\"configmaps\"},\"updateStrategy\":{\"type\":\"CreateOnly\"}}],\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}]}}"),
 			expectedManifest:       newJSONMap(t, "{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"test\",\"namespace\":\"test\"}}"),
+			expectedGroupResource:  newJSONMap(t, "{\"group\":\"\",\"resource\":\"configmaps\"}"),
 			expectedDeleteOption:   newJSONMap(t, "{\"propagationPolicy\": \"Orphan\"}"),
-			expectedManifestConfig: newJSONMap(t, "{\"resourceIdentifier\":{\"group\":\"\",\"name\":\"test\",\"namespace\":\"test\",\"resource\":\"configmaps\"},\"updateStrategy\":{\"type\":\"CreateOnly\"},\"feedbackRules\":[{\"jsonPaths\":[{\"name\":\"status\",\"path\":\".status\"}],\"type\":\"JSONPaths\"}]}"),
+			expectedUpdateStrategy: newJSONMap(t, "{\"type\": \"CreateOnly\"}"),
 		},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotManifest, gotDeleteOption, gotManifestConfig, err := DecodeManifest(c.input)
+			gotManifest, gotGroupResource, gotDeleteOption, gotUpdateStrategy, err := DecodeManifest(c.input)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
@@ -89,11 +93,14 @@ func TestDecodeManifest(t *testing.T) {
 			if !equality.Semantic.DeepDerivative(c.expectedManifest, gotManifest) {
 				t.Errorf("expected %#v but got: %#v", c.expectedManifest, gotManifest)
 			}
+			if !equality.Semantic.DeepDerivative(c.expectedGroupResource, gotGroupResource) {
+				t.Errorf("expected %#v but got: %#v", c.expectedGroupResource, gotGroupResource)
+			}
 			if !equality.Semantic.DeepDerivative(c.expectedDeleteOption, gotDeleteOption) {
 				t.Errorf("expected %#v but got: %#v", c.expectedDeleteOption, gotDeleteOption)
 			}
-			if !equality.Semantic.DeepDerivative(c.expectedManifestConfig, gotManifestConfig) {
-				t.Errorf("expected %#v but got: %#v", c.expectedManifestConfig, gotManifestConfig)
+			if !equality.Semantic.DeepDerivative(c.expectedUpdateStrategy, gotUpdateStrategy) {
+				t.Errorf("expected %#v but got: %#v", c.expectedUpdateStrategy, gotUpdateStrategy)
 			}
 		})
 	}

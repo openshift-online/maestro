@@ -22,7 +22,7 @@ type ResourcePatchRequest struct {
 	Version        *int32                 `json:"version,omitempty"`
 	Manifest       map[string]interface{} `json:"manifest,omitempty"`
 	DeleteOption   map[string]interface{} `json:"delete_option,omitempty"`
-	ManifestConfig map[string]interface{} `json:"manifest_config,omitempty"`
+	UpdateStrategy map[string]interface{} `json:"update_strategy,omitempty"`
 }
 
 // NewResourcePatchRequest instantiates a new ResourcePatchRequest object
@@ -138,36 +138,36 @@ func (o *ResourcePatchRequest) SetDeleteOption(v map[string]interface{}) {
 	o.DeleteOption = v
 }
 
-// GetManifestConfig returns the ManifestConfig field value if set, zero value otherwise.
-func (o *ResourcePatchRequest) GetManifestConfig() map[string]interface{} {
-	if o == nil || IsNil(o.ManifestConfig) {
+// GetUpdateStrategy returns the UpdateStrategy field value if set, zero value otherwise.
+func (o *ResourcePatchRequest) GetUpdateStrategy() map[string]interface{} {
+	if o == nil || IsNil(o.UpdateStrategy) {
 		var ret map[string]interface{}
 		return ret
 	}
-	return o.ManifestConfig
+	return o.UpdateStrategy
 }
 
-// GetManifestConfigOk returns a tuple with the ManifestConfig field value if set, nil otherwise
+// GetUpdateStrategyOk returns a tuple with the UpdateStrategy field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourcePatchRequest) GetManifestConfigOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.ManifestConfig) {
+func (o *ResourcePatchRequest) GetUpdateStrategyOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.UpdateStrategy) {
 		return map[string]interface{}{}, false
 	}
-	return o.ManifestConfig, true
+	return o.UpdateStrategy, true
 }
 
-// HasManifestConfig returns a boolean if a field has been set.
-func (o *ResourcePatchRequest) HasManifestConfig() bool {
-	if o != nil && !IsNil(o.ManifestConfig) {
+// HasUpdateStrategy returns a boolean if a field has been set.
+func (o *ResourcePatchRequest) HasUpdateStrategy() bool {
+	if o != nil && !IsNil(o.UpdateStrategy) {
 		return true
 	}
 
 	return false
 }
 
-// SetManifestConfig gets a reference to the given map[string]interface{} and assigns it to the ManifestConfig field.
-func (o *ResourcePatchRequest) SetManifestConfig(v map[string]interface{}) {
-	o.ManifestConfig = v
+// SetUpdateStrategy gets a reference to the given map[string]interface{} and assigns it to the UpdateStrategy field.
+func (o *ResourcePatchRequest) SetUpdateStrategy(v map[string]interface{}) {
+	o.UpdateStrategy = v
 }
 
 func (o ResourcePatchRequest) MarshalJSON() ([]byte, error) {
@@ -189,8 +189,8 @@ func (o ResourcePatchRequest) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.DeleteOption) {
 		toSerialize["delete_option"] = o.DeleteOption
 	}
-	if !IsNil(o.ManifestConfig) {
-		toSerialize["manifest_config"] = o.ManifestConfig
+	if !IsNil(o.UpdateStrategy) {
+		toSerialize["update_strategy"] = o.UpdateStrategy
 	}
 	return toSerialize, nil
 }

@@ -27,8 +27,9 @@ type ResourceAllOf struct {
 	UpdatedAt      *time.Time             `json:"updated_at,omitempty"`
 	DeletedAt      *time.Time             `json:"deleted_at,omitempty"`
 	Manifest       map[string]interface{} `json:"manifest,omitempty"`
+	GroupResource  map[string]interface{} `json:"group_resource,omitempty"`
 	DeleteOption   map[string]interface{} `json:"delete_option,omitempty"`
-	ManifestConfig map[string]interface{} `json:"manifest_config,omitempty"`
+	UpdateStrategy map[string]interface{} `json:"update_strategy,omitempty"`
 	Status         map[string]interface{} `json:"status,omitempty"`
 }
 
@@ -273,6 +274,38 @@ func (o *ResourceAllOf) SetManifest(v map[string]interface{}) {
 	o.Manifest = v
 }
 
+// GetGroupResource returns the GroupResource field value if set, zero value otherwise.
+func (o *ResourceAllOf) GetGroupResource() map[string]interface{} {
+	if o == nil || IsNil(o.GroupResource) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.GroupResource
+}
+
+// GetGroupResourceOk returns a tuple with the GroupResource field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourceAllOf) GetGroupResourceOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.GroupResource) {
+		return map[string]interface{}{}, false
+	}
+	return o.GroupResource, true
+}
+
+// HasGroupResource returns a boolean if a field has been set.
+func (o *ResourceAllOf) HasGroupResource() bool {
+	if o != nil && !IsNil(o.GroupResource) {
+		return true
+	}
+
+	return false
+}
+
+// SetGroupResource gets a reference to the given map[string]interface{} and assigns it to the GroupResource field.
+func (o *ResourceAllOf) SetGroupResource(v map[string]interface{}) {
+	o.GroupResource = v
+}
+
 // GetDeleteOption returns the DeleteOption field value if set, zero value otherwise.
 func (o *ResourceAllOf) GetDeleteOption() map[string]interface{} {
 	if o == nil || IsNil(o.DeleteOption) {
@@ -305,36 +338,36 @@ func (o *ResourceAllOf) SetDeleteOption(v map[string]interface{}) {
 	o.DeleteOption = v
 }
 
-// GetManifestConfig returns the ManifestConfig field value if set, zero value otherwise.
-func (o *ResourceAllOf) GetManifestConfig() map[string]interface{} {
-	if o == nil || IsNil(o.ManifestConfig) {
+// GetUpdateStrategy returns the UpdateStrategy field value if set, zero value otherwise.
+func (o *ResourceAllOf) GetUpdateStrategy() map[string]interface{} {
+	if o == nil || IsNil(o.UpdateStrategy) {
 		var ret map[string]interface{}
 		return ret
 	}
-	return o.ManifestConfig
+	return o.UpdateStrategy
 }
 
-// GetManifestConfigOk returns a tuple with the ManifestConfig field value if set, nil otherwise
+// GetUpdateStrategyOk returns a tuple with the UpdateStrategy field value if set, nil otherwise
 // and a boolean to check if the value has been set.
-func (o *ResourceAllOf) GetManifestConfigOk() (map[string]interface{}, bool) {
-	if o == nil || IsNil(o.ManifestConfig) {
+func (o *ResourceAllOf) GetUpdateStrategyOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.UpdateStrategy) {
 		return map[string]interface{}{}, false
 	}
-	return o.ManifestConfig, true
+	return o.UpdateStrategy, true
 }
 
-// HasManifestConfig returns a boolean if a field has been set.
-func (o *ResourceAllOf) HasManifestConfig() bool {
-	if o != nil && !IsNil(o.ManifestConfig) {
+// HasUpdateStrategy returns a boolean if a field has been set.
+func (o *ResourceAllOf) HasUpdateStrategy() bool {
+	if o != nil && !IsNil(o.UpdateStrategy) {
 		return true
 	}
 
 	return false
 }
 
-// SetManifestConfig gets a reference to the given map[string]interface{} and assigns it to the ManifestConfig field.
-func (o *ResourceAllOf) SetManifestConfig(v map[string]interface{}) {
-	o.ManifestConfig = v
+// SetUpdateStrategy gets a reference to the given map[string]interface{} and assigns it to the UpdateStrategy field.
+func (o *ResourceAllOf) SetUpdateStrategy(v map[string]interface{}) {
+	o.UpdateStrategy = v
 }
 
 // GetStatus returns the Status field value if set, zero value otherwise.
@@ -400,11 +433,14 @@ func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
 	if !IsNil(o.Manifest) {
 		toSerialize["manifest"] = o.Manifest
 	}
+	if !IsNil(o.GroupResource) {
+		toSerialize["group_resource"] = o.GroupResource
+	}
 	if !IsNil(o.DeleteOption) {
 		toSerialize["delete_option"] = o.DeleteOption
 	}
-	if !IsNil(o.ManifestConfig) {
-		toSerialize["manifest_config"] = o.ManifestConfig
+	if !IsNil(o.UpdateStrategy) {
+		toSerialize["update_strategy"] = o.UpdateStrategy
 	}
 	if !IsNil(o.Status) {
 		toSerialize["status"] = o.Status

@@ -97,13 +97,9 @@ func (helper *Helper) NewAPIResourceWithSA(consumerName, deployName, sa string, 
 	return openapi.Resource{
 		ConsumerName: &consumerName,
 		Manifest:     testManifest,
-		ManifestConfig: map[string]interface{}{
-			"resourceIdentifier": map[string]string{
-				"group":     "apps",
-				"resource":  "deployments",
-				"name":      deployName,
-				"namespace": namespace,
-			},
+		GroupResource: map[string]interface{}{
+			"group":    "apps",
+			"resource": "deployments",
 		},
 	}
 }
@@ -130,16 +126,12 @@ func (helper *Helper) NewReadOnlyAPIResource(consumerName, deployName string) op
 	return openapi.Resource{
 		Manifest:     testManifest,
 		ConsumerName: &consumerName,
-		ManifestConfig: map[string]interface{}{
-			"resourceIdentifier": map[string]string{
-				"group":     "apps",
-				"resource":  "deployments",
-				"name":      deployName,
-				"namespace": namespace,
-			},
-			"updateStrategy": map[string]interface{}{
-				"type": "ReadOnly",
-			},
+		GroupResource: map[string]interface{}{
+			"group":    "apps",
+			"resource": "deployments",
+		},
+		UpdateStrategy: map[string]interface{}{
+			"type": "ReadOnly",
 		},
 	}
 }
@@ -148,7 +140,7 @@ func (helper *Helper) NewReadOnlyAPIResource(consumerName, deployName string) op
 // It generates a deployment for nginx using the testManifestJSON template, assigning a random deploy name to avoid testing conflicts.
 func (helper *Helper) NewResource(consumerName, deployName string, replicas int, resourceVersion int32) *api.Resource {
 	testResource := helper.NewAPIResource(consumerName, deployName, replicas)
-	testPayload, err := api.EncodeManifest(testResource.Manifest, testResource.DeleteOption, testResource.ManifestConfig)
+	testPayload, err := api.EncodeManifest(testResource.Manifest, testResource.GroupResource, testResource.DeleteOption, testResource.UpdateStrategy)
 	if err != nil {
 		helper.T.Errorf("error encoding manifest: %q", err)
 	}

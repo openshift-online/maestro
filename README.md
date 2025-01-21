@@ -205,16 +205,12 @@ ocm post /api/maestro/v1/resources << EOF
       }
     }
   },
-  "manifest_config": {
-    "resourceIdentifier": {
-      "name": "nginx",
-      "namespace": "default",
-      "group": "apps",
-      "resource": "deployments"
-    },
-    "updateStrategy": {
-      "type": "ServerSideApply"
-    }
+  "group_resource": {
+    "group": "apps",
+    "resource": "deployments"
+  },
+  "update_strategy": {
+    "type": "ServerSideApply"
   },
   "delete_option": {
     "propagationPolicy": "Foreground"
@@ -223,11 +219,13 @@ ocm post /api/maestro/v1/resources << EOF
 EOF
 
 ```
+group_resource specifies the group and resource of the creating Kubernetes resource, forming part of its GVR (group, version, resource) definition. For example, when creating a deployment resource with GVR `apps/v1/deployments`, the group is `apps`, and the resource is `deployments`.
+
 delete_option defines the option to delete the resource. It is optional when creating a resource. The propagationPolicy of `delete_option` can be:
 - `Foreground` represents that the resource should be fourground deleted. This is a default value.
 - `Orphan` represents that the resource is orphaned when deleting the resource.
 
-manifest_config defines the resource identifier (required) and optional update strategy. update strategy defines the strategy to update the resource. It is optional when creating a resource. The type of `update_strategy` can be:
+update_strategy defines the strategy to update the resource. It is optional when creating a resource. The type of `update_strategy` can be:
 - `ServerSideApply` means to update resource using server side apply with work-controller as the field manager. This is a default value.
 - `Update` means to update resource by an update call.
 - `CreateOnly` means do not update resource based on current manifest.
@@ -281,27 +279,12 @@ ocm get /api/maestro/v1/resources
           }
         }
       },
-      "manifest_config": {
-        "feedbackRules": [
-          {
-            "jsonPaths": [
-              {
-                "name": "status",
-                "path": ".status"
-              }
-            ],
-            "type": "JSONPaths"
-          }
-        ],
-        "resourceIdentifier": {
-          "group": "apps",
-          "name": "nginx",
-          "namespace": "default",
-          "resource": "deployments"
-        },
-        "updateStrategy": {
-          "type": "ServerSideApply"
-        }
+      "group_resource": {
+        "group": "apps",
+        "resource": "deployments"
+      },
+      "update_strategy": {
+        "type":"ServerSideApply"
       },
       "status": {
         "ContentStatus": {
@@ -696,14 +679,10 @@ $ ocm post /api/maestro/v1/resources << EOF
       }
     }
   },
-  "manifest_config": {
-    "resourceIdentifier": {
-      "name": "nginx",
-      "namespace": "default",
-      "group": "apps",
-      "resource": "deployments"
-    }
-  }
+  "group_resource": {
+    "group": "apps",
+    "resource": "deployments"
+  },
 }
 EOF
 ```

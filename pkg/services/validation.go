@@ -44,20 +44,20 @@ func ValidateManifest(resType api.ResourceType, manifest datatypes.JSONMap) erro
 	switch resType {
 	case api.ResourceTypeSingle:
 		// TODO: validate the deleteOption and updateStrategy
-		obj, _, _, err := api.DecodeManifest(manifest)
+		obj, _, _, _, err := api.DecodeManifest(manifest)
 		if err != nil {
 			return fmt.Errorf("failed to decode manifest: %v", err)
 		}
 		return ValidateObject(obj)
 	case api.ResourceTypeBundle:
-		_, objs, _, _, err := api.DecodeManifestBundle(manifest)
+		manifestBundle, err := api.DecodeManifestBundle(manifest)
 		if err != nil {
 			return fmt.Errorf("failed to decode manifest bundle: %v", err)
 		}
-		if len(objs) == 0 {
+		if manifestBundle == nil {
 			return fmt.Errorf("manifest bundle is empty")
 		}
-		for _, obj := range objs {
+		for _, obj := range manifestBundle.Manifests {
 			if err := ValidateObject(obj); err != nil {
 				return err
 			}
@@ -102,32 +102,35 @@ func ValidateObject(obj datatypes.JSONMap) error {
 func ValidateManifestUpdate(resType api.ResourceType, new, old datatypes.JSONMap) error {
 	switch resType {
 	case api.ResourceTypeSingle:
-		newObj, _, _, err := api.DecodeManifest(new)
+		newObj, _, _, _, err := api.DecodeManifest(new)
 		if err != nil {
 			return fmt.Errorf("failed to decode new manifest: %v", err)
 		}
-		oldObj, _, _, err := api.DecodeManifest(old)
+		oldObj, _, _, _, err := api.DecodeManifest(old)
 		if err != nil {
 			return fmt.Errorf("failed to decode old manifest: %v", err)
 		}
 		return ValidateObjectUpdate(newObj, oldObj)
 	case api.ResourceTypeBundle:
-		_, newObjs, _, _, err := api.DecodeManifestBundle(new)
+		newManifestBundle, err := api.DecodeManifestBundle(new)
 		if err != nil {
 			return fmt.Errorf("failed to decode new manifest bundle: %v", err)
 		}
-		_, oldObjs, _, _, err := api.DecodeManifestBundle(old)
+		if newManifestBundle == nil {
+			return fmt.Errorf("new manifest bundle is empty")
+		}
+		oldManifestBundle, err := api.DecodeManifestBundle(old)
 		if err != nil {
 			return fmt.Errorf("failed to decode old manifest bundle: %v", err)
 		}
-		if len(newObjs) != len(oldObjs) {
+		if oldManifestBundle == nil {
+			return fmt.Errorf("old manifest bundle is empty")
+		}
+		if len(newManifestBundle.Manifests) != len(oldManifestBundle.Manifests) {
 			return fmt.Errorf("new and old manifest bundles have different number of objects")
 		}
-		if len(newObjs) == 0 || len(oldObjs) == 0 {
-			return fmt.Errorf("new or old manifest bundle is empty")
-		}
-		for i := range newObjs {
-			if err := ValidateObjectUpdate(newObjs[i], oldObjs[i]); err != nil {
+		for i := range newManifestBundle.Manifests {
+			if err := ValidateObjectUpdate(newManifestBundle.Manifests[i], oldManifestBundle.Manifests[i]); err != nil {
 				return err
 			}
 		}

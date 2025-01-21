@@ -11,8 +11,9 @@ Name | Type | Description | Notes
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
 **DeletedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
+**GroupResource** | Pointer to **map[string]interface{}** |  | [optional] 
 **DeleteOption** | Pointer to **map[string]interface{}** |  | [optional] 
-**ManifestConfig** | Pointer to **map[string]interface{}** |  | [optional] 
+**UpdateStrategy** | Pointer to **map[string]interface{}** |  | [optional] 
 **Status** | Pointer to **map[string]interface{}** |  | [optional] 
 
 ## Methods
@@ -209,6 +210,31 @@ SetManifest sets Manifest field to given value.
 
 HasManifest returns a boolean if a field has been set.
 
+### GetGroupResource
+
+`func (o *ResourceAllOf) GetGroupResource() map[string]interface{}`
+
+GetGroupResource returns the GroupResource field if non-nil, zero value otherwise.
+
+### GetGroupResourceOk
+
+`func (o *ResourceAllOf) GetGroupResourceOk() (*map[string]interface{}, bool)`
+
+GetGroupResourceOk returns a tuple with the GroupResource field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetGroupResource
+
+`func (o *ResourceAllOf) SetGroupResource(v map[string]interface{})`
+
+SetGroupResource sets GroupResource field to given value.
+
+### HasGroupResource
+
+`func (o *ResourceAllOf) HasGroupResource() bool`
+
+HasGroupResource returns a boolean if a field has been set.
+
 ### GetDeleteOption
 
 `func (o *ResourceAllOf) GetDeleteOption() map[string]interface{}`
@@ -234,30 +260,30 @@ SetDeleteOption sets DeleteOption field to given value.
 
 HasDeleteOption returns a boolean if a field has been set.
 
-### GetManifestConfig
+### GetUpdateStrategy
 
-`func (o *ResourceAllOf) GetManifestConfig() map[string]interface{}`
+`func (o *ResourceAllOf) GetUpdateStrategy() map[string]interface{}`
 
-GetManifestConfig returns the ManifestConfig field if non-nil, zero value otherwise.
+GetUpdateStrategy returns the UpdateStrategy field if non-nil, zero value otherwise.
 
-### GetManifestConfigOk
+### GetUpdateStrategyOk
 
-`func (o *ResourceAllOf) GetManifestConfigOk() (*map[string]interface{}, bool)`
+`func (o *ResourceAllOf) GetUpdateStrategyOk() (*map[string]interface{}, bool)`
 
-GetManifestConfigOk returns a tuple with the ManifestConfig field if it's non-nil, zero value otherwise
+GetUpdateStrategyOk returns a tuple with the UpdateStrategy field if it's non-nil, zero value otherwise
 and a boolean to check if the value has been set.
 
-### SetManifestConfig
+### SetUpdateStrategy
 
-`func (o *ResourceAllOf) SetManifestConfig(v map[string]interface{})`
+`func (o *ResourceAllOf) SetUpdateStrategy(v map[string]interface{})`
 
-SetManifestConfig sets ManifestConfig field to given value.
+SetUpdateStrategy sets UpdateStrategy field to given value.
 
-### HasManifestConfig
+### HasUpdateStrategy
 
-`func (o *ResourceAllOf) HasManifestConfig() bool`
+`func (o *ResourceAllOf) HasUpdateStrategy() bool`
 
-HasManifestConfig returns a boolean if a field has been set.
+HasUpdateStrategy returns a boolean if a field has been set.
 
 ### GetStatus
 

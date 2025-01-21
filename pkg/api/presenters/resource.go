@@ -11,7 +11,7 @@ import (
 
 // ConvertResource converts a resource from the API to the openapi representation.
 func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
-	payload, err := ConvertResourceManifest(resource.Manifest, resource.DeleteOption, resource.ManifestConfig)
+	payload, err := ConvertResourceManifest(resource.Manifest, resource.GroupResource, resource.DeleteOption, resource.UpdateStrategy)
 	if err != nil {
 		return nil, err
 	}
@@ -30,13 +30,13 @@ func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
 }
 
 // ConvertResourceManifest converts a resource manifest from the openapi representation to the API.
-func ConvertResourceManifest(manifest, deleteOption, manifestConfig map[string]interface{}) (datatypes.JSONMap, error) {
-	return api.EncodeManifest(manifest, deleteOption, manifestConfig)
+func ConvertResourceManifest(manifest, groupResource, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
+	return api.EncodeManifest(manifest, groupResource, deleteOption, updateStrategy)
 }
 
 // PresentResource converts a resource from the API to the openapi representation.
 func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
-	manifest, deleteOption, manifestConfig, err := api.DecodeManifest(resource.Payload)
+	manifest, groupResource, deleteOption, updateStrategy, err := api.DecodeManifest(resource.Payload)
 	if err != nil {
 		return nil, err
 	}
@@ -55,8 +55,9 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 		CreatedAt:      openapi.PtrTime(resource.CreatedAt),
 		UpdatedAt:      openapi.PtrTime(resource.UpdatedAt),
 		Manifest:       manifest,
+		GroupResource:  groupResource,
 		DeleteOption:   deleteOption,
-		ManifestConfig: manifestConfig,
+		UpdateStrategy: updateStrategy,
 		Status:         status,
 	}
 
