@@ -24,6 +24,7 @@ fi
 kind delete cluster --name maestro
 
 # cleanup the generated files
-rm -rf ./test/e2e/setup/.kubeconfig
-rm -rf ./test/e2e/setup/.consumer_id
-rm -rf ./test/e2e/setup/.external_host_ip
+rm -rf ./test/e2e/.kubeconfig
+rm -rf ./test/e2e/.consumer_name
+rm -rf ./test/e2e/.external_host_ip
+rm -rf ./test/e2e/certs

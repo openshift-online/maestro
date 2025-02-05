@@ -53,11 +53,14 @@ db_sslmode:=disable
 db_image?=docker.io/library/postgres:14.2
 
 # Message broker connection details
-mqtt_host=maestro-mqtt.$(namespace)
-mqtt_port=1883
-mqtt_user:=maestro
-mqtt_password_file=${PWD}/secrets/mqtt.password
-mqtt_config_file=${PWD}/secrets/mqtt.config
+mqtt_host ?= maestro-mqtt.$(namespace)
+mqtt_port ?= 1883
+mqtt_user ?= maestro
+mqtt_password_file ?= ${PWD}/secrets/mqtt.password
+mqtt_config_file ?= ${PWD}/secrets/mqtt.config
+mqtt_root_cert ?= ""
+mqtt_client_cert ?= ""
+mqtt_client_key ?= ""
 
 # Log verbosity level
 klog_v:=10
@@ -92,6 +95,20 @@ MQTT_IMAGE ?= docker.io/library/eclipse-mosquitto:2.0.18
 unit_test_json_output ?= ${PWD}/unit-test-results.json
 mqtt_integration_test_json_output ?= ${PWD}/mqtt-integration-test-results.json
 grpc_integration_test_json_output ?= ${PWD}/grpc-integration-test-results.json
+
+# maestro services config
+maestro_svc_type ?= ClusterIP
+maestro_svc_node_port ?= 0
+grpc_svc_type ?= ClusterIP
+grpc_svc_node_port ?= 0
+
+# maestro deployment config
+liveness_probe_init_delay_seconds ?= 15
+readiness_probe_init_delay_seconds ?= 20
+
+# subscription config
+subscription_type ?= shared
+agent_topic ?= "\$$share/statussubscribers/sources/maestro/consumers/+/agentevents"
 
 # Prints a list of useful targets.
 help:
@@ -292,9 +309,9 @@ cmds:
 		--param="MQTT_PORT=$(mqtt_port)" \
 		--param="MQTT_USER=$(mqtt_user)" \
 		--param="MQTT_PASSWORD=$(shell cat $(mqtt_password_file))" \
-		--param="MQTT_ROOT_CERT=" \
-		--param="MQTT_CLIENT_CERT=" \
-		--param="MQTT_CLIENT_KEY=" \
+		--param="MQTT_ROOT_CERT=$(mqtt_root_cert)" \
+		--param="MQTT_CLIENT_CERT=$(mqtt_client_cert)" \
+		--param="MQTT_CLIENT_KEY=$(mqtt_client_key)" \
 		--param="MQTT_IMAGE=$(MQTT_IMAGE)" \
 		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
@@ -318,6 +335,14 @@ cmds:
 		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
 		--param="ENABLE_GRPC_SERVER=$(ENABLE_GRPC_SERVER)" \
 		--param="MESSAGE_DRIVER_TYPE"=$(MESSAGE_DRIVER_TYPE) \
+		--param="MAESTRO_SVC_TYPE"=$(maestro_svc_type) \
+		--param="MAESTRO_SVC_NODE_PORT"=$(maestro_svc_node_port) \
+		--param="GRPC_SVC_TYPE"=$(grpc_svc_type) \
+		--param="GRPC_SVC_NODE_PORT"=$(grpc_svc_node_port) \
+		--param="LIVENESS_PROBE_INIT_DELAY_SECONDS"=$(liveness_probe_init_delay_seconds) \
+		--param="READINESS_PROBE_INIT_DELAY_SECONDS"=$(readiness_probe_init_delay_seconds) \
+		--param="SUBSCRIPTION_TYPE"=$(subscription_type) \
+		--param="AGENT_TOPIC"=$(agent_topic) \
 	> "templates/$*-template.json"
 
 

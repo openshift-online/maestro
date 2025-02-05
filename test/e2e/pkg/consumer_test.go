@@ -13,8 +13,8 @@ import (
 
 var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 	Context("Consumer CRUD Tests", func() {
-		consumerA := openapi.Consumer{Name: openapi.PtrString("consumer-a")}
-		consumerB := openapi.Consumer{Name: openapi.PtrString("consumer-b")}
+		consumerA := openapi.Consumer{Name: openapi.PtrString(fmt.Sprintf("consumer-a-%s", rand.String(5)))}
+		consumerB := openapi.Consumer{Name: openapi.PtrString(fmt.Sprintf("consumer-b-%s", rand.String(5)))}
 		resource := helper.NewAPIResource(*consumerB.Name, fmt.Sprintf("nginx-%s", rand.String(5)), 1)
 
 		AfterAll(func() {
