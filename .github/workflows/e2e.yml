@@ -67,3 +67,20 @@ jobs:
           container_tool: docker
           SERVER_REPLICAS: 2
           MESSAGE_DRIVER_TYPE: grpc
+  migration:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: install ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
+      - name: Test E2E
+        run: |
+          make migration-test
+        env:
+          container_tool: docker
+          SERVER_REPLICAS: 2
