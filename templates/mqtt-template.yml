@@ -19,7 +19,7 @@ parameters:
     description: Mosquitto image (2.0.18 or latest).
     displayName: Mosquitto Image
     required: true
-    value: "eclipse-mosquitto:2.0.18"
+    value: "quay.io/maestro/eclipse-mosquitto:2.0.18"
 
 objects:
   - apiVersion: v1
