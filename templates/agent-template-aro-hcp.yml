@@ -41,7 +41,7 @@ parameters:
 - name: KLOG_V
   displayName: KLOG V Level
   description: Log verbosity level
-  value: "3"
+  value: "4"
 
 objects:
 - apiVersion: apiextensions.k8s.io/v1

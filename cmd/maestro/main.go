@@ -58,7 +58,7 @@ func main() {
 		// if the log level is 1, it will log everything including debug logs;
 		// if the log level is 2 or higher, it will log everything including klog verbose logs.
 		zc.Level = zap.NewAtomicLevelAt(zapcore.Level(0 - logLevel))
-		// Disable stacktrace for production environment
+		// Disable stacktrace to reduce logs size
 		zc.DisableStacktrace = true
 		zapLog, err := zc.Build()
 		if err != nil {

@@ -38,7 +38,7 @@ parameters:
 - name: KLOG_V
   displayName: KLOG V Level
   description: Log verbosity level
-  value: "3"
+  value: "4"
 
 - name: MEMORY_REQUEST
   description: Memory request for the API pods.

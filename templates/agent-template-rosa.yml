@@ -14,6 +14,11 @@ labels:
   template: maestro-agent
 parameters:
 
+- name: ENVIRONMENT
+  displayName: Environment
+  description: Which maestro environment to use for this deployment
+  value: production
+
 - name: AGENT_NAMESPACE
   description: namespace of maestro agent
 
@@ -33,13 +38,13 @@ parameters:
   displayName: Image tag
   value: latest
 
-- name: MQTT_HOST
-  description: Hostname for the mqtt broker
-
 - name: KLOG_V
   displayName: KLOG V Level
   description: Log verbosity level
   value: "4"
+
+- name: MQTT_HOST
+  description: Hostname for the mqtt broker.
 
 objects:
 - apiVersion: apiextensions.k8s.io/v1
@@ -273,6 +278,9 @@ objects:
         - name: maestro-agent
           image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
           imagePullPolicy: IfNotPresent
+          env:
+            - name: "MAESTRO_ENV"
+              value: "${ENVIRONMENT}"
           command:
             - /usr/local/bin/maestro
             - agent
