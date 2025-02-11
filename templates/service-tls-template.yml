@@ -16,7 +16,7 @@ parameters:
 
 - name: ENVIRONMENT
   displayName: Environment
-  description: Which Account Manager environment to use for this deployment
+  description: Which maestro environment to use for this deployment
   value: production
 
 - name: IMAGE_REGISTRY
@@ -34,7 +34,7 @@ parameters:
 - name: KLOG_V
   displayName: KLOG V Level
   description: Log verbosity level
-  value: "10"
+  value: "4"
 
 - name: MEMORY_REQUEST
   description: Memory request for the API pods.
@@ -366,7 +366,7 @@ objects:
             - name: maestro-grpc-cert
               mountPath: /secrets/maestro-grpc-cert
             env:
-              - name: "AMS_ENV"
+              - name: "MAESTRO_ENV"
                 value: "${ENVIRONMENT}"
               - name: POD_NAME
                 valueFrom:
@@ -460,7 +460,7 @@ objects:
         app: maestro
         port: api
       annotations:
-        description: Exposes and load balances the account manager pods
+        description: Exposes and load balances the maestro pods
         service.alpha.openshift.io/serving-cert-secret-name: maestro-tls
     spec:
       selector:
