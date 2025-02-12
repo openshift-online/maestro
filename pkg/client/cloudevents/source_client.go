@@ -13,6 +13,7 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
@@ -168,6 +169,16 @@ func ResourceStatusHashGetter(res *api.Resource) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to convert resource status to cloud event, %v", err)
 	}
+
+	// retrieve stash hash from status CloudEvent extension;
+	// if not found, calculate the status hash by itself
+	evtExtensions := evt.Context.GetExtensions()
+	statusHashVal, ok := evtExtensions[types.ExtensionStatusHash]
+	if ok {
+		return fmt.Sprintf("%v", statusHashVal), nil
+	}
+
+	// calculate the status hash by itself
 	workStatus := workv1.ManifestWorkStatus{}
 	if res.Type == api.ResourceTypeSingle {
 		eventPayload := &workpayload.ManifestStatus{}
