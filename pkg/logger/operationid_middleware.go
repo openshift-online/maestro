@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/getsentry/sentry-go"
 	"github.com/segmentio/ksuid"
 )
@@ -17,9 +20,11 @@ const OpIDHeader OperationIDKey = "X-Operation-ID"
 func OperationIDMiddleware(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := WithOpID(r.Context())
+		span := trace.SpanFromContext(ctx)
 
 		opID, ok := ctx.Value(OpIDKey).(string)
 		if ok && len(opID) > 0 {
+			span.SetAttributes(operationIDAttribute(opID))
 			w.Header().Set(string(OpIDHeader), opID)
 		}
 
@@ -48,4 +53,8 @@ func GetOperationID(ctx context.Context) string {
 		return opID
 	}
 	return ""
+}
+
+func operationIDAttribute(id string) attribute.KeyValue {
+	return attribute.String(string(OpIDKey), id)
 }

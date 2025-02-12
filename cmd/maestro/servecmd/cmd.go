@@ -2,6 +2,7 @@ package servecmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -9,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 
+	"github.com/openshift-online/maestro/cmd/maestro/common"
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/config"
@@ -16,6 +18,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
+	"github.com/openshift-online/maestro/pkg/logger"
 )
 
 func NewServerCommand() *cobra.Command {
@@ -76,6 +79,20 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	tracingShutdown := func(context.Context) error { return nil }
+	log := logger.NewOCMLogger(ctx)
+	if common.TracingEnabled() {
+		tracingShutdown, err = common.InstallOpenTelemetryTracer(ctx, log)
+		if err != nil {
+			log.Error(fmt.Sprintf("Can't initialize OpenTelemetry trace provider: %v", err))
+			os.Exit(1)
+		}
+	}
+	if err != nil {
+		log.Error(fmt.Sprintf("Can't initialize OpenTelemetry trace provider: %v", err))
+		os.Exit(1)
+	}
+
 	stopCh := make(chan os.Signal, 1)
 	signal.Notify(stopCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -88,6 +105,10 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		if err := metricsServer.Stop(); err != nil {
 			klog.Errorf("Failed to stop metrics server, %v", err)
+		}
+
+		if tracingShutdown != nil && tracingShutdown(ctx) != nil {
+			log.Warning(fmt.Sprintf("OpenTelemetry trace provider failed to shutdown: %v", err))
 		}
 	}()
 
