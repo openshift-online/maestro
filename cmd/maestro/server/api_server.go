@@ -15,6 +15,7 @@ import (
 	gorillahandlers "github.com/gorilla/handlers"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/openshift-online/ocm-sdk-go/authentication"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
@@ -119,6 +120,14 @@ func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 	)(mainHandler)
 
 	mainHandler = removeTrailingSlash(mainHandler)
+	mainHandler = traceAttributeMiddleware(mainHandler)
+	mainHandler = otelhttp.NewHandler(mainHandler, "apiserver",
+		otelhttp.WithSpanNameFormatter(
+			func(operation string, r *http.Request) string {
+				return fmt.Sprintf("%s %s %s", operation, "HTTP", r.Method)
+			},
+		),
+	)
 
 	s.httpServer = &http.Server{
 		Addr:    env().Config.HTTPServer.Hostname + ":" + env().Config.HTTPServer.BindPort,
