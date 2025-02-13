@@ -42,4 +42,7 @@ cp -r $output_dir/maestro/test/e2e/certs ./test/e2e/certs
 
 # run the e2e test in the current repo (upgrade)
 make e2e-test/setup
+
+sleep 180 # wait for the upgrade env is ready
+
 make e2e-test/run
