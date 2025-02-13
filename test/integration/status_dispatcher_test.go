@@ -11,6 +11,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
 	prommodel "github.com/prometheus/client_model/go"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
 func TestStatusDispatcher(t *testing.T) {
@@ -68,12 +69,16 @@ func TestStatusDispatcher(t *testing.T) {
 		{Name: strPtr("source"), Value: strPtr("maestro")},
 		{Name: strPtr("cluster"), Value: strPtr(consumer1)},
 		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
+		{Name: strPtr("action"), Value: strPtr("resync_request")},
 	}
 	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
 	labels = []*prommodel.LabelPair{
 		{Name: strPtr("source"), Value: strPtr("maestro")},
 		{Name: strPtr("cluster"), Value: strPtr(consumer2)},
 		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
+		{Name: strPtr("action"), Value: strPtr("resync_request")},
 	}
 	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
 }
