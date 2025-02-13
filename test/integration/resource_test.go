@@ -188,9 +188,18 @@ func TestResourcePost(t *testing.T) {
 			{Name: strPtr("source"), Value: strPtr("maestro")},
 			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
 			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+			{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceSpec))},
+			{Name: strPtr("action"), Value: strPtr("create_request")},
 		}
-		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
-		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 2.0)
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
+		labels = []*prommodel.LabelPair{
+			{Name: strPtr("source"), Value: strPtr(clusterName)},
+			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+			{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
+			{Name: strPtr("action"), Value: strPtr("update_request")},
+		}
+		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 1.0)
 	}
 }
 
@@ -816,10 +825,35 @@ func TestResourceFromGRPC(t *testing.T) {
 		labels = []*prommodel.LabelPair{
 			{Name: strPtr("source"), Value: strPtr("maestro")},
 			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
-			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+			{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceSpec))},
+			{Name: strPtr("action"), Value: strPtr("create_request")},
 		}
-		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
-		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 1.0)
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
+		labels = []*prommodel.LabelPair{
+			{Name: strPtr("source"), Value: strPtr("maestro")},
+			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+			{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceSpec))},
+			{Name: strPtr("action"), Value: strPtr("update_request")},
+		}
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
+		labels = []*prommodel.LabelPair{
+			{Name: strPtr("source"), Value: strPtr("maestro")},
+			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+			{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceSpec))},
+			{Name: strPtr("action"), Value: strPtr("delete_request")},
+		}
+		checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
+		labels = []*prommodel.LabelPair{
+			{Name: strPtr("source"), Value: strPtr(clusterName)},
+			{Name: strPtr("cluster"), Value: strPtr(clusterName)},
+			{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifests")},
+			{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
+			{Name: strPtr("action"), Value: strPtr("update_request")},
+		}
+		checkServerCounterMetric(t, families, "cloudevents_received_total", labels, 3.0)
 	}
 }
 
