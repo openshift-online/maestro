@@ -32,7 +32,7 @@ const maxJSONRawLength int32 = 1024 * 1024
 
 func NewAgentCommand() *cobra.Command {
 	agentOption.MaxJSONRawLength = maxJSONRawLength
-	agentOption.CloudEventsClientCodecs = []string{"manifest", "manifestbundle"}
+	agentOption.CloudEventsClientCodecs = []string{"manifestbundle"}
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
 	cmdConfig := commonOptions.CommonOpts.
 		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent)

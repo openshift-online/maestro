@@ -586,6 +586,8 @@ components:
             format: date-time
           manifest:
             type: object
+          group_resource:
+            type: object
           delete_option:
             type: object
           update_strategy:

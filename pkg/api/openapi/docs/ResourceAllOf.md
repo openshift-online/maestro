@@ -11,6 +11,7 @@ Name | Type | Description | Notes
 **UpdatedAt** | Pointer to **time.Time** |  | [optional] 
 **DeletedAt** | Pointer to **time.Time** |  | [optional] 
 **Manifest** | Pointer to **map[string]interface{}** |  | [optional] 
+**GroupResource** | Pointer to **map[string]interface{}** |  | [optional] 
 **DeleteOption** | Pointer to **map[string]interface{}** |  | [optional] 
 **UpdateStrategy** | Pointer to **map[string]interface{}** |  | [optional] 
 **Status** | Pointer to **map[string]interface{}** |  | [optional] 
@@ -208,6 +209,31 @@ SetManifest sets Manifest field to given value.
 `func (o *ResourceAllOf) HasManifest() bool`
 
 HasManifest returns a boolean if a field has been set.
+
+### GetGroupResource
+
+`func (o *ResourceAllOf) GetGroupResource() map[string]interface{}`
+
+GetGroupResource returns the GroupResource field if non-nil, zero value otherwise.
+
+### GetGroupResourceOk
+
+`func (o *ResourceAllOf) GetGroupResourceOk() (*map[string]interface{}, bool)`
+
+GetGroupResourceOk returns a tuple with the GroupResource field if it's non-nil, zero value otherwise
+and a boolean to check if the value has been set.
+
+### SetGroupResource
+
+`func (o *ResourceAllOf) SetGroupResource(v map[string]interface{})`
+
+SetGroupResource sets GroupResource field to given value.
+
+### HasGroupResource
+
+`func (o *ResourceAllOf) HasGroupResource() bool`
+
+HasGroupResource returns a boolean if a field has been set.
 
 ### GetDeleteOption
 

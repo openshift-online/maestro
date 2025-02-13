@@ -1,9 +1,6 @@
 package presenters
 
 import (
-	"encoding/json"
-	"fmt"
-
 	"gorm.io/datatypes"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -14,7 +11,7 @@ import (
 
 // ConvertResource converts a resource from the API to the openapi representation.
 func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
-	payload, err := ConvertResourceManifest(resource.Manifest, resource.DeleteOption, resource.UpdateStrategy)
+	payload, err := ConvertResourceManifest(resource.Manifest, resource.GroupResource, resource.DeleteOption, resource.UpdateStrategy)
 	if err != nil {
 		return nil, err
 	}
@@ -33,13 +30,13 @@ func ConvertResource(resource openapi.Resource) (*api.Resource, error) {
 }
 
 // ConvertResourceManifest converts a resource manifest from the openapi representation to the API.
-func ConvertResourceManifest(manifest, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
-	return api.EncodeManifest(manifest, deleteOption, updateStrategy)
+func ConvertResourceManifest(manifest, groupResource, deleteOption, updateStrategy map[string]interface{}) (datatypes.JSONMap, error) {
+	return api.EncodeManifest(manifest, groupResource, deleteOption, updateStrategy)
 }
 
 // PresentResource converts a resource from the API to the openapi representation.
 func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
-	manifest, deleteOption, updateStrategy, err := api.DecodeManifest(resource.Payload)
+	manifest, groupResource, deleteOption, updateStrategy, err := api.DecodeManifest(resource.Payload)
 	if err != nil {
 		return nil, err
 	}
@@ -58,85 +55,10 @@ func PresentResource(resource *api.Resource) (*openapi.Resource, error) {
 		CreatedAt:      openapi.PtrTime(resource.CreatedAt),
 		UpdatedAt:      openapi.PtrTime(resource.UpdatedAt),
 		Manifest:       manifest,
+		GroupResource:  groupResource,
 		DeleteOption:   deleteOption,
 		UpdateStrategy: updateStrategy,
 		Status:         status,
-	}
-
-	// set the deletedAt field if the resource has been marked as deleted
-	if !resource.DeletedAt.Time.IsZero() {
-		res.DeletedAt = openapi.PtrTime(resource.DeletedAt.Time)
-	}
-
-	return res, nil
-}
-
-// PresentResourceBundle converts a resource from the API to the openapi representation.
-func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, error) {
-	metadata, manifestBundle, err := api.DecodeManifestBundle(resource.Payload)
-	if err != nil {
-		return nil, err
-	}
-	status, err := api.DecodeBundleStatus(resource.Status)
-	if err != nil {
-		return nil, err
-	}
-
-	reference := openapi.ObjectReference{
-		Id:   openapi.PtrString(resource.ID),
-		Kind: openapi.PtrString("ResourceBundle"),
-		Href: openapi.PtrString(fmt.Sprintf("%s/%s/%s", BasePath, "resource-bundles", resource.ID)),
-	}
-
-	manifests := make([]map[string]interface{}, 0, len(manifestBundle.Manifests))
-	for _, manifest := range manifestBundle.Manifests {
-		mbytes, err := json.Marshal(manifest)
-		if err != nil {
-			return nil, err
-		}
-		m := map[string]interface{}{}
-		if err := json.Unmarshal(mbytes, &m); err != nil {
-			return nil, err
-		}
-		manifests = append(manifests, m)
-	}
-	deleteOption := map[string]interface{}{}
-	if manifestBundle.DeleteOption != nil {
-		dbytes, err := json.Marshal(manifestBundle.DeleteOption)
-		if err != nil {
-			return nil, err
-		}
-		if err := json.Unmarshal(dbytes, &deleteOption); err != nil {
-			return nil, err
-		}
-	}
-	manifestConfigs := make([]map[string]interface{}, 0, len(manifestBundle.ManifestConfigs))
-	for _, manifestConfig := range manifestBundle.ManifestConfigs {
-		mbytes, err := json.Marshal(manifestConfig)
-		if err != nil {
-			return nil, err
-		}
-		m := map[string]interface{}{}
-		if err := json.Unmarshal(mbytes, &m); err != nil {
-			return nil, err
-		}
-		manifestConfigs = append(manifestConfigs, m)
-	}
-
-	res := &openapi.ResourceBundle{
-		Id:              reference.Id,
-		Kind:            reference.Kind,
-		Href:            reference.Href,
-		Name:            openapi.PtrString(resource.Name),
-		ConsumerName:    openapi.PtrString(resource.ConsumerName),
-		Version:         openapi.PtrInt32(resource.Version),
-		CreatedAt:       openapi.PtrTime(resource.CreatedAt),
-		UpdatedAt:       openapi.PtrTime(resource.UpdatedAt),
-		Metadata:        metadata,
-		Manifests:       manifests,
-		DeleteOption:    deleteOption,
-		ManifestConfigs: manifestConfigs,
-		Status:          status,
 	}
 
 	// set the deletedAt field if the resource has been marked as deleted

@@ -177,7 +177,6 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 
 	// set the resource source and type back for broadcast
 	resource.Source = found.Source
-	resource.Type = found.Type
 
 	// convert the resource status to cloudevent
 	statusEvent, err := api.JSONMAPToCloudEvent(resource.Status)
@@ -203,7 +202,7 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	}
 
 	// decode the cloudevent data as manifest status
-	statusPayload := &workpayload.ManifestStatus{}
+	statusPayload := &workpayload.ManifestBundleStatus{}
 	if err := statusEvent.DataAs(statusPayload); err != nil {
 		return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
 	}

@@ -21,7 +21,7 @@ type Codec struct {
 var _ cegeneric.Codec[*api.Resource] = &Codec{}
 
 func (codec *Codec) EventDataType() cetypes.CloudEventsDataType {
-	return workpayload.ManifestEventDataType
+	return workpayload.ManifestBundleEventDataType
 }
 
 func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, res *api.Resource) (*cloudevents.Event, error) {
@@ -55,7 +55,7 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	if eventType.CloudEventsDataType != workpayload.ManifestEventDataType {
+	if eventType.CloudEventsDataType != workpayload.ManifestBundleEventDataType {
 		return nil, fmt.Errorf("unsupported cloudevents data type %s", eventType.CloudEventsDataType)
 	}
 
@@ -96,7 +96,6 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 		},
 		Version:      resourceVersion,
 		ConsumerName: clusterName,
-		Type:         api.ResourceTypeSingle,
 		Status:       status,
 	}
 
