@@ -110,7 +110,7 @@ spec:
             )
             echo -n "$TEST_OUTPUT" | tee $(results.TEST_OUTPUT.path)
         sidecars:
-          - image: docker.io/library/postgres:17.2
+          - image: quay.io/maestro/postgres:17.2
             name: database-test
             env:
             - name: PGDATA
@@ -124,7 +124,7 @@ spec:
             volumeMounts:
               - mountPath: /work
                 name: pgdata
-          - image: docker.io/library/eclipse-mosquitto:2.0.20
+          - image: quay.io/maestro/eclipse-mosquitto:2.0.20
             name: mqtt-test
             volumeMounts:
               - mountPath: /mosquitto/data

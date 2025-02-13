@@ -44,7 +44,7 @@ parameters:
     description: Postgres image (14 or latest).
     displayName: Postgres Image
     required: true
-    value: "postgres:14.2"
+    value: "quay.io/maestro/postgres:17.2"
 
   - name: DB_SECRET_NAME
     displayName: Database Secret Name

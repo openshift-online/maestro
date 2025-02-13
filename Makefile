@@ -50,7 +50,7 @@ db_user:=maestro
 db_password:=foobar-bizz-buzz
 db_password_file=${PWD}/secrets/db.password
 db_sslmode:=disable
-db_image?=docker.io/library/postgres:14.2
+db_image?=quay.io/maestro/postgres:17.2
 
 # Message broker connection details
 mqtt_host ?= maestro-mqtt.$(namespace)
@@ -88,8 +88,8 @@ MESSAGE_DRIVER_TYPE ?= mqtt
 SERVER_REPLICAS ?= 1
 
 # Enable set images
-POSTGRES_IMAGE ?= docker.io/library/postgres:14.2
-MQTT_IMAGE ?= docker.io/library/eclipse-mosquitto:2.0.18
+POSTGRES_IMAGE ?= quay.io/maestro/postgres:17.2
+MQTT_IMAGE ?= quay.io/maestro/eclipse-mosquitto:2.0.18
 
 # Test output files
 unit_test_json_output ?= ${PWD}/unit-test-results.json
