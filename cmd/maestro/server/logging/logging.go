@@ -1,3 +1,4 @@
 package logging
 
-const LoggingThreshold int32 = 1
+// Using trace level for http request/response
+const LoggingThreshold int32 = 10

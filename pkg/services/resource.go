@@ -193,7 +193,8 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return nil, false, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
 	}
 
-	logger.V(4).Info(fmt.Sprintf("Updating resource status with event %s", resourceStatusEvent))
+	logger.V(4).Info(fmt.Sprintf("Updating resource status, id=%s", resource.ID))
+	logger.V(10).Info(fmt.Sprintf("Updating resource status, evt=%s", resourceStatusEvent))
 
 	sequenceID, err := cloudeventstypes.ToString(resourceStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
 	if err != nil {

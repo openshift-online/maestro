@@ -26,8 +26,6 @@ var _ GRPCAuthorizer = &KubeGRPCAuthorizer{}
 
 // TokenReview validates the given token and returns the user and groups associated with it.
 func (k *KubeGRPCAuthorizer) TokenReview(ctx context.Context, token string) (user string, groups []string, err error) {
-	klog.V(4).Infof("TokenReview: token=%s", token)
-
 	tr, err := k.kubeClient.AuthenticationV1().TokenReviews().Create(ctx, &authenticationv1.TokenReview{
 		Spec: authenticationv1.TokenReviewSpec{
 			Token: token,
