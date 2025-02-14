@@ -16,7 +16,7 @@ const (
 	DevelopmentEnv string = "development"
 	ProductionEnv  string = "production"
 
-	EnvironmentStringKey string = "OCM_ENV"
+	EnvironmentStringKey string = "MAESTRO_ENV"
 	EnvironmentDefault   string = DevelopmentEnv
 )
 

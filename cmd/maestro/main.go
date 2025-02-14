@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-logr/zapr"
 	"github.com/openshift-online/maestro/cmd/maestro/agent"
+	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/migrate"
 	"github.com/openshift-online/maestro/cmd/maestro/servecmd"
 	"github.com/spf13/cobra"
@@ -36,11 +37,29 @@ func main() {
 			klog.Fatalf("can't parse log level: %v", err)
 		}
 
-		// Initialize zap logger
-		zc := zap.NewDevelopmentConfig()
+		// Initialize zap logger based on environment
+		var zc zap.Config
+		env := environments.GetEnvironmentStrFromEnv()
+		switch env {
+		case environments.DevelopmentEnv:
+			zc = zap.NewDevelopmentConfig()
+		case environments.ProductionEnv:
+			zc = zap.NewProductionConfig()
+		default:
+			zc = zap.NewDevelopmentConfig()
+		}
+
 		// zap log level is the inverse of klog log level, for more details refer to:
 		// https://github.com/go-logr/zapr?tab=readme-ov-file#increasing-verbosity
+		// zap level mapping to klog level:
+		// fatal: -5, panic: -4, dpanic: -3, error: -2, warn: -1, info: 0, debug: 1
+		// the higher the log level, the more verbose the logs:
+		// if the log level is 0, it will log everything except debug logs;
+		// if the log level is 1, it will log everything including debug logs;
+		// if the log level is 2 or higher, it will log everything including klog verbose logs.
 		zc.Level = zap.NewAtomicLevelAt(zapcore.Level(0 - logLevel))
+		// Disable stacktrace for production environment
+		zc.DisableStacktrace = true
 		zapLog, err := zc.Build()
 		if err != nil {
 			klog.Fatalf("can't initialize zap logger: %v", err)
