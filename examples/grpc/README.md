@@ -14,19 +14,6 @@ $ oc -n maestro patch deploy/maestro --type=json -p='[{"op": "add", "path": "/sp
 $ oc -n maestro port-forward svc/maestro-grpc 8090 &
 ```
 
-## Operate Resource with gRPC client
-
-```shell
-# create
-go run ./grpcclient.go -grpc_server localhost:8090 -cloudevents_json_file ./cloudevent.json
-
-# update
-go run ./grpcclient.go -grpc_server localhost:8090 -cloudevents_json_file ./cloudevent-update.json
-
-# delete
-go run ./grpcclient.go -grpc_server localhost:8090 -cloudevents_json_file ./cloudevent-delete.json
-```
-
 ## Operate Resource Bundle with gRPC client
 
 ```shell

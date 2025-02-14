@@ -18,16 +18,28 @@ type ResourceBundleStatus struct {
 	*workpayload.ManifestBundleStatus
 }
 
+// ManifestBundleWrapper is a wrapper used for openapi output that contains:
+// * metadata - manifestwork metadata
+// * manifests - resource manifests
+// * manifest configs - manifest configs
+// * delete option - delete option
+type ManifestBundleWrapper struct {
+	Meta            map[string]interface{}
+	Manifests       []map[string]interface{}
+	ManifestConfigs []map[string]interface{}
+	DeleteOption    map[string]interface{}
+}
+
 // DecodeManifestBundle converts a CloudEvent JSONMap representation of a list of resource manifest
-// into manifest bundle payload.
-func DecodeManifestBundle(manifest datatypes.JSONMap) (map[string]any, *workpayload.ManifestBundle, error) {
+// into ManifestBundle that will be used in openapi output.
+func DecodeManifestBundle(manifest datatypes.JSONMap) (*ManifestBundleWrapper, error) {
 	if len(manifest) == 0 {
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	evt, err := JSONMAPToCloudEvent(manifest)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to convert resource manifest to cloudevent: %v", err)
+		return nil, fmt.Errorf("failed to convert resource manifest bundle to cloudevent: %v", err)
 	}
 
 	metaData := map[string]any{}
@@ -35,48 +47,56 @@ func DecodeManifestBundle(manifest datatypes.JSONMap) (map[string]any, *workpayl
 	if meta, ok := extensions[codec.ExtensionWorkMeta]; ok {
 		metaJson, err := cloudeventstypes.ToString(meta)
 		if err != nil {
-			return nil, nil, err
+			return nil, fmt.Errorf("failed to get work meta extension: %v", err)
 		}
 
 		if err := json.Unmarshal([]byte(metaJson), &metaData); err != nil {
-			return nil, nil, err
+			return nil, fmt.Errorf("failed to unmarshal work meta extension: %v", err)
 		}
 	}
 
 	eventPayload := &workpayload.ManifestBundle{}
 	if err := evt.DataAs(eventPayload); err != nil {
-		return nil, nil, fmt.Errorf("failed to decode cloudevent payload as resource manifest bundle: %v", err)
+		return nil, fmt.Errorf("failed to decode cloudevent payload as resource manifest bundle: %v", err)
 	}
 
-	return metaData, eventPayload, nil
-}
-
-// DecodeManifestBundleToObjects converts a CloudEvent JSONMap representation of a list of resource manifest
-// into a list of resource object (map[string]interface{}).
-func DecodeManifestBundleToObjects(manifest datatypes.JSONMap) ([]map[string]interface{}, error) {
-	if len(manifest) == 0 {
-		return nil, nil
-	}
-
-	_, eventPayload, err := DecodeManifestBundle(manifest)
-	if err != nil {
-		return nil, err
-	}
-
-	objects := make([]map[string]interface{}, 0, len(eventPayload.Manifests))
-	for _, m := range eventPayload.Manifests {
-		if len(m.Raw) == 0 {
-			return nil, fmt.Errorf("manifest in bundle is empty")
+	manifests := make([]map[string]interface{}, 0, len(eventPayload.Manifests))
+	for _, manifest := range eventPayload.Manifests {
+		m := map[string]interface{}{}
+		if err := json.Unmarshal(manifest.Raw, &m); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal manifest raw in bundle: %v", err)
 		}
-		// unmarshal the raw JSON into the object
-		obj := &map[string]interface{}{}
-		if err := json.Unmarshal(m.Raw, obj); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal manifest in bundle: %v", err)
+		manifests = append(manifests, m)
+	}
+	manifestConfigs := make([]map[string]interface{}, 0, len(eventPayload.ManifestConfigs))
+	for _, manifestConfig := range eventPayload.ManifestConfigs {
+		mbytes, err := json.Marshal(manifestConfig)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal manifest config in bundle: %v", err)
 		}
-		objects = append(objects, *obj)
+		m := map[string]interface{}{}
+		if err := json.Unmarshal(mbytes, &m); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal manifest config in bundle: %v", err)
+		}
+		manifestConfigs = append(manifestConfigs, m)
+	}
+	deleteOption := map[string]interface{}{}
+	if eventPayload.DeleteOption != nil {
+		dbytes, err := json.Marshal(eventPayload.DeleteOption)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal delete option in bundle: %v", err)
+		}
+		if err := json.Unmarshal(dbytes, &deleteOption); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal delete option in bundle: %v", err)
+		}
 	}
 
-	return objects, nil
+	return &ManifestBundleWrapper{
+		Meta:            metaData,
+		Manifests:       manifests,
+		ManifestConfigs: manifestConfigs,
+		DeleteOption:    deleteOption,
+	}, nil
 }
 
 // DecodeBundleStatus converts a CloudEvent JSONMap representation of a resource bundle status

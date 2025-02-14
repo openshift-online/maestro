@@ -205,6 +205,10 @@ ocm post /api/maestro/v1/resources << EOF
       }
     }
   },
+  "group_resource": {
+    "group": "apps",
+    "resource": "deployments"
+  },
   "update_strategy": {
     "type": "ServerSideApply"
   },
@@ -215,6 +219,8 @@ ocm post /api/maestro/v1/resources << EOF
 EOF
 
 ```
+group_resource specifies the group and resource of the creating Kubernetes resource, forming part of its GVR (group, version, resource) definition. For example, when creating a deployment resource with GVR `apps/v1/deployments`, the group is `apps`, and the resource is `deployments`.
+
 delete_option defines the option to delete the resource. It is optional when creating a resource. The propagationPolicy of `delete_option` can be:
 - `Foreground` represents that the resource should be fourground deleted. This is a default value.
 - `Orphan` represents that the resource is orphaned when deleting the resource.
@@ -240,6 +246,8 @@ ocm get /api/maestro/v1/resources
       "href": "/api/maestro/v1/resources/f428e21d-71cb-47a4-8d7f-82a65d9a4048",
       "id": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
       "kind": "Resource",
+      "updated_at": "2023-11-23T09:26:13.457419Z",
+      "version": 1
       "manifest": {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -270,6 +278,13 @@ ocm get /api/maestro/v1/resources
             }
           }
         }
+      },
+      "group_resource": {
+        "group": "apps",
+        "resource": "deployments"
+      },
+      "update_strategy": {
+        "type":"ServerSideApply"
       },
       "status": {
         "ContentStatus": {
@@ -324,12 +339,7 @@ ocm get /api/maestro/v1/resources
           "ObservedVersion": 1,
           "SequenceID": "1744926882802962432"
         }
-      },
-      "update_strategy": {
-        "type":"ServerSideApply"
-      },
-      "updated_at": "2023-11-23T09:26:13.457419Z",
-      "version": 1
+      }
     }
   ],
   "kind": "",
@@ -668,7 +678,11 @@ $ ocm post /api/maestro/v1/resources << EOF
         }
       }
     }
-  }
+  },
+  "group_resource": {
+    "group": "apps",
+    "resource": "deployments"
+  },
 }
 EOF
 ```

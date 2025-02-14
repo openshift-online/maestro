@@ -31,16 +31,15 @@ type SourceClient interface {
 
 type SourceClientImpl struct {
 	Codec                  cegeneric.Codec[*api.Resource]
-	BundleCodec            cegeneric.Codec[*api.Resource]
 	CloudEventSourceClient *cegeneric.CloudEventSourceClient[*api.Resource]
 	ResourceService        services.ResourceService
 }
 
 func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService) (SourceClient, error) {
 	ctx := context.Background()
-	codec, bundleCodec := &Codec{sourceID: sourceOptions.SourceID}, &BundleCodec{sourceID: sourceOptions.SourceID}
+	codec := &Codec{sourceID: sourceOptions.SourceID}
 	ceSourceClient, err := cegeneric.NewCloudEventSourceClient[*api.Resource](ctx, sourceOptions,
-		resourceService, ResourceStatusHashGetter, codec, bundleCodec)
+		resourceService, ResourceStatusHashGetter, codec)
 	if err != nil {
 		return nil, err
 	}
@@ -50,7 +49,6 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 
 	return &SourceClientImpl{
 		Codec:                  codec,
-		BundleCodec:            bundleCodec,
 		CloudEventSourceClient: ceSourceClient,
 		ResourceService:        resourceService,
 	}, nil
@@ -69,9 +67,6 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("create_request"),
-	}
-	if resource.Type == api.ResourceTypeBundle {
-		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
 		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
@@ -94,9 +89,6 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("update_request"),
-	}
-	if resource.Type == api.ResourceTypeBundle {
-		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
 		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
@@ -124,9 +116,6 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("delete_request"),
 	}
-	if resource.Type == api.ResourceTypeBundle {
-		eventType.CloudEventsDataType = s.BundleCodec.EventDataType()
-	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
 		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
 		return err
@@ -143,7 +132,6 @@ func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error
 	logger := logger.NewOCMLogger(ctx)
 
 	logger.V(4).Infof("Resyncing resource status from consumers %v", consumers)
-
 	for _, consumer := range consumers {
 		if err := s.CloudEventSourceClient.Resync(ctx, consumer); err != nil {
 			return err
@@ -179,25 +167,16 @@ func ResourceStatusHashGetter(res *api.Resource) (string, error) {
 	}
 
 	// calculate the status hash by itself
-	workStatus := workv1.ManifestWorkStatus{}
-	if res.Type == api.ResourceTypeSingle {
-		eventPayload := &workpayload.ManifestStatus{}
-		if err := evt.DataAs(eventPayload); err != nil {
-			return "", fmt.Errorf("failed to decode cloudevent data as manifest status: %v", err)
-		}
-		workStatus.Conditions = eventPayload.Conditions
-		workStatus.ResourceStatus = workv1.ManifestResourceStatus{
-			Manifests: []workv1.ManifestCondition{*eventPayload.Status},
-		}
-	} else if res.Type == api.ResourceTypeBundle {
-		eventPayload := &workpayload.ManifestBundleStatus{}
-		if err := evt.DataAs(eventPayload); err != nil {
-			return "", fmt.Errorf("failed to decode cloudevent data as manifest bundle status: %v", err)
-		}
-		workStatus.Conditions = eventPayload.Conditions
-		workStatus.ResourceStatus.Manifests = eventPayload.ResourceStatus
+	eventPayload := &workpayload.ManifestBundleStatus{}
+	if err := evt.DataAs(eventPayload); err != nil {
+		return "", fmt.Errorf("failed to decode cloudevent data as manifest bundle status: %v", err)
 	}
-
+	workStatus := workv1.ManifestWorkStatus{
+		Conditions: eventPayload.Conditions,
+		ResourceStatus: workv1.ManifestResourceStatus{
+			Manifests: eventPayload.ResourceStatus,
+		},
+	}
 	workStatusBytes, err := json.Marshal(workStatus)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal work status, %v", err)

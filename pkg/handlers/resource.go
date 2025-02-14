@@ -35,6 +35,7 @@ func (h resourceHandler) Create(w http.ResponseWriter, r *http.Request) {
 			validateEmpty(&rs, "Id", "id"),
 			validateNotEmpty(&rs, "ConsumerName", "consumer_name"),
 			validateNotEmpty(&rs, "Manifest", "manifest"),
+			validateNotEmpty(&rs, "GroupResource", "group_resource"),
 			validateDeleteOptionAndUpdateStrategy(&rs),
 		},
 		func() (interface{}, *errors.ServiceError) {
@@ -71,7 +72,21 @@ func (h resourceHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		func() (interface{}, *errors.ServiceError) {
 			ctx := r.Context()
 			id := mux.Vars(r)["id"]
-			payload, err := presenters.ConvertResourceManifest(patch.Manifest, patch.DeleteOption, patch.UpdateStrategy)
+			found, serviceErr := h.resource.Get(ctx, id)
+			if serviceErr != nil {
+				return nil, serviceErr
+			}
+			_, groupResource, deleteOption, updateStrategy, err := api.DecodeManifest(found.Payload)
+			if err != nil {
+				return nil, errors.GeneralError("failed to decode existing manifest: %s", err)
+			}
+			if patch.DeleteOption != nil {
+				deleteOption = patch.DeleteOption
+			}
+			if patch.UpdateStrategy != nil {
+				updateStrategy = patch.UpdateStrategy
+			}
+			payload, err := presenters.ConvertResourceManifest(patch.Manifest, groupResource, deleteOption, updateStrategy)
 			if err != nil {
 				return nil, errors.GeneralError("failed to convert resource manifest: %s", err)
 			}

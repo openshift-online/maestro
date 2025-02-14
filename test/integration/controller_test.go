@@ -28,7 +28,7 @@ func TestControllerRacing(t *testing.T) {
 
 	// start work agent so that grpc broker can work
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
-	h.StartWorkAgent(ctx, consumer.Name, false)
+	h.StartWorkAgent(ctx, consumer.Name)
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
@@ -163,7 +163,7 @@ func TestControllerReconcile(t *testing.T) {
 
 	// start work agent so that grpc broker can work
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
-	h.StartWorkAgent(ctx, consumer.Name, false)
+	h.StartWorkAgent(ctx, consumer.Name)
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
@@ -285,7 +285,7 @@ func TestControllerSync(t *testing.T) {
 
 	// start work agent so that grpc broker can work
 	consumer := h.CreateConsumer("cluster-" + rand.String(5))
-	h.StartWorkAgent(ctx, consumer.Name, false)
+	h.StartWorkAgent(ctx, consumer.Name)
 
 	// create two resources with resource dao
 	resource4ID := uuid.New().String()

@@ -21,7 +21,6 @@ import (
 
 	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
 	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
-	workv1 "open-cluster-management.io/api/work/v1"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
@@ -285,7 +284,7 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 	go helper.ControllerManager.Start(ctx)
 }
 
-func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bundle bool) {
+func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 	var brokerConfig any
 	if helper.Broker != "grpc" {
 		// initilize the mqtt options
@@ -301,19 +300,12 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string, bu
 		brokerConfig = grpcOptions
 	}
 
-	var workCodec generic.Codec[*workv1.ManifestWork]
-	if bundle {
-		workCodec = codec.NewManifestBundleCodec()
-	} else {
-		workCodec = codec.NewManifestCodec(nil)
-	}
-
 	watcherStore := store.NewAgentInformerWatcherStore()
 
 	clientHolder, err := work.NewClientHolderBuilder(brokerConfig).
 		WithClientID(clusterName).
 		WithClusterName(clusterName).
-		WithCodecs(workCodec).
+		WithCodecs(codec.NewManifestBundleCodec()).
 		WithWorkClientWatcherStore(watcherStore).
 		NewAgentClientHolder(ctx)
 	if err != nil {
@@ -344,7 +336,6 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 		store,
 		resourceStatusHashGetter,
 		&ResourceCodec{},
-		&ResourceBundleCodec{},
 	)
 
 	if err != nil {

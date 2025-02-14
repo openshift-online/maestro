@@ -27,6 +27,7 @@ type ResourceAllOf struct {
 	UpdatedAt      *time.Time             `json:"updated_at,omitempty"`
 	DeletedAt      *time.Time             `json:"deleted_at,omitempty"`
 	Manifest       map[string]interface{} `json:"manifest,omitempty"`
+	GroupResource  map[string]interface{} `json:"group_resource,omitempty"`
 	DeleteOption   map[string]interface{} `json:"delete_option,omitempty"`
 	UpdateStrategy map[string]interface{} `json:"update_strategy,omitempty"`
 	Status         map[string]interface{} `json:"status,omitempty"`
@@ -273,6 +274,38 @@ func (o *ResourceAllOf) SetManifest(v map[string]interface{}) {
 	o.Manifest = v
 }
 
+// GetGroupResource returns the GroupResource field value if set, zero value otherwise.
+func (o *ResourceAllOf) GetGroupResource() map[string]interface{} {
+	if o == nil || IsNil(o.GroupResource) {
+		var ret map[string]interface{}
+		return ret
+	}
+	return o.GroupResource
+}
+
+// GetGroupResourceOk returns a tuple with the GroupResource field value if set, nil otherwise
+// and a boolean to check if the value has been set.
+func (o *ResourceAllOf) GetGroupResourceOk() (map[string]interface{}, bool) {
+	if o == nil || IsNil(o.GroupResource) {
+		return map[string]interface{}{}, false
+	}
+	return o.GroupResource, true
+}
+
+// HasGroupResource returns a boolean if a field has been set.
+func (o *ResourceAllOf) HasGroupResource() bool {
+	if o != nil && !IsNil(o.GroupResource) {
+		return true
+	}
+
+	return false
+}
+
+// SetGroupResource gets a reference to the given map[string]interface{} and assigns it to the GroupResource field.
+func (o *ResourceAllOf) SetGroupResource(v map[string]interface{}) {
+	o.GroupResource = v
+}
+
 // GetDeleteOption returns the DeleteOption field value if set, zero value otherwise.
 func (o *ResourceAllOf) GetDeleteOption() map[string]interface{} {
 	if o == nil || IsNil(o.DeleteOption) {
@@ -399,6 +432,9 @@ func (o ResourceAllOf) ToMap() (map[string]interface{}, error) {
 	}
 	if !IsNil(o.Manifest) {
 		toSerialize["manifest"] = o.Manifest
+	}
+	if !IsNil(o.GroupResource) {
+		toSerialize["group_resource"] = o.GroupResource
 	}
 	if !IsNil(o.DeleteOption) {
 		toSerialize["delete_option"] = o.DeleteOption

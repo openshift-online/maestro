@@ -14,7 +14,6 @@ import (
 
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"
@@ -312,17 +311,7 @@ var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 // For more details, refer to the cegeneric.Lister interface:
 // https://github.com/open-cluster-management-io/sdk-go/blob/d3c47c228d7905ebb20f331f9b72bc5ff6a84789/pkg/cloudevents/generic/interface.go#L36-L39
 func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
-	var resourceType api.ResourceType
-	resourceEventDataType := listOpts.CloudEventsDataType
-	switch resourceEventDataType {
-	case payload.ManifestEventDataType:
-		resourceType = api.ResourceTypeSingle
-	case payload.ManifestBundleEventDataType:
-		resourceType = api.ResourceTypeBundle
-	default:
-		return nil, fmt.Errorf("unsupported resource event data type %v", resourceEventDataType)
-	}
-	resourceList, err := s.resourceDao.FindByConsumerNameAndResourceType(context.TODO(), listOpts.ClusterName, resourceType)
+	resourceList, err := s.resourceDao.FindByConsumerName(context.TODO(), listOpts.ClusterName)
 	if err != nil {
 		return nil, err
 	}

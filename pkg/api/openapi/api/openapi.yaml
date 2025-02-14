@@ -1006,6 +1006,8 @@ components:
           type: string
         manifest:
           type: object
+        group_resource:
+          type: object
         delete_option:
           type: object
         update_strategy:

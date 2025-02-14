@@ -23,7 +23,7 @@
                     }
                 },
                 "spec": {
-                    "serviceAccount": "nginx",
+                    "serviceAccount": "default",
                     "containers": [
                         {
                             "image": "nginxinc/nginx-unprivileged",
@@ -34,5 +34,15 @@
                 }
             }
         }
+    },
+    "group_resource": {
+        "group": "apps",
+        "resource": "deployments"
+    },
+    "update_strategy": {
+        "type": "ServerSideApply"
+    },
+    "delete_option": {
+        "propagationPolicy": "Foreground"
     }
 }
