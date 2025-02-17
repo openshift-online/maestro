@@ -177,7 +177,8 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	klog.V(4).Infof("receive the event with grpc server, %s", evt)
+	klog.V(4).Infof("receive the event from client, %s", evt.Context)
+	klog.V(10).Infof("receive the event from client, evt=%s", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -247,7 +248,8 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
 
-		klog.V(4).Infof("send the event to status subscribers, %s", evt)
+		klog.V(4).Infof("send the event to status subscribers, %s", evt.Context)
+		klog.V(10).Infof("send the event to status subscribers, evt=%s", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}

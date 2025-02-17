@@ -109,7 +109,7 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 				return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 			}
 		default:
-			return fmt.Errorf("unsupported action %s", action)
+			return fmt.Errorf("failed to handle resource status update %s: unsupported action %s", resource.ID, action)
 		}
 
 		return nil
@@ -277,7 +277,7 @@ func broadcastStatusEvent(ctx context.Context,
 	}
 
 	// broadcast the resource status to subscribers
-	log.V(4).Infof("Broadcast the resource status %s", resource.ID)
+	log.V(4).Infof("Broadcast the resource status, id=%s, statusEventType=%s", resource.ID, statusEvent.StatusEventType)
 	eventBroadcaster.Broadcast(resource)
 
 	// add the event instance record

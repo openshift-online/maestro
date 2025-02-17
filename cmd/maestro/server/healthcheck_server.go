@@ -182,7 +182,7 @@ func (s *HealthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if instance.Ready {
-		klog.Infof("Instance is ready")
+		klog.V(10).Infof("Instance is ready")
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte(`{"status": "ok"}`))
 		if err != nil {
