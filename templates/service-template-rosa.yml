@@ -16,7 +16,7 @@ parameters:
 
 - name: ENVIRONMENT
   displayName: Environment
-  description: Which Account Manager environment to use for this deployment
+  description: Which maestro environment to use for this deployment
   value: production
 
 - name: IMAGE_REGISTRY
@@ -213,7 +213,7 @@ objects:
               mountPath: /secrets/mqtt-creds
               readOnly: true
             env:
-              - name: "AMS_ENV"
+              - name: "MAESTRO_ENV"
                 value: "${ENVIRONMENT}"
               - name: POD_NAME
                 valueFrom:

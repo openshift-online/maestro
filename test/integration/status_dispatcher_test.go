@@ -67,6 +67,7 @@ func TestStatusDispatcher(t *testing.T) {
 	families := getServerMetrics(t, "http://localhost:8080/metrics")
 	labels := []*prommodel.LabelPair{
 		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("original_source"), Value: strPtr("none")},
 		{Name: strPtr("cluster"), Value: strPtr(consumer1)},
 		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
@@ -75,6 +76,7 @@ func TestStatusDispatcher(t *testing.T) {
 	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
 	labels = []*prommodel.LabelPair{
 		{Name: strPtr("source"), Value: strPtr("maestro")},
+		{Name: strPtr("original_source"), Value: strPtr("none")},
 		{Name: strPtr("cluster"), Value: strPtr(consumer2)},
 		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
