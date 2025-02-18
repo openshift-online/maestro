@@ -18,7 +18,7 @@ function cleanUp {
 }
 trap cleanUp EXIT
 
-test -f go1.23.6.linux-amd64.tar.gz || curl -O -J https://dl.google.com/go/go1.23.6.linux-amd64.tar.gz
+test -f go1.23.4.linux-amd64.tar.gz || curl -O -J https://dl.google.com/go/go1.23.4.linux-amd64.tar.gz
 
 podman build -t "$IMAGE_NAME" -f Dockerfile.test .
 
