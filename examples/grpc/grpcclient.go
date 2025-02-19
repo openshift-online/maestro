@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"io"
@@ -10,43 +12,87 @@ import (
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
+	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/credentials/oauth"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
 var (
-	tls                = flag.Bool("tls", false, "Connection uses TLS if true, else plain TCP")
-	caFile             = flag.String("ca_file", "", "The absolute file path containing the CA root cert file")
-	serverAddr         = flag.String("grpc_server", "localhost:8090", "The server address in the format of host:port")
-	serverHostOverride = flag.String("server_host_override", "x.test.example.com", "The server name used to verify the hostname returned by the TLS handshake")
-	cloudEventFile     = flag.String("cloudevents_json_file", "", "The absolute file path containing the CloudEvent resource")
-	subscribeStatus    = flag.Bool("subscribe_status", false, "If true, subscribe to the CloudEvent resource status.")
+	sourceID            = flag.String("source", "grpc", "The source for manifestwork client")
+	grpcServerAddr      = flag.String("grpc-server", "127.0.0.1:8090", "The grpc server address")
+	grpcServerTLS       = flag.Bool("grpc-server-tls", false, "Connect grpc server with TLS if true")
+	grpcServerCAFile    = flag.String("grpc-server-ca-file", "", "The CA for grpc server")
+	grpcClientCertFile  = flag.String("grpc-client-cert-file", "", "The client certificate to access grpc server")
+	grpcClientKeyFile   = flag.String("grpc-client-key-file", "", "The client key to access grpc server")
+	grpcClientTokenFile = flag.String("grpc-client-token-file", "", "The client token to access grpc server")
+	consumerName        = flag.String("consumer-name", "", "The Consumer Name")
+	cloudEventFile      = flag.String("cloudevent-file", "", "The absolute file path containing the CloudEvent resource")
+	enableSubscribing   = flag.Bool("enable-subscribing", false, "If true, subscribe to the CloudEvent resource status.")
 )
 
 func main() {
 	flag.Parse()
-	var opts []grpc.DialOption
-	if *tls {
-		creds, err := credentials.NewClientTLSFromFile(*caFile, *serverHostOverride)
-		if err != nil {
-			log.Fatalf("Failed to create TLS credentials: %v", err)
+
+	if len(*cloudEventFile) == 0 {
+		log.Fatalf("the cloudevent file is required")
+	}
+
+	if *grpcServerTLS {
+		if len(*grpcServerCAFile) == 0 {
+			log.Fatalf("the grpc server CA file is required when TLS enabled")
 		}
-		opts = append(opts, grpc.WithTransportCredentials(creds))
+
+		if len(*grpcClientTokenFile) == 0 {
+			log.Fatalf("the grpc client token file is required when TLS enabled")
+		}
+	}
+
+	var opts []grpc.DialOption
+	if *grpcServerTLS {
+		certPool, err := x509.SystemCertPool()
+		if err != nil {
+			log.Fatalf("failed to load system cert pool: %v", err)
+		}
+
+		caPEM, err := os.ReadFile(*grpcServerCAFile)
+		if err != nil {
+			log.Fatalf("failed to read grpc server CA file: %v", err)
+		}
+
+		if ok := certPool.AppendCertsFromPEM(caPEM); !ok {
+			log.Fatalf("failed to append grpc server CA certificate")
+		}
+
+		tlsConfig := &tls.Config{
+			RootCAs:    certPool,
+			MinVersion: tls.VersionTLS13,
+			MaxVersion: tls.VersionTLS13,
+		}
+
+		clientToken, err := os.ReadFile(*grpcClientTokenFile)
+		if err != nil {
+			log.Fatalf("failed to read grpc client token file: %v", err)
+		}
+		perRPCCred := oauth.TokenSource{TokenSource: oauth2.StaticTokenSource(&oauth2.Token{AccessToken: string(clientToken)})}
+
+		opts = append(opts, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithPerRPCCredentials(perRPCCred))
 	} else {
+		// no TLS and authz
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.Dial(*serverAddr, opts...)
+	conn, err := grpc.NewClient(*grpcServerAddr, opts...)
 	if err != nil {
-		log.Fatalf("fail to dial: %v", err)
+		log.Fatalf("failed to create grpc connection: %v", err)
 	}
 	defer conn.Close()
 
 	client := pbv1.NewCloudEventServiceClient(conn)
-
 	cloudeventJSON, err := os.ReadFile(*cloudEventFile)
 	if err != nil {
 		log.Fatalf("failed to read cloudevent file: %v", err)
@@ -56,6 +102,8 @@ func main() {
 	if err := json.Unmarshal(cloudeventJSON, evt); err != nil {
 		log.Fatalf("failed to unmarshal cloudevent: %v", err)
 	}
+	// override the consumer name
+	evt.SetExtension(types.ExtensionClusterName, *consumerName)
 
 	ctx := context.TODO()
 	pbEvt := &pbv1.CloudEvent{}
@@ -71,9 +119,9 @@ func main() {
 	log.Printf("Published spec with cloudevent:\n%v\n\n", evt)
 	log.Printf("=======================================")
 
-	if *subscribeStatus {
+	if *enableSubscribing {
 		subReq := &pbv1.SubscriptionRequest{
-			Source: "grpc",
+			Source: *sourceID,
 		}
 
 		subClient, err := client.Subscribe(ctx, subReq)

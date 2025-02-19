@@ -20,6 +20,12 @@ type Codec struct {
 
 var _ cegeneric.Codec[*api.Resource] = &Codec{}
 
+func NewCodec(sourceID string) *Codec {
+	return &Codec{
+		sourceID: sourceID,
+	}
+}
+
 func (codec *Codec) EventDataType() cetypes.CloudEventsDataType {
 	return workpayload.ManifestBundleEventDataType
 }

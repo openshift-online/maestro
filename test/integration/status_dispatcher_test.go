@@ -29,8 +29,10 @@ func TestStatusDispatcher(t *testing.T) {
 	// create 2 consumers
 	consumer1 := "xyzzy"
 	consumer2 := "thud"
-	_ = h.CreateConsumer(consumer1)
-	_ = h.CreateConsumer(consumer2)
+	_, err := h.CreateConsumer(consumer1)
+	Expect(err).NotTo(HaveOccurred())
+	_, err = h.CreateConsumer(consumer2)
+	Expect(err).NotTo(HaveOccurred())
 
 	// should dispatch to all consumers for current instance
 	Eventually(func() bool {
@@ -40,7 +42,7 @@ func TestStatusDispatcher(t *testing.T) {
 
 	// insert a new instance and healthcheck server will mark it as ready and then add it to the hash ring
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
-	_, err := instanceDao.Create(ctx, &api.ServerInstance{
+	_, err = instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{
 			ID: "instance1",
 		},

@@ -1,7 +1,7 @@
 {
     "specversion": "1.0",
-    "id": "0192bd68-8444-4743-b02b-4a6605ec0413",
-    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request",
+    "id": "9dbcc8ec-c92e-4686-8ea3-0a0def70fa06",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.spec.update_request",
     "source": "grpc",
     "clustername": "cluster1",
     "resourceid": "68ebf474-6709-48bb-b760-386181268064",
@@ -10,37 +10,30 @@
     "data": {
         "manifests": [
             {
-                "apiVersion": "v1",
-                "kind": "ConfigMap",
-                "metadata": {
-                    "name": "web",
-                    "namespace": "default"
-                }
-            },
-            {
                 "apiVersion": "apps/v1",
                 "kind": "Deployment",
                 "metadata": {
-                    "name": "web",
+                    "name": "nginx",
                     "namespace": "default"
                 },
                 "spec": {
-                    "replicas": 1,
+                    "replicas": 2,
                     "selector": {
                         "matchLabels": {
-                            "app": "web"
+                            "app": "nginx"
                         }
                     },
                     "template": {
                         "metadata": {
                             "labels": {
-                                "app": "web"
+                                "app": "nginx"
                             }
                         },
                         "spec": {
                             "containers": [
                                 {
                                     "image": "nginxinc/nginx-unprivileged",
+                                    "imagePullPolicy": "IfNotPresent",
                                     "name": "nginx"
                                 }
                             ]
@@ -58,7 +51,7 @@
                     "group": "apps",
                     "resource": "deployments",
                     "namespace": "default",
-                    "name": "web"
+                    "name": "nginx"
                 },
                 "feedbackRules": [
                     {

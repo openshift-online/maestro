@@ -46,25 +46,25 @@ func TestDecodeManifestBundle(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			gotManifestBundle, err := DecodeManifestBundle(c.input)
+			gotManifestBundleWrapper, err := DecodeManifestBundle(c.input)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
 				}
 				return
 			}
-			if gotManifestBundle != nil {
-				if !equality.Semantic.DeepEqual(c.expectedMetaData, gotManifestBundle.Meta) {
-					t.Errorf("expected metaData %#v but got: %#v", c.expectedMetaData, gotManifestBundle.Meta)
+			if gotManifestBundleWrapper != nil {
+				if !equality.Semantic.DeepEqual(c.expectedMetaData, gotManifestBundleWrapper.Meta) {
+					t.Errorf("expected metaData %#v but got: %#v", c.expectedMetaData, gotManifestBundleWrapper.Meta)
 				}
-				if !equality.Semantic.DeepEqual(c.expectedManifests, gotManifestBundle.Manifests) {
-					t.Errorf("expected manifests %#v but got: %#v", c.expectedManifests, gotManifestBundle.Manifests)
+				if !equality.Semantic.DeepEqual(c.expectedManifests, gotManifestBundleWrapper.Manifests) {
+					t.Errorf("expected manifests %#v but got: %#v", c.expectedManifests, gotManifestBundleWrapper.Manifests)
 				}
-				if !equality.Semantic.DeepEqual(c.expectedManifestConfigs, gotManifestBundle.ManifestConfigs) {
-					t.Errorf("expected manifestConfigs %#v but got: %#v", c.expectedManifestConfigs, gotManifestBundle.ManifestConfigs)
+				if !equality.Semantic.DeepEqual(c.expectedManifestConfigs, gotManifestBundleWrapper.ManifestConfigs) {
+					t.Errorf("expected manifestConfigs %#v but got: %#v", c.expectedManifestConfigs, gotManifestBundleWrapper.ManifestConfigs)
 				}
-				if !equality.Semantic.DeepEqual(c.expectedDeleteOption, gotManifestBundle.DeleteOption) {
-					t.Errorf("expected deleteOption %#v but got: %#v", c.expectedDeleteOption, gotManifestBundle.DeleteOption)
+				if !equality.Semantic.DeepEqual(c.expectedDeleteOption, gotManifestBundleWrapper.DeleteOption) {
+					t.Errorf("expected deleteOption %#v but got: %#v", c.expectedDeleteOption, gotManifestBundleWrapper.DeleteOption)
 				}
 			}
 		})
@@ -94,22 +94,40 @@ func TestDecodeBundleStatus(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			got, err := DecodeBundleStatus(c.input)
+			gotBundleStatus, err := DecodeBundleStatus(c.input)
 			if err != nil {
 				if err.Error() != c.expectedErrorMsg {
 					t.Errorf("expected %#v but got: %#v", c.expectedErrorMsg, err)
 				}
 				return
 			}
-			gotBytes, err := json.Marshal(got)
+			gotBundleStatusBytes, err := json.Marshal(gotBundleStatus)
 			if err != nil {
 				t.Errorf("failed to marshal got resource bundle status: %v", err)
 			}
 
-			if string(gotBytes) != c.expectedJSON {
-				t.Errorf("expected %s but got: %s", c.expectedJSON, string(gotBytes))
+			if string(gotBundleStatusBytes) != c.expectedJSON {
+				t.Errorf("expected status %s but got status: %s", c.expectedJSON, string(gotBundleStatusBytes))
 			}
 		})
 	}
 
+}
+
+func newJSONMap(t *testing.T, data string) datatypes.JSONMap {
+	jsonmap := map[string]interface{}{}
+	if err := json.Unmarshal([]byte(data), &jsonmap); err != nil {
+		t.Fatal(err)
+	}
+
+	return jsonmap
+}
+
+func newJSONMAPList(t *testing.T, data ...string) []map[string]any {
+	jsonmapList := []map[string]any{}
+	for _, d := range data {
+		jsonmapList = append(jsonmapList, newJSONMap(t, d))
+	}
+
+	return jsonmapList
 }

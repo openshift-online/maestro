@@ -1,4 +1,4 @@
-# Resource Bundle CURD with gRPC Client
+# Resource Bundle CURD with Manifestwork Client
 
 ## Preparation
 
@@ -8,9 +8,10 @@
 $ kubectl -n maestro patch deploy/maestro --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--enable-grpc-server=true"}]'
 ```
 
-2. Do the port-forward the maestro-grpc service:
+2. Do the port-forward for the maestro and maestro-grpc services:
 
 ```shell
+$ kubectl -n maestro port-forward svc/maestro 8000 &
 $ kubectl -n maestro port-forward svc/maestro-grpc 8090 &
 ```
 
@@ -23,11 +24,10 @@ $ export SOURCE_ID=grpc
 $ export CONSUMER_NAME=cluster1
 ```
 
-2. Create a resource bundle:
+2. Create a resource bundle
 
 ```shell
-# create
-$ go run ./grpcclient.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -cloudevent-file ./cloudevent.json
+$ go run ./main.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -manifestwork_file=./manifestwork.json -action=create
 ```
 
 Note: If your gRPC server enable authentication and authorization, you'll need to provide the CA file for the server and the client's token. For example, after setting up Maestro with `make e2e-test/setup`, you can retrieve the gRPC server's CA, client certificate, key, and token using the following command:
@@ -59,17 +59,11 @@ EOF
 then you can create a resource bundle with the following command:
 
 ```shell
-$ go run ./grpcclient.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -cloudevent-file ./cloudevent.json -grpc-server-tls=true -grpc-server=127.0.0.1:30090 -grpc-server-ca-file=/tmp/grpc-server-ca.crt -grpc-client-token-file=/tmp/grpc-client-token
-```
-
-2. Update the resource bundle:
-
-```shell
-$ go run ./grpcclient.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -cloudevent-file ./cloudevent-update.json -grpc-server-tls=true -grpc-server=127.0.0.1:30090 -grpc-server-ca-file=/tmp/grpc-server-ca.crt -grpc-client-token-file=/tmp/grpc-client-token
+$ go run ./main.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -manifestwork_file=./manifestwork.json -maestro-server=https://127.0.0.1:30080 -grpc-server=127.0.0.1:30090 -grpc-server-ca-file=/tmp/grpc-server-ca.crt -grpc-client-token-file=/tmp/grpc-client-token -action=create
 ```
 
 3. Delete the resource bundle:
 
 ```shell
-$ go run ./grpcclient.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -cloudevent-file ./cloudevent-delete.json -grpc-server-tls=true -grpc-server=127.0.0.1:30090 -grpc-server-ca-file=/tmp/grpc-server-ca.crt -grpc-client-token-file=/tmp/grpc-client-token
+$ go run ./main.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -manifestwork_file=./manifestwork.json -maestro-server=https://127.0.0.1:30080 -grpc-server=127.0.0.1:30090 -grpc-server-ca-file=/tmp/grpc-server-ca.crt -grpc-client-token-file=/tmp/grpc-client-token -action=delete
 ```

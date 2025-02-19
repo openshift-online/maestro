@@ -15,7 +15,6 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 	Context("Consumer CRUD Tests", func() {
 		consumerA := openapi.Consumer{Name: openapi.PtrString(fmt.Sprintf("consumer-a-%s", rand.String(5)))}
 		consumerB := openapi.Consumer{Name: openapi.PtrString(fmt.Sprintf("consumer-b-%s", rand.String(5)))}
-		resource := helper.NewAPIResource(*consumerB.Name, fmt.Sprintf("nginx-%s", rand.String(5)), 1)
 
 		AfterAll(func() {
 			// delete the consumer
@@ -27,24 +26,18 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 			Expect(err.Error()).To(ContainSubstring("Not Found"))
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
-			// delete the consumer associated with resource
+			// delete the consumer
 			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
-			Expect(err).To(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
-
-			// delete the resource on the consumer
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, *resource.Id).Execute()
-			Expect(err).To(Succeed())
+			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-			// only if permanently delete the resource, the consumer can be deleted
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
-			Expect(err).To(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusForbidden)) // 403 forbid deletion
+			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
+			Expect(err.Error()).To(ContainSubstring("Not Found"))
+			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 		})
 
 		It("create consumer", func() {
-			// create a consumer without resource
+			// create a consumer
 			created, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerA).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
@@ -56,36 +49,37 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
 
-			// create a consumer with resource
+			// create a consumer
 			created, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerB).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*created.Id).NotTo(BeEmpty())
 			consumerB = *created
 
-			res, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(resource).Execute()
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-			Expect(*res.Id).ShouldNot(BeEmpty())
-			Expect(*res.Version).To(Equal(int32(1)))
-			resource = *res
+			got, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
+			Expect(err).To(Succeed())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(got).NotTo(BeNil())
 		})
 
-		It("list consumer", func() {
+		It("list consumers", func() {
 			consumerList, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(consumerList).NotTo(BeNil())
-			Expect(len(consumerList.Items) > 0).To(BeTrue())
-			fmt.Printf("consumer list: %v\n", consumerList.Items)
+			Expect(len(consumerList.Items) >= 2).To(BeTrue())
 
-			got := false
+			gotA, gotB := false, false
 			for _, c := range consumerList.Items {
 				if *c.Name == *consumerA.Name {
-					got = true
+					gotA = true
+				}
+				if *c.Name == *consumerB.Name {
+					gotB = true
 				}
 			}
-			Expect(got).To(BeTrue())
+			Expect(gotA).To(BeTrue())
+			Expect(gotB).To(BeTrue())
 		})
 
 		It("patch consumer", func() {

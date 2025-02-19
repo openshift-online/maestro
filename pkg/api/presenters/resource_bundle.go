@@ -1,15 +1,13 @@
 package presenters
 
 import (
-	"fmt"
-
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
 // PresentResourceBundle converts a resource from the API to the openapi representation.
 func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, error) {
-	manifestBundle, err := api.DecodeManifestBundle(resource.Payload)
+	manifestWrapper, err := api.DecodeManifestBundle(resource.Payload)
 	if err != nil {
 		return nil, err
 	}
@@ -18,10 +16,11 @@ func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, err
 		return nil, err
 	}
 
-	res := &openapi.ResourceBundle{
-		Id:           openapi.PtrString(resource.ID),
-		Kind:         openapi.PtrString("ResourceBundle"),
-		Href:         openapi.PtrString(fmt.Sprintf("%s/%s/%s", BasePath, "resource-bundles", resource.ID)),
+	reference := PresentReference(resource.ID, resource)
+	rb := &openapi.ResourceBundle{
+		Id:           reference.Id,
+		Kind:         reference.Kind,
+		Href:         reference.Href,
 		Name:         openapi.PtrString(resource.Name),
 		ConsumerName: openapi.PtrString(resource.ConsumerName),
 		Version:      openapi.PtrInt32(resource.Version),
@@ -30,17 +29,17 @@ func PresentResourceBundle(resource *api.Resource) (*openapi.ResourceBundle, err
 		Status:       status,
 	}
 
-	if manifestBundle != nil {
-		res.Metadata = manifestBundle.Meta
-		res.Manifests = manifestBundle.Manifests
-		res.ManifestConfigs = manifestBundle.ManifestConfigs
-		res.DeleteOption = manifestBundle.DeleteOption
+	if manifestWrapper != nil {
+		rb.Metadata = manifestWrapper.Meta
+		rb.Manifests = manifestWrapper.Manifests
+		rb.ManifestConfigs = manifestWrapper.ManifestConfigs
+		rb.DeleteOption = manifestWrapper.DeleteOption
 	}
 
 	// set the deletedAt field if the resource has been marked as deleted
 	if !resource.DeletedAt.Time.IsZero() {
-		res.DeletedAt = openapi.PtrTime(resource.DeletedAt.Time)
+		rb.DeletedAt = openapi.PtrTime(resource.DeletedAt.Time)
 	}
 
-	return res, nil
+	return rb, nil
 }

@@ -22,7 +22,7 @@ func (s *apiServer) routes() *mux.Router {
 		check(err, "Can't load OpenAPI specification")
 	}
 
-	resourceHandler := handlers.NewResourceHandler(services.Resources(), services.Generic())
+	resourceBundleHandler := handlers.NewResourceBundleHandler(services.Resources(), services.Generic())
 	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Resources(), services.Generic())
 	errorsHandler := handlers.NewErrorsHandler()
 
@@ -71,20 +71,11 @@ func (s *apiServer) routes() *mux.Router {
 	apiV1ErrorsRouter.HandleFunc("", errorsHandler.List).Methods(http.MethodGet)
 	apiV1ErrorsRouter.HandleFunc("/{id}", errorsHandler.Get).Methods(http.MethodGet)
 
-	//  /api/maestro/v1/resources
-	apiV1ResourceRouter := apiV1Router.PathPrefix("/resources").Subrouter()
-	apiV1ResourceRouter.HandleFunc("", resourceHandler.List).Methods(http.MethodGet)
-	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Get).Methods(http.MethodGet)
-	apiV1ResourceRouter.HandleFunc("", resourceHandler.Create).Methods(http.MethodPost)
-	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Patch).Methods(http.MethodPatch)
-	apiV1ResourceRouter.HandleFunc("/{id}", resourceHandler.Delete).Methods(http.MethodDelete)
-	apiV1ResourceRouter.Use(authMiddleware.AuthenticateAccountJWT)
-	apiV1ResourceRouter.Use(authzMiddleware.AuthorizeApi)
-
 	// /api/maestro/v1/resource-bundles
 	apiV1ResourceBundleRouter := apiV1Router.PathPrefix("/resource-bundles").Subrouter()
-	apiV1ResourceBundleRouter.HandleFunc("", resourceHandler.ListBundle).Methods(http.MethodGet)
-	apiV1ResourceBundleRouter.HandleFunc("/{id}", resourceHandler.GetBundle).Methods(http.MethodGet)
+	apiV1ResourceBundleRouter.HandleFunc("", resourceBundleHandler.List).Methods(http.MethodGet)
+	apiV1ResourceBundleRouter.HandleFunc("/{id}", resourceBundleHandler.Get).Methods(http.MethodGet)
+	apiV1ResourceBundleRouter.HandleFunc("/{id}", resourceBundleHandler.Delete).Methods(http.MethodDelete)
 	apiV1ResourceBundleRouter.Use(authMiddleware.AuthenticateAccountJWT)
 	apiV1ResourceBundleRouter.Use(authzMiddleware.AuthorizeApi)
 
