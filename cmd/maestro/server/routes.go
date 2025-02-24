@@ -5,7 +5,9 @@ import (
 
 	gorillahandlers "github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 
+	"github.com/openshift-online/maestro/cmd/maestro/common"
 	"github.com/openshift-online/maestro/cmd/maestro/server/logging"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/auth"
@@ -46,6 +48,10 @@ func (s *apiServer) routes() *mux.Router {
 	// mainRouter is top level "/"
 	mainRouter := mux.NewRouter()
 	mainRouter.NotFoundHandler = http.HandlerFunc(api.SendNotFound)
+
+	if common.TracingEnabled() {
+		mainRouter.Use(otelmux.Middleware("serve"))
+	}
 
 	// Operation ID middleware sets a relatively unique operation ID in the context of each request for debugging purposes
 	mainRouter.Use(logger.OperationIDMiddleware)
