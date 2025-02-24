@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
@@ -327,15 +328,16 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 }
 
 func (helper *Helper) StartGRPCResourceSourceClient() {
+	source := "maestro"
 	store := NewStore()
 	grpcOptions := grpcoptions.NewGRPCOptions()
 	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.ServerBindPort)
 	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
 		helper.Ctx,
-		grpcoptions.NewSourceOptions(grpcOptions, "maestro"),
+		grpcoptions.NewSourceOptions(grpcOptions, source),
 		store,
 		resourceStatusHashGetter,
-		&ResourceCodec{},
+		cloudevents.NewCodec(source),
 	)
 
 	if err != nil {

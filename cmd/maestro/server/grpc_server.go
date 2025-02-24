@@ -318,8 +318,6 @@ func decodeResourceSpec(evt *ce.Event) (*api.Resource, error) {
 		return nil, fmt.Errorf("failed to convert cloudevent to resource payload: %v", err)
 	}
 	resource.Payload = payload
-	// set the resource type to bundle from grpc source
-	resource.Type = api.ResourceTypeBundle
 
 	return resource, nil
 }
@@ -337,6 +335,7 @@ func encodeResourceStatus(resource *api.Resource) (*ce.Event, error) {
 		return nil, err
 	}
 
+	// fill the resource status with resource payload
 	if len(resource.Payload) > 0 {
 		specEvt, err := api.JSONMAPToCloudEvent(resource.Payload)
 		if err != nil {

@@ -42,7 +42,7 @@ reducing the need for direct access to clusters.
 
 ### Make a build, run postgres and mqtt broker
 
-```sh
+```shell
 
 # 1. build the project
 
@@ -73,7 +73,7 @@ The initial migration will create the base data model as well as providing a way
 ```shell
 
 # Run migrations
-./maestro migration
+$ ./maestro migration
 
 # Verify they ran in the database
 $ make db/login
@@ -98,9 +98,9 @@ maestro=# \dt
 
 ```shell
 
-make test
-make test-integration
-make e2e-test
+$ make test
+$ make test-integration
+$ make e2e-test
 
 ```
 
@@ -108,7 +108,7 @@ make e2e-test
 
 ```shell
 
-make run
+$ make run
 
 ```
 
@@ -116,13 +116,13 @@ To verify that the server is working use the curl command:
 
 ```shell
 
-curl http://localhost:8000/api/maestro/v1/resources | jq
+$ curl http://localhost:8000/api/maestro/v1/consumers | jq
 
 ```
 
 That should return a 401 response like this, because it needs authentication:
 
-```
+```json
 {
   "kind": "Error",
   "id": "401",
@@ -137,19 +137,22 @@ Authentication in the default configuration is done through the RedHat SSO, so y
 To authenticate, use the ocm tool against your local service. The ocm tool is available on https://console.redhat.com/openshift/downloads
 
 #### Login to your local service
-```
+
+```shell
+
 ocm login --token=${OCM_ACCESS_TOKEN} --url=http://localhost:8000
 
 ```
 
-#### Get a new Resource
-This will be empty if no Resource is ever created
+#### List the consumers
 
-```
-ocm get /api/maestro/v1/resources
+This will be empty if no consumer is ever created
+
+```shell
+$ ocm get /api/maestro/v1/consumers
 {
   "items": [],
-  "kind": "ResourceList",
+  "kind": "ConsumerList",
   "page": 1,
   "size": 0,
   "total": 0
@@ -158,83 +161,45 @@ ocm get /api/maestro/v1/resources
 
 #### Create a consumer:
 
-```
-ocm post /api/maestro/v1/consumers << EOF
+```shell
+$ ocm post /api/maestro/v1/consumers << EOF
 {
   "name": "cluster1"
 }
 EOF
 ```
 
-#### Post a new Resource
+#### Get the consumer:
 
 ```shell
-
-ocm post /api/maestro/v1/resources << EOF
+$ ocm get /api/maestro/v1/consumers
 {
-  "consumer_name": "cluster1",
-  "version": 1,
-  "manifest": {
-    "apiVersion": "apps/v1",
-    "kind": "Deployment",
-    "metadata": {
-      "name": "nginx",
-      "namespace": "default"
-    },
-    "spec": {
-      "replicas": 1,
-      "selector": {
-        "matchLabels": {
-          "app": "nginx"
-        }
-      },
-      "template": {
-        "metadata": {
-          "labels": {
-            "app": "nginx"
-          }
-        },
-        "spec": {
-          "containers": [
-            {
-              "image": "nginxinc/nginx-unprivileged",
-              "name": "nginx"
-            }
-          ]
-        }
-      }
+  "items": [
+    {
+      "created_at":"2023-12-08T11:35:08.557450505Z",
+      "href":"/api/maestro/v1/consumers/3f28c601-5028-47f4-9264-5cc43f2f27fb",
+      "id":"3f28c601-5028-47f4-9264-5cc43f2f27fb",
+      "kind":"Consumer",
+      "name":"cluster1",
+      "updated_at":"2023-12-08T11:35:08.557450505Z"
     }
-  },
-  "group_resource": {
-    "group": "apps",
-    "resource": "deployments"
-  },
-  "update_strategy": {
-    "type": "ServerSideApply"
-  },
-  "delete_option": {
-    "propagationPolicy": "Foreground"
-  }
+  ],
+  "kind": "ConsumerList",
+  "page": 1,
+  "size": 1,
+  "total": 1
 }
 EOF
-
 ```
-group_resource specifies the group and resource of the creating Kubernetes resource, forming part of its GVR (group, version, resource) definition. For example, when creating a deployment resource with GVR `apps/v1/deployments`, the group is `apps`, and the resource is `deployments`.
 
-delete_option defines the option to delete the resource. It is optional when creating a resource. The propagationPolicy of `delete_option` can be:
-- `Foreground` represents that the resource should be fourground deleted. This is a default value.
-- `Orphan` represents that the resource is orphaned when deleting the resource.
+#### Create a resource bundle
 
-update_strategy defines the strategy to update the resource. It is optional when creating a resource. The type of `update_strategy` can be:
-- `ServerSideApply` means to update resource using server side apply with work-controller as the field manager. This is a default value.
-- `Update` means to update resource by an update call.
-- `CreateOnly` means do not update resource based on current manifest.
-- `ReadOnly` means only check the existence of the resource based on the resource's metadata.
+You can create a resource bundle with manifestwork client based on grpc, check the [document](./examples/manifestworkclient/client/README.md) for more details.
 
-#### Get your Resource
+#### List the resource bundle
 
 ```shell
-ocm get /api/maestro/v1/resources
+ocm get /api/maestro/v1/resource-bundles
 {
   "items": [
     {
@@ -243,11 +208,33 @@ ocm get /api/maestro/v1/resources
       "delete_option": {
         "propagationPolicy":"Foreground"
       },
-      "href": "/api/maestro/v1/resources/f428e21d-71cb-47a4-8d7f-82a65d9a4048",
+      "href": "/api/maestro/v1/resource-bundles/f428e21d-71cb-47a4-8d7f-82a65d9a4048",
       "id": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
-      "kind": "Resource",
-      "updated_at": "2023-11-23T09:26:13.457419Z",
-      "version": 1
+      "kind": "ResourceBundle",
+      "manifest_configs": [
+        {
+          "feedbackRules": [
+            {
+              "jsonPaths": [
+                {
+                  "name": "status",
+                  "path": ".status"
+                }
+              ],
+              "type": "JSONPaths"
+            }
+          ],
+          "resourceIdentifier": {
+            "group": "apps",
+            "name": "nginx",
+            "namespace": "default",
+            "resource": "deployments"
+          },
+          "updateStrategy": {
+            "type": "ServerSideApply"
+          }
+        }
+      ],
       "manifest": {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
@@ -279,190 +266,27 @@ ocm get /api/maestro/v1/resources
           }
         }
       },
-      "group_resource": {
-        "group": "apps",
-        "resource": "deployments"
+      "metadata": {
+        "creationTimestamp": "2023-11-23T09:26:13.43061Z",
+        "name": "nginx-work",
+        "namespace": "cluster1",
+        "resourceVersion": "0",
+        "uid": "f428e21d-71cb-47a4-8d7f-82a65d9a4048"
       },
-      "update_strategy": {
-        "type":"ServerSideApply"
-      },
-      "status": {
-        "ContentStatus": {
-          "availableReplicas": 1,
-          "conditions": [
-            {
-              "lastTransitionTime": "2023-11-23T07:05:50Z",
-              "lastUpdateTime": "2023-11-23T07:05:50Z",
-              "message": "Deployment has minimum availability.",
-              "reason": "MinimumReplicasAvailable",
-              "status": "True",
-              "type": "Available"
-            },
-            {
-              "lastTransitionTime": "2023-11-23T07:05:47Z",
-              "lastUpdateTime": "2023-11-23T07:05:50Z",
-              "message": "ReplicaSet \"nginx-5d6b548959\" has successfully progressed.",
-              "reason": "NewReplicaSetAvailable",
-              "status": "True",
-              "type": "Progressing"
-            }
-          ],
-          "observedGeneration": 1,
-          "readyReplicas": 1,
-          "replicas": 1,
-          "updatedReplicas": 1
-        },
-        "ReconcileStatus": {
-          "Conditions": [
-            {
-              "lastTransitionTime": "2023-11-23T09:26:13Z",
-              "message": "Apply manifest complete",
-              "reason": "AppliedManifestComplete",
-              "status": "True",
-              "type": "Applied"
-            },
-            {
-              "lastTransitionTime": "2023-11-23T09:26:13Z",
-              "message": "Resource is available",
-              "reason": "ResourceAvailable",
-              "status": "True",
-              "type": "Available"
-            },
-            {
-              "lastTransitionTime": "2023-11-23T09:26:13Z",
-              "message": "",
-              "reason": "StatusFeedbackSynced",
-              "status": "True",
-              "type": "StatusFeedbackSynced"
-            }
-          ],
-          "ObservedVersion": 1,
-          "SequenceID": "1744926882802962432"
-        }
-      }
-    }
-  ],
-  "kind": "",
-  "page": 1,
-  "size": 1,
-  "total": 1
-}
-```
-
-#### Create/Get resource bundle with multiple resources
-
-1. Enable gRPC server by passing `--enable-grpc-server=true` to the maestro server start command, for example:
-
-```shell
-$ oc -n maestro patch deploy/maestro --type=json -p='[{"op": "add", "path": "/spec/template/spec/containers/0/command/-", "value": "--enable-grpc-server=true"}]'
-```
-
-2. Port-forward the gRPC service to your local machine, for example:
-
-```shell
-$ oc -n maestro port-forward svc/maestro-grpc 8090 &
-```
-
-3. Create a resource bundle with multiple resources using the gRPC client, for example:
-
-```shell
-go run ./examples/grpc/grpcclient.go -cloudevents_json_file ./examples/grpc/cloudevent-bundle.json -grpc_server localhost:8090
-```
-
-4. Get the resource bundle with multiple resources, for example:
-
-```shell
-ocm get /api/maestro/v1/resource-bundles
-{
-  "items": [
-    {
-      "consumer_name": "cluster1",
-      "created_at": "2024-05-30T05:03:08.493083Z",
-      "delete_option": {
-        "propagationPolicy": "Foreground"
-      },
-      "href": "/api/maestro/v1/resource-bundles/68ebf474-6709-48bb-b760-386181268060",
-      "id": "68ebf474-6709-48bb-b760-386181268060",
-      "kind": "ResourceBundle",
-      "manifest_configs": [
-        {
-          "feedbackRules": [
-            {
-              "jsonPaths": [
-                {
-                  "name": "status",
-                  "path": ".status"
-                }
-              ],
-              "type": "JSONPaths"
-            }
-          ],
-          "resourceIdentifier": {
-            "group": "apps",
-            "name": "web",
-            "namespace": "default",
-            "resource": "deployments"
-          },
-          "updateStrategy": {
-            "type": "ServerSideApply"
-          }
-        }
-      ],
-      "manifests": [
-        {
-          "apiVersion": "v1",
-          "kind": "ConfigMap",
-          "metadata": {
-            "name": "web",
-            "namespace": "default"
-          }
-        },
-        {
-          "apiVersion": "apps/v1",
-          "kind": "Deployment",
-          "metadata": {
-            "name": "web",
-            "namespace": "default"
-          },
-          "spec": {
-            "replicas": 1,
-            "selector": {
-              "matchLabels": {
-                "app": "web"
-              }
-            },
-            "template": {
-              "metadata": {
-                "labels": {
-                  "app": "web"
-                }
-              },
-              "spec": {
-                "containers": [
-                  {
-                    "image": "nginxinc/nginx-unprivileged",
-                    "name": "nginx"
-                  }
-                ]
-              }
-            }
-          }
-        }
-      ],
-      "name": "68ebf474-6709-48bb-b760-386181268060",
+      "name": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
       "status": {
         "ObservedVersion": 1,
-        "SequenceID": "1796044690592632832",
+        "SequenceID": "1892524904994050048",
         "conditions": [
           {
-            "lastTransitionTime": "2024-05-30T05:03:08Z",
+            "lastTransitionTime": "2023-11-23T09:26:13Z",
             "message": "Apply manifest work complete",
             "reason": "AppliedManifestWorkComplete",
             "status": "True",
             "type": "Applied"
           },
           {
-            "lastTransitionTime": "2024-05-30T05:03:08Z",
+            "lastTransitionTime": "2023-11-23T09:26:13Z",
             "message": "All resources are available",
             "reason": "ResourcesAvailable",
             "status": "True",
@@ -473,56 +297,21 @@ ocm get /api/maestro/v1/resource-bundles
           {
             "conditions": [
               {
-                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "lastTransitionTime": "2023-11-23T09:26:13Z",
                 "message": "Apply manifest complete",
                 "reason": "AppliedManifestComplete",
                 "status": "True",
                 "type": "Applied"
               },
               {
-                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "lastTransitionTime": "2023-11-23T09:26:13Z",
                 "message": "Resource is available",
                 "reason": "ResourceAvailable",
                 "status": "True",
                 "type": "Available"
               },
               {
-                "lastTransitionTime": "2024-05-30T05:03:08Z",
-                "message": "",
-                "reason": "NoStatusFeedbackSynced",
-                "status": "True",
-                "type": "StatusFeedbackSynced"
-              }
-            ],
-            "resourceMeta": {
-              "group": "",
-              "kind": "ConfigMap",
-              "name": "web",
-              "namespace": "default",
-              "ordinal": 0,
-              "resource": "configmaps",
-              "version": "v1"
-            },
-            "statusFeedback": {}
-          },
-          {
-            "conditions": [
-              {
-                "lastTransitionTime": "2024-05-30T05:03:08Z",
-                "message": "Apply manifest complete",
-                "reason": "AppliedManifestComplete",
-                "status": "True",
-                "type": "Applied"
-              },
-              {
-                "lastTransitionTime": "2024-05-30T05:03:08Z",
-                "message": "Resource is available",
-                "reason": "ResourceAvailable",
-                "status": "True",
-                "type": "Available"
-              },
-              {
-                "lastTransitionTime": "2024-05-30T05:03:08Z",
+                "lastTransitionTime": "2023-11-23T09:26:13Z",
                 "message": "",
                 "reason": "StatusFeedbackSynced",
                 "status": "True",
@@ -532,9 +321,9 @@ ocm get /api/maestro/v1/resource-bundles
             "resourceMeta": {
               "group": "apps",
               "kind": "Deployment",
-              "name": "web",
+              "name": "nginx",
               "namespace": "default",
-              "ordinal": 1,
+              "ordinal": 0,
               "resource": "deployments",
               "version": "v1"
             },
@@ -542,7 +331,7 @@ ocm get /api/maestro/v1/resource-bundles
               "values": [
                 {
                   "fieldValue": {
-                    "jsonRaw": "{\"availableReplicas\":1,\"conditions\":[{\"lastTransitionTime\":\"2024-05-30T05:03:13Z\",\"lastUpdateTime\":\"2024-05-30T05:03:13Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2024-05-30T05:03:08Z\",\"lastUpdateTime\":\"2024-05-30T05:03:13Z\",\"message\":\"ReplicaSet \\\"web-dcffc4f85\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"}],\"observedGeneration\":1,\"readyReplicas\":1,\"replicas\":1,\"updatedReplicas\":1}",
+                    "jsonRaw": "{\"availableReplicas\":1,\"conditions\":[{\"lastTransitionTime\":\"2023-11-23T09:26:13Z\",\"lastUpdateTime\":\"2023-11-23T09:26:13Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2023-11-23T09:26:13Z\",\"lastUpdateTime\":\"2023-11-23T09:26:13Z\",\"message\":\"ReplicaSet \\\"nginx-5b4fb7d77b\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"}],\"observedGeneration\":1,\"readyReplicas\":1,\"replicas\":1,\"updatedReplicas\":1}",
                     "type": "JsonRaw"
                   },
                   "name": "status"
@@ -552,7 +341,7 @@ ocm get /api/maestro/v1/resource-bundles
           }
         ]
       },
-      "updated_at": "2024-05-30T05:03:17.796496Z",
+      "updated_at": "2023-11-23T09:26:13.457419Z",
       "version": 1
     }
   ],
@@ -602,7 +391,7 @@ We will push the image to your OpenShift cluster default registry and then deplo
 ```shell
 $ make deploy
 
-$ oc get pod -n maestro-root
+$ oc get pod -n maestro
 NAME                            READY   STATUS      RESTARTS   AGE
 maestro-85c847764-4xdt6         1/1     Running     0          62s
 maestro-db-1-deploy             0/1     Completed   0          62s
@@ -642,56 +431,8 @@ NAME                             READY   STATUS    RESTARTS   AGE
 maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
 ```
 
-Create a resource:
-```shell
-$ ocm post /api/maestro/v1/resources << EOF
-{
-  "consumer_name": "cluster1",
-  "version": 1,
-  "manifest": {
-    "apiVersion": "apps/v1",
-    "kind": "Deployment",
-    "metadata": {
-      "name": "nginx",
-      "namespace": "default"
-    },
-    "spec": {
-      "replicas": 1,
-      "selector": {
-        "matchLabels": {
-          "app": "nginx"
-        }
-      },
-      "template": {
-        "metadata": {
-          "labels": {
-            "app": "nginx"
-          }
-        },
-        "spec": {
-          "containers": [
-            {
-              "image": "nginxinc/nginx-unprivileged",
-              "name": "nginx"
-            }
-          ]
-        }
-      }
-    }
-  },
-  "group_resource": {
-    "group": "apps",
-    "resource": "deployments"
-  },
-}
-EOF
-```
-You should be able to see the pod is created in default namespace.
-```shell
-$ oc get pod -n default
-NAME                     READY   STATUS    RESTARTS   AGE
-nginx-5d6b548959-829c7   1/1     Running   0          70s
-```
+Now you can create a resource bundle with manifestwork client based on grpc, check the [document](./examples/manifestworkclient/client/README.md) for more details.
+
 ## Make a new Kind
 
 1. Add to openapi.yaml

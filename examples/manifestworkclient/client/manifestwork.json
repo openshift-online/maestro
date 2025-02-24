@@ -1,0 +1,72 @@
+{
+  "apiVersion": "work.open-cluster-management.io/v1",
+  "kind": "ManifestWork",
+  "metadata": {
+    "name": "nginx-work"
+  },
+  "spec": {
+    "workload": {
+      "manifests": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "nginx",
+            "namespace": "default"
+          },
+          "spec": {
+            "replicas": 1,
+            "selector": {
+              "matchLabels": {
+                "app": "nginx"
+              }
+            },
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "nginx"
+                }
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "name": "nginx",
+                    "image": "nginxinc/nginx-unprivileged",
+                    "imagePullPolicy": "IfNotPresent"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    },
+    "deleteOption": {
+      "propagationPolicy": "Foreground"
+    },
+    "manifestConfigs": [
+      {
+        "resourceIdentifier": {
+          "group": "apps",
+          "resource": "deployments",
+          "namespace": "default",
+          "name": "nginx"
+        },
+        "feedbackRules": [
+          {
+            "type": "JSONPaths",
+            "jsonPaths": [
+              {
+                "name": "status",
+                "path": ".status"
+              }
+            ]
+          }
+        ],
+        "updateStrategy": {
+          "type": "ServerSideApply"
+        }
+      }
+    ]
+  }
+}

@@ -1,6 +1,4 @@
-# gRPC server
-
-gPRC server is disabled by default. You can enable it by passing `--enable-grpc-server=true` to the maestro server command.
+# Maestro gRPC server
 
 ## Authentication and Authorization
 
@@ -114,7 +112,7 @@ The `grpcClientTokenFile` stores the token for the corresponding service account
     // grpcOptions.CAFile = grpcServerCAFile
     // ClientCertFile = grpcClientCertFile
     // ClientKeyFile = grpcClientKeyFile
-	// grpcOptions.TokenFile = grpcClientTokenFile
+	  // grpcOptions.TokenFile = grpcClientTokenFile
     grpcSourceOption = grpcoptions.NewSourceOptions(grpcOptions, "grpc-source-example")
     ```
 
@@ -146,9 +144,9 @@ To publish the resource with cloudevents format, you need to call the `Publish` 
 ```golang
     // publish the resource in the cloudevents format
     grpcSourceCloudEventsClient.Publish(context.TODO(), types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestEventDataType,
-		SubResource:         types.SubResourceSpec,
-		Action:              config.CreateRequestAction,
+		  CloudEventsDataType: payload.ManifestEventDataType,
+		  SubResource:         types.SubResourceSpec,
+		  Action:              config.CreateRequestAction,
 	}, res)
 ```
 
@@ -161,12 +159,12 @@ see the below for an example of the resource:
 
 ```golang
     resource := &api.Resource{
-		ConsumerID: consumerID,
-		Manifest:   testManifest,
-	}
+      ConsumerID: consumerID,
+      Manifest:   testManifest,
+	  }
     ...
     testManifest := map[string]interface{}{}
-	json.Unmarshal(`{
+    json.Unmarshal(`{
         "apiVersion": "apps/v1",
         "kind": "Deployment",
         "metadata": {

@@ -75,8 +75,8 @@ func (s *sqlResourceService) Create(ctx context.Context, resource *api.Resource)
 			return nil, errors.Validation("the name in the resource is invalid, %v", err)
 		}
 	}
-	if err := ValidateManifest(resource.Type, resource.Payload); err != nil {
-		return nil, errors.Validation("the manifest in the resource is invalid, %v", err)
+	if err := ValidateManifestBundle(resource.Payload); err != nil {
+		return nil, errors.Validation("the manifest bundle in the resource is invalid, %v", err)
 	}
 
 	resource, err := s.resourceDao.Create(ctx, resource)
@@ -126,8 +126,8 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return found, nil
 	}
 
-	if err := ValidateManifestUpdate(resource.Type, resource.Payload, found.Payload); err != nil {
-		return nil, errors.Validation("the new manifest in the resource is invalid, %v", err)
+	if err := ValidateManifestBundleUpdate(resource.Payload, found.Payload); err != nil {
+		return nil, errors.Validation("the new manifest bundle in the resource is invalid, %v", err)
 	}
 
 	// Increase the current resource version and update its manifest.

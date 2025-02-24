@@ -38,7 +38,7 @@ func NewGRPCServerConfig() *GRPCServerConfig {
 }
 
 func (s *GRPCServerConfig) AddFlags(fs *pflag.FlagSet) {
-	fs.BoolVar(&s.EnableGRPCServer, "enable-grpc-server", false, "Enable gRPC server")
+	fs.BoolVar(&s.EnableGRPCServer, "enable-grpc-server", true, "Enable gRPC server")
 	fs.StringVar(&s.ServerBindPort, "grpc-server-bindport", "8090", "gPRC server bind port")
 	fs.StringVar(&s.BrokerBindPort, "grpc-broker-bindport", "8091", "gPRC broker bind port")
 	fs.Uint32Var(&s.MaxConcurrentStreams, "grpc-max-concurrent-streams", math.MaxUint32, "gPRC max concurrent streams")

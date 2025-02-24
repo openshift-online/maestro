@@ -2,13 +2,16 @@ package cloudevents
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/bwmarrin/snowflake"
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/services"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -27,6 +30,7 @@ func init() {
 
 // SourceClientMock is a mock implementation of the SourceClient interface
 type SourceClientMock struct {
+	agent           string
 	resources       api.ResourceList
 	ResourceService services.ResourceService
 }
@@ -35,6 +39,7 @@ var _ SourceClient = &SourceClientMock{}
 
 func NewSourceClientMock(resourceService services.ResourceService) SourceClient {
 	return &SourceClientMock{
+		agent:           "mock-agent",
 		ResourceService: resourceService,
 	}
 }
@@ -45,29 +50,38 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to get resource: %v", serviceErr)
 	}
 
-	resourceStatus := &api.ResourceStatus{
-		ReconcileStatus: &api.ReconcileStatus{
-			ObservedVersion: resource.Version,
-			SequenceID:      sequenceGenerator.Generate().String(),
-			Conditions: []metav1.Condition{
-				{
-					Type:               "Applied",
-					Status:             "True",
-					LastTransitionTime: metav1.Now(),
-				},
+	eventType := types.CloudEventsType{
+		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
+		SubResource:         types.SubResourceStatus,
+		Action:              types.EventAction("update_request"),
+	}
+	evt := types.NewEventBuilder(s.agent, eventType).
+		WithResourceID(resource.ID).
+		WithStatusUpdateSequenceID(sequenceGenerator.Generate().String()).
+		WithResourceVersion(int64(resource.Version)).
+		WithClusterName(resource.ConsumerName).
+		WithOriginalSource("maestro").
+		NewEvent()
+
+	manifestBundleStatus := &payload.ManifestBundleStatus{
+		Conditions: []metav1.Condition{
+			{
+				Type:               "Applied",
+				Status:             "True",
+				LastTransitionTime: metav1.Now(),
 			},
 		},
 	}
-
-	resourceStatusJSON, err := json.Marshal(resourceStatus)
-	if err != nil {
-		return fmt.Errorf("failed to marshal resource status: %v", err)
-	}
-	err = json.Unmarshal(resourceStatusJSON, &resource.Status)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal resource status: %v", err)
+	if err := evt.SetData(cloudevents.ApplicationJSON, manifestBundleStatus); err != nil {
+		return fmt.Errorf("failed to encode manifestwork status to a cloudevent: %v", err)
 	}
 
+	status, err := api.CloudEventToJSONMap(&evt)
+	if err != nil {
+		return fmt.Errorf("failed to convert resource status cloudevent to jsonmap: %v", err)
+	}
+
+	resource.Status = status
 	newResource, _, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
 	if serviceErr != nil {
 		return fmt.Errorf("failed to update resource status: %v", serviceErr)
@@ -87,42 +101,42 @@ func (s *SourceClientMock) OnUpdate(ctx context.Context, id string) error {
 	found := false
 	for i, r := range s.resources {
 		if r.ID == resource.ID {
-			resourceStatusJSON, err := json.Marshal(resource.Status)
+			evt, err := api.JSONMAPToCloudEvent(resource.Status)
 			if err != nil {
-				return fmt.Errorf("failed to marshal resource status: %v", err)
+				return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
 			}
-			resourceStatus := &api.ResourceStatus{}
-			if err := json.Unmarshal(resourceStatusJSON, resourceStatus); err != nil {
-				return fmt.Errorf("failed to unmarshal resource status: %v", err)
+
+			manifestBundleStatus := &workpayload.ManifestBundleStatus{}
+			if err := evt.DataAs(manifestBundleStatus); err != nil {
+				return fmt.Errorf("failed to decode cloudevent payload as resource status: %v", err)
 			}
-			if resourceStatus.ReconcileStatus == nil {
-				resourceStatus.ReconcileStatus = &api.ReconcileStatus{}
-			}
-			resourceStatus.ReconcileStatus.ObservedVersion = resource.Version
-			resourceStatus.ReconcileStatus.SequenceID = sequenceGenerator.Generate().String()
+
 			condition := metav1.Condition{
 				Type:               "Updated",
 				Status:             "True",
 				LastTransitionTime: metav1.Now(),
 			}
-			if len(resourceStatus.ReconcileStatus.Conditions) == 0 {
-				resourceStatus.ReconcileStatus.Conditions = []metav1.Condition{condition}
+			if len(manifestBundleStatus.Conditions) == 0 {
+				manifestBundleStatus.Conditions = []metav1.Condition{condition}
+			} else {
+				manifestBundleStatus.Conditions = append(manifestBundleStatus.Conditions, condition)
 			}
 
-			resourceStatus.ReconcileStatus.Conditions = append(resourceStatus.ReconcileStatus.Conditions, condition)
-			resourceStatusJSON, err = json.Marshal(resourceStatus)
-			if err != nil {
-				return fmt.Errorf("failed to marshal resource status: %v", err)
-			}
-			err = json.Unmarshal(resourceStatusJSON, &resource.Status)
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal resource status: %v", err)
+			if err := evt.SetData(cloudevents.ApplicationJSON, manifestBundleStatus); err != nil {
+				return fmt.Errorf("failed to encode manifestwork status to a cloudevent: %v", err)
 			}
 
+			status, err := api.CloudEventToJSONMap(evt)
+			if err != nil {
+				return fmt.Errorf("failed to convert resource status cloudevent to jsonmap: %v", err)
+			}
+
+			resource.Status = status
 			newResource, _, serviceErr := s.ResourceService.UpdateStatus(ctx, resource)
 			if serviceErr != nil {
 				return fmt.Errorf("failed to update resource status: %v", serviceErr)
 			}
+
 			s.resources[i] = newResource
 			found = true
 			break

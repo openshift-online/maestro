@@ -20,7 +20,7 @@ func ObjectPath(id string, obj interface{}) *string {
 func path(i interface{}) string {
 	switch i.(type) {
 	case api.Resource, *api.Resource:
-		return "resources"
+		return "resource-bundles"
 	case api.Consumer, *api.Consumer:
 		return "consumers"
 	case errors.ServiceError, *errors.ServiceError:

@@ -27,7 +27,8 @@ func TestControllerRacing(t *testing.T) {
 	}()
 
 	// start work agent so that grpc broker can work
-	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
 	h.StartWorkAgent(ctx, consumer.Name)
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
@@ -122,7 +123,8 @@ func TestControllerRacing(t *testing.T) {
 	// wait for controller service starts
 	time.Sleep(3 * time.Second)
 
-	resources := h.CreateResourceList(consumer.Name, 50)
+	resources, err := h.CreateResourceList(consumer.Name, 50)
+	Expect(err).NotTo(HaveOccurred())
 
 	// This is to check only 50 create events are processed. It waits for 5 seconds to ensure all events have been
 	// processed by the controllers.
@@ -162,7 +164,8 @@ func TestControllerReconcile(t *testing.T) {
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
 	// start work agent so that grpc broker can work
-	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
 	h.StartWorkAgent(ctx, consumer.Name)
 
 	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
@@ -224,7 +227,8 @@ func TestControllerReconcile(t *testing.T) {
 	time.Sleep(time.Second)
 
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	resource := h.CreateResource(consumer.Name, deployName, 1)
+	resource, err := h.CreateResource(consumer.Name, deployName, "default", 1)
+	Expect(err).NotTo(HaveOccurred())
 
 	// Eventually, the event will be processed by the controller.
 	Eventually(func() error {
@@ -284,7 +288,8 @@ func TestControllerSync(t *testing.T) {
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 
 	// start work agent so that grpc broker can work
-	consumer := h.CreateConsumer("cluster-" + rand.String(5))
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
 	h.StartWorkAgent(ctx, consumer.Name)
 
 	// create two resources with resource dao

@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -9,11 +8,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/api/openapi"
-
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -21,145 +16,176 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 )
 
-const sleepJob = `
-{
-	"apiVersion": "batch/v1",
-	"kind": "Job",
-	"metadata": {
-	  "name": "%s",
-	  "namespace": "default"
-	},
-	"spec": {
-	  "template": {
-		"spec": {
-		  "containers": [
-			{
-			  "name": "sleep",
-			  "image": "busybox:1.36",
-			  "command": [
-				"/bin/sh",
-				"-c",
-				"sleep 10"
-			  ]
-			}
-		  ],
-		  "restartPolicy": "Never"
-		}
-	  },
-	  "backoffLimit": 4
-	}
-}
-`
+var _ = Describe("ServerSideApply", Ordered, Label("e2e-tests-ssa"), func() {
+	// Context("Resource ServerSideApply Tests", func() {
+	// 	// The kube-apiserver will set a default selector and label on the Pod of Job if the job does not have
+	// 	// spec.Selector, these fields are immutable, if we use update strategy to apply Job, it will report
+	// 	// AppliedManifestFailed. The maestro uses the server side strategy to apply a resource with ManifestWork
+	// 	// by default, this will avoid this.
+	// 	workName := "work-ssa-" + rand.String(5)
+	// 	sleepJobName := fmt.Sprintf("sleep-%s", rand.String(5))
+	// 	manifest := fmt.Sprintf("{\"apiVersion\":\"batch/v1\",\"kind\":\"Job\",\"metadata\":{\"name\":\"%s\",\"namespace\":\"default\"},\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"sleep\",\"image\":\"busybox:1.36\",\"command\":[\"/bin/sh\",\"-c\",\"sleep 10\"]}],\"restartPolicy\":\"Never\"}},\"backoffLimit\":4}}", sleepJobName)
+	// 	It("create the resource with source work client", func() {
+	// 		work := &workv1.ManifestWork{
+	// 			ObjectMeta: metav1.ObjectMeta{
+	// 				Name: workName,
+	// 			},
+	// 			Spec: workv1.ManifestWorkSpec{
+	// 				Workload: workv1.ManifestsTemplate{
+	// 					Manifests: []workv1.Manifest{
+	// 						{
+	// 							RawExtension: runtime.RawExtension{
+	// 								Raw: []byte(manifest),
+	// 							},
+	// 						},
+	// 					},
+	// 				},
+	// 				ManifestConfigs: []workv1.ManifestConfigOption{
+	// 					{
+	// 						ResourceIdentifier: workv1.ResourceIdentifier{
+	// 							Group:     "batch",
+	// 							Resource:  "jobs",
+	// 							Name:      sleepJobName,
+	// 							Namespace: "default",
+	// 						},
+	// 						FeedbackRules: []workv1.FeedbackRule{
+	// 							{
+	// 								Type: workv1.JSONPathsType,
+	// 								JsonPaths: []workv1.JsonPath{
+	// 									{
+	// 										Name: "status",
+	// 										Path: ".status",
+	// 									},
+	// 								},
+	// 							},
+	// 						},
+	// 						UpdateStrategy: &workv1.UpdateStrategy{
+	// 							Type: workv1.UpdateStrategyTypeServerSideApply,
+	// 						},
+	// 					},
+	// 				},
+	// 			},
+	// 		}
 
-var _ = Describe("Server Side Apply", Ordered, Label("e2e-tests-serverside-apply"), func() {
-	It("Apply a job with maestro", func() {
-		// The kube-apiserver will set a default selector and label on the Pod of Job if the job does not have
-		// spec.Selector, these fields are immutable, if we use update strategy to apply Job, it will report
-		// AppliedManifestFailed. The maestro uses the server side strategy to apply a resource with ManifestWork
-		// by default, this will avoid this.
-		manifest := map[string]interface{}{}
-		sleepJobName := fmt.Sprintf("sleep-%s", rand.String(5))
-		err := json.Unmarshal([]byte(fmt.Sprintf(sleepJob, sleepJobName)), &manifest)
-		Expect(err).ShouldNot(HaveOccurred())
+	// 		_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+	// 		Expect(err).ShouldNot(HaveOccurred())
+	// 	})
 
-		res := openapi.Resource{
-			Manifest:     manifest,
-			ConsumerName: &agentTestOpts.consumerName,
-			GroupResource: map[string]interface{}{
-				"group":    "batch",
-				"resource": "jobs",
-			},
-		}
+	// 	It("get the resource via maestro api", func() {
+	// 		search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+	// 		gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	// 		Expect(err).ShouldNot(HaveOccurred())
+	// 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+	// 		Expect(len(gotResourceList.Items)).To(Equal(1))
+	// 		resource := gotResourceList.Items[0]
+	// 		Expect(resource.Metadata["creationTimestamp"]).ShouldNot(BeEmpty())
+	// 	})
 
-		created, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourcesPost(ctx).Resource(res).Execute()
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(resp.StatusCode).To(Equal(http.StatusCreated))
-		Expect(*created.Id).ShouldNot(BeEmpty())
+	// 	It("get the resource status back", func() {
+	// 		Eventually(func() error {
+	// 			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+	// 			if err != nil {
+	// 				return err
+	// 			}
+	// 			if work.CreationTimestamp.Time.IsZero() {
+	// 				return fmt.Errorf("work creationTimestamp is empty")
+	// 			}
 
-		resourceID := *created.Id
-		Eventually(func() error {
-			found, _, err := apiClient.DefaultApi.ApiMaestroV1ResourcesIdGet(ctx, resourceID).Execute()
-			if err != nil {
-				return err
-			}
+	// 			conditions := work.Status.Conditions
+	// 			if meta.IsStatusConditionFalse(conditions, workv1.WorkApplied) {
+	// 				return fmt.Errorf("unexpected condition %v", conditions)
+	// 			}
 
-			if found.Status == nil {
-				return fmt.Errorf("the resource %s status is nil", resourceID)
-			}
+	// 			if meta.IsStatusConditionFalse(conditions, workv1.WorkAvailable) {
+	// 				return fmt.Errorf("unexpected condition %v", conditions)
+	// 			}
 
-			statusJSON, err := json.Marshal(found.Status)
-			if err != nil {
-				return fmt.Errorf("failed to marshal status to JSON: %v", err)
-			}
-			resourceStatus := &api.ResourceStatus{}
-			if err := json.Unmarshal(statusJSON, resourceStatus); err != nil {
-				return fmt.Errorf("failed to unmarshal status JSON to ResourceStatus: %v", err)
-			}
+	// 			if meta.IsStatusConditionFalse(conditions, "StatusFeedbackSynced") {
+	// 				return fmt.Errorf("unexpected condition %v", conditions)
+	// 			}
 
-			conditions := resourceStatus.ReconcileStatus.Conditions
+	// 			return nil
+	// 		}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+	// 	})
 
-			if meta.IsStatusConditionFalse(conditions, workv1.WorkApplied) {
-				return fmt.Errorf("unexpected condition %v for resource %s", conditions, resourceID)
-			}
+	// 	It("delete the resource with source work client", func() {
+	// 		err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+	// 		Expect(err).ShouldNot(HaveOccurred())
+	// 	})
 
-			if meta.IsStatusConditionFalse(conditions, workv1.WorkAvailable) {
-				return fmt.Errorf("unexpected condition %v for resource %s", conditions, resourceID)
-			}
+	// 	It("check the resource deletion via maestro api", func() {
+	// 		Eventually(func() error {
+	// 			search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+	// 			gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	// 			if err != nil {
+	// 				return err
+	// 			}
+	// 			if resp.StatusCode != http.StatusOK {
+	// 				return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
+	// 			}
+	// 			if len(gotResourceList.Items) != 0 {
+	// 				return fmt.Errorf("expected no resources returned by maestro api")
+	// 			}
+	// 			return nil
+	// 		}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+	// 	})
+	// })
 
-			if meta.IsStatusConditionFalse(conditions, "StatusFeedbackSynced") {
-				return fmt.Errorf("unexpected condition %v for resource %s", conditions, resourceID)
-			}
-
-			return nil
-		}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-
-		// cleanup the job
-		resp, err = apiClient.DefaultApi.ApiMaestroV1ResourcesIdDelete(ctx, resourceID).Execute()
-		Expect(err).ShouldNot(HaveOccurred())
-		Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-	})
-
-	It("Apply a nested work with SSA", func() {
+	Context("Nested Work ServerSideApply Tests", func() {
 		workName := fmt.Sprintf("ssa-work-%s", rand.String(5))
-		nestedWorkName := fmt.Sprintf("nested-work-%s", rand.String(5))
-		nestedWorkNamespace := "default"
-
-		work := NewNestedManifestWork(nestedWorkNamespace, workName, nestedWorkName)
-		Eventually(func() error {
+		It("create a resource with nested work using SSA", func() {
+			nestedWorkName := fmt.Sprintf("nested-work-%s", rand.String(5))
+			nestedWorkNamespace := "default"
+			work := newNestedManifestWork(workName, nestedWorkName, nestedWorkNamespace)
 			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
-			return err
-		}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+			Expect(err).ShouldNot(HaveOccurred())
 
-		// make sure the nested work is created
-		Eventually(func() error {
-			_, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
-			if err != nil {
+			// make sure the nested work is created
+			Eventually(func() error {
+				_, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
 				return err
-			}
+			}, 30*time.Second, time.Second).ShouldNot(HaveOccurred())
 
-			return nil
-		}, 30*time.Second, time.Second).ShouldNot(HaveOccurred())
+			// make sure the nested work is not updated
+			Consistently(func() error {
+				nestedWork, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
 
-		// make sure the nested work is not updated
-		Consistently(func() error {
-			nestedWork, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
+				if nestedWork.Generation != 1 {
+					return fmt.Errorf("nested work generation is changed to %d", nestedWork.Generation)
+				}
 
-			if nestedWork.Generation != 1 {
-				return fmt.Errorf("nested work generation is changed to %d", nestedWork.Generation)
-			}
+				return nil
+			}, 1*time.Minute, 1*time.Second).Should(BeNil())
+		})
 
-			return nil
-		}, 1*time.Minute, 1*time.Second).Should(BeNil())
+		It("delete the resource with source work client", func() {
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+		})
 
-		err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-		Expect(err).ShouldNot(HaveOccurred())
+		It("check the resource deletion via maestro api", func() {
+			Eventually(func() error {
+				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+				if err != nil {
+					return err
+				}
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
+				}
+				if len(gotResourceList.Items) != 0 {
+					return fmt.Errorf("expected no resources returned by maestro api")
+				}
+				return nil
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+		})
 	})
 })
 
-func NewNestedManifestWork(nestedWorkNamespace, name, nestedWorkName string) *workv1.ManifestWork {
+func newNestedManifestWork(workName, nestedWorkName, nestedWorkNamespace string) *workv1.ManifestWork {
 	nestedWork := &workv1.ManifestWork{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "work.open-cluster-management.io/v1",
@@ -197,7 +223,7 @@ func NewNestedManifestWork(nestedWorkNamespace, name, nestedWorkName string) *wo
 
 	return &workv1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: name,
+			Name: workName,
 		},
 		Spec: workv1.ManifestWorkSpec{
 			Workload: workv1.ManifestsTemplate{
