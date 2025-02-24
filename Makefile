@@ -79,7 +79,7 @@ CLIENT_SECRET ?= maestro
 ENABLE_JWT ?= true
 ENABLE_AUTHZ ?= true
 ENABLE_OCM_MOCK ?= false
-ENABLE_GRPC_SERVER ?= false
+ENABLE_GRPC_SERVER ?= true
 
 # message driver type, mqtt or grpc, default is mqtt.
 MESSAGE_DRIVER_TYPE ?= mqtt

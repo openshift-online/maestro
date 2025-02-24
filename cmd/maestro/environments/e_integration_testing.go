@@ -54,6 +54,5 @@ func (e *testingEnvImpl) Flags() map[string]string {
 		"enable-ocm-mock":      "true",
 		"enable-sentry":        "false",
 		"source-id":            "maestro",
-		"enable-grpc-server":   "true",
 	}
 }

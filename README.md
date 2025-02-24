@@ -144,15 +144,15 @@ ocm login --token=${OCM_ACCESS_TOKEN} --url=http://localhost:8000
 
 ```
 
-#### List the resource bundle
+#### List the consumers
 
-This will be empty if no resource bundle is ever created
+This will be empty if no consumer is ever created
 
 ```shell
-$ ocm get /api/maestro/v1/resource-bundles
+$ ocm get /api/maestro/v1/consumers
 {
   "items": [],
-  "kind": "ResourceBundleList",
+  "kind": "ConsumerList",
   "page": 1,
   "size": 0,
   "total": 0
@@ -165,6 +165,29 @@ $ ocm get /api/maestro/v1/resource-bundles
 $ ocm post /api/maestro/v1/consumers << EOF
 {
   "name": "cluster1"
+}
+EOF
+```
+
+#### Get the consumer:
+
+```shell
+$ ocm get /api/maestro/v1/consumers
+{
+  "items": [
+    {
+      "created_at":"2023-12-08T11:35:08.557450505Z",
+      "href":"/api/maestro/v1/consumers/3f28c601-5028-47f4-9264-5cc43f2f27fb",
+      "id":"3f28c601-5028-47f4-9264-5cc43f2f27fb",
+      "kind":"Consumer",
+      "name":"cluster1",
+      "updated_at":"2023-12-08T11:35:08.557450505Z"
+    }
+  ],
+  "kind": "ConsumerList",
+  "page": 1,
+  "size": 1,
+  "total": 1
 }
 EOF
 ```

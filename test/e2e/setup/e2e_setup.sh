@@ -117,7 +117,6 @@ fi
 # 7. deploy maestro into maestro namespace
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
-export ENABLE_GRPC_SERVER=true
 export maestro_svc_type="NodePort"
 export maestro_svc_node_port=30080
 export grpc_svc_type="NodePort"

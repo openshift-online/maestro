@@ -1,6 +1,4 @@
-# gRPC server
-
-gPRC server is disabled by default. You can enable it by passing `--enable-grpc-server=true` to the maestro server command.
+# Maestro gRPC server
 
 ## Authentication and Authorization
 

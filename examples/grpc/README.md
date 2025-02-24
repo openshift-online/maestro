@@ -2,13 +2,7 @@
 
 ## Preparation
 
-1. Enable gRPC server by passing `--enable-grpc-server=true` to the maestro server start command:
-
-```shell
-$ kubectl -n maestro patch deploy/maestro --type=json -p='[{"op":"add","path":"/spec/template/spec/containers/0/command/-","value":"--enable-grpc-server=true"}]'
-```
-
-2. Do the port-forward the maestro-grpc service:
+Do the port-forward the maestro-grpc service:
 
 ```shell
 $ kubectl -n maestro port-forward svc/maestro-grpc 8090 &
