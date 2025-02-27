@@ -2,14 +2,13 @@ package services
 
 import (
 	"context"
-	"fmt"
 	"reflect"
 	"time"
 
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
-	logger "github.com/openshift-online/maestro/pkg/logger"
+	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/prometheus/client_golang/prometheus"
 
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
@@ -18,6 +17,8 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
+
+var log = logger.GetLogger()
 
 func init() {
 	// Register the metrics for resource service
@@ -160,7 +161,6 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 }
 
 func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, bool, *errors.ServiceError) {
-	logger := logger.NewOCMLogger(ctx)
 	// Updates the resource status only when its status changes.
 	// If there are multiple requests at the same time, it will cause the race conditions among these
 	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
@@ -178,8 +178,8 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 
 	// Make sure the requested resource version is consistent with its database version.
 	if found.Version != resource.Version {
-		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard it: id=%s, foundVersion=%d, wantedVersion=%d",
-			resource.ID, found.Version, resource.Version))
+		log.Warnf("Updating status for stale resource; disregard it: id=%s, foundVersion=%d, wantedVersion=%d",
+			resource.ID, found.Version, resource.Version)
 		return found, false, nil
 	}
 
@@ -193,8 +193,8 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return nil, false, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
 	}
 
-	logger.V(4).Info(fmt.Sprintf("Updating resource status, id=%s", resource.ID))
-	logger.V(10).Info(fmt.Sprintf("Updating resource status, evt=%s", resourceStatusEvent))
+	log.Infof("Updating resource status, id=%s", resource.ID)
+	log.Debugf("Updating resource status, evt=%s", resourceStatusEvent)
 
 	sequenceID, err := cloudeventstypes.ToString(resourceStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
 	if err != nil {
@@ -219,8 +219,8 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return nil, false, errors.GeneralError("Unable to compare sequence IDs: %s", err)
 	}
 	if !newer {
-		logger.Warning(fmt.Sprintf("Updating status for stale resource; disregard it: id=%s, foundSequenceID=%s, wantedSequenceID=%s",
-			resource.ID, foundSequenceID, sequenceID))
+		log.Warnf("Updating status for stale resource; disregard it: id=%s, foundSequenceID=%s, wantedSequenceID=%s",
+			resource.ID, foundSequenceID, sequenceID)
 		return found, false, nil
 	}
 

@@ -1,7 +1,6 @@
 package config
 
 import (
-	"log"
 	"os"
 	"testing"
 
@@ -14,7 +13,7 @@ func TestConfigReadStringFile(t *testing.T) {
 	stringFile, err := createConfigFile("string", "example\n")
 	defer os.Remove(stringFile.Name())
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 
 	var stringConfig string
@@ -29,7 +28,7 @@ func TestConfigReadIntFile(t *testing.T) {
 	intFile, err := createConfigFile("int", "123")
 	defer os.Remove(intFile.Name())
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 
 	var intConfig int
@@ -44,7 +43,7 @@ func TestConfigReadBoolFile(t *testing.T) {
 	boolFile, err := createConfigFile("bool", "true")
 	defer os.Remove(boolFile.Name())
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 
 	var boolConfig bool = false
@@ -59,7 +58,7 @@ func TestConfigReadQuotedFile(t *testing.T) {
 	stringFile, err := createConfigFile("string", "example")
 	defer os.Remove(stringFile.Name())
 	if err != nil {
-		log.Fatal(err)
+		t.Fatal(err)
 	}
 
 	quotedFileName := "\"" + stringFile.Name() + "\""

@@ -7,10 +7,12 @@ import (
 	"strings"
 
 	"github.com/getsentry/sentry-go"
-	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
+	"github.com/openshift-online/maestro/pkg/logger"
 )
+
+var log = logger.GetLogger()
 
 type Server interface {
 	Start()
@@ -29,7 +31,7 @@ func removeTrailingSlash(next http.Handler) http.Handler {
 // Exit on error
 func check(err error, msg string) {
 	if err != nil && err != http.ErrServerClosed {
-		klog.Errorf("%s: %s", msg, err)
+		log.Errorf("%s: %s", msg, err)
 		sentry.CaptureException(err)
 		sentry.Flush(environments.Environment().Config.Sentry.Timeout)
 		os.Exit(1)

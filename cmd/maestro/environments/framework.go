@@ -11,11 +11,11 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
+	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog/v2"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
@@ -34,8 +34,13 @@ func init() {
 			TestingEnv:     &testingEnvImpl{environment},
 			ProductionEnv:  &productionEnvImpl{environment},
 		}
+
+		// initialize the logger
+		logger.InitLogger(environment.Name)
 	})
 }
+
+var log = logger.GetLogger()
 
 // EnvironmentImpl defines a set of behaviors for an OCM environment.
 // Each environment provides a set of flags for basic set/override of the environment.
@@ -76,50 +81,50 @@ func (e *Env) AddFlags(flags *pflag.FlagSet) error {
 // This should be called after the e.Config has been set appropriately though AddFlags and pasing, done elsewhere
 // The environment does NOT handle flag parsing
 func (e *Env) Initialize() error {
-	klog.Infof("Initializing %s environment", e.Name)
+	log.Infof("Initializing environment: %s", e.Name)
 
 	envImpl, found := environments[e.Name]
 	if !found {
-		klog.Fatalf("Unknown runtime environment: %s", e.Name)
+		log.Fatalf("Unknown runtime environment: %s", e.Name)
 	}
 
 	if err := envImpl.VisitConfig(&e.ApplicationConfig); err != nil {
-		klog.Fatalf("Failed to visit ApplicationConfig: %s", err)
+		log.Fatalf("Failed to visit ApplicationConfig: %s", err)
 	}
 
 	messages := environment.Config.ReadFiles()
 	if len(messages) != 0 {
 		err := fmt.Errorf("unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 		sentry.CaptureException(err)
-		klog.Fatalf("Unable to read configuration files:\n%s", strings.Join(messages, "\n"))
+		log.Fatalf("Unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 	}
 
 	// each env will set db explicitly because the DB impl has a `once` init section
 	if err := envImpl.VisitDatabase(&e.Database); err != nil {
-		klog.Fatalf("Failed to visit Database: %s", err)
+		log.Fatalf("Failed to visit Database: %s", err)
 	}
 
 	if err := envImpl.VisitMessageBroker(&e.MessageBroker); err != nil {
-		klog.Fatalf("Failed to visit MessageBroker: %s", err)
+		log.Fatalf("Failed to visit MessageBroker: %s", err)
 	}
 
 	e.LoadServices()
 	if err := envImpl.VisitServices(&e.Services); err != nil {
-		klog.Fatalf("Failed to visit Services: %s", err)
+		log.Fatalf("Failed to visit Services: %s", err)
 	}
 
 	// Load clients after services so that clients can use services
 	err := e.LoadClients()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to load clients: %w", err)
 	}
 	if err := envImpl.VisitClients(&e.Clients); err != nil {
-		klog.Fatalf("Failed to visit Clients: %s", err)
+		log.Fatalf("Failed to visit Clients: %s", err)
 	}
 
 	err = e.InitializeSentry()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to initialize sentry: %w", err)
 	}
 
 	seedErr := e.Seed()
@@ -129,7 +134,7 @@ func (e *Env) Initialize() error {
 
 	if _, ok := envImpl.(HandlerVisitor); ok {
 		if err := (envImpl.(HandlerVisitor)).VisitHandlers(&e.Handlers); err != nil {
-			klog.Fatalf("Failed to visit Handlers: %s", err)
+			log.Fatalf("Failed to visit Handlers: %s", err)
 		}
 	}
 
@@ -162,19 +167,18 @@ func (e *Env) LoadClients() error {
 
 	// Create OCM Authz client
 	if e.Config.OCM.EnableMock {
-		klog.Infof("Using Mock OCM Authz Client")
+		log.Debugf("Using Mock OCM Authz Client")
 		e.Clients.OCM, err = ocm.NewClientMock(ocmConfig)
 	} else {
 		e.Clients.OCM, err = ocm.NewClient(ocmConfig)
 	}
 	if err != nil {
-		klog.Errorf("Unable to create OCM Authz client: %s", err.Error())
-		return err
+		return fmt.Errorf("Unable to create OCM Authz client: %v", err)
 	}
 
 	// Create CloudEvents Source client
 	if e.Config.MessageBroker.EnableMock {
-		klog.Infof("Using Mock CloudEvents Source Client")
+		log.Debugf("Using Mock CloudEvents Source Client")
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
 		// For gRPC message broker type, Maestro server does not require the source client to publish resources or subscribe to resource status.
@@ -182,20 +186,17 @@ func (e *Env) LoadClients() error {
 			_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
 				LoadConfig()
 			if err != nil {
-				klog.Errorf("Unable to load configuration: %s", err.Error())
-				return err
+				return fmt.Errorf("Unable to load cloudevent config: %v", err)
 			}
 
 			cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
 				e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
 			if err != nil {
-				klog.Errorf("Unable to build cloudevent source options: %s", err.Error())
-				return err
+				return fmt.Errorf("Unable to build cloudevent source options: %v", err)
 			}
 			e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
 			if err != nil {
-				klog.Errorf("Unable to create CloudEvents Source client: %s", err.Error())
-				return err
+				return fmt.Errorf("Unable to create cloudevent source client: %v", err)
 			}
 		}
 	}
@@ -203,23 +204,20 @@ func (e *Env) LoadClients() error {
 	// Create GRPC authorizer based on configuration
 	if e.Config.GRPCServer.EnableGRPCServer {
 		if e.Config.GRPCServer.GRPCAuthNType == "mock" {
-			klog.Infof("Using Mock GRPC Authorizer")
+			log.Debugf("Using Mock GRPC Authorizer")
 			e.Clients.GRPCAuthorizer = grpcauthorizer.NewMockGRPCAuthorizer()
 		} else {
 			kubeConfig, err := clientcmd.BuildConfigFromFlags("", e.Config.GRPCServer.GRPCAuthorizerConfig)
 			if err != nil {
-				klog.Warningf("Unable to create kube client config: %s", err.Error())
-				// fallback to in-cluster config
+				log.Warnf("Unable to load kubeconfig from file %s: %v, falling back to in-cluster config", e.Config.GRPCServer.GRPCAuthorizerConfig, err)
 				kubeConfig, err = rest.InClusterConfig()
 				if err != nil {
-					klog.Errorf("Unable to create kube client config: %s", err.Error())
-					return err
+					return fmt.Errorf("Unable to retrieve kube client config: %v", err)
 				}
 			}
 			kubeClient, err := kubernetes.NewForConfig(kubeConfig)
 			if err != nil {
-				klog.Errorf("Unable to create kube client: %s", err.Error())
-				return err
+				return fmt.Errorf("Unable to create kube client: %v", err)
 			}
 			e.Clients.GRPCAuthorizer = grpcauthorizer.NewKubeGRPCAuthorizer(kubeClient)
 		}
@@ -235,12 +233,12 @@ func (e *Env) InitializeSentry() error {
 		key := e.Config.Sentry.Key
 		url := e.Config.Sentry.URL
 		project := e.Config.Sentry.Project
-		klog.Infof("Sentry error reporting enabled to %s on project %s", url, project)
+		log.Debugf("Sentry error reporting enabled to %s on project %s", url, project)
 		options.Dsn = fmt.Sprintf("https://%s@%s/%s", key, url, project)
 	} else {
 		// Setting the DSN to an empty string effectively disables sentry
 		// See https://godoc.org/github.com/getsentry/sentry-go#ClientOptions Dsn
-		klog.Infof("Disabling Sentry error reporting")
+		log.Debugf("Disabling Sentry error reporting")
 		options.Dsn = ""
 	}
 
@@ -264,16 +262,16 @@ func (e *Env) InitializeSentry() error {
 
 	err = sentry.Init(options)
 	if err != nil {
-		klog.Errorf("Unable to initialize sentry integration: %s", err.Error())
-		return err
+		return fmt.Errorf("Unable to initialize sentry integration: %s", err.Error())
 	}
+
 	return nil
 }
 
 func (e *Env) Teardown() {
 	if e.Name != TestingEnv {
 		if err := e.Database.SessionFactory.Close(); err != nil {
-			klog.Fatalf("Unable to close db connection: %s", err.Error())
+			log.Fatalf("Unable to close db connection: %s", err.Error())
 		}
 		e.Clients.OCM.Close()
 	}
@@ -282,8 +280,7 @@ func (e *Env) Teardown() {
 func setConfigDefaults(flags *pflag.FlagSet, defaults map[string]string) error {
 	for name, value := range defaults {
 		if err := flags.Set(name, value); err != nil {
-			klog.Errorf("Error setting flag %s: %v", name, err)
-			return err
+			return fmt.Errorf("Error setting flag %s: %v", name, err)
 		}
 	}
 	return nil
