@@ -18,6 +18,8 @@ import (
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
+var log = logger.GetLogger()
+
 // SourceClient is an interface for publishing resource events to consumers
 // subscribing to and resyncing resource status from consumers.
 type SourceClient interface {
@@ -55,21 +57,19 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 }
 
 func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
-	logger := logger.NewOCMLogger(ctx)
-
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	logger.V(4).Infof("Publishing resource %s for db row insert", resource.ID)
+	log.Infof("Publishing resource %s for db row insert", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("create_request"),
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
-		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
+		log.Errorf("Failed to publish resource %s: %v", resource.ID, err)
 		return err
 	}
 
@@ -77,21 +77,19 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 }
 
 func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
-	logger := logger.NewOCMLogger(ctx)
-
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 
-	logger.V(4).Infof("Publishing resource %s for db row update", resource.ID)
+	log.Infof("Publishing resource %s for db row update", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("update_request"),
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
-		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
+		log.Errorf("Failed to publish resource %s: %v", resource.ID, err)
 		return err
 	}
 
@@ -99,8 +97,6 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 }
 
 func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
-	logger := logger.NewOCMLogger(ctx)
-
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		return err
@@ -110,14 +106,14 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	if resource.Meta.DeletedAt.Time.IsZero() {
 		return fmt.Errorf("resource %s has not been marked as deleting", resource.ID)
 	}
-	logger.V(4).Infof("Publishing resource %s for db row delete", resource.ID)
+	log.Infof("Publishing resource %s for db row delete", resource.ID)
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("delete_request"),
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
-		logger.Error(fmt.Sprintf("Failed to publish resource %s: %s", resource.ID, err))
+		log.Errorf("Failed to publish resource %s: %v", resource.ID, err)
 		return err
 	}
 
@@ -129,9 +125,7 @@ func (s *SourceClientImpl) Subscribe(ctx context.Context, handlers ...cegeneric.
 }
 
 func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error {
-	logger := logger.NewOCMLogger(ctx)
-
-	logger.V(4).Infof("Resyncing resource status from consumers %v", consumers)
+	log.Infof("Resyncing resource status from consumers %v", consumers)
 	for _, consumer := range consumers {
 		if err := s.CloudEventSourceClient.Resync(ctx, consumer); err != nil {
 			return err

@@ -8,8 +8,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
-	"github.com/openshift-online/maestro/pkg/logger"
-	"k8s.io/klog/v2"
 )
 
 var _ Dispatcher = &NoopDispatcher{}
@@ -38,7 +36,7 @@ func (d *NoopDispatcher) Start(ctx context.Context) {
 	go d.resyncOnReconnect(ctx)
 
 	// listen for server_instance update
-	klog.Infof("NoopDispatcher listening for server_instances updates")
+	log.Infof("NoopDispatcher listening for server_instances updates")
 	go d.sessionFactory.NewListener(ctx, "server_instances", d.onInstanceUpdate)
 
 	// wait until context is canceled
@@ -48,7 +46,6 @@ func (d *NoopDispatcher) Start(ctx context.Context) {
 
 // resyncOnReconnect listens for client reconnected signal and resyncs all consumers for this source.
 func (d *NoopDispatcher) resyncOnReconnect(ctx context.Context) {
-	log := logger.NewOCMLogger(ctx)
 	// receive client reconnect signal and resync current consumers for this source
 	for {
 		select {
@@ -77,14 +74,14 @@ func (d *NoopDispatcher) resyncOnReconnect(ctx context.Context) {
 func (d *NoopDispatcher) onInstanceUpdate(ids string) {
 	states := strings.Split(ids, ":")
 	if len(states) != 2 {
-		klog.Infof("watched server instances updated with invalid ids: %s", ids)
+		log.Infof("watched server instances updated with invalid ids: %s", ids)
 		return
 	}
 	idList := strings.Split(states[1], ",")
 	if states[0] == "unready" && len(idList) > 0 {
 		// only call onInstanceDown once with empty instance id to reduce the number of status resync requests
 		if err := d.onInstanceDown(); err != nil {
-			klog.Errorf("failed to call OnInstancesDown: %s", err)
+			log.Errorf("failed to call OnInstancesDown: %s", err)
 		}
 	}
 }

@@ -5,7 +5,7 @@ import (
 	"io"
 	"net/http"
 
-	"k8s.io/klog/v2"
+	"github.com/openshift-online/maestro/pkg/logger"
 )
 
 func NewJSONLogFormatter() *jsonLogFormatter {
@@ -22,7 +22,7 @@ func (f *jsonLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
 		RequestURI: r.RequestURI,
 		RemoteAddr: r.RemoteAddr,
 	}
-	if klog.V(10).Enabled() {
+	if logger.GetLoggerLevel() == "debug" {
 		jsonlog.Header = r.Header
 		jsonlog.Body = r.Body
 	}
@@ -36,7 +36,7 @@ func (f *jsonLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
 
 func (f *jsonLogFormatter) FormatResponseLog(info *ResponseInfo) (string, error) {
 	jsonlog := jsonResponseLog{Header: nil, Status: info.Status, Elapsed: info.Elapsed}
-	if klog.V(10).Enabled() {
+	if logger.GetLoggerLevel() == "debug" {
 		jsonlog.Body = string(info.Body[:])
 	}
 	log, err := json.Marshal(jsonlog)
