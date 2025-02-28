@@ -18,7 +18,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/logger"
-	"k8s.io/klog/v2"
 
 	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
 	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
@@ -58,6 +57,7 @@ const (
 
 var helper *Helper
 var once sync.Once
+var log = logger.GetLogger()
 
 // TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 var jwkURL string
@@ -105,10 +105,10 @@ func NewHelper(t *testing.T) *Helper {
 		env.Name = environments.TestingEnv
 		err = env.AddFlags(pflag.CommandLine)
 		if err != nil {
-			klog.Fatalf("Unable to add environment flags: %s", err.Error())
+			log.Fatalf("Unable to add environment flags: %s", err.Error())
 		}
 		if logLevel := os.Getenv("LOGLEVEL"); logLevel != "" {
-			klog.Infof("Using custom loglevel: %s", logLevel)
+			log.Infof("Using custom loglevel: %s", logLevel)
 			pflag.CommandLine.Set("-v", logLevel)
 		}
 		pflag.Parse()
@@ -121,7 +121,7 @@ func NewHelper(t *testing.T) *Helper {
 
 		err = env.Initialize()
 		if err != nil {
-			klog.Fatalf("Unable to initialize testing environment: %s", err.Error())
+			log.Fatalf("Unable to initialize testing environment: %s", err.Error())
 		}
 
 		ctx, cancel := context.WithCancel(context.Background())
@@ -197,9 +197,9 @@ func (helper *Helper) startAPIServer() {
 	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
 	helper.APIServer = server.NewAPIServer(helper.EventBroadcaster)
 	go func() {
-		klog.V(10).Info("Test API server started")
+		log.Debug("Test API server started")
 		helper.APIServer.Start()
-		klog.V(10).Info("Test API server stopped")
+		log.Debug("Test API server stopped")
 	}()
 }
 
@@ -213,9 +213,9 @@ func (helper *Helper) stopAPIServer() error {
 func (helper *Helper) startMetricsServer() {
 	helper.MetricsServer = server.NewMetricsServer()
 	go func() {
-		klog.V(10).Info("Test Metrics server started")
+		log.Debug("Test Metrics server started")
 		helper.MetricsServer.Start()
-		klog.V(10).Info("Test Metrics server stopped")
+		log.Debug("Test Metrics server stopped")
 	}()
 }
 
@@ -228,9 +228,9 @@ func (helper *Helper) stopMetricsServer() error {
 
 func (helper *Helper) startHealthCheckServer(ctx context.Context) {
 	go func() {
-		klog.V(10).Info("Test health check server started")
+		log.Debug("Test health check server started")
 		helper.HealthCheckServer.Start(ctx)
-		klog.V(10).Info("Test health check server stopped")
+		log.Debug("Test health check server stopped")
 	}()
 }
 
@@ -241,17 +241,17 @@ func (helper *Helper) sendShutdownSignal() error {
 
 func (helper *Helper) startEventServer(ctx context.Context) {
 	go func() {
-		klog.V(10).Info("Test event server started")
+		log.Debug("Test event server started")
 		helper.EventServer.Start(ctx)
-		klog.V(10).Info("Test event server stopped")
+		log.Debug("Test event server stopped")
 	}()
 }
 
 func (helper *Helper) startEventBroadcaster() {
 	go func() {
-		klog.V(10).Info("Test event broadcaster started")
+		log.Debug("Test event broadcaster started")
 		helper.EventBroadcaster.Start(helper.Ctx)
-		klog.V(10).Info("Test event broadcaster stopped")
+		log.Debug("Test event broadcaster stopped")
 	}()
 }
 
@@ -291,7 +291,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 		// initilize the mqtt options
 		mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
 		if err != nil {
-			klog.Fatalf("Unable to build MQTT options: %s", err.Error())
+			log.Fatalf("Unable to build MQTT options: %s", err.Error())
 		}
 		brokerConfig = mqttOptions
 	} else {
@@ -310,7 +310,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 		WithWorkClientWatcherStore(watcherStore).
 		NewAgentClientHolder(ctx)
 	if err != nil {
-		klog.Fatalf("Unable to create work agent holder: %s", err)
+		log.Fatalf("Unable to create work agent holder: %s", err)
 	}
 
 	factory := workinformers.NewSharedInformerFactoryWithOptions(
@@ -341,7 +341,7 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 	)
 
 	if err != nil {
-		klog.Fatalf("Unable to create grpc cloudevents source client: %s", err.Error())
+		log.Fatalf("Unable to create grpc cloudevents source client: %s", err.Error())
 	}
 
 	sourceClient.Subscribe(helper.Ctx, func(action types.ResourceAction, resource *api.Resource) error {
@@ -355,17 +355,17 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 func (helper *Helper) RestartServer() {
 	helper.stopAPIServer()
 	helper.startAPIServer()
-	klog.V(10).Info("Test API server restarted")
+	log.Debug("Test API server restarted")
 }
 
 func (helper *Helper) RestartMetricsServer() {
 	helper.stopMetricsServer()
 	helper.startMetricsServer()
-	klog.V(10).Info("Test metrics server restarted")
+	log.Debug("Test metrics server restarted")
 }
 
 func (helper *Helper) Reset() {
-	klog.Infof("Reseting testing environment")
+	log.Infof("Reseting testing environment")
 	env := helper.Env()
 	// Reset the configuration
 	env.Config = config.NewApplicationConfig()
@@ -379,7 +379,7 @@ func (helper *Helper) Reset() {
 
 	err := env.Initialize()
 	if err != nil {
-		klog.Fatalf("Unable to reset testing environment: %s", err.Error())
+		log.Fatalf("Unable to reset testing environment: %s", err.Error())
 	}
 	helper.AppConfig = env.Config
 	helper.RestartServer()
@@ -624,10 +624,9 @@ func parseJWTKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 
 // Return project root path based on the relative path of this file
 func getProjectRootDir() string {
-	ulog := logger.NewOCMLogger(context.Background())
 	curr, err := os.Getwd()
 	if err != nil {
-		ulog.Fatal(fmt.Sprintf("Unable to get working directory: %v", err.Error()))
+		log.Fatal(fmt.Sprintf("Unable to get working directory: %v", err.Error()))
 		return ""
 	}
 	root := curr
@@ -635,7 +634,7 @@ func getProjectRootDir() string {
 		anchor := filepath.Join(curr, ".git")
 		_, err = os.Stat(anchor)
 		if err != nil && !os.IsNotExist(err) {
-			ulog.Fatal(fmt.Sprintf("Unable to check if directory '%s' exists", anchor))
+			log.Fatal(fmt.Sprintf("Unable to check if directory '%s' exists", anchor))
 			break
 		}
 		if err == nil {

@@ -2,8 +2,6 @@ package logging
 
 import (
 	"net/http"
-
-	"github.com/openshift-online/maestro/pkg/logger"
 )
 
 func NewLoggingWriter(w http.ResponseWriter, r *http.Request, f LogFormatter) *loggingWriter {
@@ -29,12 +27,11 @@ func (writer *loggingWriter) WriteHeader(status int) {
 }
 
 func (writer *loggingWriter) log(logMsg string, err error) {
-	log := logger.NewOCMLogger(writer.request.Context())
 	switch err {
 	case nil:
-		log.V(LoggingThreshold).Infof(logMsg)
+		log.Debug(logMsg)
 	default:
-		log.Extra("error", err.Error()).Error("Unable to format request/response for log.")
+		log.With("error", err.Error()).Error("Unable to log request/response for log.")
 	}
 }
 

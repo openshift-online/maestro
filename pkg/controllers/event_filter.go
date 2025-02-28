@@ -54,7 +54,7 @@ func (h *LockBasedEventFilter) Filter(ctx context.Context, id string) (bool, err
 	}
 
 	if !acquired {
-		logger.V(4).Infof("Event %s is processed by another worker", id)
+		log.Infof("Event %s is processed by another worker", id)
 		return false, nil
 	}
 

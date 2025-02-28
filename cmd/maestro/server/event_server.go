@@ -10,7 +10,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -18,8 +17,6 @@ import (
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
-
-var log = logger.NewOCMLogger(context.Background())
 
 // EventServer handles resource-related events:
 // 1. Resource spec events (create, update and delete) from the resource controller.
@@ -94,13 +91,13 @@ func (s *MessageQueueEventServer) Start(ctx context.Context) {
 // It runs asynchronously in the background until the provided context is canceled.
 func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 	s.sourceClient.Subscribe(ctx, func(action types.ResourceAction, resource *api.Resource) error {
-		log.V(4).Infof("received action %s for resource %s", action, resource.ID)
+		log.Infof("received action %s for resource %s", action, resource.ID)
 
 		switch action {
 		case types.StatusModified:
 			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 				// the resource is not owned by the current instance, skip
-				log.V(4).Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
+				log.Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
 				return nil
 			}
 
@@ -164,7 +161,7 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	found, svcErr := resourceService.Get(ctx, resource.ID)
 	if svcErr != nil {
 		if svcErr.Is404() {
-			log.Warning(fmt.Sprintf("skipping resource %s as it is not found", resource.ID))
+			log.Warnf("skipping resource %s as it is not found", resource.ID)
 			return nil
 		}
 
@@ -277,7 +274,7 @@ func broadcastStatusEvent(ctx context.Context,
 	}
 
 	// broadcast the resource status to subscribers
-	log.V(4).Infof("Broadcast the resource status, id=%s, statusEventType=%s", resource.ID, statusEvent.StatusEventType)
+	log.Infof("Broadcast the resource status, id=%s, statusEventType=%s", resource.ID, statusEvent.StatusEventType)
 	eventBroadcaster.Broadcast(resource)
 
 	// add the event instance record

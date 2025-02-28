@@ -9,8 +9,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 )
 
+var log = logger.GetLogger()
+
 func handleError(ctx context.Context, w http.ResponseWriter, code errors.ServiceErrorCode, reason string) {
-	log := logger.NewOCMLogger(ctx)
 	operationID := logger.GetOperationID(ctx)
 	err := errors.New(code, reason)
 	if err.HttpCode >= 400 && err.HttpCode <= 499 {

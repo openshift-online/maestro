@@ -18,8 +18,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/klog/v2"
 )
+
+var log = logger.GetLogger()
 
 var _ Dispatcher = &HashDispatcher{}
 
@@ -64,7 +65,7 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 	go wait.UntilWithContext(ctx, d.check, 5*time.Second)
 
 	// listen for server_instance update
-	klog.Infof("HashDispatcher listening for server_instances updates")
+	log.Infof("HashDispatcher listening for server_instances updates")
 	go d.sessionFactory.NewListener(ctx, "server_instances", d.onInstanceUpdate)
 
 	// start a goroutine to resync current consumers for this source when the client is reconnected
@@ -78,20 +79,20 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 func (d *HashDispatcher) onInstanceUpdate(ids string) {
 	states := strings.Split(ids, ":")
 	if len(states) != 2 {
-		klog.Infof("watched server instances updated with invalid ids: %s", ids)
+		log.Infof("watched server instances updated with invalid ids: %s", ids)
 		return
 	}
 	idList := strings.Split(states[1], ",")
 	if states[0] == "ready" {
 		for _, id := range idList {
 			if err := d.onInstanceUp(id); err != nil {
-				klog.Errorf("failed to call OnInstancesUp for instance %s: %s", id, err)
+				log.Errorf("failed to call OnInstancesUp for instance %s: %s", id, err)
 			}
 		}
 	} else {
 		for _, id := range idList {
 			if err := d.onInstanceDown(id); err != nil {
-				klog.Errorf("failed to call OnInstancesDown for instance %s: %s", id, err)
+				log.Errorf("failed to call OnInstancesDown for instance %s: %s", id, err)
 			}
 		}
 	}
@@ -99,7 +100,6 @@ func (d *HashDispatcher) onInstanceUpdate(ids string) {
 
 // resyncOnReconnect listens for the client reconnected signal and resyncs current consumers for this source.
 func (d *HashDispatcher) resyncOnReconnect(ctx context.Context) {
-	log := logger.NewOCMLogger(ctx)
 	// receive client reconnect signal and resync current consumers for this source
 	for {
 		select {
@@ -171,11 +171,8 @@ func (d *HashDispatcher) updateConsumerSet() error {
 		return nil
 	}
 
-	ctx := context.TODO()
-	log := logger.NewOCMLogger(ctx)
-
 	// get all consumers and update the consumer set for the current instance
-	consumers, err := d.consumerDao.All(ctx)
+	consumers, err := d.consumerDao.All(context.TODO())
 	if err != nil {
 		return fmt.Errorf("unable to list consumers: %s", err.Error())
 	}
@@ -199,7 +196,7 @@ func (d *HashDispatcher) updateConsumerSet() error {
 
 	_ = d.consumerSet.Append(toAddConsumers...)
 	d.consumerSet.RemoveAll(toRemoveConsumers...)
-	log.V(4).Infof("Consumers set for current instance: %s", d.consumerSet.String())
+	log.Infof("Consumers set for current instance: %s", d.consumerSet.String())
 
 	return nil
 }
@@ -221,8 +218,6 @@ func (d *HashDispatcher) startStatusResyncWorkers(ctx context.Context) {
 
 // check checks the instances & consumers and updates the hashing ring and consumer set for the current instance.
 func (d *HashDispatcher) check(ctx context.Context) {
-	log := logger.NewOCMLogger(ctx)
-
 	instances, err := d.instanceDao.All(ctx)
 	if err != nil {
 		log.Error(fmt.Sprintf("Unable to get all maestro instances: %s", err.Error()))
@@ -273,8 +268,7 @@ func (d *HashDispatcher) processNextResync(ctx context.Context) bool {
 		return true
 	}
 
-	log := logger.NewOCMLogger(ctx)
-	log.V(4).Infof("processing status resync request for consumer %s", consumerName)
+	log.Infof("processing status resync request for consumer %s", consumerName)
 	if err := d.sourceClient.Resync(ctx, []string{consumerName}); err != nil {
 		log.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerName, err))
 		// Put the item back on the workqueue to handle any transient errors.

@@ -15,7 +15,6 @@ import (
 	gorillahandlers "github.com/gorilla/handlers"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/openshift-online/ocm-sdk-go/authentication"
-	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/data/generated/openapi"
@@ -145,16 +144,16 @@ func (s apiServer) Serve(listener net.Listener) {
 		}
 
 		// Serve with TLS
-		klog.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindPort)
+		log.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.ServeTLS(listener, env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		klog.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindPort)
+		log.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.Serve(listener)
 	}
 
 	// Web server terminated.
 	check(err, "Web server terminated with errors")
-	klog.Info("Web server terminated")
+	log.Info("Web server terminated")
 }
 
 // Listen only start the listener, not the server.
@@ -174,7 +173,7 @@ func (s apiServer) Start() {
 
 	listener, err := s.Listen()
 	if err != nil {
-		klog.Fatalf("Unable to start API server: %s", err)
+		log.Fatalf("Unable to start API server: %s", err)
 	}
 	s.Serve(listener)
 
