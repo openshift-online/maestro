@@ -47,11 +47,11 @@ require (
 	gorm.io/datatypes v1.2.0
 	gorm.io/driver/postgres v1.5.0
 	gorm.io/gorm v1.24.7-0.20230306060331-85eaf9eeda11
-	k8s.io/api v0.31.4
-	k8s.io/apimachinery v0.31.4
-	k8s.io/apiserver v0.31.4
-	k8s.io/client-go v0.31.4
-	k8s.io/component-base v0.31.4
+	k8s.io/api v0.32.2
+	k8s.io/apimachinery v0.32.2
+	k8s.io/apiserver v0.32.2
+	k8s.io/client-go v0.32.2
+	k8s.io/component-base v0.32.2
 	k8s.io/klog/v2 v2.130.1
 	open-cluster-management.io/api v0.15.1-0.20250116010516-3a595d6a4e40
 	open-cluster-management.io/ocm v0.15.1-0.20250108154653-2397c4e91119
