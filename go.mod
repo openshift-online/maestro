@@ -42,7 +42,7 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/oauth2 v0.21.0
 	google.golang.org/grpc v1.65.0
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.36.5
 	gopkg.in/resty.v1 v1.12.0
 	gorm.io/datatypes v1.2.0
 	gorm.io/driver/postgres v1.5.0
