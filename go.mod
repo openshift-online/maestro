@@ -34,15 +34,15 @@ require (
 	github.com/openshift/library-go v0.0.0-20241107160307-0064ad7bd060
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
-	github.com/prometheus/common v0.55.0
+	github.com/prometheus/common v0.62.0
 	github.com/segmentio/ksuid v1.0.2
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/yaacov/tree-search-language v0.0.0-20190923184055-1c2dad2e354b
 	go.uber.org/zap v1.27.0
-	golang.org/x/oauth2 v0.21.0
+	golang.org/x/oauth2 v0.24.0
 	google.golang.org/grpc v1.65.0
-	google.golang.org/protobuf v1.35.1
+	google.golang.org/protobuf v1.36.1
 	gopkg.in/resty.v1 v1.12.0
 	gorm.io/datatypes v1.2.0
 	gorm.io/driver/postgres v1.5.0
