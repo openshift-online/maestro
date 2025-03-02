@@ -14,7 +14,7 @@ require (
 	github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250214143010-93e1a8d64cd6
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
-	github.com/getsentry/sentry-go v0.20.0
+	github.com/getsentry/sentry-go v0.31.1
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.0
 	github.com/go-logr/zapr v1.3.0
@@ -131,6 +131,7 @@ require (
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/smartystreets/goconvey v1.8.1 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
+	github.com/urfave/negroni v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.14 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.14 // indirect
