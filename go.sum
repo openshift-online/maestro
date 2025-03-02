@@ -425,8 +425,8 @@ github.com/moby/sys/mountinfo v0.6.2 h1:BzJjoreD5BMFNmD9Rus6gdd1pLuecOFPt8wC+Vyg
 github.com/moby/sys/mountinfo v0.6.2/go.mod h1:IJb6JQeOklcdMU9F5xQ8ZALD+CUr5VlGpwtX+VE0rpI=
 github.com/moby/term v0.5.0 h1:xt8Q1nalod/v7BqbG21f8mQPqH+xAaC9C3N3wfWbVP0=
 github.com/moby/term v0.5.0/go.mod h1:8FzsFHVUBGZdbDsJw/ot+X+d5HLUbvklYLJ9uGfcI3Y=
-github.com/mochi-mqtt/server/v2 v2.6.6 h1:FmL5ebeIIA+AKo/nX0DF8Yc2MMWFLQCwh3FZBEmg6dQ=
-github.com/mochi-mqtt/server/v2 v2.6.6/go.mod h1:TqztjKGO0/ArOjJt9x9idk0kqPT3CVN8Pb+l+PS5Gdo=
+github.com/mochi-mqtt/server/v2 v2.6.5 h1:9PiQ6EJt/Dx0ut0Fuuir4F6WinO/5Bpz9szujNwm+q8=
+github.com/mochi-mqtt/server/v2 v2.6.5/go.mod h1:TqztjKGO0/ArOjJt9x9idk0kqPT3CVN8Pb+l+PS5Gdo=
 github.com/modern-go/concurrent v0.0.0-20180228061459-e0a39a4cb421/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd h1:TRLaZ9cD/w8PVh93nsPXa1VrQ6jlwL5oN8l14QlcNfg=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=
@@ -891,8 +891,8 @@ k8s.io/utils v0.0.0-20240921022957-49e7df575cb6 h1:MDF6h2H/h4tbzmtIKTuctcwZmY0tY
 k8s.io/utils v0.0.0-20240921022957-49e7df575cb6/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 open-cluster-management.io/api v0.15.1-0.20250116010516-3a595d6a4e40 h1:LckTHZ68rcy3hDFu6wa7BVOJ9wbWItJLZXmi0bpMyh8=
 open-cluster-management.io/api v0.15.1-0.20250116010516-3a595d6a4e40/go.mod h1:9erZEWEn4bEqh0nIX2wA7f/s3KCuFycQdBrPrRzi0QM=
-open-cluster-management.io/ocm v0.15.1-0.20250108154653-2397c4e91119 h1:Ftx7vxDumTB9d4+ZdcqYwQavTOVzgF5h6vAXJ/gh0IE=
-open-cluster-management.io/ocm v0.15.1-0.20250108154653-2397c4e91119/go.mod h1:T9pfSm3EYHnysEP9JYfCojV2pI44IYMz3zaZNylulz8=
+open-cluster-management.io/ocm v0.15.2 h1:i1b3a7mRrRVJlw9rooEFmZuHdaRVrmfoBOuEDfyxklI=
+open-cluster-management.io/ocm v0.15.2/go.mod h1:d6ubRiBaouiQ+yV+wFAmarpU7I77nXhkJnQJf8gLZC4=
 open-cluster-management.io/sdk-go v0.15.1-0.20250217031345-04acb74ee5ae h1:jxNiZbTXMFbdLUIFiowpSCSegXPWfGML0jlaEBCnq5o=
 open-cluster-management.io/sdk-go v0.15.1-0.20250217031345-04acb74ee5ae/go.mod h1:fi5WBsbC5K3txKb8eRLuP0Sim/Oqz/PHX18skAEyjiA=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 h1:2770sDpzrjjsAtVhSeUFseziht227YAWYHLGNM8QPwY=
