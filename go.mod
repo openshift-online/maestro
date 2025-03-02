@@ -9,7 +9,7 @@ require (
 	github.com/auth0/go-jwt-middleware v0.0.0-20190805220309-36081240882b
 	github.com/buraksezer/consistent v0.10.0
 	github.com/bwmarrin/snowflake v0.3.0
-	github.com/bxcodec/faker/v3 v3.2.0
+	github.com/bxcodec/faker/v3 v3.8.1
 	github.com/cespare/xxhash v1.1.0
 	github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250214143010-93e1a8d64cd6
 	github.com/deckarep/golang-set/v2 v2.6.0
