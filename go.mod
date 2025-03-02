@@ -35,7 +35,7 @@ require (
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.55.0
-	github.com/segmentio/ksuid v1.0.2
+	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/yaacov/tree-search-language v0.0.0-20190923184055-1c2dad2e354b
