@@ -119,7 +119,6 @@ echo "PostgrepSQL subnet group ${db_subnet_group} is created"
 db_id=$(aws rds create-db-instance \
     --region ${region} \
     --engine postgres \
-    --engine-version 14.10 \
     --allocated-storage 20 \
     --db-instance-class db.t4g.large \
     --db-subnet-group-name ${db_subnet_group} \
