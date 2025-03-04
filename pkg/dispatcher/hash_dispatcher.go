@@ -196,7 +196,7 @@ func (d *HashDispatcher) updateConsumerSet() error {
 
 	_ = d.consumerSet.Append(toAddConsumers...)
 	d.consumerSet.RemoveAll(toRemoveConsumers...)
-	log.Infof("Consumers set for current instance: %s", d.consumerSet.String())
+	log.Debugf("Consumers set for current instance: %s", d.consumerSet.String())
 
 	return nil
 }
