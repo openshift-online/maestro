@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
+	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
 
@@ -27,16 +28,13 @@ func init() {
 		// Create the configuration
 		environment.Config = config.NewApplicationConfig()
 		environment.ApplicationConfig = ApplicationConfig{config.NewApplicationConfig()}
-		environment.Name = GetEnvironmentStrFromEnv()
+		environment.Name = envtypes.GetEnvironmentStrFromEnv()
 
 		environments = map[string]EnvironmentImpl{
-			DevelopmentEnv: &devEnvImpl{environment},
-			TestingEnv:     &testingEnvImpl{environment},
-			ProductionEnv:  &productionEnvImpl{environment},
+			envtypes.DevelopmentEnv: &devEnvImpl{environment},
+			envtypes.TestingEnv:     &testingEnvImpl{environment},
+			envtypes.ProductionEnv:  &productionEnvImpl{environment},
 		}
-
-		// initialize the logger
-		logger.InitLogger(environment.Name)
 	})
 }
 
@@ -57,14 +55,6 @@ type EnvironmentImpl interface {
 	VisitServices(s *Services) error
 	VisitHandlers(c *Handlers) error
 	VisitClients(c *Clients) error
-}
-
-func GetEnvironmentStrFromEnv() string {
-	envStr, specified := os.LookupEnv(EnvironmentStringKey)
-	if !specified || envStr == "" {
-		envStr = EnvironmentDefault
-	}
-	return envStr
 }
 
 func Environment() *Env {
@@ -269,7 +259,7 @@ func (e *Env) InitializeSentry() error {
 }
 
 func (e *Env) Teardown() {
-	if e.Name != TestingEnv {
+	if e.Name != envtypes.TestingEnv {
 		if err := e.Database.SessionFactory.Close(); err != nil {
 			log.Fatalf("Unable to close db connection: %s", err.Error())
 		}

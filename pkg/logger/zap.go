@@ -1,8 +1,7 @@
 package logger
 
 import (
-	"sync"
-
+	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -12,18 +11,17 @@ import (
 var (
 	zapLogLevel zap.AtomicLevel
 	zapLogger   *zap.SugaredLogger
-	once        sync.Once
 )
 
-// InitLogger initializes the logger with the given environment.
-// Must be called before using the logger.
-func InitLogger(env string) {
-	once.Do(func() {
+// GetLogger returns the singleton logger instance, initializing it
+// with the given environment if necessary.
+func GetLogger() *zap.SugaredLogger {
+	if zapLogger == nil {
 		zapLogLevel = zap.NewAtomicLevel()
 		zapConfig := zap.NewDevelopmentConfig()
 		zapConfig.DisableStacktrace = true
 		zapConfig.Encoding = "console"
-		if env == "development" {
+		if envtypes.GetEnvironmentStrFromEnv() == "development" {
 			zapLogLevel.SetLevel(zapcore.DebugLevel)
 		} else {
 			zapLogLevel.SetLevel(zapcore.InfoLevel)
@@ -33,28 +31,8 @@ func InitLogger(env string) {
 		if err != nil {
 			panic(err)
 		}
-
-		zapLogger = zlog.Sugar()
-	})
-}
-
-// GetLogger returns the singleton logger instance.
-func GetLogger() *zap.SugaredLogger {
-	if zapLogger == nil {
-		zapLogLevel = zap.NewAtomicLevel()
-		zapConfig := zap.NewDevelopmentConfig()
-		zapConfig.DisableStacktrace = true
-		zapConfig.Encoding = "console"
-		zapLogLevel.SetLevel(zapcore.InfoLevel)
-		zapConfig.Level = zapLogLevel
-		zlog, err := zapConfig.Build()
-		if err != nil {
-			panic(err)
-		}
-
 		zapLogger = zlog.Sugar()
 	}
-
 	return zapLogger
 }
 

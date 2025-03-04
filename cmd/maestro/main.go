@@ -47,7 +47,7 @@ func main() {
 	viper.SetDefault(varLogLevel, "info")
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(*os.PathError); ok {
-			log.Infof("no config file '%s' not found", logConfigFile)
+			log.Infof("no config file '%s'", logConfigFile)
 		} else {
 			log.Errorf("failed to read the config file '%s': %v", logConfigFile, err)
 		}

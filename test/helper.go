@@ -36,6 +36,8 @@ import (
 	"github.com/segmentio/ksuid"
 	"github.com/spf13/pflag"
 
+	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
+
 	amv1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
@@ -102,7 +104,7 @@ func NewHelper(t *testing.T) *Helper {
 
 		env := helper.Env()
 		// Manually set environment name, ignoring environment variables
-		env.Name = environments.TestingEnv
+		env.Name = envtypes.TestingEnv
 		err = env.AddFlags(pflag.CommandLine)
 		if err != nil {
 			log.Fatalf("Unable to add environment flags: %s", err.Error())

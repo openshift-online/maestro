@@ -11,15 +11,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 )
 
-const (
-	TestingEnv     string = "testing"
-	DevelopmentEnv string = "development"
-	ProductionEnv  string = "production"
-
-	EnvironmentStringKey string = "MAESTRO_ENV"
-	EnvironmentDefault   string = DevelopmentEnv
-)
-
 type Env struct {
 	Name          string
 	Services      Services
