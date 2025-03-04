@@ -21,7 +21,6 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"k8s.io/klog/v2"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/payload"
@@ -31,7 +30,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/event"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
@@ -119,9 +117,9 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		}
 		grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
-		klog.Infof("Serving gRPC broker with TLS at %s", config.ServerBindPort)
+		log.Infof("Serving gRPC broker with TLS at %s", config.ServerBindPort)
 	} else {
-		klog.Infof("Serving gRPC broker without TLS at %s", config.ServerBindPort)
+		log.Infof("Serving gRPC broker without TLS at %s", config.ServerBindPort)
 	}
 
 	sessionFactory := env().Database.SessionFactory
@@ -140,7 +138,7 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 
 // Start starts the gRPC broker
 func (bkr *GRPCBroker) Start(ctx context.Context) {
-	klog.Info("Starting gRPC broker")
+	log.Info("Starting gRPC broker")
 	lis, err := net.Listen("tcp", bkr.bindAddress)
 	if err != nil {
 		check(fmt.Errorf("failed to listen: %v", err), "Can't start gRPC broker")
@@ -170,7 +168,7 @@ func (bkr *GRPCBroker) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	klog.V(4).Infof("receive the event with grpc broker, %s", evt)
+	log.Infof("receive the event with grpc broker, %s", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -208,7 +206,7 @@ func (bkr *GRPCBroker) register(clusterName string, handler resourceHandler) (st
 		errChan:     errChan,
 	}
 
-	klog.V(4).Infof("registered a subscriber %s (cluster name = %s)", id, clusterName)
+	log.Infof("registered a subscriber %s (cluster name = %s)", id, clusterName)
 	return id, errChan
 }
 
@@ -219,7 +217,7 @@ func (bkr *GRPCBroker) unregister(id string) {
 
 	close(bkr.subscribers[id].errChan)
 	delete(bkr.subscribers, id)
-	klog.V(4).Infof("unregistered subscriber %s", id)
+	log.Infof("unregistered subscriber %s", id)
 }
 
 // Subscribe in stub implementation for maestro agent subscribe resource spec from maestro server.
@@ -246,9 +244,9 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		}
 
 		// send the cloudevent to the subscriber
-		klog.V(4).Infof("sending the event to spec subscribers, %s", evt)
+		log.Infof("sending the event to spec subscribers, %s", evt)
 		if err := subServer.Send(pbEvt); err != nil {
-			klog.Errorf("failed to send grpc event, %v", err)
+			log.Errorf("failed to send grpc event, %v", err)
 			// Return the error without wrapping, as it includes the gRPC error code and message for further handling.
 			// For unrecoverable errors, such as a connection closed by an intermediate proxy, push the error to subscriber's
 			// error channel to unregister the subscriber.
@@ -262,7 +260,7 @@ func (bkr *GRPCBroker) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 	case err := <-errChan:
 		// When reaching this point, an unrecoverable error occurred while sending the event,
 		// such as the connection being closed. Unregister the subscriber to trigger agent reconnection.
-		klog.Infof("unregistering subscriber %s because unrecoverable error= %v", subscriberID, err)
+		log.Infof("unregistering subscriber %s because unrecoverable error= %v", subscriberID, err)
 		bkr.unregister(subscriberID)
 		return err
 	case <-subServer.Context().Done():
@@ -351,8 +349,6 @@ func encodeResourceSpec(resource *api.Resource) (*ce.Event, error) {
 //   - If the resource does not exist on the source, but exists on the agent, the source sends a delete event for the
 //     resource.
 func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, evt *ce.Event) error {
-	log := logger.NewOCMLogger(ctx)
-
 	resourceVersions, err := payload.DecodeSpecResyncRequest(*evt)
 	if err != nil {
 		return err
@@ -370,7 +366,7 @@ func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, evt *ce.Eve
 	}
 
 	if len(objs) == 0 {
-		log.V(4).Infof("there are is no objs from the list, do nothing")
+		log.Debugf("there are is no objs from the list, do nothing")
 		return nil
 	}
 
@@ -384,7 +380,7 @@ func (bkr *GRPCBroker) respondResyncSpecRequest(ctx context.Context, evt *ce.Eve
 		lastResourceVersion := findResourceVersion(string(obj.GetUID()), resourceVersions.Versions)
 		currentResourceVersion, err := strconv.ParseInt(obj.GetResourceVersion(), 10, 64)
 		if err != nil {
-			log.V(4).Infof("ignore the obj %v since it has a invalid resourceVersion, %v", obj, err)
+			log.Debugf("ignore the obj %v since it has a invalid resourceVersion, %v", obj, err)
 			continue
 		}
 
@@ -518,7 +514,7 @@ func (bkr *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool
 	if svcErr != nil {
 		// if the resource is not found, it indicates the resource has been handled by other instances.
 		if svcErr.Is404() {
-			klog.V(10).Infof("The resource %s has been deleted, mark the event as reconciled", evt.SourceID)
+			log.Debugf("The resource %s has been deleted, mark the event as reconciled", evt.SourceID)
 			now := time.Now()
 			evt.ReconciledDate = &now
 			if _, svcErr := bkr.eventService.Replace(ctx, evt); svcErr != nil {

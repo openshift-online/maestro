@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"k8s.io/klog/v2"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/payload"
@@ -110,10 +109,10 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
-			klog.Infof("Serving gRPC service with mTLS at %s", config.ServerBindPort)
+			log.Infof("Serving gRPC service with mTLS at %s", config.ServerBindPort)
 		} else {
 			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
-			klog.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
+			log.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
 		}
 	} else {
 		// append metrics interceptor
@@ -121,7 +120,7 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 			grpc.UnaryInterceptor(newMetricsUnaryInterceptor()),
 			grpc.StreamInterceptor(newMetricsStreamInterceptor()))
 		// Note: Do not use this in production.
-		klog.Infof("Serving gRPC service without TLS at %s", config.ServerBindPort)
+		log.Infof("Serving gRPC service without TLS at %s", config.ServerBindPort)
 	}
 
 	return &GRPCServer{
@@ -136,10 +135,10 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 
 // Start starts the gRPC server
 func (svr *GRPCServer) Start() error {
-	klog.Info("Starting gRPC server")
+	log.Info("Starting gRPC server")
 	lis, err := net.Listen("tcp", svr.bindAddress)
 	if err != nil {
-		klog.Errorf("failed to listen: %v", err)
+		log.Errorf("failed to listen: %v", err)
 		return err
 	}
 	pbv1.RegisterCloudEventServiceServer(svr.grpcServer, svr)
@@ -177,8 +176,8 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	klog.V(4).Infof("receive the event from client, %s", evt.Context)
-	klog.V(10).Infof("receive the event from client, evt=%s", evt)
+	log.Infof("receive the event from client, %s", evt.Context)
+	log.Debugf("receive the event from client, evt=%s", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -248,8 +247,8 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
 		}
 
-		klog.V(4).Infof("send the event to status subscribers, %s", evt.Context)
-		klog.V(10).Infof("send the event to status subscribers, evt=%s", evt)
+		log.Infof("send the event to status subscribers, %s", evt.Context)
+		log.Debugf("send the event to status subscribers, evt=%s", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
@@ -268,7 +267,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 
 	select {
 	case err := <-errChan:
-		klog.Infof("unregistering client %s due to error= %v", clientID, err)
+		log.Infof("unregistering client %s due to error= %v", clientID, err)
 		svr.eventBroadcaster.Unregister(clientID)
 		return err
 	case <-subServer.Context().Done():
@@ -383,7 +382,7 @@ func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, evt *ce.E
 		lastHash, ok := findStatusHash(string(obj.GetUID()), statusHashes.Hashes)
 		if !ok {
 			// ignore the resource that is not on the source, but exists on the maestro, wait for the source deleting it
-			klog.Infof("The resource %s is not found from the maestro, ignore", obj.GetUID())
+			log.Infof("The resource %s is not found from the maestro, ignore", obj.GetUID())
 			continue
 		}
 

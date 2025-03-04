@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
-	maestrologger "github.com/openshift-online/maestro/pkg/logger"
+	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -37,7 +37,7 @@ type ControllerHandlerContextKey string
 
 const EventID ControllerHandlerContextKey = "event"
 
-var logger = maestrologger.NewOCMLogger(context.Background())
+var log = logger.GetLogger()
 
 // defaultEventsSyncPeriod is a default events sync period (10 hours)
 // given a long period because we have a queue in the controller, it will help us to handle most expected errors, this
@@ -78,7 +78,7 @@ func (km *KindControllerManager) AddEvent(id string) {
 }
 
 func (km *KindControllerManager) Run(stopCh <-chan struct{}) {
-	logger.Infof("Starting event controller")
+	log.Infof("Starting event controller")
 	defer km.eventsQueue.ShutDown()
 
 	// start a goroutine to sync all events periodically
@@ -91,7 +91,7 @@ func (km *KindControllerManager) Run(stopCh <-chan struct{}) {
 
 	// wait until we're told to stop
 	<-stopCh
-	logger.Infof("Shutting down event controller")
+	log.Infof("Shutting down event controller")
 }
 
 func (km *KindControllerManager) add(source string, ev api.EventType, fns []ControllerHandlerFunc) {
@@ -118,7 +118,7 @@ func (km *KindControllerManager) handleEvent(id string) error {
 
 	// if the event should not be processed by this instance, we can ignore it
 	if !shouldProcess {
-		logger.Infof("Event with id (%s) should not be processed by this instance", id)
+		log.Infof("Event with id (%s) should not be processed by this instance", id)
 		return nil
 	}
 
@@ -126,7 +126,7 @@ func (km *KindControllerManager) handleEvent(id string) error {
 	if svcErr != nil {
 		if svcErr.Is404() {
 			// the event is already deleted, we can ignore it
-			logger.V(4).Infof("Event with id (%s) is not found", id)
+			log.Infof("Event with id (%s) is not found", id)
 			return nil
 		}
 		return fmt.Errorf("error getting event with id (%s): %s", id, svcErr)
@@ -134,19 +134,19 @@ func (km *KindControllerManager) handleEvent(id string) error {
 
 	if event.ReconciledDate != nil {
 		// the event is already reconciled, we can ignore it
-		logger.V(4).Infof("Event with id (%s) is already reconciled", id)
+		log.Infof("Event with id (%s) is already reconciled", id)
 		return nil
 	}
 
 	source, found := km.controllers[event.Source]
 	if !found {
-		logger.Infof("No controllers found for '%s'\n", event.Source)
+		log.Infof("No controllers found for '%s'\n", event.Source)
 		return nil
 	}
 
 	handlerFns, found := source[event.EventType]
 	if !found {
-		logger.Infof("No handler functions found for '%s-%s'\n", event.Source, event.EventType)
+		log.Infof("No handler functions found for '%s-%s'\n", event.Source, event.EventType)
 		return nil
 	}
 
@@ -186,7 +186,7 @@ func (km *KindControllerManager) processNextEvent() bool {
 	defer km.eventsQueue.Done(key)
 
 	if err := km.handleEvent(key.(string)); err != nil {
-		logger.Error(fmt.Sprintf("Failed to handle the event %v, %v ", key, err))
+		log.Errorf("Failed to handle the event %v, %v ", key, err)
 
 		// we failed to handle the event, we should requeue the item to work on later
 		// this method will add a backoff to avoid hotlooping on particular items
@@ -200,19 +200,19 @@ func (km *KindControllerManager) processNextEvent() bool {
 }
 
 func (km *KindControllerManager) syncEvents() {
-	logger.Infof("purge all reconciled events")
+	log.Infof("purge all reconciled events")
 	// delete the reconciled events from the database firstly
 	if err := km.events.DeleteAllReconciledEvents(context.Background()); err != nil {
 		// this process is called periodically, so if the error happened, we will wait for the next cycle to handle
 		// this again
-		logger.Error(fmt.Sprintf("Failed to delete reconciled events from db, %v", err))
+		log.Errorf("Failed to delete reconciled events from db: %v", err)
 		return
 	}
 
-	logger.Infof("sync all unreconciled events")
+	log.Infof("sync all unreconciled events")
 	unreconciledEvents, err := km.events.FindAllUnreconciledEvents(context.Background())
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to list unreconciled events from db, %v", err))
+		log.Errorf("Failed to list unreconciled events from db: %v", err)
 		return
 	}
 

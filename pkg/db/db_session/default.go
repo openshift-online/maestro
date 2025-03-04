@@ -14,12 +14,11 @@ import (
 	"github.com/lib/pq"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/constants"
 	"github.com/openshift-online/maestro/pkg/db"
-	ocmlogger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 type Default struct {
@@ -139,27 +138,26 @@ func (f *Default) DirectDB() *sql.DB {
 }
 
 func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.DatabaseConfig, channel string, callback func(id string)) {
-	logger := ocmlogger.NewOCMLogger(ctx)
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Infof("Context cancelled, stopping channel monitor")
+			log.Infof("Context cancelled, stopping channel monitor")
 			return
 		case n := <-l.Notify:
 			if n != nil {
-				logger.V(10).Infof("Received event from channel [%s] : %s", n.Channel, n.Extra)
+				log.Debugf("Received event from channel [%s] : %s", n.Channel, n.Extra)
 				callback(n.Extra)
 			} else {
 				// nil notification means the connection was closed
-				logger.Infof("recreate the listener due to the connection loss")
+				log.Infof("recreate the listener due to the connection loss")
 				l.Close()
 				// recreate the listener
 				l = newListener(ctx, dbConfig, channel)
 			}
 		case <-time.After(10 * time.Second):
-			logger.V(10).Infof("Received no events on channel during interval. Pinging source")
+			log.Debugf("Received no events on channel during interval. Pinging source")
 			if err := l.Ping(); err != nil {
-				logger.Infof("recreate the listener due to %s", err.Error())
+				log.Infof("recreate the listener due to %s", err.Error())
 				l.Close()
 				// recreate the listener
 				l = newListener(ctx, dbConfig, channel)
@@ -169,11 +167,9 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 }
 
 func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel string) *pq.Listener {
-	logger := ocmlogger.NewOCMLogger(ctx)
-
 	plog := func(ev pq.ListenerEventType, err error) {
 		if err != nil {
-			logger.Error(err.Error())
+			log.Error(err.Error())
 		}
 	}
 	connstr := dbConfig.ConnectionString(true)
@@ -198,11 +194,9 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 }
 
 func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) *pq.Listener {
-	logger := ocmlogger.NewOCMLogger(ctx)
-
 	listener := newListener(ctx, f.config, channel)
 
-	logger.Infof("Starting channeling monitor for %s", channel)
+	log.Infof("Starting channeling monitor for %s", channel)
 	go waitForNotification(ctx, listener, f.config, channel, callback)
 	return listener
 }
@@ -210,7 +204,7 @@ func (f *Default) NewListener(ctx context.Context, channel string, callback func
 func (f *Default) New(ctx context.Context) *gorm.DB {
 	conn := f.g2.Session(&gorm.Session{
 		Context: ctx,
-		Logger:  f.g2.Logger.LogMode(logger.Silent),
+		Logger:  f.g2.Logger.LogMode(gormlogger.Silent),
 	})
 	if f.config.Debug {
 		conn = conn.Debug()

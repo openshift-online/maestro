@@ -299,6 +299,10 @@ objects:
         spec:
           serviceAccountName: maestro
           volumes:
+          - name: logging-config
+            configMap:
+              name: maestro-logging-config
+              optional: true
           - name: tls
             secret:
               secretName: maestro-tls
@@ -349,6 +353,8 @@ objects:
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
             imagePullPolicy: IfNotPresent
             volumeMounts:
+            - name: logging-config
+              mountPath: /configs/logging
             - name: tls
               mountPath: /secrets/tls
             - name: grpc-broker-tls

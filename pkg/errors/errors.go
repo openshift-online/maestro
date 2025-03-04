@@ -6,8 +6,10 @@ import (
 	"strconv"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
-	"k8s.io/klog/v2"
+	"github.com/openshift-online/maestro/pkg/logger"
 )
+
+var log = logger.GetLogger()
 
 const (
 	// Prefix used for error code strings
@@ -105,7 +107,7 @@ func New(code ServiceErrorCode, reason string, values ...interface{}) *ServiceEr
 	var err *ServiceError
 	exists, err := Find(code)
 	if !exists {
-		klog.Errorf("Undefined error code used: %d", code)
+		log.Errorf("Undefined error code used: %d", code)
 		err = &ServiceError{ErrorGeneral, "Unspecified error", 500}
 	}
 
