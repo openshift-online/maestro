@@ -10,6 +10,8 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 )
 
+var log = logger.GetLogger()
+
 // handlerConfig defines the common things each REST controller must do.
 // The corresponding handle() func runs the basic handlerConfig.
 // This is not meant to be an HTTP framework or anything larger than simple CRUD in handlers.
@@ -30,13 +32,12 @@ type errorHandlerFunc func(ctx context.Context, w http.ResponseWriter, err *erro
 type httpAction func() (interface{}, *errors.ServiceError)
 
 func handleError(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError) {
-	log := logger.NewOCMLogger(ctx)
 	operationID := logger.GetOperationID(ctx)
 	// If this is a 400 error, its the user's issue, log as info rather than error
 	if err.HttpCode >= 400 && err.HttpCode <= 499 {
-		log.Infof(err.Error())
+		log.Info(err)
 	} else {
-		log.Error(err.Error())
+		log.Error(err)
 	}
 	writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))
 }

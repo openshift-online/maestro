@@ -3,24 +3,30 @@ package main
 import (
 	"flag"
 	"os"
-	"strconv"
 
-	"github.com/go-logr/zapr"
+	"github.com/fsnotify/fsnotify"
 	"github.com/openshift-online/maestro/cmd/maestro/agent"
-	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/migrate"
 	"github.com/openshift-online/maestro/cmd/maestro/servecmd"
+	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/spf13/cobra"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
+	"github.com/spf13/viper"
 	"k8s.io/klog/v2"
 )
 
 // nolint
 //
 //go:generate go-bindata -o ../../data/generated/openapi/openapi.go -pkg openapi -prefix ../../openapi/ ../../openapi
+const (
+	logConfigFile = "/configs/logging/config.yaml"
+	varLogLevel   = "log_level"
+)
+
+var log = logger.GetLogger()
 
 func main() {
+	defer logger.SyncLogger() // flush the logger
+
 	// check if the glog flag is already registered to avoid duplicate flag define error
 	if flag.CommandLine.Lookup("alsologtostderr") != nil {
 		flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
@@ -29,50 +35,31 @@ func main() {
 	// add klog flags
 	klog.InitFlags(nil)
 
-	// Set up klog backing logger
-	cobra.OnInitialize(func() {
-		// Retrieve log level from klog flags
-		logLevel, err := strconv.ParseInt(flag.CommandLine.Lookup("v").Value.String(), 10, 8)
-		if err != nil {
-			klog.Fatalf("can't parse log level: %v", err)
-		}
-
-		// Initialize zap logger based on environment
-		var zc zap.Config
-		env := environments.GetEnvironmentStrFromEnv()
-		switch env {
-		case environments.DevelopmentEnv:
-			zc = zap.NewDevelopmentConfig()
-		case environments.ProductionEnv:
-			zc = zap.NewProductionConfig()
-		default:
-			zc = zap.NewDevelopmentConfig()
-		}
-
-		// zap log level is the inverse of klog log level, for more details refer to:
-		// https://github.com/go-logr/zapr?tab=readme-ov-file#increasing-verbosity
-		// zap level mapping to klog level:
-		// fatal: -5, panic: -4, dpanic: -3, error: -2, warn: -1, info: 0, debug: 1
-		// the higher the log level, the more verbose the logs:
-		// if the log level is 0, it will log everything except debug logs;
-		// if the log level is 1, it will log everything including debug logs;
-		// if the log level is 2 or higher, it will log everything including klog verbose logs.
-		zc.Level = zap.NewAtomicLevelAt(zapcore.Level(0 - logLevel))
-		// Disable stacktrace to reduce logs size
-		zc.DisableStacktrace = true
-		zapLog, err := zc.Build()
-		if err != nil {
-			klog.Fatalf("can't initialize zap logger: %v", err)
-		}
-		// Set backing logger for klog
-		klog.SetLogger(zapr.NewLogger(zapLog))
-	})
-
 	// Initialize root command
 	rootCmd := &cobra.Command{
 		Use:  "maestro",
 		Long: "maestro is a multi-cluster resources orchestrator for Kubernetes",
 	}
+
+	// set the logging config file
+	viper.SetConfigFile(logConfigFile)
+	// default log level is info
+	viper.SetDefault(varLogLevel, "info")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(*os.PathError); ok {
+			log.Infof("no config file '%s'", logConfigFile)
+		} else {
+			log.Errorf("failed to read the config file '%s': %v", logConfigFile, err)
+		}
+	} else {
+		logger.SetLogLevel(viper.GetString(varLogLevel))
+	}
+	// monitor the changes in the config file
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		log.Infof("config file changed: %s, new log level: %s", e.Name, viper.GetString(varLogLevel))
+		logger.SetLogLevel(viper.GetString(varLogLevel))
+	})
 
 	// Add klog flags to root command
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
@@ -86,6 +73,6 @@ func main() {
 	rootCmd.AddCommand(migrateCmd, serveCmd, agentCmd)
 
 	if err := rootCmd.Execute(); err != nil {
-		klog.Fatalf("error running command: %v", err)
+		log.Fatalf("error running command: %v", err)
 	}
 }

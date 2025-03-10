@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/openshift-online/maestro/pkg/logger"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	authorizationv1 "k8s.io/api/authorization/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/klog/v2"
 )
+
+var log = logger.GetLogger()
 
 // KubeGRPCAuthorizer is a gRPC authorizer that uses the Kubernetes RBAC API to authorize requests.
 type KubeGRPCAuthorizer struct {
@@ -44,7 +46,7 @@ func (k *KubeGRPCAuthorizer) TokenReview(ctx context.Context, token string) (use
 
 // AccessReview checks if the given user or group is allowed to perform the given action on the given resource by making a SubjectAccessReview request.
 func (k *KubeGRPCAuthorizer) AccessReview(ctx context.Context, action, resourceType, resource, user string, groups []string) (allowed bool, err error) {
-	klog.V(4).Infof("AccessReview: action=%s, resourceType=%s, resource=%s, user=%s, groups=%s", action, resourceType, resource, user, groups)
+	log.Debugf("AccessReview: action=%s, resourceType=%s, resource=%s, user=%s, groups=%s", action, resourceType, resource, user, groups)
 	if user != "" && len(groups) == 0 {
 		return false, fmt.Errorf("both user and groups cannot be specified")
 	}

@@ -172,6 +172,10 @@ objects:
         spec:
           serviceAccountName: maestro
           volumes:
+          - name: logging-config
+            configMap:
+              name: maestro-logging-config
+              optional: true
           - name: db
             secret:
               secretName: maestro-db
@@ -205,6 +209,8 @@ objects:
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
             imagePullPolicy: IfNotPresent
             volumeMounts:
+            - name: logging-config
+              mountPath: /configs/logging
             - name: db
               mountPath: /secrets/db
             - name: mqtt

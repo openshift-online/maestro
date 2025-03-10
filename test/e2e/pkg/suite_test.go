@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"testing"
@@ -20,7 +19,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/klog/v2"
 	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
@@ -30,9 +28,12 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/test"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
 )
+
+var log = logger.GetLogger()
 
 type agentTestOptions struct {
 	agentNamespace string
@@ -74,7 +75,6 @@ func TestE2E(t *testing.T) {
 func init() {
 	serverTestOpts = &serverTestOptions{}
 	agentTestOpts = &agentTestOptions{}
-	klog.SetOutput(GinkgoWriter)
 	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro Restful API server address")
 	flag.StringVar(&grpcServerAddress, "grpc-server", "", "Maestro gRPC server address")
 	flag.StringVar(&serverTestOpts.serverNamespace, "server-namespace", "maestro", "Namespace where the maestro server is running")
@@ -184,7 +184,7 @@ var _ = ReportAfterSuite("Maestro e2e Test Report", func(report Report) {
 	if junitReportFile != "" {
 		err := reporter.GenerateJUnitReport(report, junitReportFile)
 		if err != nil {
-			log.Printf("Failed to generate the report due to: %v", err)
+			log.Errorf("Failed to generate the report due to: %v", err)
 		}
 	}
 })
@@ -217,13 +217,13 @@ func dumpPodLogs(ctx context.Context, kubeClient kubernetes.Interface, podSelect
 			return fmt.Errorf("failed to read pod logs: %v", err)
 		}
 
-		log.Printf("=========================================== POD LOGS START ===========================================")
-		log.Printf("Pod %s/%s phase: %s", pod.Name, podNamespace, string(pod.Status.Phase))
+		log.Infof("=========================================== POD LOGS START ===========================================")
+		log.Infof("Pod %s/%s phase: %s", pod.Name, podNamespace, string(pod.Status.Phase))
 		for _, containerStatus := range pod.Status.ContainerStatuses {
-			log.Printf("Container %s status: %v", containerStatus.Name, containerStatus.State)
+			log.Infof("Container %s status: %v", containerStatus.Name, containerStatus.State)
 		}
-		log.Printf("Pod %s/%s logs: \n%s", pod.Name, podNamespace, buf.String())
-		log.Printf("=========================================== POD LOGS STOP ===========================================")
+		log.Infof("Pod %s/%s logs: \n%s", pod.Name, podNamespace, buf.String())
+		log.Infof("=========================================== POD LOGS STOP ===========================================")
 	}
 
 	return nil

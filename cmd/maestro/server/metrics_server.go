@@ -10,7 +10,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/handlers"
-	"github.com/openshift-online/maestro/pkg/logger"
 )
 
 func NewMetricsServer() Server {
@@ -45,7 +44,6 @@ func (s metricsServer) Serve(listener net.Listener) {
 }
 
 func (s metricsServer) Start() {
-	log := logger.NewOCMLogger(context.Background())
 	var err error
 	if env().Config.Metrics.EnableHTTPS {
 		if env().Config.HTTPServer.HTTPSCertFile == "" || env().Config.HTTPServer.HTTPSKeyFile == "" {

@@ -6,8 +6,10 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/api"
-	"k8s.io/klog/v2"
+	"github.com/openshift-online/maestro/pkg/logger"
 )
+
+var log = logger.GetLogger()
 
 // resourceHandler is a function that can handle resource status change events.
 type resourceHandler func(res *api.Resource) error
@@ -51,7 +53,7 @@ func (h *EventBroadcaster) Register(source string, handler resourceHandler) (str
 		errChan: errChan,
 	}
 
-	klog.V(4).Infof("registered a broadcaster client %s (source=%s)", id, source)
+	log.Infof("registered a broadcaster client %s (source=%s)", id, source)
 	return id, errChan
 }
 
@@ -62,7 +64,7 @@ func (h *EventBroadcaster) Unregister(id string) {
 
 	close(h.clients[id].errChan)
 	delete(h.clients, id)
-	klog.V(4).Infof("unregistered broadcaster client %s", id)
+	log.Infof("unregistered broadcaster client %s", id)
 }
 
 // Broadcast broadcasts a resource status change event to all registered clients.
@@ -72,7 +74,7 @@ func (h *EventBroadcaster) Broadcast(res *api.Resource) {
 
 // Start starts the event broadcaster and waits for events to broadcast.
 func (h *EventBroadcaster) Start(ctx context.Context) {
-	klog.Infof("Starting event broadcaster")
+	log.Infof("Starting event broadcaster")
 
 	for {
 		select {

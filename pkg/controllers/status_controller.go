@@ -42,7 +42,7 @@ func (sc *StatusController) AddStatusEvent(id string) {
 }
 
 func (sc *StatusController) Run(stopCh <-chan struct{}) {
-	logger.Infof("Starting status event controller")
+	log.Infof("Starting status event controller")
 	defer sc.eventsQueue.ShutDown()
 
 	// use a jitter to avoid multiple instances syncing the events at the same time
@@ -54,7 +54,7 @@ func (sc *StatusController) Run(stopCh <-chan struct{}) {
 
 	// wait until we're told to stop
 	<-stopCh
-	logger.Infof("Shutting down status event controller")
+	log.Infof("Shutting down status event controller")
 }
 
 func (sc *StatusController) runWorker() {
@@ -76,7 +76,7 @@ func (sc *StatusController) processNextEvent() bool {
 	defer sc.eventsQueue.Done(key)
 
 	if err := sc.handleStatusEvent(key.(string)); err != nil {
-		logger.Error(fmt.Sprintf("Failed to handle the event %v, %v ", key, err))
+		log.Errorf("Failed to handle the event %v, %v ", key, err)
 
 		// we failed to handle the status event, we should requeue the item to work on later
 		// this method will add a backoff to avoid hotlooping on particular items
@@ -110,7 +110,7 @@ func (sc *StatusController) handleStatusEvent(id string) error {
 
 	handlerFns, found := sc.controllers[statusEvent.StatusEventType]
 	if !found {
-		logger.Infof("No handler functions found for status event '%s'\n", statusEvent.StatusEventType)
+		log.Infof("No handler functions found for status event '%s'\n", statusEvent.StatusEventType)
 		return nil
 	}
 
@@ -143,15 +143,15 @@ func (sc *StatusController) syncStatusEvents() {
 
 	readyInstanceIDs, err := sc.instanceDao.FindReadyIDs(ctx)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to find ready instances from db, %v", err))
+		log.Errorf("Failed to find ready instances from db, %v", err)
 		return
 	}
-	logger.Infof("purge status events on the ready instances: %s", readyInstanceIDs)
+	log.Infof("purge status events on the ready instances: %s", readyInstanceIDs)
 
 	// find the status events that already were dispatched to all ready instances
 	statusEventIDs, err := sc.eventInstanceDao.GetEventsAssociatedWithInstances(ctx, readyInstanceIDs)
 	if err != nil {
-		logger.Error(fmt.Sprintf("Failed to find handled status events from db, %v", err))
+		log.Errorf("Failed to find handled status events from db, %v", err)
 		return
 	}
 
@@ -159,7 +159,7 @@ func (sc *StatusController) syncStatusEvents() {
 	batches := batchStatusEventIDs(statusEventIDs, 500)
 	for _, batch := range batches {
 		if err := sc.statusEvents.DeleteAllEvents(ctx, batch); err != nil {
-			logger.Error(fmt.Sprintf("Failed to delete handled status events from db, %v", err))
+			log.Errorf("Failed to delete handled status events from db, %v", err)
 			return
 		}
 	}

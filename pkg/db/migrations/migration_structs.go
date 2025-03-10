@@ -1,17 +1,13 @@
 package migrations
 
 import (
-	"context"
 	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/go-gormigrate/gormigrate/v2"
-	"github.com/openshift-online/maestro/pkg/logger"
 )
-
-var log = logger.NewOCMLogger(context.Background())
 
 // gormigrate is a wrapper for gorm's migration functions that adds schema versioning and rollback capabilities.
 // For help writing migration steps, see the gorm documentation on migrations: http://doc.gorm.io/database.html#migration
