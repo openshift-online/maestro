@@ -8,20 +8,6 @@ The Maestro Server includes various components to fulfill its functions, as illu
 
 ## Maestro Resource Flow
 
-### RESTful API
-
-1. [Resource create flow with restful API](https://swimlanes.io/#hZBNDoIwEEb3PcVcwAuwMAHE6IIEgQtUHLWx6Wh/8PpOkaCoidvOe9NvPq+8xgRKic5bghodBdsh5BalR1hrukOvZBz4Y9CQVlshRK4VGg+L5STyOzRoe7QJVOT8a1ONt8CMEN9oXDBxG2kOOuo5GZ69Ngjxycy8uEp1fMMY+Yc2IjNtJYmTonXqPawnWGV/zOnDrXExp506q4u0LQB77oY7IsPX6hi3lEaenrGbER0KTMaDPswZM5S8a1vILF2GdsNeK3d+y3PFjmEKhyL6Dw==):
-
-    ![maestro-resource-create-flow](./images/maestro-resource-create-flow-rest.png)
-
-2. [Resource patch flow with restful API](https://swimlanes.io/#hZBNDoJADIX3c4pewAuwMEHByIIEFQ8wYpWJk6nOD17fDigRXLht3/f6+rzyGhMoJTpvCfboKNgGoZK+aWGj6QmdknHuL0FDWhVCiLVWaDwsliPHczig7dAmUJHzc6M9PgIrhfgFos2o3kpz1tFkTYZ3cx8h5soJHQ1Vw+98jg7zL+qtmFCZJCbQOvWb2xNkqz/8eLUwLka2n8WxytI6B+y4LC6NDD+uY+ZSGnkdsh8G6dBo8v5qRk40feu7uoaVpVtfdzhp5dqvPHdsWEzhnEf+BQ==)
-
-    ![maestro-resource-patch-flow](./images/maestro-resource-patch-flow-rest.png)
-
-3. [Resource delete flow with restful API](https://swimlanes.io/#hZFdboMwEITffYq9QC/AQ6UGaBupkdLABQxeiBXHbu01uX4xEMJflddl5mNmTJIURnDg6MgaOKEz3pYICSokhHdlbtBIHj5Q5RW8HfeMsVhJ1AQvr6OxvUOGtkEb3b0j64S/vlUxthYHxKj75FqoAPhAelz3CWNLycwWSLLsStjL48xdH0TqegIYxDNAwk0Emalolbyy5grJ7ol/DLDXDi2BHcHpV5qngE07Vjua0W15FeIfuOZ1XyPrpf2i0VBw4ZxputW/8xx21lzCWkdfKOnOkzw/WN4JsTJepD1mnL9ePl7d/Xuzfay8I7Rb7mmIDLWYJCBO3sFN0nmgCmjrC0nS6Gd9Ml+40soCgcwSueFdDWjF/+/4Bw==)
-
-    ![maestro-resource-delete-flow](./images/maestro-resource-delete-flow-rest.png)
-
 ### gRPC
 
 1. [Resource create flow with gRPC](https://swimlanes.io/#hZBBDoIwEEX3PcVcwAuwMNGC0QUJQi9QYYKNTWumBa8vBayCJq6aTP+beflCeY0J5BKdJwslOttRjcAJpUc4aPuAXkloy4IzxsIDXCs0HjbbiI3jCqlHSr52cG27BrJ+YBj7QYRFkQkjVQ9GM/z6YGwdWWCptAkUSE45/556C+n+DxkPnoxD8kDRvsx2IgOcvLk1g7bWg24ujWwn7WqOjoUkcJSm0WtykRlLOwsBe7K3UFbRXbRy1w+fO9ZTZWNjTw==)
