@@ -2,12 +2,14 @@ package servecmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
+	"github.com/openshift-online/maestro/cmd/maestro/common"
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/config"
@@ -78,6 +80,16 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	tracingShutdown := func(context.Context) error { return nil }
+	log := logger.NewOCMLogger(ctx)
+	if common.TracingEnabled() {
+		tracingShutdown, err = common.InstallOpenTelemetryTracer(ctx, log)
+		if err != nil {
+			log.Error(fmt.Sprintf("Can't initialize OpenTelemetry trace provider: %v", err))
+			os.Exit(1)
+		}
+	}
+
 	stopCh := make(chan os.Signal, 1)
 	signal.Notify(stopCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
@@ -90,6 +102,10 @@ func runServer(cmd *cobra.Command, args []string) {
 
 		if err := metricsServer.Stop(); err != nil {
 			log.Errorf("Failed to stop metrics server, %v", err)
+		}
+
+		if tracingShutdown != nil && tracingShutdown(ctx) != nil {
+			log.Warning(fmt.Sprintf("OpenTelemetry trace provider failed to shutdown: %v", err))
 		}
 	}()
 
