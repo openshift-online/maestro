@@ -59,7 +59,17 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
+		if err.Is404() {
+			log.Infof("skipping to publish create request for resource %s as it is not found", resource.ID)
+			return nil
+		}
+
 		return err
+	}
+
+	if !resource.Meta.DeletedAt.Time.IsZero() {
+		log.Infof("delete resource %s as it is not created on the agent yet", resource.ID)
+		return s.ResourceService.Delete(ctx, id)
 	}
 
 	log.Infof("Publishing resource %s for db row insert", resource.ID)
@@ -79,6 +89,10 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
+		if err.Is404() {
+			log.Infof("skipping to publish update request for resource %s as it is not found", resource.ID)
+			return nil
+		}
 		return err
 	}
 
@@ -99,6 +113,10 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
+		if err.Is404() {
+			log.Infof("skipping to publish delete request for resource %s as it is not found", resource.ID)
+			return nil
+		}
 		return err
 	}
 
