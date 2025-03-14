@@ -67,8 +67,8 @@ func main() {
 		},
 	})
 
-	grpcOptions := grpc.NewGRPCOptions()
-	grpcOptions.URL = *grpcServerAddr
+	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
+	grpcOptions.Dialer.URL = *grpcServerAddr
 
 	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,

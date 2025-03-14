@@ -88,7 +88,7 @@ func TestResourceList(t *testing.T) {
 
 	resources, err := resourceService.List(types.ListOptions{
 		ClusterName:         Fukuisaurus,
-		CloudEventsDataType: payload.ManifestEventDataType,
+		CloudEventsDataType: payload.ManifestBundleEventDataType,
 	})
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(resources)).To(gm.Equal(2))
