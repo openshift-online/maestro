@@ -21,6 +21,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/cert"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 
 	"google.golang.org/grpc"
@@ -129,11 +130,16 @@ var _ = BeforeSuite(func() {
 	Expect(err).To(Succeed())
 
 	// initialize the grpc source options
-	grpcOptions = grpcoptions.NewGRPCOptions()
-	grpcOptions.URL = grpcServerAddress
-	grpcOptions.KeepAliveOptions.Enable = true
-	grpcOptions.KeepAliveOptions.Time = 6 * time.Second
-	grpcOptions.KeepAliveOptions.Timeout = 1 * time.Second
+	grpcOptions = &grpcoptions.GRPCOptions{
+		Dialer: &grpcoptions.GRPCDialer{
+			URL: grpcServerAddress,
+			KeepAliveOptions: grpcoptions.KeepAliveOptions{
+				Enable:  true,
+				Time:    6 * time.Second,
+				Timeout: 1 * time.Second,
+			},
+		},
+	}
 	sourceID = "sourceclient-test" + rand.String(5)
 	grpcCertSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "maestro-grpc-cert", metav1.GetOptions{})
 	if !errors.IsNotFound(err) {
@@ -149,8 +155,9 @@ var _ = BeforeSuite(func() {
 		grpcClientTokenFile := fmt.Sprintf("%s/token", grpcCertDir)
 		Expect(os.WriteFile(grpcClientTokenFile, grpcClientTokenSrt.Data["token"], 0644)).To(Succeed())
 		// set CAFile and TokenFile for grpc authz
-		grpcOptions.CAFile = grpcServerCAFile
-		grpcOptions.TokenFile = grpcClientTokenFile
+		grpcOptions.Dialer.TLSConfig, err = cert.AutoLoadTLSConfig(grpcServerCAFile, "", "", nil)
+		Expect(err).To(Succeed())
+		grpcOptions.Dialer.TokenFile = grpcClientTokenFile
 		// create the clusterrole for grpc authz
 		Expect(helper.CreateGRPCAuthRule(ctx, serverTestOpts.kubeClientSet, "grpc-pub-sub", "source", sourceID, []string{"pub", "sub"})).To(Succeed())
 
@@ -174,7 +181,9 @@ var _ = BeforeSuite(func() {
 var _ = AfterSuite(func() {
 	// dump debug info
 	dumpDebugInfo()
-	grpcConn.Close()
+	if grpcConn != nil {
+		grpcConn.Close()
+	}
 	os.RemoveAll(grpcCertDir)
 	cancel()
 })

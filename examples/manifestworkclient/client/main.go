@@ -16,6 +16,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/cert"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 )
 
@@ -65,19 +66,21 @@ func main() {
 		},
 	})
 
-	grpcOptions := grpc.NewGRPCOptions()
-	grpcOptions.URL = *grpcServerAddr
-	if *grpcServerCAFile != "" {
-		grpcOptions.CAFile = *grpcServerCAFile
-	}
-	if *grpcClientCertFile != "" {
-		grpcOptions.ClientCertFile = *grpcClientCertFile
-	}
-	if *grpcClientKeyFile != "" {
-		grpcOptions.ClientKeyFile = *grpcClientKeyFile
+	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
+	grpcOptions.Dialer.URL = *grpcServerAddr
+	if *grpcServerCAFile != "" && *grpcClientCertFile != "" && *grpcClientKeyFile != "" {
+		tlsConfig, err := cert.AutoLoadTLSConfig(
+			*grpcServerCAFile,
+			*grpcClientCertFile,
+			*grpcClientKeyFile,
+			grpcOptions.Dialer)
+		if err != nil {
+			log.Fatal(err)
+		}
+		grpcOptions.Dialer.TLSConfig = tlsConfig
 	}
 	if *grpcClientTokenFile != "" {
-		grpcOptions.TokenFile = *grpcClientTokenFile
+		grpcOptions.Dialer.TokenFile = *grpcClientTokenFile
 	}
 
 	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
