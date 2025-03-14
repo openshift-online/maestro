@@ -133,11 +133,11 @@ var _ = BeforeSuite(func() {
 	grpcOptions = &grpcoptions.GRPCOptions{
 		Dialer: &grpcoptions.GRPCDialer{
 			URL: grpcServerAddress,
-			KeepAliveOptions: grpcoptions.KeepAliveOptions{
-				Enable:  true,
-				Time:    6 * time.Second,
-				Timeout: 1 * time.Second,
-			},
+			// KeepAliveOptions: grpcoptions.KeepAliveOptions{
+			// 	Enable:  true,
+			// 	Time:    6 * time.Second,
+			// 	Timeout: 1 * time.Second,
+			// },
 		},
 	}
 	sourceID = "sourceclient-test" + rand.String(5)
