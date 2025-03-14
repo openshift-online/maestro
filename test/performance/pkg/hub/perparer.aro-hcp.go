@@ -91,10 +91,12 @@ func (o *AROHCPPreparerOptions) PrepareClusters(ctx context.Context) error {
 }
 
 func (o *AROHCPPreparerOptions) CreateWorks(ctx context.Context, phase string) error {
-	creator, err := work.NewClientHolderBuilder(&grpc.GRPCOptions{URL: o.GRPCServiceAddress}).
+	creator, err := work.NewClientHolderBuilder(&grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{
+		URL: o.GRPCServiceAddress,
+	}}).
 		WithClientID(fmt.Sprintf("%s-client", sourceID)).
 		WithSourceID(sourceID).
-		WithCodecs(codec.NewManifestBundleCodec()).
+		WithCodec(codec.NewManifestBundleCodec()).
 		WithWorkClientWatcherStore(store.NewCreateOnlyWatcherStore()).
 		WithResyncEnabled(false).
 		NewSourceClientHolder(ctx)

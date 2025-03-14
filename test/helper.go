@@ -23,6 +23,7 @@ import (
 	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -298,8 +299,8 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 		brokerConfig = mqttOptions
 	} else {
 		// initilize the grpc options
-		grpcOptions := grpcoptions.NewGRPCOptions()
-		grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BrokerBindPort)
+		grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
+		grpcOptions.Dialer.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BrokerBindPort)
 		brokerConfig = grpcOptions
 	}
 
@@ -308,7 +309,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 	clientHolder, err := work.NewClientHolderBuilder(brokerConfig).
 		WithClientID(clusterName).
 		WithClusterName(clusterName).
-		WithCodecs(codec.NewManifestBundleCodec()).
+		WithCodec(codec.NewManifestBundleCodec()).
 		WithWorkClientWatcherStore(watcherStore).
 		NewAgentClientHolder(ctx)
 	if err != nil {
@@ -332,8 +333,8 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 func (helper *Helper) StartGRPCResourceSourceClient() {
 	source := "maestro"
 	store := NewStore()
-	grpcOptions := grpcoptions.NewGRPCOptions()
-	grpcOptions.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.ServerBindPort)
+	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
+	grpcOptions.Dialer.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.ServerBindPort)
 	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
 		helper.Ctx,
 		grpcoptions.NewSourceOptions(grpcOptions, source),
