@@ -11,7 +11,7 @@ require (
 	github.com/bwmarrin/snowflake v0.3.0
 	github.com/bxcodec/faker/v3 v3.2.0
 	github.com/cespare/xxhash v1.1.0
-	github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250214143010-93e1a8d64cd6
+	github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250313141547-88bebb1fe04f
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
