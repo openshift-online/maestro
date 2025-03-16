@@ -76,8 +76,8 @@ github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20240413090539-
 github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20240413090539-7fef29478991/go.mod h1:xiar5+gk13WqyAUQ/cpcxcjD1IhLe/PeilSfCdPcfMU=
 github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c h1:CU7OKO6vJQLp8ghHkyhnkcPw37wdhfK1LzV7L2pNm4w=
 github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c/go.mod h1:FwZuQ17vf240KYoiIuz0ffRssLYR36Wvq2KJFYWVn88=
-github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250214143010-93e1a8d64cd6 h1:UIEjFfVO2RW9T7sRyVYmqBYTfANzDK7/ow5f5tXpxWA=
-github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250214143010-93e1a8d64cd6/go.mod h1:5YWqklyhDSmGzBK/JENKKXdulbPq0JFf3c/KEnMLqgg=
+github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250313141547-88bebb1fe04f h1:1SngS2jUn8y5/wG6Pv/+qubeREnGJy/31SO9U1QBA+0=
+github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250313141547-88bebb1fe04f/go.mod h1:5YWqklyhDSmGzBK/JENKKXdulbPq0JFf3c/KEnMLqgg=
 github.com/cockroachdb/apd v1.1.0/go.mod h1:8Sl8LxpKi29FqWXR16WEFZRNSz3SoPzUzeMeY4+DwBQ=
 github.com/confluentinc/confluent-kafka-go/v2 v2.3.0 h1:icCHutJouWlQREayFwCc7lxDAhws08td+W3/gdqgZts=
 github.com/confluentinc/confluent-kafka-go/v2 v2.3.0/go.mod h1:/VTy8iEpe6mD9pkCH5BhijlUl8ulUXymKv1Qig5Rgb8=
