@@ -440,8 +440,8 @@ github.com/opencontainers/runc v1.1.13 h1:98S2srgG9vw0zWcDpFMn5TRrh8kLxa/5OFUstu
 github.com/opencontainers/runc v1.1.13/go.mod h1:R016aXacfp/gwQBYw2FDGa9m+n6atbLWrYY8hNMT/sA=
 github.com/openshift-online/ocm-common v0.0.0-20240620110211-2ecfa6ec5707 h1:i9J9pgnZLd9kIls1axOLJxA3qkbJjYXM2Ut6jRAdxhc=
 github.com/openshift-online/ocm-common v0.0.0-20240620110211-2ecfa6ec5707/go.mod h1:2NApKjtzSOsW9MVf58LwAnSCSIK48U1Z/m7dWGOQ5fw=
-github.com/openshift-online/ocm-sdk-go v0.1.421 h1:x4zUDN+32IW98RXhccMKanjODy6HehxwDR68t2MhFPc=
-github.com/openshift-online/ocm-sdk-go v0.1.421/go.mod h1:CiAu2jwl3ITKOxkeV0Qnhzv4gs35AmpIzVABQLtcI2Y=
+github.com/openshift-online/ocm-sdk-go v0.1.461 h1:cU+5nprjo1zNvLAFrMcYAoEMbQ0ae5Yy7mK1R5HQcUY=
+github.com/openshift-online/ocm-sdk-go v0.1.461/go.mod h1:CiAu2jwl3ITKOxkeV0Qnhzv4gs35AmpIzVABQLtcI2Y=
 github.com/openshift/api v0.0.0-20241001152557-e415140e5d5f h1:ya1OmyZm3LIIxI3U9VE9Nyx3ehCHgBwxyFUPflYPWls=
 github.com/openshift/api v0.0.0-20241001152557-e415140e5d5f/go.mod h1:Shkl4HanLwDiiBzakv+con/aMGnVE2MAGvoKp5oyYUo=
 github.com/openshift/client-go v0.0.0-20241001162912-da6d55e4611f h1:FRc0bVNWprihWS0GqQWzb3dY4dkCwpOP3mDw5NwSoR4=
