@@ -94,9 +94,16 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				return fmt.Errorf("nginx deployment still exists")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			_, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
-			Expect(err).Should(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+			Eventually(func() error {
+				_, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
+				if err == nil {
+					return fmt.Errorf("expected resource to be deleted, but got %d", resp.StatusCode)
+				}
+				if resp.StatusCode != http.StatusNotFound {
+					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusNotFound)
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("check the resource deletion via maestro api", func() {
