@@ -269,6 +269,10 @@ func broadcastStatusEvent(ctx context.Context,
 	} else {
 		resource, sErr = resourceService.Get(ctx, resourceID)
 		if sErr != nil {
+			if sErr.Is404() {
+				log.Infof("skipping resource %s as it is not found", resource.ID)
+				return nil
+			}
 			return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
 		}
 	}
