@@ -67,6 +67,10 @@ func NewKindControllerManager(eventFilter EventFilter, events services.EventServ
 	}
 }
 
+func (km *KindControllerManager) Queue() workqueue.RateLimitingInterface {
+	return km.eventsQueue
+}
+
 func (km *KindControllerManager) Add(config *ControllerConfig) {
 	for ev, fn := range config.Handlers {
 		km.add(config.Source, ev, fn)
@@ -106,20 +110,22 @@ func (km *KindControllerManager) add(source string, ev api.EventType, fns []Cont
 	km.controllers[source][ev] = append(km.controllers[source][ev], fns...)
 }
 
-func (km *KindControllerManager) handleEvent(id string) error {
+func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 	reqContext := context.WithValue(context.Background(), EventID, id)
 
 	// check if the event should be processed by this instance
 	shouldProcess, err := km.eventFilter.Filter(reqContext, id)
 	defer km.eventFilter.DeferredAction(reqContext, id)
 	if err != nil {
-		return fmt.Errorf("error filtering event with id (%s): %s", id, err)
+		return false, fmt.Errorf("error filtering event with id (%s): %s", id, err)
 	}
 
-	// if the event should not be processed by this instance, we can ignore it
 	if !shouldProcess {
+		// the event should not be processed by this instance at present
+		// we put the event to the queue again until the event has been reconciled by
+		// a certain instance.
 		log.Infof("Event with id (%s) should not be processed by this instance", id)
-		return nil
+		return false, nil
 	}
 
 	event, svcErr := km.events.Get(reqContext, id)
@@ -127,33 +133,33 @@ func (km *KindControllerManager) handleEvent(id string) error {
 		if svcErr.Is404() {
 			// the event is already deleted, we can ignore it
 			log.Infof("Event with id (%s) is not found", id)
-			return nil
+			return true, nil
 		}
-		return fmt.Errorf("error getting event with id (%s): %s", id, svcErr)
+		return false, fmt.Errorf("error getting event with id (%s): %s", id, svcErr)
 	}
 
 	if event.ReconciledDate != nil {
 		// the event is already reconciled, we can ignore it
 		log.Infof("Event with id (%s) is already reconciled", id)
-		return nil
+		return true, nil
 	}
 
 	source, found := km.controllers[event.Source]
 	if !found {
 		log.Infof("No controllers found for '%s'\n", event.Source)
-		return nil
+		return true, nil
 	}
 
 	handlerFns, found := source[event.EventType]
 	if !found {
 		log.Infof("No handler functions found for '%s-%s'\n", event.Source, event.EventType)
-		return nil
+		return true, nil
 	}
 
 	for _, fn := range handlerFns {
 		err := fn(reqContext, event.SourceID)
 		if err != nil {
-			return fmt.Errorf("error handing event %s-%s (%s): %s", event.Source, event.EventType, id, err)
+			return false, fmt.Errorf("error handing event %s-%s (%s): %s", event.Source, event.EventType, id, err)
 		}
 	}
 
@@ -161,10 +167,11 @@ func (km *KindControllerManager) handleEvent(id string) error {
 	now := time.Now()
 	event.ReconciledDate = &now
 	if _, svcErr := km.events.Replace(reqContext, event); svcErr != nil {
-		return fmt.Errorf("error updating event with id (%s): %s", id, svcErr)
+		return false, fmt.Errorf("error updating event with id (%s): %s", id, svcErr)
 	}
 
-	return nil
+	// the event is reconciled, we can ignore it
+	return true, nil
 }
 
 func (km *KindControllerManager) runWorker() {
@@ -185,10 +192,12 @@ func (km *KindControllerManager) processNextEvent() bool {
 	}
 	defer km.eventsQueue.Done(key)
 
-	if err := km.handleEvent(key.(string)); err != nil {
-		log.Errorf("Failed to handle the event %v, %v ", key, err)
+	if reconciled, err := km.handleEvent(key.(string)); !reconciled {
+		if err != nil {
+			log.Errorf("Failed to handle the event %v, %v ", key, err)
+		}
 
-		// we failed to handle the event, we should requeue the item to work on later
+		// the event is not reconciled, we requeue it to work on later
 		// this method will add a backoff to avoid hotlooping on particular items
 		km.eventsQueue.AddRateLimited(key)
 		return true
