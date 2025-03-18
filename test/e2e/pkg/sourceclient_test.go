@@ -121,7 +121,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		It("the work status should be watched", func() {
 			By("create a work watcher client")
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
-				watcherCtx,
+				ctx,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -167,7 +167,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 		It("the watchers for different namespace", func() {
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
-				watcherCtx,
+				ctx,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -219,7 +219,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 		It("the watchers with label selector", func() {
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
-				watcherCtx,
+				ctx,
 				apiClient,
 				grpcOptions,
 				sourceID,

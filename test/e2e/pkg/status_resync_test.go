@@ -174,9 +174,6 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 				return fmt.Errorf("nginx deployment still exists")
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
-
-			err := agentTestOpts.kubeClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, deployName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("check the resource deletion via maestro api", func() {
