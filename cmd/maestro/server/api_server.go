@@ -7,6 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+
 	_ "github.com/auth0/go-jwt-middleware"
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ghodss/yaml"
@@ -16,6 +18,7 @@ import (
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/openshift-online/ocm-sdk-go/authentication"
 
+	"github.com/openshift-online/maestro/cmd/maestro/common"
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	"github.com/openshift-online/maestro/data/generated/openapi"
 	"github.com/openshift-online/maestro/pkg/errors"
@@ -118,6 +121,15 @@ func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 	)(mainHandler)
 
 	mainHandler = removeTrailingSlash(mainHandler)
+	if common.TracingEnabled() {
+		mainHandler = otelhttp.NewHandler(mainHandler, "maestro-api",
+			otelhttp.WithSpanNameFormatter(
+				func(operation string, r *http.Request) string {
+					return fmt.Sprintf("%s %s %s", operation, "HTTP", r.Method)
+				},
+			),
+		)
+	}
 
 	s.httpServer = &http.Server{
 		Addr:    env().Config.HTTPServer.Hostname + ":" + env().Config.HTTPServer.BindPort,
