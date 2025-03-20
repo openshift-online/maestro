@@ -56,7 +56,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	open-cluster-management.io/api v0.16.1
 	open-cluster-management.io/ocm v0.16.1-0.20250314011908-73150dea199d
-	open-cluster-management.io/sdk-go v0.16.1-0.20250310140105-b3879d722d37
+	open-cluster-management.io/sdk-go v0.16.1-0.20250320062506-70c401498b1a
 	sigs.k8s.io/yaml v1.4.0
 )
 

@@ -881,8 +881,12 @@ open-cluster-management.io/api v0.16.1 h1:mS+4UGxHLPQd7CRM0gdFQdVaz139Lo2bkLfqSE
 open-cluster-management.io/api v0.16.1/go.mod h1:9erZEWEn4bEqh0nIX2wA7f/s3KCuFycQdBrPrRzi0QM=
 open-cluster-management.io/ocm v0.16.1-0.20250314011908-73150dea199d h1:Vha0/lCnxJlvpqHLIwu5tVYKA3Qd1a2SUEw0vmlKZYM=
 open-cluster-management.io/ocm v0.16.1-0.20250314011908-73150dea199d/go.mod h1:M2/9PVwAYtP2Rv9ahsUEcGGXUctPPVlqhzrBKRW4Wzs=
+open-cluster-management.io/sdk-go v0.16.0 h1:Ui1jerkeLaNaJPu47xjOJ3lh+rJQgeJHD25ViQMzAMs=
+open-cluster-management.io/sdk-go v0.16.0/go.mod h1:TyOjZC5YxyM5BRNgwTmLuTbHXX6xXqzYBXllrfoVp9w=
 open-cluster-management.io/sdk-go v0.16.1-0.20250310140105-b3879d722d37 h1:i6exzA+oe22T0BwvgfdzoNyywVotqce1CNIUepcQcUM=
 open-cluster-management.io/sdk-go v0.16.1-0.20250310140105-b3879d722d37/go.mod h1:TyOjZC5YxyM5BRNgwTmLuTbHXX6xXqzYBXllrfoVp9w=
+open-cluster-management.io/sdk-go v0.16.1-0.20250320062506-70c401498b1a h1:HRPlNYa+7t1dgHtQMOByn15xpDxcG3a2Z2lkrwmeE9c=
+open-cluster-management.io/sdk-go v0.16.1-0.20250320062506-70c401498b1a/go.mod h1:TyOjZC5YxyM5BRNgwTmLuTbHXX6xXqzYBXllrfoVp9w=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3 h1:2770sDpzrjjsAtVhSeUFseziht227YAWYHLGNM8QPwY=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.30.3/go.mod h1:Ve9uj1L+deCXFrPOk1LpFXqTg7LCFzFso6PA48q/XZw=
 sigs.k8s.io/controller-runtime v0.19.3 h1:XO2GvC9OPftRst6xWCpTgBZO04S2cbp0Qqkj8bX1sPw=
