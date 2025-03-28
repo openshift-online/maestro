@@ -22,9 +22,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -404,7 +404,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	deletingWorkStatus := workv1.ManifestWorkStatus{
 		Conditions: []metav1.Condition{
 			{
-				Type:   common.ManifestsDeleted,
+				Type:   common.ResourceDeleted,
 				Status: metav1.ConditionTrue,
 			},
 		},

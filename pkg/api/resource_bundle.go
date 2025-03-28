@@ -8,9 +8,9 @@ import (
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"gorm.io/datatypes"
 
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 // ResourceBundleStatus defines resource bundle status

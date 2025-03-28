@@ -12,10 +12,10 @@ import (
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 // EventServer handles resource-related events:
@@ -205,7 +205,7 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	}
 
 	// if the resource has been deleted from agent, create status event and delete it from maestro
-	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ManifestsDeleted) {
+	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ResourceDeleted) {
 		_, sErr := statusEventService.Create(ctx, &api.StatusEvent{
 			ResourceID:      resource.ID,
 			ResourceSource:  resource.Source,
@@ -270,9 +270,10 @@ func broadcastStatusEvent(ctx context.Context,
 		resource, sErr = resourceService.Get(ctx, resourceID)
 		if sErr != nil {
 			if sErr.Is404() {
-				log.Infof("skipping resource %s as it is not found", resource.ID)
+				log.Infof("skipping resource %s as it is not found", resourceID)
 				return nil
 			}
+
 			return fmt.Errorf("failed to get resource %s: %s", resourceID, sErr.Error())
 		}
 	}

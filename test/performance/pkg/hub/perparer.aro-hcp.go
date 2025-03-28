@@ -10,9 +10,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/options"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 
 	"github.com/openshift-online/maestro/test/performance/pkg/hub/store"
 	"github.com/openshift-online/maestro/test/performance/pkg/hub/workloads"
@@ -91,15 +92,17 @@ func (o *AROHCPPreparerOptions) PrepareClusters(ctx context.Context) error {
 }
 
 func (o *AROHCPPreparerOptions) CreateWorks(ctx context.Context, phase string) error {
-	creator, err := work.NewClientHolderBuilder(&grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{
+	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{
 		URL: o.GRPCServiceAddress,
-	}}).
-		WithClientID(fmt.Sprintf("%s-client", sourceID)).
+	}}
+	watchStore := store.NewCreateOnlyWatcherStore()
+
+	clientOptions := options.NewGenericClientOptions(
+		grpcOptions, codec.NewManifestBundleCodec(), fmt.Sprintf("%s-client", sourceID)).
 		WithSourceID(sourceID).
-		WithCodec(codec.NewManifestBundleCodec()).
-		WithWorkClientWatcherStore(store.NewCreateOnlyWatcherStore()).
-		WithResyncEnabled(false).
-		NewSourceClientHolder(ctx)
+		WithClientWatcherStore(watchStore).
+		WithResyncEnabled(false)
+	creator, err := work.NewSourceClientHolder(ctx, clientOptions)
 	if err != nil {
 		return err
 	}

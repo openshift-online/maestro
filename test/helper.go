@@ -22,14 +22,15 @@ import (
 	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
 	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/options"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/agent/codec"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/store"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/agent/codec"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/store"
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/golang-jwt/jwt/v4"
@@ -306,12 +307,10 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 
 	watcherStore := store.NewAgentInformerWatcherStore()
 
-	clientHolder, err := work.NewClientHolderBuilder(brokerConfig).
-		WithClientID(clusterName).
-		WithClusterName(clusterName).
-		WithCodec(codec.NewManifestBundleCodec()).
-		WithWorkClientWatcherStore(watcherStore).
-		NewAgentClientHolder(ctx)
+	clientOptions := options.NewGenericClientOptions(
+		brokerConfig, codec.NewManifestBundleCodec(), clusterName).WithClusterName(clusterName).
+		WithClientWatcherStore(watcherStore)
+	clientHolder, err := work.NewAgentClientHolder(ctx, clientOptions)
 	if err != nil {
 		log.Fatalf("Unable to create work agent holder: %s", err)
 	}

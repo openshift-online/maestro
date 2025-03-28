@@ -8,10 +8,10 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/services"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )

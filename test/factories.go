@@ -26,8 +26,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	workv1 "open-cluster-management.io/api/work/v1"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
 var manifestJSON = `
