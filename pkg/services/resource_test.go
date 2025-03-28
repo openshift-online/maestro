@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	gm "github.com/onsi/gomega"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao/mocks"

@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
@@ -20,10 +21,10 @@ import (
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/store"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/utils"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/store"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/utils"
 )
 
 // RESTFulAPIWatcherStore implements the WorkClientWatcherStore interface, it is
@@ -43,7 +44,7 @@ type RESTFulAPIWatcherStore struct {
 	workQueue cache.Queue
 }
 
-var _ store.WorkClientWatcherStore = &RESTFulAPIWatcherStore{}
+var _ store.ClientWatcherStore[*workv1.ManifestWork] = &RESTFulAPIWatcherStore{}
 
 func newRESTFulAPIWatcherStore(ctx context.Context, apiClient *openapi.APIClient, sourceID string) *RESTFulAPIWatcherStore {
 	s := &RESTFulAPIWatcherStore{
@@ -110,11 +111,11 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 }
 
 // HandleReceivedWork sends the received works to the watch channel
-func (m *RESTFulAPIWatcherStore) HandleReceivedWork(action types.ResourceAction, work *workv1.ManifestWork) error {
+func (m *RESTFulAPIWatcherStore) HandleReceivedResource(action types.ResourceAction, work *workv1.ManifestWork) error {
 	switch action {
 	case types.StatusModified:
 		watchType := watch.Modified
-		if meta.IsStatusConditionTrue(work.Status.Conditions, common.ManifestsDeleted) {
+		if meta.IsStatusConditionTrue(work.Status.Conditions, common.ResourceDeleted) {
 			watchType = watch.Deleted
 		}
 
@@ -127,7 +128,7 @@ func (m *RESTFulAPIWatcherStore) HandleReceivedWork(action types.ResourceAction,
 
 // Get a work from maestro server with its namespace and name
 func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
-	id := utils.UID(m.sourceID, namespace, name)
+	id := utils.UID(m.sourceID, common.ManifestWorkGR.String(), namespace, name)
 	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(m.ctx, id).Execute()
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
@@ -147,8 +148,8 @@ func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWo
 
 // List works from maestro server with a specified namespace and list options.
 // Using `metav1.NamespaceAll` to specify all namespace.
-func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions) (*workv1.ManifestWorkList, error) {
-	works := []workv1.ManifestWork{}
+func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions) (*store.ResourceList[*workv1.ManifestWork], error) {
+	works := []*workv1.ManifestWork{}
 
 	_, labelSearch, selectable, err := ToLabelSearch(opts)
 	if err != nil {
@@ -175,10 +176,10 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 			return nil, err
 		}
 
-		works = append(works, *work)
+		works = append(works, work)
 	}
 
-	return &workv1.ManifestWorkList{
+	return &store.ResourceList[*workv1.ManifestWork]{
 		ListMeta: metav1.ListMeta{Continue: nextPage},
 		Items:    works,
 	}, nil
@@ -189,17 +190,17 @@ func (m *RESTFulAPIWatcherStore) ListAll() ([]*workv1.ManifestWork, error) {
 	return nil, nil
 }
 
-func (m *RESTFulAPIWatcherStore) Add(work *workv1.ManifestWork) error {
+func (m *RESTFulAPIWatcherStore) Add(work runtime.Object) error {
 	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
 	return nil
 }
 
-func (m *RESTFulAPIWatcherStore) Update(work *workv1.ManifestWork) error {
+func (m *RESTFulAPIWatcherStore) Update(work runtime.Object) error {
 	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
 	return nil
 }
 
-func (m *RESTFulAPIWatcherStore) Delete(work *workv1.ManifestWork) error {
+func (m *RESTFulAPIWatcherStore) Delete(work runtime.Object) error {
 	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
 	return nil
 }

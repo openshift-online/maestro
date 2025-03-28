@@ -7,9 +7,9 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/google/uuid"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 
 	"github.com/openshift-online/maestro/pkg/api"
 )

@@ -11,10 +11,10 @@ import (
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
 
+	sourceclient "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/client"
+	sourcecodec "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-	sourceclient "open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/client"
-	sourcecodec "open-cluster-management.io/sdk-go/pkg/cloudevents/work/source/codec"
 )
 
 func NewMaestroGRPCSourceWorkClient(
@@ -45,7 +45,7 @@ func NewMaestroGRPCSourceWorkClient(
 		return nil, err
 	}
 
-	cloudEventsClient.Subscribe(ctx, watcherStore.HandleReceivedWork)
+	cloudEventsClient.Subscribe(ctx, watcherStore.HandleReceivedResource)
 
 	// start a go routine to receive client reconnect signal
 	go func() {
@@ -62,7 +62,7 @@ func NewMaestroGRPCSourceWorkClient(
 		}
 	}()
 
-	manifestWorkClient := sourceclient.NewManifestWorkSourceClient(sourceID, cloudEventsClient, watcherStore)
+	manifestWorkClient := sourceclient.NewManifestWorkSourceClient(sourceID, watcherStore, cloudEventsClient)
 	return &WorkV1ClientWrapper{ManifestWorkClient: manifestWorkClient}, nil
 
 }

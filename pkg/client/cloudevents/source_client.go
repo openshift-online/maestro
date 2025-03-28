@@ -11,11 +11,11 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 	"github.com/prometheus/client_golang/prometheus"
 	workv1 "open-cluster-management.io/api/work/v1"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/work/payload"
 )
 
 var log = logger.GetLogger()
