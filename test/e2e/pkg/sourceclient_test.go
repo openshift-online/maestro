@@ -22,7 +22,7 @@ import (
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/work/common"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 )
 
 var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-client"), func() {
@@ -449,7 +449,7 @@ func AssertWatchResult(result *WatchedResult) error {
 			hasWork = true
 		}
 
-		if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ManifestsDeleted) && !watchedWork.DeletionTimestamp.IsZero() {
+		if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ResourceDeleted) && !watchedWork.DeletionTimestamp.IsZero() {
 			if len(watchedWork.Spec.Workload.Manifests) == 0 {
 				return fmt.Errorf("expected the deleted work has spec, but failed %v", watchedWork.Spec)
 			}
