@@ -3,7 +3,10 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/openshift-online/maestro/cmd/maestro/common"
+	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -20,6 +23,7 @@ import (
 var (
 	commonOptions = commonoptions.NewAgentOptions()
 	agentOption   = spoke.NewWorkloadAgentOptions()
+	log           = logger.GetLogger()
 )
 
 func init() {
@@ -57,6 +61,16 @@ func NewAgentCommand() *cobra.Command {
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {
 		utilruntime.Must(features.SpokeMutableFeatureGate.Add(ocmfeature.DefaultSpokeWorkFeatureGates))
 		utilruntime.Must(features.SpokeMutableFeatureGate.Set(fmt.Sprintf("%s=true", ocmfeature.RawFeedbackJsonString)))
+	}
+
+	ctx := context.Background()
+	if common.TracingEnabled() {
+		tracingShutdown, err := common.InstallOpenTelemetryTracer(ctx, log)
+		if err != nil {
+			log.Errorf("Can't initialize OpenTelemetry trace provider: %v", err)
+			os.Exit(1)
+		}
+		defer tracingShutdown(ctx)
 	}
 
 	return cmd
