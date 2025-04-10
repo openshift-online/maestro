@@ -3,9 +3,14 @@ package agent
 import (
 	"context"
 	"fmt"
+	"os"
 
+	"github.com/openshift-online/maestro/cmd/maestro/common"
+	"github.com/openshift-online/maestro/pkg/logger"
+	"github.com/openshift/library-go/pkg/controller/controllercmd"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/metrics/legacyregistry"
@@ -30,12 +35,34 @@ func init() {
 // by default uses 1M as the limit for state feedback
 const maxJSONRawLength int32 = 1024 * 1024
 
+type runWorkloadFN = func(ctx context.Context, controllerContext *controllercmd.ControllerContext) error
+
+func setOtelRoundTripper(fn runWorkloadFN) runWorkloadFN {
+	return func(ctx context.Context, controllerContext *controllercmd.ControllerContext) error {
+		controllerContext.KubeConfig.Transport = otelhttp.NewTransport(controllerContext.KubeConfig.Transport)
+		return fn(ctx, controllerContext)
+	}
+}
+
+var log = logger.GetLogger()
+
 func NewAgentCommand() *cobra.Command {
+	tracingShutdown := func(context.Context) error { return nil }
+	if common.TracingEnabled() {
+		var err error
+		tracingShutdown, err = common.InstallOpenTelemetryTracer(context.Background(), log)
+		if err != nil {
+			log.Errorf("Can't initialize OpenTelemetry trace provider: %v", err)
+			os.Exit(1)
+		}
+	}
+	_ = tracingShutdown // TODO: tbd
+
 	agentOption.MaxJSONRawLength = maxJSONRawLength
 	agentOption.CloudEventsClientCodecs = []string{"manifestbundle"}
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
-	cmdConfig := commonOptions.CommonOpts.
-		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent)
+	cmdConfig := commonOptions.CommonOpts. // NOTE: As of today, the RT setting is ignored by the underlying implementation.
+						NewControllerCommandConfig("maestro-agent", version.Get(), setOtelRoundTripper(cfg.RunWorkloadAgent))
 
 	cmd := cmdConfig.NewCommandWithContext(context.TODO())
 	cmd.Use = "agent"
