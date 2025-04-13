@@ -126,7 +126,7 @@ require (
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
+	github.com/mattn/go-sqlite3 v1.14.27 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.23 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/patternmatcher v0.6.0 // indirect
