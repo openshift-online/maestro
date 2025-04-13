@@ -72,8 +72,8 @@ github.com/chzyer/test v1.0.0/go.mod h1:2JlltgoNkt4TW/z9V/IzDdFaMTM2JPIi26O1pF38
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20240413090539-7fef29478991 h1:3/pjormyqkSjF2GHQehTELZ9oqlER4GrJZiVUIk8Fy8=
 github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20240413090539-7fef29478991/go.mod h1:xiar5+gk13WqyAUQ/cpcxcjD1IhLe/PeilSfCdPcfMU=
-github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c h1:CU7OKO6vJQLp8ghHkyhnkcPw37wdhfK1LzV7L2pNm4w=
-github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c/go.mod h1:FwZuQ17vf240KYoiIuz0ffRssLYR36Wvq2KJFYWVn88=
+github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20250325190102-6de37de32b83 h1:O13oYZJJNjhU9+Xdavl3IA+38stCgJqkkcc4x6v3LDk=
+github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20250325190102-6de37de32b83/go.mod h1:PfjOQkA3S6/w9uIqDxeZzLNq9YuIQ8HF5e8uxkArm0M=
 github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250313141547-88bebb1fe04f h1:1SngS2jUn8y5/wG6Pv/+qubeREnGJy/31SO9U1QBA+0=
 github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250313141547-88bebb1fe04f/go.mod h1:5YWqklyhDSmGzBK/JENKKXdulbPq0JFf3c/KEnMLqgg=
 github.com/cockroachdb/apd v1.1.0/go.mod h1:8Sl8LxpKi29FqWXR16WEFZRNSz3SoPzUzeMeY4+DwBQ=
