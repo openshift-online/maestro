@@ -70,8 +70,8 @@ github.com/chzyer/readline v1.5.1/go.mod h1:Eh+b79XXUwfKfcPLepksvw2tcLE/Ct21YObk
 github.com/chzyer/test v0.0.0-20180213035817-a1ea475d72b1/go.mod h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=
 github.com/chzyer/test v1.0.0/go.mod h1:2JlltgoNkt4TW/z9V/IzDdFaMTM2JPIi26O1pF38GC8=
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
-github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20240413090539-7fef29478991 h1:3/pjormyqkSjF2GHQehTELZ9oqlER4GrJZiVUIk8Fy8=
-github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20240413090539-7fef29478991/go.mod h1:xiar5+gk13WqyAUQ/cpcxcjD1IhLe/PeilSfCdPcfMU=
+github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20250325190102-6de37de32b83 h1:PgKkgizcn3ewzaqCTBrNTWrKEf+kha2GhhN0Pvax6y4=
+github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20250325190102-6de37de32b83/go.mod h1:MK+cV9icGD4NzOT5YAQNJqURFWnRk+lg48ykDct21cM=
 github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c h1:CU7OKO6vJQLp8ghHkyhnkcPw37wdhfK1LzV7L2pNm4w=
 github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c/go.mod h1:FwZuQ17vf240KYoiIuz0ffRssLYR36Wvq2KJFYWVn88=
 github.com/cloudevents/sdk-go/v2 v2.15.3-0.20250313141547-88bebb1fe04f h1:1SngS2jUn8y5/wG6Pv/+qubeREnGJy/31SO9U1QBA+0=
