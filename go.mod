@@ -29,7 +29,7 @@ require (
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
 	github.com/onsi/ginkgo/v2 v2.22.1
 	github.com/onsi/gomega v1.36.2
-	github.com/openshift-online/ocm-common v0.0.20
+	github.com/openshift-online/ocm-common v0.0.21
 	github.com/openshift-online/ocm-sdk-go v0.1.445
 	github.com/openshift/library-go v0.0.0-20241107160307-0064ad7bd060
 	github.com/prometheus/client_golang v1.21.1
