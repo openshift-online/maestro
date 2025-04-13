@@ -77,7 +77,7 @@ require (
 	github.com/aymerick/douceur v0.2.0 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
-	github.com/cenkalti/backoff/v4 v4.3.0 // indirect
+	github.com/cenkalti/backoff/v5 v5.0.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudevents/sdk-go/protocol/kafka_confluent/v2 v2.0.0-20240413090539-7fef29478991 // indirect
 	github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c // indirect
