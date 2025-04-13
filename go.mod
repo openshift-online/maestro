@@ -15,7 +15,7 @@ require (
 	github.com/deckarep/golang-set/v2 v2.6.0
 	github.com/evanphx/json-patch v5.9.11+incompatible
 	github.com/fsnotify/fsnotify v1.7.0
-	github.com/getsentry/sentry-go v0.20.0
+	github.com/getsentry/sentry-go v0.32.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.0
 	github.com/golang-jwt/jwt/v4 v4.5.1
@@ -152,6 +152,7 @@ require (
 	github.com/spf13/cast v1.7.0 // indirect
 	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
+	github.com/urfave/negroni v1.0.0 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.14 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.14 // indirect
