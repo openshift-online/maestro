@@ -40,7 +40,7 @@ require (
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.19.0
 	github.com/yaacov/tree-search-language v0.0.0-20190923184055-1c2dad2e354b
-	github.com/zgalor/weberr v0.8.2
+	github.com/zgalor/weberr v0.9.0
 	go.opentelemetry.io/contrib/exporters/autoexport v0.60.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.53.0
 	go.opentelemetry.io/otel v1.35.0

@@ -577,8 +577,8 @@ github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 github.com/zenazn/goji v0.9.0/go.mod h1:7S9M489iMyHBNxwZnk9/EHS098H4/F6TATF2mIxtB1Q=
-github.com/zgalor/weberr v0.8.2 h1:rzGP0jQVt8hGSNnzjDAQNHMxNNrf3gUrYhpSgY76+mk=
-github.com/zgalor/weberr v0.8.2/go.mod h1:cqK89mj84q3PRgqQXQFWJDzCorOd8xOtov/ulOnqDwc=
+github.com/zgalor/weberr v0.9.0 h1:ps/W5wlzv6aruKF/e6cN+/t79Dmp23e8qpFUyCFvgg0=
+github.com/zgalor/weberr v0.9.0/go.mod h1:cqK89mj84q3PRgqQXQFWJDzCorOd8xOtov/ulOnqDwc=
 go.etcd.io/bbolt v1.3.10 h1:+BqfJTcCzTItrop8mq/lbzL8wSGtj94UO/3U31shqG0=
 go.etcd.io/bbolt v1.3.10/go.mod h1:bK3UQLPJZly7IlNmV7uVHJDxfe5aK9Ll93e/74Y9oEQ=
 go.etcd.io/etcd/api/v3 v3.5.14 h1:vHObSCxyB9zlF60w7qzAdTcGaglbJOpSj1Xj9+WGxq0=
