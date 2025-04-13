@@ -195,7 +195,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.4.7 // indirect
 	k8s.io/apiextensions-apiserver v0.31.3 // indirect
-	k8s.io/kms v0.31.4 // indirect
+	k8s.io/kms v0.32.3 // indirect
 	k8s.io/kube-aggregator v0.31.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6 // indirect
