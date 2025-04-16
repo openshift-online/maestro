@@ -158,6 +158,8 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
 // otherwise, updates the resource status and creates a status event.
 func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
+	log.Infof("handle resource status update %s by the current instance", resource.ID)
+
 	found, svcErr := resourceService.Get(ctx, resource.ID)
 	if svcErr != nil {
 		if svcErr.Is404() {
@@ -220,6 +222,8 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 		if svcErr := resourceService.Delete(ctx, resource.ID); svcErr != nil {
 			return fmt.Errorf("failed to delete resource %s: %s", resource.ID, svcErr.Error())
 		}
+
+		log.Infof("resource %s status delete event was sent", resource.ID)
 	} else {
 		// update the resource status
 		_, updated, svcErr := resourceService.UpdateStatus(ctx, resource)
@@ -236,6 +240,8 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 			if sErr != nil {
 				return fmt.Errorf("failed to create status event for resource status update %s: %s", resource.ID, sErr.Error())
 			}
+
+			log.Infof("resource %s status update event was sent", resource.ID)
 		}
 	}
 

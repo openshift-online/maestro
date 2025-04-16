@@ -194,7 +194,7 @@ parameters:
   value: "5s"
 
 - name: LIVENESS_PROBE_INIT_DELAY_SECONDS
-  value: "15"
+  value: "25"
 
 - name: READINESS_PROBE_INIT_DELAY_SECONDS
   value: "20"
@@ -442,11 +442,11 @@ objects:
                 memory: ${MEMORY_LIMIT}
             livenessProbe:
               httpGet:
-                path: /api/maestro
-                port: 8000
+                path: /healthcheck
+                port: 8083
                 scheme: HTTPS
               initialDelaySeconds: ${{LIVENESS_PROBE_INIT_DELAY_SECONDS}}
-              periodSeconds: 5
+              periodSeconds: 10
             readinessProbe:
               httpGet:
                 path: /healthcheck
@@ -456,7 +456,7 @@ objects:
                 - name: User-Agent
                   value: Probe
               initialDelaySeconds: ${{READINESS_PROBE_INIT_DELAY_SECONDS}}
-              periodSeconds: 10
+              periodSeconds: 5
 
   - kind: Service
     apiVersion: v1
