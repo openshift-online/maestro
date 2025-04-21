@@ -397,21 +397,18 @@ objects:
                 memory: ${MEMORY_LIMIT}
             livenessProbe:
               httpGet:
-                path: /api/maestro
-                port: 8000
+                path: /healthcheck
+                port: 8083
                 scheme: HTTPS
-              initialDelaySeconds: 15
-              periodSeconds: 5
+              initialDelaySeconds: 25
+              periodSeconds: 10
             readinessProbe:
               httpGet:
                 path: /healthcheck
                 port: 8083
                 scheme: HTTPS
-                httpHeaders:
-                - name: User-Agent
-                  value: Probe
               initialDelaySeconds: 20
-              periodSeconds: 10
+              periodSeconds: 5
 
   - kind: Service
     apiVersion: v1

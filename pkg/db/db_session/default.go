@@ -157,7 +157,7 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 		case <-time.After(10 * time.Second):
 			log.Debugf("Received no events on channel during interval. Pinging source")
 			if err := l.Ping(); err != nil {
-				log.Infof("recreate the listener due to %s", err.Error())
+				log.Infof("recreate the listener due to ping failed, %s", err.Error())
 				l.Close()
 				// recreate the listener
 				l = newListener(ctx, dbConfig, channel)
@@ -169,7 +169,7 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel string) *pq.Listener {
 	plog := func(ev pq.ListenerEventType, err error) {
 		if err != nil {
-			log.Error(err.Error())
+			log.Error(fmt.Sprintf("Listener: the state of the underlying database connection changes, (eventType=%d) %v", ev, err.Error()))
 		}
 	}
 	connstr := dbConfig.ConnectionString(true)
