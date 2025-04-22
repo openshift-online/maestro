@@ -60,7 +60,7 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		if err.Is404() {
-			log.Infof("skipping to publish create request for resource %s as it is not found", resource.ID)
+			log.Infof("skipping to publish create request for resource %s as it is not found", id)
 			return nil
 		}
 
@@ -90,7 +90,7 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		if err.Is404() {
-			log.Infof("skipping to publish update request for resource %s as it is not found", resource.ID)
+			log.Infof("skipping to publish update request for resource %s as it is not found", id)
 			return nil
 		}
 		return err
@@ -114,7 +114,7 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		if err.Is404() {
-			log.Infof("skipping to publish delete request for resource %s as it is not found", resource.ID)
+			log.Infof("skipping to publish delete request for resource %s as it is not found", id)
 			return nil
 		}
 		return err
