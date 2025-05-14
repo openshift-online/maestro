@@ -80,7 +80,14 @@ func main() {
 		grpcOptions.Dialer.TLSConfig = tlsConfig
 	}
 	if *grpcClientTokenFile != "" {
-		grpcOptions.Dialer.TokenFile = *grpcClientTokenFile
+		config := &grpc.GRPCConfig{}
+		token := config.Token
+		tokenBytes, err := os.ReadFile(config.TokenFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		token = string(tokenBytes)
+		grpcOptions.Dialer.Token = token
 	}
 
 	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
