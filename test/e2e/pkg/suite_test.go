@@ -157,7 +157,9 @@ var _ = BeforeSuite(func() {
 		// set CAFile and TokenFile for grpc authz
 		grpcOptions.Dialer.TLSConfig, err = cert.AutoLoadTLSConfig(grpcServerCAFile, "", "", nil)
 		Expect(err).To(Succeed())
-		grpcOptions.Dialer.TokenFile = grpcClientTokenFile
+		tokenBytes, err := os.ReadFile(grpcClientTokenFile)
+		Expect(err).To(Succeed())
+		grpcOptions.Dialer.Token = string(tokenBytes)
 		// create the clusterrole for grpc authz
 		Expect(helper.CreateGRPCAuthRule(ctx, serverTestOpts.kubeClientSet, "grpc-pub-sub", "source", sourceID, []string{"pub", "sub"})).To(Succeed())
 

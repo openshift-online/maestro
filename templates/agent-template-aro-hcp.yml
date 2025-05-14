@@ -281,6 +281,7 @@ objects:
             - --workload-source-driver=mqtt
             - --workload-source-config=/secrets/mqtt/config.yaml
             - --cloudevents-client-id=$(CONSUMER_NAME)-work-agent
+            - --enable-otel-roundtrip=true
             - -v=${KLOG_V}
           env:
           - name: "MAESTRO_ENV"

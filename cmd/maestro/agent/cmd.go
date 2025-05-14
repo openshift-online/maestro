@@ -13,6 +13,7 @@ import (
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/version"
+	"k8s.io/utils/clock"
 	ocmfeature "open-cluster-management.io/api/feature"
 	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
@@ -39,7 +40,7 @@ func NewAgentCommand() *cobra.Command {
 	agentOption.CloudEventsClientCodecs = []string{"manifestbundle"}
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
 	cmdConfig := commonOptions.CommonOpts.
-		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent)
+		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent, clock.RealClock{})
 
 	cmd := cmdConfig.NewCommandWithContext(context.TODO())
 	cmd.Use = "agent"
@@ -63,16 +64,18 @@ func NewAgentCommand() *cobra.Command {
 		utilruntime.Must(features.SpokeMutableFeatureGate.Set(fmt.Sprintf("%s=true", ocmfeature.RawFeedbackJsonString)))
 	}
 
+	tracingShutdown := func(context.Context) error { return nil }
 	ctx := context.Background()
 	if common.TracingEnabled() {
-		tracingShutdown, err := common.InstallOpenTelemetryTracer(ctx, log)
+		var err error
+		tracingShutdown, err = common.InstallOpenTelemetryTracer(ctx, log)
 		if err != nil {
 			log.Errorf("Can't initialize OpenTelemetry trace provider: %v", err)
 			os.Exit(1)
 		}
-		defer tracingShutdown(ctx)
 	}
 
+	_ = tracingShutdown
 	return cmd
 }
 
