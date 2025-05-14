@@ -10,6 +10,7 @@ import (
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/metrics/legacyregistry"
 	"k8s.io/component-base/version"
+	"k8s.io/utils/clock"
 	ocmfeature "open-cluster-management.io/api/feature"
 	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
@@ -35,7 +36,7 @@ func NewAgentCommand() *cobra.Command {
 	agentOption.CloudEventsClientCodecs = []string{"manifestbundle"}
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
 	cmdConfig := commonOptions.CommonOpts.
-		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent)
+		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent, clock.RealClock{})
 
 	cmd := cmdConfig.NewCommandWithContext(context.TODO())
 	cmd.Use = "agent"
@@ -68,4 +69,8 @@ func addFlags(fs *pflag.FlagSet) {
 		commonOptions.SpokeClusterName, "Name of the consumer")
 	fs.BoolVar(&commonOptions.CommonOpts.CmdConfig.DisableLeaderElection, "disable-leader-election",
 		true, "Disable leader election.")
+	fs.Float32Var(&commonOptions.CommonOpts.QPS, "kube-api-qps",
+		commonOptions.CommonOpts.QPS, "QPS value to configure for Maestro agent communication with the cluster's API server.")
+	fs.IntVar(&commonOptions.CommonOpts.Burst, "kube-api-burst",
+		commonOptions.CommonOpts.Burst, "Burst value to configure for Maestro agent communication with the cluster's API server.")
 }

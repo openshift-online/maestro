@@ -152,16 +152,14 @@ var _ = BeforeSuite(func() {
 		Expect(os.WriteFile(grpcClientKey, grpcCertSrt.Data["client.key"], 0644)).To(Succeed())
 		grpcClientTokenSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "grpc-client-token", metav1.GetOptions{})
 		Expect(err).To(Succeed())
-		grpcClientTokenFile := fmt.Sprintf("%s/token", grpcCertDir)
-		Expect(os.WriteFile(grpcClientTokenFile, grpcClientTokenSrt.Data["token"], 0644)).To(Succeed())
-		// set CAFile and TokenFile for grpc authz
+		// set CAFile and Token for grpc authz
 		grpcOptions.Dialer.TLSConfig, err = cert.AutoLoadTLSConfig(grpcServerCAFile, "", "", nil)
 		Expect(err).To(Succeed())
-		grpcOptions.Dialer.TokenFile = grpcClientTokenFile
+		grpcOptions.Dialer.Token = string(grpcClientTokenSrt.Data["token"])
 		// create the clusterrole for grpc authz
 		Expect(helper.CreateGRPCAuthRule(ctx, serverTestOpts.kubeClientSet, "grpc-pub-sub", "source", sourceID, []string{"pub", "sub"})).To(Succeed())
 
-		grpcConn, err = helper.CreateGRPCConn(grpcServerAddress, grpcServerCAFile, grpcClientTokenFile)
+		grpcConn, err = helper.CreateGRPCConn(grpcServerAddress, grpcServerCAFile, string(grpcClientTokenSrt.Data["token"]))
 		Expect(err).To(Succeed())
 	} else {
 		grpcConn, err = helper.CreateGRPCConn(grpcServerAddress, "", "")
