@@ -421,8 +421,8 @@ func (helper *Helper) CreateGRPCAuthRule(ctx context.Context, kubeClient kuberne
 	return err
 }
 
-func (helper *Helper) CreateGRPCConn(serverAddr, serverCAFile, tokenFile string) (*grpc.ClientConn, error) {
-	if serverCAFile == "" || tokenFile == "" {
+func (helper *Helper) CreateGRPCConn(serverAddr, serverCAFile, token string) (*grpc.ClientConn, error) {
+	if serverCAFile == "" || token == "" {
 		// no TLS and authz
 		return grpc.Dial(serverAddr, grpc.WithInsecure())
 	} else {
@@ -445,11 +445,6 @@ func (helper *Helper) CreateGRPCConn(serverAddr, serverCAFile, tokenFile string)
 			RootCAs:    certPool,
 			MinVersion: tls.VersionTLS13,
 			MaxVersion: tls.VersionTLS13,
-		}
-
-		token, err := os.ReadFile(tokenFile)
-		if err != nil {
-			return nil, err
 		}
 
 		perRPCCred := oauth.TokenSource{
