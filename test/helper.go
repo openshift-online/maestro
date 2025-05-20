@@ -152,6 +152,7 @@ func NewHelper(t *testing.T) *Helper {
 				helper.Env().Database.SessionFactory,
 				helper.Env().Clients.CloudEventsSource,
 				helper.Env().Config.EventServer.ConsistentHashConfig,
+				1*time.Second,
 			)
 			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
 			helper.EventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory))

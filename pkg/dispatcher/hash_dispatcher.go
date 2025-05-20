@@ -27,17 +27,19 @@ var _ Dispatcher = &HashDispatcher{}
 // Only the maestro instance that is mapped to a consumer will process the resource status update from that consumer.
 // Need to trigger status resync for the consumer when an instance is up or down.
 type HashDispatcher struct {
-	instanceID     string
-	sessionFactory db.SessionFactory
-	instanceDao    dao.InstanceDao
-	consumerDao    dao.ConsumerDao
-	sourceClient   cloudevents.SourceClient
-	consumerSet    mapset.Set[string]
-	workQueue      workqueue.RateLimitingInterface
-	consistent     *consistent.Consistent
+	instanceID             string
+	sessionFactory         db.SessionFactory
+	instanceDao            dao.InstanceDao
+	consumerDao            dao.ConsumerDao
+	sourceClient           cloudevents.SourceClient
+	consumerSet            mapset.Set[string]
+	workQueue              workqueue.RateLimitingInterface
+	consistent             *consistent.Consistent
+	updateHashRingInterval time.Duration
 }
 
-func NewHashDispatcher(instanceID string, sessionFactory db.SessionFactory, sourceClient cloudevents.SourceClient, consistentHashingConfig *config.ConsistentHashConfig) *HashDispatcher {
+func NewHashDispatcher(instanceID string, sessionFactory db.SessionFactory, sourceClient cloudevents.SourceClient,
+	consistentHashingConfig *config.ConsistentHashConfig, interval time.Duration) *HashDispatcher {
 	return &HashDispatcher{
 		instanceID:     instanceID,
 		sessionFactory: sessionFactory,
@@ -52,6 +54,7 @@ func NewHashDispatcher(instanceID string, sessionFactory db.SessionFactory, sour
 			Load:              consistentHashingConfig.Load,
 			Hasher:            hasher{},
 		}),
+		updateHashRingInterval: interval,
 	}
 }
 
@@ -61,7 +64,7 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 	go d.startStatusResyncWorkers(ctx)
 
 	// start a goroutine to periodically check the instances and consumers.
-	go wait.UntilWithContext(ctx, d.check, 5*time.Second)
+	go wait.UntilWithContext(ctx, d.check, d.updateHashRingInterval)
 
 	// start a goroutine to resync current consumers for this source when the client is reconnected
 	go d.resyncOnReconnect(ctx)

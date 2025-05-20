@@ -152,14 +152,14 @@ func (s *HealthCheckServer) checkInstances(ctx context.Context) {
 	}
 
 	if len(activeInstanceIDs) > 0 {
-		// batch mark active instances, this will tigger status dispatcher to call onInstanceUp handler.
+		// batch mark active instances.
 		if err := s.instanceDao.MarkReadyByIDs(ctx, activeInstanceIDs); err != nil {
 			log.Errorf("Unable to mark active maestro instances (%s): %s", activeInstanceIDs, err.Error())
 		}
 	}
 
 	if len(inactiveInstanceIDs) > 0 {
-		// batch mark inactive instances, this will tigger status dispatcher to call onInstanceDown handler.
+		// batch mark inactive instances.
 		if err := s.instanceDao.MarkUnreadyByIDs(ctx, inactiveInstanceIDs); err != nil {
 			log.Errorf("Unable to mark inactive maestro instances (%s): %s", inactiveInstanceIDs, err.Error())
 		}

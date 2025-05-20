@@ -42,12 +42,12 @@ func TestStatusDispatcher(t *testing.T) {
 
 	// insert a new instance and healthcheck server will mark it as ready and then add it to the hash ring
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
-	_, err = instanceDao.Create(ctx, &api.ServerInstance{
+	_, err = instanceDao.Replace(ctx, &api.ServerInstance{
 		Meta: api.Meta{
 			ID: "instance1",
 		},
 		LastHeartbeat: time.Now(),
-		Ready:         false,
+		Ready:         true,
 	})
 	Expect(err).NotTo(HaveOccurred())
 
