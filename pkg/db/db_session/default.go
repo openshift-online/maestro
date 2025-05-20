@@ -195,7 +195,7 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) *pq.Listener {
 	listener := newListener(ctx, f.config, channel)
 
-	log.Infof("Starting channeling monitor for %s", channel)
+	log.Infof("Starting listener for %s", channel)
 	go waitForNotification(ctx, listener, f.config, channel, callback)
 	return listener
 }

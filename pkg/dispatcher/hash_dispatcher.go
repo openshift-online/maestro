@@ -96,11 +96,12 @@ func (d *HashDispatcher) Dispatch(consumerName string) bool {
 
 // updateConsumerSet updates the consumer set for the current instance based on the hashing ring.
 func (d *HashDispatcher) updateConsumerSet() error {
+	log.Debug("updateConsumerSet is called")
 	// return if the hashing ring is not ready
 	if d.consistent == nil || len(d.consistent.GetMembers()) == 0 {
 		return nil
 	}
-
+	log.Debug("d.consistent is not empty")
 	// get all consumers and update the consumer set for the current instance
 	consumers, err := d.consumerDao.All(context.TODO())
 	if err != nil {
@@ -154,6 +155,7 @@ func (d *HashDispatcher) check(ctx context.Context) {
 		return
 	}
 
+	// get all ready instances from DB directly
 	readyInstances := []string{}
 	for _, instance := range instances {
 		if instance.Ready {
@@ -161,6 +163,7 @@ func (d *HashDispatcher) check(ctx context.Context) {
 		}
 	}
 
+	// get all existing ready instances which are added into the hash ring
 	existingInstances := []string{}
 	members := d.consistent.GetMembers()
 	for _, member := range members {
@@ -169,10 +172,11 @@ func (d *HashDispatcher) check(ctx context.Context) {
 
 	setA := mapset.NewSet(readyInstances...)
 	setB := mapset.NewSet(existingInstances...)
-
+	// Compare to get added and removed instances
 	addedMembers := setB.Difference(setA)
 	removedMembers := setA.Difference(setB)
 
+	// if there are newly added members, need to put them into the hash ring
 	for _, member := range addedMembers.ToSlice() {
 		d.consistent.Add(&api.ServerInstance{
 			Meta: api.Meta{
@@ -181,12 +185,17 @@ func (d *HashDispatcher) check(ctx context.Context) {
 		})
 	}
 
+	// if there are removed members, need to remove them from the hash ring
 	for _, member := range removedMembers.ToSlice() {
 		d.consistent.Remove(member)
 	}
 
-	if err := d.updateConsumerSet(); err != nil {
-		log.Error(fmt.Sprintf("Unable to update consumer set: %s", err.Error()))
+	if !addedMembers.IsEmpty() || !removedMembers.IsEmpty() {
+		log.Debugf("newly added server instances are %s and removed server instances are %s from the hash ring",
+			addedMembers.String(), removedMembers.String())
+		if err := d.updateConsumerSet(); err != nil {
+			log.Error(fmt.Sprintf("Unable to update consumer set: %s", err.Error()))
+		}
 	}
 }
 
