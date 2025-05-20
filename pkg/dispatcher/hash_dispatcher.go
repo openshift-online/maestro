@@ -96,18 +96,15 @@ func (d *HashDispatcher) Dispatch(consumerName string) bool {
 
 // updateConsumerSet updates the consumer set for the current instance based on the hashing ring.
 func (d *HashDispatcher) updateConsumerSet() error {
-	log.Debug("updateConsumerSet is called")
 	// return if the hashing ring is not ready
 	if d.consistent == nil || len(d.consistent.GetMembers()) == 0 {
 		return nil
 	}
-	log.Debug("d.consistent is not empty")
 	// get all consumers and update the consumer set for the current instance
 	consumers, err := d.consumerDao.All(context.TODO())
 	if err != nil {
 		return fmt.Errorf("unable to list consumers: %s", err.Error())
 	}
-
 	toAddConsumers, toRemoveConsumers := []string{}, []string{}
 	for _, consumer := range consumers {
 		instanceID := d.consistent.LocateKey([]byte(consumer.Name)).String()
@@ -127,8 +124,9 @@ func (d *HashDispatcher) updateConsumerSet() error {
 
 	_ = d.consumerSet.Append(toAddConsumers...)
 	d.consumerSet.RemoveAll(toRemoveConsumers...)
-	log.Debugf("Consumers set for current instance: %s", d.consumerSet.String())
-
+	if len(toAddConsumers) != 0 || len(toRemoveConsumers) != 0 {
+		log.Debugf("Consumers set for current instance: %s", d.consumerSet.String())
+	}
 	return nil
 }
 
@@ -173,8 +171,8 @@ func (d *HashDispatcher) check(ctx context.Context) {
 	setA := mapset.NewSet(readyInstances...)
 	setB := mapset.NewSet(existingInstances...)
 	// Compare to get added and removed instances
-	addedMembers := setB.Difference(setA)
-	removedMembers := setA.Difference(setB)
+	addedMembers := setA.Difference(setB)
+	removedMembers := setB.Difference(setA)
 
 	// if there are newly added members, need to put them into the hash ring
 	for _, member := range addedMembers.ToSlice() {
@@ -193,9 +191,11 @@ func (d *HashDispatcher) check(ctx context.Context) {
 	if !addedMembers.IsEmpty() || !removedMembers.IsEmpty() {
 		log.Debugf("newly added server instances are %s and removed server instances are %s from the hash ring",
 			addedMembers.String(), removedMembers.String())
-		if err := d.updateConsumerSet(); err != nil {
-			log.Error(fmt.Sprintf("Unable to update consumer set: %s", err.Error()))
-		}
+	}
+
+	// need update consumerset always to ensure the consumers are located to specified server instance
+	if err := d.updateConsumerSet(); err != nil {
+		log.Error(fmt.Sprintf("Unable to update consumer set: %s", err.Error()))
 	}
 }
 
