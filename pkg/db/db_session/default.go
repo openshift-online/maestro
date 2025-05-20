@@ -155,7 +155,6 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 				l = newListener(ctx, dbConfig, channel)
 			}
 		case <-time.After(10 * time.Second):
-			log.Debugf("Received no events on channel [%s] during interval. Pinging source", channel)
 			if err := l.Ping(); err != nil {
 				log.Infof("recreate the listener due to ping failed, %s", err.Error())
 				l.Close()

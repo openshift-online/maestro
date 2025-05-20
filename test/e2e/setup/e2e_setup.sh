@@ -131,6 +131,7 @@ export mqtt_client_key="/secrets/mqtt-certs/client.key"
 if [ -n "${ENABLE_BROADCAST_SUBSCRIPTION}" ] && [ "${ENABLE_BROADCAST_SUBSCRIPTION}" = "true" ]; then
   export subscription_type="broadcast"
   export agent_topic="sources/maestro/consumers/+/agentevents"
+  export SERVER_REPLICAS=3
 fi
 
 make deploy-secrets \

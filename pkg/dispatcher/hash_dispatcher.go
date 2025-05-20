@@ -3,7 +3,6 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -64,38 +63,12 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 	// start a goroutine to periodically check the instances and consumers.
 	go wait.UntilWithContext(ctx, d.check, 5*time.Second)
 
-	// listen for server_instance update
-	log.Infof("HashDispatcher listening for server_instances updates")
-	go d.sessionFactory.NewListener(ctx, "server_instances", d.onInstanceUpdate)
-
 	// start a goroutine to resync current consumers for this source when the client is reconnected
 	go d.resyncOnReconnect(ctx)
 
 	// wait until context is canceled
 	<-ctx.Done()
 	d.workQueue.ShutDown()
-}
-
-func (d *HashDispatcher) onInstanceUpdate(ids string) {
-	states := strings.Split(ids, ":")
-	if len(states) != 2 {
-		log.Infof("watched server instances updated with invalid ids: %s", ids)
-		return
-	}
-	idList := strings.Split(states[1], ",")
-	if states[0] == "ready" {
-		for _, id := range idList {
-			if err := d.onInstanceUp(id); err != nil {
-				log.Errorf("failed to call OnInstancesUp for instance %s: %s", id, err)
-			}
-		}
-	} else {
-		for _, id := range idList {
-			if err := d.onInstanceDown(id); err != nil {
-				log.Errorf("failed to call OnInstancesDown for instance %s: %s", id, err)
-			}
-		}
-	}
 }
 
 // resyncOnReconnect listens for the client reconnected signal and resyncs current consumers for this source.
@@ -119,49 +92,6 @@ func (d *HashDispatcher) resyncOnReconnect(ctx context.Context) {
 // otherwise, it returns false.
 func (d *HashDispatcher) Dispatch(consumerName string) bool {
 	return d.consumerSet.Contains(consumerName)
-}
-
-// onInstanceUp adds the new instance to the hashing ring and updates the consumer set for the current instance.
-func (d *HashDispatcher) onInstanceUp(instanceID string) error {
-	members := d.consistent.GetMembers()
-	for _, member := range members {
-		if member.String() == instanceID {
-			// instance already exists, hashing ring won't be changed
-			return nil
-		}
-	}
-
-	// add the new instance to the hashing ring
-	d.consistent.Add(&api.ServerInstance{
-		Meta: api.Meta{
-			ID: instanceID,
-		},
-	})
-
-	return d.updateConsumerSet()
-}
-
-// onInstanceDown removes the instance from the hashing ring and updates the consumer set for the current instance.
-func (d *HashDispatcher) onInstanceDown(instanceID string) error {
-	members := d.consistent.GetMembers()
-	deletedMember := true
-	for _, member := range members {
-		if member.String() == instanceID {
-			// the instance is still in the hashing ring
-			deletedMember = false
-			break
-		}
-	}
-
-	// if the instance is already deleted, the hash ring won't be changed
-	if deletedMember {
-		return nil
-	}
-
-	// remove the instance from the hashing ring
-	d.consistent.Remove(instanceID)
-
-	return d.updateConsumerSet()
 }
 
 // updateConsumerSet updates the consumer set for the current instance based on the hashing ring.
@@ -224,19 +154,35 @@ func (d *HashDispatcher) check(ctx context.Context) {
 		return
 	}
 
-	// ensure the hashing ring members are up-to-date
+	readyInstances := []string{}
+	for _, instance := range instances {
+		if instance.Ready {
+			readyInstances = append(readyInstances, instance.ID)
+		}
+	}
+
+	existingInstances := []string{}
 	members := d.consistent.GetMembers()
 	for _, member := range members {
-		isMemberActive := false
-		for _, instance := range instances {
-			if member.String() == instance.ID {
-				isMemberActive = true
-				break
-			}
-		}
-		if !isMemberActive {
-			d.consistent.Remove(member.String())
-		}
+		existingInstances = append(existingInstances, member.String())
+	}
+
+	setA := mapset.NewSet(readyInstances...)
+	setB := mapset.NewSet(existingInstances...)
+
+	addedMembers := setB.Difference(setA)
+	removedMembers := setA.Difference(setB)
+
+	for _, member := range addedMembers.ToSlice() {
+		d.consistent.Add(&api.ServerInstance{
+			Meta: api.Meta{
+				ID: member,
+			},
+		})
+	}
+
+	for _, member := range removedMembers.ToSlice() {
+		d.consistent.Remove(member)
 	}
 
 	if err := d.updateConsumerSet(); err != nil {

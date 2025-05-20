@@ -82,7 +82,6 @@ func (s *HealthCheckServer) Start(ctx context.Context) {
 }
 
 func (s *HealthCheckServer) pulse(ctx context.Context) {
-	log.Debugf("Updating heartbeat for maestro instance: %s", s.instanceID)
 	// If there are multiple requests at the same time, it will cause the race conditions among these
 	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
 	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, s.instanceID, db.Instances)
@@ -120,7 +119,6 @@ func (s *HealthCheckServer) pulse(ctx context.Context) {
 }
 
 func (s *HealthCheckServer) checkInstances(ctx context.Context) {
-	log.Debugf("Checking liveness of maestro instances")
 	// lock the Instance with a fail-fast advisory lock context.
 	// this allows concurrent processing of many instances by one or more maestro instances exclusively.
 	lockOwnerID, acquired, err := s.lockFactory.NewNonBlockingLock(ctx, "maestro-instances-liveness-check", db.Instances)
@@ -181,7 +179,6 @@ func (s *HealthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 	if instance.Ready {
-		log.Debugf("Instance is ready")
 		w.WriteHeader(http.StatusOK)
 		_, err := w.Write([]byte(`{"status": "ok"}`))
 		if err != nil {
@@ -190,7 +187,6 @@ func (s *HealthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	log.Infof("Instance not ready")
 	w.WriteHeader(http.StatusServiceUnavailable)
 	_, err = w.Write([]byte(`{"status": "not ready"}`))
 	if err != nil {
