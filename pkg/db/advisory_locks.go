@@ -103,7 +103,6 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 		return *lock.uuid, fmt.Errorf(errMsg)
 	}
 
-	log.Debugf("Locked advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid)
 	f.lockStore.add(*lock.uuid, lock)
 	return *lock.uuid, nil
 }
@@ -125,7 +124,6 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 		return *lock.uuid, false, fmt.Errorf(errMsg)
 	}
 
-	log.Debugf("Locked non blocking advisory lock id=%s type=%s - owner=%s", id, lockType, *lock.uuid)
 	f.lockStore.add(*lock.uuid, lock)
 	return *lock.uuid, acquired, nil
 }
@@ -176,7 +174,6 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 	UpdateAdvisoryLockCountMetric(lockType, "OK")
 	UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
 
-	log.Debugf("Unlocked lock id=%s type=%s - owner=%s", lockID, lockType, uuid)
 	f.lockStore.delete(uuid)
 }
 

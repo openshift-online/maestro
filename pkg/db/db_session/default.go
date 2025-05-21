@@ -141,7 +141,7 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("Context cancelled, stopping channel monitor")
+			log.Infof("Context cancelled, stopping channel [%s] monitor", channel)
 			return
 		case n := <-l.Notify:
 			if n != nil {
@@ -149,13 +149,12 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 				callback(n.Extra)
 			} else {
 				// nil notification means the connection was closed
-				log.Infof("recreate the listener due to the connection loss")
+				log.Infof("recreate the listener for channel [%s] due to the connection loss", channel)
 				l.Close()
 				// recreate the listener
 				l = newListener(ctx, dbConfig, channel)
 			}
 		case <-time.After(10 * time.Second):
-			log.Debugf("Received no events on channel during interval. Pinging source")
 			if err := l.Ping(); err != nil {
 				log.Infof("recreate the listener due to ping failed, %s", err.Error())
 				l.Close()
@@ -196,7 +195,7 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) *pq.Listener {
 	listener := newListener(ctx, f.config, channel)
 
-	log.Infof("Starting channeling monitor for %s", channel)
+	log.Infof("Starting listener for %s", channel)
 	go waitForNotification(ctx, listener, f.config, channel, callback)
 	return listener
 }
