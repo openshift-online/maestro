@@ -15,7 +15,8 @@ type MetricsCollector interface {
 }
 
 // Subsystem used to define the metrics:
-const metricsSubsystem = "advisory_lock"
+const lockMetricsSubsystem = "advisory_lock"
+const unlockMetricsSubsystem = "advisory_unlock"
 
 // Names of the labels added to metrics:
 const (
@@ -35,12 +36,22 @@ const (
 	durationMetric = "duration"
 )
 
-// Description of the requests count metric:
+// Description of the lock requests count metric:
 var advisoryLockCountMetric = prometheus.NewCounterVec(
 	prometheus.CounterOpts{
-		Subsystem: metricsSubsystem,
+		Subsystem: lockMetricsSubsystem,
 		Name:      countMetric,
 		Help:      "Number of advisory lock requests.",
+	},
+	metricsLabels,
+)
+
+// Description of the unlock requests count metric:
+var advisoryUnlockCountMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Subsystem: unlockMetricsSubsystem,
+		Name:      countMetric,
+		Help:      "Number of advisory unlock requests.",
 	},
 	metricsLabels,
 )
@@ -48,7 +59,7 @@ var advisoryLockCountMetric = prometheus.NewCounterVec(
 // Description of the request duration metric:
 var advisoryLockDurationMetric = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Subsystem: metricsSubsystem,
+		Subsystem: lockMetricsSubsystem,
 		Name:      durationMetric,
 		Help:      "Advisory Lock durations in seconds.",
 		Buckets: []float64{
@@ -66,19 +77,8 @@ var advisoryLockDurationMetric = prometheus.NewHistogramVec(
 // Register the metrics:
 func RegisterAdvisoryLockMetrics() {
 	prometheus.MustRegister(advisoryLockCountMetric)
+	prometheus.MustRegister(advisoryUnlockCountMetric)
 	prometheus.MustRegister(advisoryLockDurationMetric)
-}
-
-// Unregister the metrics:
-func UnregisterAdvisoryLockMetrics() {
-	prometheus.Unregister(advisoryLockCountMetric)
-	prometheus.Unregister(advisoryLockDurationMetric)
-}
-
-// ResetAdvisoryLockMetricsCollectors resets all collectors
-func ResetAdvisoryLockMetricsCollectors() {
-	advisoryLockCountMetric.Reset()
-	advisoryLockDurationMetric.Reset()
 }
 
 func UpdateAdvisoryLockCountMetric(lockType LockType, status string) {
@@ -87,6 +87,14 @@ func UpdateAdvisoryLockCountMetric(lockType LockType, status string) {
 		metricsStatusLabel: status,
 	}
 	advisoryLockCountMetric.With(labels).Inc()
+}
+
+func UpdateAdvisoryUnlockCountMetric(lockType LockType, status string) {
+	labels := prometheus.Labels{
+		metricsTypeLabel:   string(lockType),
+		metricsStatusLabel: status,
+	}
+	advisoryUnlockCountMetric.With(labels).Inc()
 }
 
 func UpdateAdvisoryLockDurationMetric(lockType LockType, status string, startTime time.Time) {
