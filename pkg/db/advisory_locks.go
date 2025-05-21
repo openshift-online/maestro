@@ -95,7 +95,7 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 
 	// obtain the advisory lock (blocking)
 	if err := lock.lock(); err != nil {
-		UpdateAdvisoryLockCountMetric(lockType, "lock error")
+		UpdateAdvisoryLockCountMetric(lockType, "ERROR")
 		errMsg := fmt.Sprintf("error obtaining the advisory lock for id %s type %s, %v", id, lockType, err)
 		log.Error(errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
@@ -103,6 +103,7 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 		return *lock.uuid, fmt.Errorf(errMsg)
 	}
 
+	UpdateAdvisoryLockCountMetric(lockType, "OK")
 	f.lockStore.add(*lock.uuid, lock)
 	return *lock.uuid, nil
 }
@@ -116,7 +117,7 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 	// obtain the advisory lock (unblocking)
 	acquired, err := lock.nonBlockingLock()
 	if err != nil {
-		UpdateAdvisoryLockCountMetric(lockType, "lock error")
+		UpdateAdvisoryLockCountMetric(lockType, "ERROR")
 		errMsg := fmt.Sprintf("error obtaining the non blocking advisory lock for id %s type %s, %v", id, lockType, err)
 		log.Error(errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
@@ -124,6 +125,7 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 		return *lock.uuid, false, fmt.Errorf(errMsg)
 	}
 
+	UpdateAdvisoryLockCountMetric(lockType, "OK")
 	f.lockStore.add(*lock.uuid, lock)
 	return *lock.uuid, acquired, nil
 }
@@ -167,11 +169,11 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 	}
 
 	if err := lock.unlock(); err != nil {
-		UpdateAdvisoryLockCountMetric(lockType, "unlock error")
+		UpdateAdvisoryUnlockCountMetric(lockType, "ERROR")
 		log.With("lockID", lockID).With("lockType", lockType).With("owner", uuid).Errorf("error unlocking advisory lock: %v", err)
 	}
 
-	UpdateAdvisoryLockCountMetric(lockType, "OK")
+	UpdateAdvisoryUnlockCountMetric(lockType, "OK")
 	UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
 
 	f.lockStore.delete(uuid)
