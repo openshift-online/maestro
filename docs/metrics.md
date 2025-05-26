@@ -19,10 +19,10 @@ This counter tracks how many times an advisory lock has been requested.
 ```
 # HELP advisory_lock_count Number of advisory lock requests.
 # TYPE advisory_lock_count counter
-advisory_lock_count{status="OK",type="events"} 13
-advisory_lock_count{status="OK",type="instances"} 140
-advisory_lock_count{status="OK",type="resource_status"} 22
-advisory_lock_count{status="OK",type="resources"} 8
+advisory_lock_count{status="OK",type="events"} 11
+advisory_lock_count{status="OK",type="instances"} 30
+advisory_lock_count{status="OK",type="resource_status"} 29
+advisory_lock_count{status="OK",type="resources"} 7
 ```
 
 ---
@@ -39,11 +39,35 @@ This histogram tracks how long advisory locks take, with multiple latency bucket
 ```
 # HELP advisory_lock_duration Advisory Lock durations in seconds.
 # TYPE advisory_lock_duration histogram
-advisory_lock_duration_bucket{status="OK",type="events",le="0.1"} 13
-...
-advisory_lock_duration_bucket{status="OK",type="resources",le="+Inf"} 8
-advisory_lock_duration_sum{status="OK",type="resources"} 0.035487102
-advisory_lock_duration_count{status="OK",type="resources"} 8
+advisory_lock_duration_bucket{status="OK",type="events",le="0.1"} 11
+advisory_lock_duration_bucket{status="OK",type="events",le="0.2"} 11
+advisory_lock_duration_bucket{status="OK",type="events",le="0.5"} 11
+advisory_lock_duration_bucket{status="OK",type="events",le="1"} 11
+advisory_lock_duration_bucket{status="OK",type="events",le="2"} 11
+advisory_lock_duration_bucket{status="OK",type="events",le="10"} 11
+advisory_lock_duration_bucket{status="OK",type="events",le="+Inf"} 11
+advisory_lock_duration_sum{status="OK",type="events"} 0.06679135
+advisory_lock_duration_count{status="OK",type="events"} 11
+```
+
+---
+
+### `advisory_unlock_count`
+
+**Type:** `counter`\
+**Help:** Number of advisory unlock requests, categorized by status and type.
+
+This counter tracks how many times an advisory unlock has been requested.
+
+**Example:**
+
+```
+# HELP advisory_unlock_count Number of advisory unlock requests.
+# TYPE advisory_unlock_count counter
+advisory_unlock_count{status="OK",type="events"} 11
+advisory_unlock_count{status="OK",type="instances"} 30
+advisory_unlock_count{status="OK",type="resource_status"} 29
+advisory_unlock_count{status="OK",type="resources"} 7
 ```
 
 ---
@@ -288,4 +312,255 @@ manifestworks_processed_total{action="delete",code="Success"} 3
 manifestworks_processed_total{action="list",code="Success"} 1
 manifestworks_processed_total{action="patch",code="Success"} 10
 manifestworks_processed_total{action="watch",code="Success"} 1
+```
+
+---
+
+### `rest_client_exec_plugin_certificate_rotation_age`
+
+**Type:** `histogram`  
+**Help:** [ALPHA] Histogram of the number of seconds the last auth exec plugin client certificate lived before being rotated. If auth exec plugin client certificates are unused, histogram will contain no data.
+
+**Example:**
+```
+# HELP rest_client_exec_plugin_certificate_rotation_age [ALPHA] Histogram of the number of seconds the last auth exec plugin client certificate lived before being rotated. If auth exec plugin client certificates are unused, histogram will contain no data.
+# TYPE rest_client_exec_plugin_certificate_rotation_age histogram
+rest_client_exec_plugin_certificate_rotation_age_bucket{le="600"} 0
+rest_client_exec_plugin_certificate_rotation_age_sum 0
+rest_client_exec_plugin_certificate_rotation_age_count 0
+```
+
+---
+
+### `rest_client_exec_plugin_ttl_seconds`
+
+**Type:** `gauge`  
+**Help:** [ALPHA] Gauge of the shortest TTL (time-to-live) of the client certificate(s) managed by the auth exec plugin. The value is in seconds until certificate expiry (negative if already expired). If auth exec plugins are unused or manage no TLS certificates, the value will be +INF.
+
+**Example:**
+```
+# HELP rest_client_exec_plugin_ttl_seconds [ALPHA] Gauge of the shortest TTL (time-to-live) of the client certificate(s) managed by the auth exec plugin. The value is in seconds until certificate expiry (negative if already expired). If auth exec plugins are unused or manage no TLS certificates, the value will be +INF.
+# TYPE rest_client_exec_plugin_ttl_seconds gauge
+rest_client_exec_plugin_ttl_seconds +Inf
+```
+
+---
+
+### `rest_client_rate_limiter_duration_seconds`
+
+**Type:** `histogram`  
+**Help:** [ALPHA] Client side rate limiter latency in seconds. Broken down by verb, and host.
+
+**Example:**
+```
+# HELP rest_client_rate_limiter_duration_seconds [ALPHA] Client side rate limiter latency in seconds. Broken down by verb, and host.
+# TYPE rest_client_rate_limiter_duration_seconds histogram
+rest_client_rate_limiter_duration_seconds_bucket{host="10.96.0.1:443",verb="DELETE",le="0.005"} 9
+rest_client_rate_limiter_duration_seconds_sum{host="10.96.0.1:443",verb="DELETE"} 1.3749000000000002e-05
+rest_client_rate_limiter_duration_seconds_count{host="10.96.0.1:443",verb="DELETE"} 9
+```
+
+---
+
+### `rest_client_request_duration_seconds`
+
+**Type:** `histogram`  
+**Help:** [ALPHA] Request latency in seconds. Broken down by verb, and host.
+
+**Example:**
+```
+# HELP rest_client_request_duration_seconds [ALPHA] Request latency in seconds. Broken down by verb, and host.
+# TYPE rest_client_request_duration_seconds histogram
+rest_client_request_duration_seconds_bucket{host="10.96.0.1:443",verb="DELETE",le="0.005"} 4
+rest_client_request_duration_seconds_sum{host="10.96.0.1:443",verb="DELETE"} 0.06636385300000001
+rest_client_request_duration_seconds_count{host="10.96.0.1:443",verb="DELETE"} 9
+```
+
+---
+
+### `rest_client_request_size_bytes`
+
+**Type:** `histogram`  
+**Help:** [ALPHA] Request size in bytes. Broken down by verb and host.
+
+**Example:**
+```
+# HELP rest_client_request_size_bytes [ALPHA] Request size in bytes. Broken down by verb and host.
+# TYPE rest_client_request_size_bytes histogram
+rest_client_request_size_bytes_bucket{host="10.96.0.1:443",verb="DELETE",le="64"} 0
+rest_client_request_size_bytes_sum{host="10.96.0.1:443",verb="DELETE"} 931
+rest_client_request_size_bytes_count{host="10.96.0.1:443",verb="DELETE"} 9
+```
+
+---
+
+### `rest_client_requests_total`
+
+**Type:** `counter`  
+**Help:** [ALPHA] Number of HTTP requests, partitioned by status code, method, and host.
+
+**Example:**
+```
+# HELP rest_client_requests_total [ALPHA] Number of HTTP requests, partitioned by status code, method, and host.
+# TYPE rest_client_requests_total counter
+rest_client_requests_total{code="200",host="10.96.0.1:443",method="DELETE"} 9
+rest_client_requests_total{code="200",host="10.96.0.1:443",method="GET"} 3912
+```
+
+---
+
+### `rest_client_response_size_bytes`
+
+**Type:** `histogram`  
+**Help:** [ALPHA] Response size in bytes. Broken down by verb and host.
+
+**Example:**
+```
+# HELP rest_client_response_size_bytes [ALPHA] Response size in bytes. Broken down by verb and host.
+# TYPE rest_client_response_size_bytes histogram
+rest_client_response_size_bytes_bucket{host="10.96.0.1:443",verb="DELETE",le="64"} 0
+rest_client_response_size_bytes_sum{host="10.96.0.1:443",verb="DELETE"} 8171
+rest_client_response_size_bytes_count{host="10.96.0.1:443",verb="DELETE"} 9
+```
+
+---
+
+### `rest_client_transport_cache_entries`
+
+**Type:** `gauge`  
+**Help:** [ALPHA] Number of transport entries in the internal cache.
+
+**Example:**
+```
+# HELP rest_client_transport_cache_entries [ALPHA] Number of transport entries in the internal cache.
+# TYPE rest_client_transport_cache_entries gauge
+rest_client_transport_cache_entries 1
+```
+
+---
+
+### `rest_client_transport_create_calls_total`
+
+**Type:** `counter`  
+**Help:** [ALPHA] Number of calls to get a new transport, partitioned by the result of the operation hit: obtained from the cache, miss: created and added to the cache, uncacheable: created and not cached
+
+**Example:**
+```
+# HELP rest_client_transport_create_calls_total [ALPHA] Number of calls to get a new transport, partitioned by the result of the operation hit: obtained from the cache, miss: created and added to the cache, uncacheable: created and not cached
+# TYPE rest_client_transport_create_calls_total counter
+rest_client_transport_create_calls_total{result="hit"} 7
+rest_client_transport_create_calls_total{result="miss"} 1
+```
+
+---
+
+### `workqueue_adds_total`
+
+**Type:** `counter`  
+**Help:** [ALPHA] Total number of adds handled by workqueue
+
+**Example:**
+```
+# HELP workqueue_adds_total [ALPHA] Total number of adds handled by workqueue
+# TYPE workqueue_adds_total counter
+workqueue_adds_total{name="AppliedManifestWorkFinalizer"} 24
+workqueue_adds_total{name="AvailableStatusController"} 40
+```
+
+---
+
+### `workqueue_depth`
+
+**Type:** `gauge`  
+**Help:** [ALPHA] Current depth of workqueue
+
+**Example:**
+```
+# HELP workqueue_depth [ALPHA] Current depth of workqueue
+# TYPE workqueue_depth gauge
+workqueue_depth{name="AppliedManifestWorkFinalizer"} 0
+workqueue_depth{name="AvailableStatusController"} 0
+```
+
+---
+
+### `workqueue_longest_running_processor_seconds`
+
+**Type:** `gauge`  
+**Help:** [ALPHA] How many seconds has the longest running processor for workqueue been running.
+
+**Example:**
+```
+# HELP workqueue_longest_running_processor_seconds [ALPHA] How many seconds has the longest running processor for workqueue been running.
+# TYPE workqueue_longest_running_processor_seconds gauge
+workqueue_longest_running_processor_seconds{name="AppliedManifestWorkFinalizer"} 0
+workqueue_longest_running_processor_seconds{name="AvailableStatusController"} 0
+```
+
+---
+
+### `workqueue_queue_duration_seconds`
+
+**Type:** `histogram`  
+**Help:** [ALPHA] How long in seconds an item stays in workqueue before being requested.
+
+**Example:**
+```
+# HELP workqueue_queue_duration_seconds [ALPHA] How long in seconds an item stays in workqueue before being requested.
+# TYPE workqueue_queue_duration_seconds histogram
+workqueue_queue_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="0.001"} 22
+workqueue_queue_duration_seconds_sum{name="AppliedManifestWorkFinalizer"} 0.19665309500000003
+workqueue_queue_duration_seconds_count{name="AppliedManifestWorkFinalizer"} 24
+```
+
+---
+
+### `workqueue_retries_total`
+
+**Type:** `counter`  
+**Help:** [ALPHA] Total number of retries handled by workqueue
+
+**Example:**
+```
+# HELP workqueue_retries_total [ALPHA] Total number of retries handled by workqueue
+# TYPE workqueue_retries_total counter
+workqueue_retries_total{name="AppliedManifestWorkFinalizer"} 4
+workqueue_retries_total{name="AvailableStatusController"} 32
+```
+
+---
+
+### `workqueue_unfinished_work_seconds`
+
+**Type:** `gauge`  
+**Help:** [ALPHA] How many seconds of work has done that is in progress and hasn't been observed by work_duration. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases.
+
+**Example:**
+```
+# HELP workqueue_unfinished_work_seconds [ALPHA] How many seconds of work has done that is in progress and hasn't been observed by work_duration. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases.
+# TYPE workqueue_unfinished_work_seconds gauge
+workqueue_unfinished_work_seconds{name="AppliedManifestWorkFinalizer"} 0
+workqueue_unfinished_work_seconds{name="AvailableStatusController"} 0
+```
+
+---
+
+### `workqueue_work_duration_seconds`
+
+**Type:** `histogram`  
+**Help:** [ALPHA] How long in seconds processing an item from workqueue takes.
+
+**Example:**
+```
+# HELP workqueue_work_duration_seconds [ALPHA] How long in seconds processing an item from workqueue takes.
+# TYPE workqueue_work_duration_seconds histogram
+workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="0.001"} 12
+workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="0.01"} 19
+workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="0.1"} 24
+workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="1"} 24
+workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="10"} 24
+workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="+Inf"} 24
+workqueue_work_duration_seconds_sum{name="AppliedManifestWorkFinalizer"} 0.10679658900000001
+workqueue_work_duration_seconds_count{name="AppliedManifestWorkFinalizer"} 24
 ```
