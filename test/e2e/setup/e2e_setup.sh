@@ -114,6 +114,23 @@ EOF
   kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
 fi
 
+grpcBrokerCertDir="./test/e2e/certs/grpc-broker"
+if [ ! -d "$grpcBrokerCertDir" ]; then
+  mkdir -p $grpcBrokerCertDir
+  step certificate create "maestro-grpc-broker-ca" ${grpcBrokerCertDir}/ca.crt ${grpcBrokerCertDir}/ca.key --profile root-ca --no-password --insecure
+  step certificate create "maestro-grpc-broker-server" ${grpcBrokerCertDir}/server.crt ${grpcBrokerCertDir}/server.key -san maestro-grpc-broker -san maestro-grpc-broker.maestro -san maestro-grpc-broker.maestro.svc -san localhost -san 127.0.0.1 --profile leaf --ca ${grpcBrokerCertDir}/ca.crt --ca-key ${grpcBrokerCertDir}/ca.key --no-password --insecure
+  cat << EOF > ${grpcBrokerCertDir}/cert.tpl
+{
+    "subject":{"organization":"open-cluster-management","commonName":"grpc-client"},
+    "keyUsage":["digitalSignature"],
+    "extKeyUsage": ["serverAuth","clientAuth"]
+}
+EOF
+  step certificate create "maestro-grpc-broker-client" ${grpcBrokerCertDir}/client.crt ${grpcBrokerCertDir}/client.key --template ${grpcBrokerCertDir}/cert.tpl --ca ${grpcBrokerCertDir}/ca.crt --ca-key ${grpcBrokerCertDir}/ca.key --no-password --insecure
+  kubectl create secret generic maestro-grpc-broker-cert -n $namespace --from-file=ca.crt=${grpcBrokerCertDir}/ca.crt --from-file=server.crt=${grpcBrokerCertDir}/server.crt --from-file=server.key=${grpcBrokerCertDir}/server.key --from-file=client.crt=${grpcBrokerCertDir}/client.crt --from-file=client.key=${grpcBrokerCertDir}/client.key
+  kubectl create secret generic maestro-grpc-broker-cert -n $agent_namespace --from-file=ca.crt=${grpcBrokerCertDir}/ca.crt --from-file=server.crt=${grpcBrokerCertDir}/server.crt --from-file=server.key=${grpcBrokerCertDir}/server.key --from-file=client.crt=${grpcBrokerCertDir}/client.crt --from-file=client.key=${grpcBrokerCertDir}/client.key
+fi
+
 # 7. deploy maestro into maestro namespace
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
@@ -138,8 +155,6 @@ make deploy-secrets \
 	deploy-mqtt-tls \
 	deploy-service-tls
 
-kubectl -n $namespace annotate svc/maestro-grpc-broker service.alpha.openshift.io/serving-cert-secret-name=maestro-grpc-broker-tls --overwrite
-
 kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
@@ -151,15 +166,13 @@ echo $external_host_ip > ./test/e2e/.external_host_ip
 
 # the consumer name is not specified, the consumer id will be used as the consumer name
 if [ ! -f "./test/e2e/.consumer_name" ]; then
-  consumer_name=$(curl -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq '.id')
+  consumer_name=$(curl -s -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq '.id')
   consumer_name=$(echo "$consumer_name" | sed 's/"//g')
   echo $consumer_name > ./test/e2e/.consumer_name
 fi
 export consumer_name=$(cat ./test/e2e/.consumer_name)
 
 # 9. deploy maestro agent into maestro-agent namespace
-kubectl -n ${agent_namespace} create cm maestro-grpc-broker-ca || true
-kubectl -n ${agent_namespace} annotate cm/maestro-grpc-broker-ca service.alpha.openshift.io/inject-cabundle=true --overwrite
 make agent-tls-template
 kubectl apply -n ${agent_namespace} --filename="templates/agent-tls-template.json" | egrep --color=auto 'configured|$$'
 
