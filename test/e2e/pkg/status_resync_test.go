@@ -96,7 +96,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// delete the nginx deployment to tigger recreating
+			// delete the nginx deployment to trigger recreating
 			err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Delete(ctx, deployName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
