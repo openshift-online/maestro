@@ -5,7 +5,7 @@ metadata:
   name: maestro-service
   annotations:
     openshift.io/display-name: maestro
-    description: Example Service API for the Unified Hybrid Cloud deployment
+    description: Example for Maestro e2e deployment
     tags: golang,uhc,service-delivery
     iconClass: icon-shadowman
     template.openshift.io/provider-display-name: Red Hat, Inc.
@@ -308,7 +308,7 @@ objects:
               secretName: maestro-tls
           - name: grpc-broker-tls
             secret:
-              secretName: maestro-grpc-broker-tls
+              secretName: maestro-grpc-broker-cert
           - name: service
             secret:
               secretName: maestro
@@ -403,8 +403,9 @@ objects:
             - --disable-grpc-tls=${DISABLE_GRPC_TLS}
             - --grpc-authn-type=token
             - --grpc-broker-bindport=${GRPC_BROKER_BINDPORT}
-            - --grpc-broker-tls-cert-file=/secrets/grpc-broker-tls/tls.crt
-            - --grpc-broker-tls-key-file=/secrets/grpc-broker-tls/tls.key
+            - --grpc-broker-client-ca-file=/secrets/grpc-broker-tls/ca.crt
+            - --grpc-broker-tls-cert-file=/secrets/grpc-broker-tls/server.crt
+            - --grpc-broker-tls-key-file=/secrets/grpc-broker-tls/server.key
             - --grpc-server-bindport=${GRPC_SERVER_BINDPORT}
             - --grpc-client-ca-file=/secrets/maestro-grpc-cert/ca.crt
             - --grpc-tls-cert-file=/secrets/maestro-grpc-cert/server.crt
