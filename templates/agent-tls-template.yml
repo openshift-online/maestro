@@ -317,8 +317,8 @@ objects:
             mountPath: /secrets/${MESSAGE_DRIVER_TYPE}
           - name: mqtt-certs
             mountPath: /secrets/mqtt-certs
-          - name: grpc-broker-ca
-            mountPath: /configmaps/grpc-broker-ca
+          - name: grpc-broker-cert
+            mountPath: /secretes/grpc-broker-certs
         volumes:
         - name: ${MESSAGE_DRIVER_TYPE}
           secret:
@@ -326,9 +326,9 @@ objects:
         - name: mqtt-certs
           secret:
             secretName: maestro-agent-certs
-        - name: grpc-broker-ca
-          configMap:
-            name: maestro-grpc-broker-ca
+        - name: grpc-broker-cert
+          secret:
+            secretName: maestro-grpc-broker-cert
 
 - apiVersion: v1
   kind: Secret
@@ -337,7 +337,9 @@ objects:
   stringData:
     config.yaml: |
       url: maestro-grpc-broker.maestro.svc:8091
-      caFile: /configmaps/grpc-broker-ca/service-ca.crt
+      caFile: /secretes/grpc-broker-certs/ca.crt
+      clientCertFile: /secretes/grpc-broker-certs/client.crt
+      clientKeyFile: /secretes/grpc-broker-certs/client.key
 
 - apiVersion: v1
   kind: Secret
