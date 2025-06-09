@@ -33,7 +33,7 @@ require (
 	github.com/openshift-online/ocm-sdk-go v0.1.445
 	github.com/openshift/library-go v0.0.0-20250228164547-bad2d1bf3a37
 	github.com/prometheus/client_golang v1.22.0
-	github.com/prometheus/client_model v0.6.1
+	github.com/prometheus/client_model v0.6.2
 	github.com/prometheus/common v0.62.0
 	github.com/segmentio/ksuid v1.0.2
 	github.com/spf13/cobra v1.8.1
