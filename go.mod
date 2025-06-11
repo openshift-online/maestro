@@ -208,4 +208,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
 
-replace open-cluster-management.io/ocm v0.16.1-0.20250328011015-29c42b997d84 => github.com/dinhxuanvu/ocm v0.0.0-20250430132646-20741fdcc5ae
+replace open-cluster-management.io/ocm v0.16.1-0.20250328011015-29c42b997d84 => github.com/dinhxuanvu/ocm v0.0.0-20250605090737-00e63b2ee7b5

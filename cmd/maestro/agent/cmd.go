@@ -7,6 +7,7 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/common"
 	"github.com/openshift-online/maestro/pkg/logger"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -39,9 +40,9 @@ func NewAgentCommand() *cobra.Command {
 	agentOption.MaxJSONRawLength = maxJSONRawLength
 	agentOption.CloudEventsClientCodecs = []string{"manifestbundle"}
 	cfg := spoke.NewWorkAgentConfig(commonOptions, agentOption)
+
 	cmdConfig := commonOptions.CommonOpts.
 		NewControllerCommandConfig("maestro-agent", version.Get(), cfg.RunWorkloadAgent, clock.RealClock{})
-
 	cmd := cmdConfig.NewCommandWithContext(context.TODO())
 	cmd.Use = "agent"
 	cmd.Short = "Start the Maestro Agent"
@@ -76,6 +77,7 @@ func NewAgentCommand() *cobra.Command {
 	}
 
 	_ = tracingShutdown
+
 	return cmd
 }
 
@@ -85,4 +87,7 @@ func addFlags(fs *pflag.FlagSet) {
 		commonOptions.SpokeClusterName, "Name of the consumer")
 	fs.BoolVar(&commonOptions.CommonOpts.CmdConfig.DisableLeaderElection, "disable-leader-election",
 		true, "Disable leader election.")
+	fs.BoolVar(&commonOptions.CommonOpts.EnableOtel, "enable-otel-roundtrip",
+		false, "Enable OpenTelemetry roundtrip.")
+
 }
