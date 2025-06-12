@@ -60,7 +60,9 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 		Timeout:          config.ServerPingTimeout,
 	}))
 
-	if !config.DisableTLS {
+	disableTLS := (config.TLSCertFile == "" && config.TLSKeyFile == "")
+
+	if !disableTLS {
 		// Check tls cert and key path path
 		if config.TLSCertFile == "" || config.TLSKeyFile == "" {
 			check(
@@ -127,7 +129,7 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 		grpcServer:        grpc.NewServer(grpcServerOptions...),
 		eventBroadcaster:  eventBroadcaster,
 		resourceService:   resourceService,
-		disableAuthorizer: config.DisableTLS,
+		disableAuthorizer: disableTLS,
 		grpcAuthorizer:    grpcAuthorizer,
 		bindAddress:       env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
 	}

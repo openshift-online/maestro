@@ -69,11 +69,29 @@ func main() {
 	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
 	grpcOptions.Dialer.URL = *grpcServerAddr
 	if *grpcServerCAFile != "" && *grpcClientCertFile != "" && *grpcClientKeyFile != "" {
+		certConfig := cert.CertConfig{
+			CAFile:         *grpcServerCAFile,
+			ClientCertFile: *grpcClientCertFile,
+			ClientKeyFile:  *grpcClientKeyFile,
+		}
+		if err := certConfig.EmbedCerts(); err != nil {
+			log.Fatal(err)
+		}
 		tlsConfig, err := cert.AutoLoadTLSConfig(
-			*grpcServerCAFile,
-			*grpcClientCertFile,
-			*grpcClientKeyFile,
-			grpcOptions.Dialer)
+			certConfig,
+			func() (*cert.CertConfig, error) {
+				certConfig := cert.CertConfig{
+					CAFile:         *grpcServerCAFile,
+					ClientCertFile: *grpcClientCertFile,
+					ClientKeyFile:  *grpcClientKeyFile,
+				}
+				if err := certConfig.EmbedCerts(); err != nil {
+					return nil, err
+				}
+				return &certConfig, nil
+			},
+			grpcOptions.Dialer,
+		)
 		if err != nil {
 			log.Fatal(err)
 		}

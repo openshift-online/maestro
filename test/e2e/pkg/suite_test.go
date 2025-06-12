@@ -153,7 +153,10 @@ var _ = BeforeSuite(func() {
 		grpcClientTokenSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "grpc-client-token", metav1.GetOptions{})
 		Expect(err).To(Succeed())
 		// set CAFile and Token for grpc authz
-		grpcOptions.Dialer.TLSConfig, err = cert.AutoLoadTLSConfig(grpcServerCAFile, "", "", nil)
+		certConfig := cert.CertConfig{CAFile: grpcServerCAFile}
+		err = certConfig.EmbedCerts()
+		Expect(err).To(Succeed())
+		grpcOptions.Dialer.TLSConfig, err = cert.AutoLoadTLSConfig(certConfig, nil, nil)
 		Expect(err).To(Succeed())
 		grpcOptions.Dialer.Token = string(grpcClientTokenSrt.Data["token"])
 		// create the clusterrole for grpc authz
