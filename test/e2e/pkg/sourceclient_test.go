@@ -439,14 +439,23 @@ func AssertWatchResult(result *WatchedResult) error {
 	for _, watchedWork := range result.WatchedWorks {
 		if strings.HasPrefix(watchedWork.Name, "init-work-a") && !watchedWork.CreationTimestamp.IsZero() {
 			hasFirstInitWork = true
+			if err := ensureObservedGeneration(watchedWork); err != nil {
+				return err
+			}
 		}
 
 		if strings.HasPrefix(watchedWork.Name, "init-work-b") && !watchedWork.CreationTimestamp.IsZero() {
 			hasSecondInitWork = true
+			if err := ensureObservedGeneration(watchedWork); err != nil {
+				return err
+			}
 		}
 
 		if strings.HasPrefix(watchedWork.Name, "work-") && !watchedWork.CreationTimestamp.IsZero() {
 			hasWork = true
+			if err := ensureObservedGeneration(watchedWork); err != nil {
+				return err
+			}
 		}
 
 		if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ResourceDeleted) && !watchedWork.DeletionTimestamp.IsZero() {
@@ -551,4 +560,19 @@ func NewManifest(name string) workv1.Manifest {
 	manifest := workv1.Manifest{}
 	manifest.Raw = objectStr
 	return manifest
+}
+
+func ensureObservedGeneration(work *workv1.ManifestWork) error {
+	if meta.IsStatusConditionTrue(work.Status.Conditions, common.ResourceDeleted) {
+		return nil
+	}
+
+	for _, cond := range work.Status.Conditions {
+		if cond.ObservedGeneration == 0 {
+			return fmt.Errorf("unexpected observed generation %d for work %s",
+				cond.ObservedGeneration, work.Name)
+		}
+	}
+
+	return nil
 }
