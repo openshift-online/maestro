@@ -1,0 +1,30 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  name: maestro-monitor
+  annotations:
+    openshift.io/display-name: maestro
+    description: Example Service API for the Unified Hybrid Cloud deployment
+    tags: golang,uhc,service-delivery
+    template.openshift.io/provider-display-name: Red Hat, Inc.
+labels:
+  template: maestro
+
+objects:
+  - apiVersion: monitoring.coreos.com/v1
+    kind: ServiceMonitor
+    metadata:
+      name: maestro-server
+      labels:
+        release: prometheus
+    spec:
+      endpoints:
+      - interval: 30s
+        path: /metrics
+        port: metrics
+        scheme: http
+      selector:
+        matchLabels:
+          app: maestro
+          port: metrics
