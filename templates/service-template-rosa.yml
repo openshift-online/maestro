@@ -5,7 +5,7 @@ metadata:
   name: maestro-service
   annotations:
     openshift.io/display-name: maestro
-    description: Example Service API for the Unified Hybrid Cloud deployment
+    description: Example for Maestro ROSA deployment
     tags: golang,uhc,service-delivery
     iconClass: icon-shadowman
     template.openshift.io/provider-display-name: Red Hat, Inc.
