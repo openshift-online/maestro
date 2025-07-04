@@ -18,7 +18,7 @@ require (
 	github.com/getsentry/sentry-go v0.20.0
 	github.com/ghodss/yaml v1.0.0
 	github.com/go-gormigrate/gormigrate/v2 v2.0.0
-	github.com/golang-jwt/jwt/v4 v4.5.1
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/golang/glog v1.2.4
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
@@ -30,14 +30,14 @@ require (
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
 	github.com/openshift-online/ocm-common v0.0.25
-	github.com/openshift-online/ocm-sdk-go v0.1.445
+	github.com/openshift-online/ocm-sdk-go v0.1.469
 	github.com/openshift/library-go v0.0.0-20250228164547-bad2d1bf3a37
 	github.com/prometheus/client_golang v1.22.0
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.62.0
-	github.com/segmentio/ksuid v1.0.2
+	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.8.1
-	github.com/spf13/pflag v1.0.5
+	github.com/spf13/pflag v1.0.6
 	github.com/spf13/viper v1.19.0
 	github.com/yaacov/tree-search-language v0.0.0-20190923184055-1c2dad2e354b
 	github.com/zgalor/weberr v0.8.2
@@ -134,6 +134,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.0-20250619114224-37dc3401307a // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.0-20250619114224-37dc3401307a // indirect
 	github.com/openshift/api v0.0.0-20250124212313-a770960d61e0 // indirect
 	github.com/openshift/client-go v0.0.0-20250125113824-8e1f0b8fa9a7 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
