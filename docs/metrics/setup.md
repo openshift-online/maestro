@@ -1,6 +1,6 @@
 # Set Up the Maestro Observability Stack
 
-This guide shows how to set up Prometheus and Grafana to collect and view Maestro metrics. With this setup, you can better understand how Maestro runs, check its performance, and troubleshoot issues.
+This guide explains how to deploy Prometheus and Grafana on an OpenShift cluster to collect and visualize Maestro metrics. It helps you monitor Maestro's performance, understand its behavior, and troubleshoot issues effectively.
 
 ## Prerequisites
 
