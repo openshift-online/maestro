@@ -1,0 +1,318 @@
+---
+apiVersion: openslo/v1
+kind: Service
+metadata:
+  name: maestro-agent
+  displayName: Maestro Agent
+spec:
+  description: Maestro agent is responsible for receiving the resources and applying them to the target clusters and reporting back.
+---
+apiVersion: openslo/v1
+kind: AlertNotificationTarget
+metadata:
+  name: maestro-on-call-slack
+  displayName: On-Call Slack Channel
+spec:
+  description: Sends alert notifications to the maestro-oncall Slack channel.
+  target: slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: rest-client-request-duration-slo
+  displayName: REST Client Request Duration
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: 99% of REST client requests complete within 500ms.
+  service: maestro-agent
+  indicator:
+    metadata:
+      name: rest-client-request-duration-ratio
+      displayName: REST Client Request Duration Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_client_request_duration_seconds_bucket{le="0.5"}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_client_request_duration_seconds_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Fast REST client requests
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: high-rest-client-latency
+        displayName: High REST Client Latency Alert
+      spec:
+        description: Less than 99% of REST client requests completed within 500ms over the last 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: rest-client-latency-burnrate
+              displayName: REST Client Latency Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating slow REST client requests.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: rest-client-success-rate-slo
+  displayName: REST Client Success Rate
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: At least 95% of REST client HTTP requests must return a 2xx status code.
+  service: maestro-agent
+  indicator:
+    metadata:
+      name: rest-client-success-ratio
+      displayName: REST Client Success Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_client_requests_total{code=~"2.."}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_client_requests_total[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Successful REST client requests
+      target: 0.95
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: high-rest-client-error-rate
+        displayName: High REST Client Error Rate Alert
+      spec:
+        description: Less than 95% of REST client HTTP requests returned 2xx over the past 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: rest-client-error-rate-burnrate
+              displayName: REST Client Error Rate Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating high REST client error rate.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: workqueue-queue-duration-slo
+  displayName: Workqueue Queue Duration
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: 99% of items are dequeued from the workqueue within 1 second (TBD - the time depends on the manifestwork number and size, etc.)
+  service: maestro-agent
+  indicator:
+    metadata:
+      name: workqueue-queue-duration-ratio
+      displayName: Workqueue Queue Duration Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(workqueue_queue_duration_seconds_bucket{le="1.0"}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(workqueue_queue_duration_seconds_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Fast workqueue dequeue
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: high-workqueue-queue-duration
+        displayName: High Workqueue Queue Duration Alert
+      spec:
+        description: Less than 99% of workqueue items are dequeued within 1 second over the past 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: workqueue-duration-burnrate
+              displayName: Workqueue Queue Duration Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating slow dequeuing of items.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: workqueue-processing-duration-slo
+  displayName: Workqueue Processing Duration
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: 99% of workqueue items are processed within 1 second.
+  service: maestro-agent
+  indicator:
+    metadata:
+      name: workqueue-processing-duration-ratio
+      displayName: Workqueue Processing Duration Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(workqueue_work_duration_seconds_bucket{le="1.0"}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(workqueue_work_duration_seconds_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Fast processing
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: long-workqueue-processing-time
+        displayName: Long Workqueue Processing Time Alert
+      spec:
+        description: Less than 99% of workqueue items are processed within 1 second over the past 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: workqueue-processing-burnrate
+              displayName: Workqueue Processing Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating long workqueue processing time.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: workqueue-retry-rate-slo
+  displayName: Workqueue Retry Rate
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: Retry rate should remain low — fewer than 1% of workqueue adds result in retries.
+  service: maestro-agent
+  indicator:
+    metadata:
+      name: workqueue-retry-ratio
+      displayName: Workqueue Retry Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(workqueue_adds_total[5m])) - sum(rate(workqueue_retries_total[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(workqueue_adds_total[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Low retry rate
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: high-workqueue-retry-rate
+        displayName: High Workqueue Retry Rate Alert
+      spec:
+        description: More than 1% of workqueue adds are being retried over the past 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: workqueue-retry-burnrate
+              displayName: Workqueue Retry Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating high retry rate.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
