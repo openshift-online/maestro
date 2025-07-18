@@ -1,0 +1,378 @@
+---
+apiVersion: openslo/v1
+kind: Service
+metadata:
+  name: maestro-server
+  displayName: Maestro Server
+spec:
+  description: The Maestro Server is responsible for storing resources and their status.
+---
+apiVersion: openslo/v1
+kind: AlertNotificationTarget
+metadata:
+  name: maestro-on-call-slack
+  displayName: On-Call Slack Channel
+spec:
+  description: Sends alert notifications to the maestro-oncall Slack channel.
+  target: slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: advisory-lock-duration-slo
+  displayName: Advisory Lock Duration
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: 99% of advisory locks should be released within 500ms.
+  service: maestro-server
+  indicator:
+    metadata:
+      name: advisory-lock-latency
+      displayName: Duration of advisory locks
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(advisory_lock_duration_bucket{le="0.5"}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(advisory_lock_duration_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Fast advisory locks
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: long-duration-advisory-lock
+        displayName: Long-Duration Advisory Lock Alert
+      spec:
+        description: Fires when less than 99% of advisory locks are released under 500ms, based on recent burn rate.
+        alertWhenBreaching: true
+        alertWhenResolved: false
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: advisory-lock-burnrate
+              displayName: Advisory Lock Burn Rate (5m window)
+            spec:
+              description: Over the past 5 minutes, the good ratio is below 99%.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: advisory-lock-release-rate-slo
+  displayName: Advisory Lock Release Rate
+  labels:
+    app: maestro
+    service-tier: "tier-2"
+spec:
+  description: At least 99% of advisory locks acquired are released within 5 minutes.
+  service: maestro-server
+  indicator:
+    metadata:
+      name: advisory-lock-release-ratio
+      displayName: Advisory Lock Release Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(advisory_unlock_count[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(advisory_lock_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: High release ratio
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: advisory-lock-release-rate-drop
+        displayName: Advisory Lock Release Rate Drop Alert
+      spec:
+        description: Less than 99% of advisory locks are released over the last 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: advisory-lock-release-burnrate
+              displayName: Advisory Lock Release Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating low release ratio.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: grpc-call-duration-slo
+  displayName: gRPC Call Duration
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: 99% of gRPC requests are completed within 500ms.
+  service: maestro-server
+  indicator:
+    metadata:
+      name: grpc-call-duration-ratio
+      displayName: gRPC Call Duration Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(grpc_server_processed_duration_seconds_bucket{le="0.5"}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(grpc_server_processed_duration_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Fast gRPC calls
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: high-grpc-call-duration
+        displayName: High gRPC Call Duration Alert
+      spec:
+        description: Less than 99% of gRPC calls completed within 500ms over the last 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: grpc-call-duration-burnrate
+              displayName: gRPC Call Duration Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating slow gRPC calls.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: resource-spec-resync-duration-slo
+  displayName: Resource Spec Resync Duration
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: 99% of resource spec resyncs complete within 10 seconds.
+  service: maestro-server
+  indicator:
+    metadata:
+      name: resource-spec-resync-duration
+      displayName: Resource Spec Resync Duration
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(resources_spec_resync_duration_seconds_bucket{le="10"}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(resources_spec_resync_duration_seconds_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Fast resyncs
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: resource-spec-resync-too-slow
+        displayName: Resource Spec Resync Too Slow Alert
+      spec:
+        description: Less than 99% of resource spec resyncs completed within 10 seconds over the last 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: resource-spec-resync-burnrate
+              displayName: Resource Spec Resync Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating slow resource spec resyncs.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: rest-api-request-duration-slo
+  displayName: REST API Request Duration
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: 99% of REST API requests finish within 1 second.
+  service: maestro-server
+  indicator:
+    metadata:
+      name: rest-api-request-duration-ratio
+      displayName: REST API Request Duration Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_api_inbound_request_duration_bucket{le="1.0"}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_api_inbound_request_duration_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Fast API responses
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: api-slow-response
+        displayName: API Slow Response Alert
+      spec:
+        description: Less than 99% of REST API requests complete within 1s over the last 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: api-slow-response-burnrate
+              displayName: API Slow Response Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating slow API responses.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
+apiVersion: openslo/v1
+kind: SLO
+metadata:
+  name: rest-api-success-ratio-slo
+  displayName: REST API Success Ratio
+  labels:
+    app: maestro
+    service-tier: "tier-1"
+spec:
+  description: More than 99% of REST API requests are successful.
+  service: maestro-server
+  indicator:
+    metadata:
+      name: rest-api-success-ratio
+      displayName: REST API Success Ratio
+    spec:
+      ratioMetric:
+        good:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_api_inbound_request_count{code!~"5.."}[5m]))
+        total:
+          metricSource:
+            type: prometheus
+            spec:
+              query: sum(rate(rest_api_inbound_request_count[5m]))
+  timeWindow:
+    - duration: 30d
+      isRolling: true
+  budgetingMethod: Occurrences
+  objectives:
+    - displayName: Successful API requests
+      target: 0.99
+  alertPolicies:
+    - kind: AlertPolicy
+      metadata:
+        name: too-many-unsuccessful-api-requests
+        displayName: Too Many Unsuccessful API Requests Alert
+      spec:
+        description: More than 1% of REST API requests return 5xx errors over the last 5 minutes.
+        alertWhenBreaching: true
+        alertWhenResolved: true
+        conditions:
+          - kind: AlertCondition
+            metadata:
+              name: unsuccessful-api-request-burnrate
+              displayName: Unsuccessful API Request Burn Rate Breach
+            spec:
+              description: Burn rate exceeds threshold indicating too many 5xx responses.
+              severity: page
+              condition:
+                kind: burnrate
+                op: gt
+                threshold: 1
+                lookbackWindow: 5m
+                alertAfter: 1m
+        notificationTargets:
+        - targetRef: maestro-on-call-slack
+---
