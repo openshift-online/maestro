@@ -7,6 +7,7 @@ import (
 )
 
 type MessageBrokerConfig struct {
+	Disable             bool   `json:"disable"`
 	EnableMock          bool   `json:"enable_message_broker_mock"`
 	SourceID            string `json:"source_id"`
 	ClientID            string `json:"client_id"`
@@ -16,6 +17,7 @@ type MessageBrokerConfig struct {
 
 func NewMessageBrokerConfig() *MessageBrokerConfig {
 	return &MessageBrokerConfig{
+		Disable:             false,
 		EnableMock:          false,
 		SourceID:            "maestro",
 		ClientID:            "maestro",
@@ -25,6 +27,7 @@ func NewMessageBrokerConfig() *MessageBrokerConfig {
 }
 
 func (c *MessageBrokerConfig) AddFlags(fs *pflag.FlagSet) {
+	fs.BoolVar(&c.Disable, "disable-message-broker", c.Disable, "Disable MQTT message broker, default is false")
 	fs.BoolVar(&c.EnableMock, "enable-message-broker-mock", c.EnableMock, "Enable message broker mock")
 	fs.StringVar(&c.SourceID, "source-id", c.SourceID, "Source ID")
 	fs.StringVar(&c.ClientID, "client-id", c.ClientID, "Client ID")
