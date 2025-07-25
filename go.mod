@@ -30,7 +30,6 @@ require (
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
 	github.com/openshift-online/ocm-common v0.0.28
-	github.com/openshift-online/ocm-sdk-go v0.1.469
 	github.com/openshift-online/ocm-sdk-go v0.1.471
 	github.com/openshift/library-go v0.0.0-20250228164547-bad2d1bf3a37
 	github.com/prometheus/client_golang v1.22.0
