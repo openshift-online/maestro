@@ -20,6 +20,7 @@ func NewControllersServer(eventServer EventServer, eventFilter controllers.Event
 
 	// disable the spec controller if the message broker is disabled
 	if !env().Config.MessageBroker.Disable {
+		log.Debugf("Message broker is enabled, setting up kind controller manager")
 		s.KindControllerManager = controllers.NewKindControllerManager(
 			eventFilter,
 			env().Services.Events(),

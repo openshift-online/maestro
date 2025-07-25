@@ -28,6 +28,7 @@ func NewMessageBrokerConfig() *MessageBrokerConfig {
 
 func (c *MessageBrokerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&c.Disable, "disable-message-broker", c.Disable, "Disable MQTT message broker, default is false")
+	fs.MarkHidden("disable-message-broker") // This flag is hidden as it is not intended for regular use.
 	fs.BoolVar(&c.EnableMock, "enable-message-broker-mock", c.EnableMock, "Enable message broker mock")
 	fs.StringVar(&c.SourceID, "source-id", c.SourceID, "Source ID")
 	fs.StringVar(&c.ClientID, "client-id", c.ClientID, "Client ID")
