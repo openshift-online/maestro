@@ -171,22 +171,24 @@ func (e *Env) LoadClients() error {
 		log.Debugf("Using Mock CloudEvents Source Client")
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
-		// For gRPC message broker type, Maestro server does not require the source client to publish resources or subscribe to resource status.
-		if e.Config.MessageBroker.MessageBrokerType != "grpc" {
-			_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
-				LoadConfig()
-			if err != nil {
-				return fmt.Errorf("Unable to load cloudevent config: %v", err)
-			}
+		if !e.Config.MessageBroker.Disable {
+			// For gRPC message broker type, Maestro server does not require the source client to publish resources or subscribe to resource status.
+			if e.Config.MessageBroker.MessageBrokerType != "grpc" {
+				_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
+					LoadConfig()
+				if err != nil {
+					return fmt.Errorf("Unable to load cloudevent config: %v", err)
+				}
 
-			cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
-				e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
-			if err != nil {
-				return fmt.Errorf("Unable to build cloudevent source options: %v", err)
-			}
-			e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
-			if err != nil {
-				return fmt.Errorf("Unable to create cloudevent source client: %v", err)
+				cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
+					e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
+				if err != nil {
+					return fmt.Errorf("Unable to build cloudevent source options: %v", err)
+				}
+				e.Clients.CloudEventsSource, err = cloudevents.NewSourceClient(cloudEventsSourceOptions, e.Services.Resources())
+				if err != nil {
+					return fmt.Errorf("Unable to create cloudevent source client: %v", err)
+				}
 			}
 		}
 	}
