@@ -116,7 +116,10 @@ func runServer(cmd *cobra.Command, args []string) {
 	go apiserver.Start()
 	go metricsServer.Start()
 	go healthcheckServer.Start(ctx)
-	go eventServer.Start(ctx)
+	if !environments.Environment().Config.MessageBroker.Disable {
+		// Start the event server if the message broker is not disabled
+		go eventServer.Start(ctx)
+	}
 	go controllersServer.Start(ctx)
 
 	<-ctx.Done()
