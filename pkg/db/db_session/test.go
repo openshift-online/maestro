@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/lib/pq"
@@ -19,6 +20,8 @@ import (
 )
 
 var log = logger.GetLogger()
+
+var testOnce sync.Once
 
 type Test struct {
 	config *config.DatabaseConfig
@@ -52,7 +55,7 @@ func NewTestFactory(config *config.DatabaseConfig) *Test {
 // clone a connection via New(), which is safe for use by concurrent Goroutines.
 func (f *Test) Init(config *config.DatabaseConfig) {
 	// Only the first time
-	once.Do(func() {
+	testOnce.Do(func() {
 		if err := initDatabase(config, db.Migrate); err != nil {
 			log.Errorf("error initializing test database: %s", err)
 			return
