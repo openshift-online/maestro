@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/db"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/errors"
@@ -18,12 +17,12 @@ type ConsumerService interface {
 	All(ctx context.Context) (api.ConsumerList, *errors.ServiceError)
 
 	FindByIDs(ctx context.Context, ids []string) (api.ConsumerList, *errors.ServiceError)
+	FindByNames(ctx context.Context, names []string) (api.ConsumerList, *errors.ServiceError)
 }
 
-func NewConsumerService(lockFactory db.LockFactory, consumerDao dao.ConsumerDao, resourceDao dao.ResourceDao, events EventService) ConsumerService {
+func NewConsumerService(consumerDao dao.ConsumerDao) ConsumerService {
 	return &sqlConsumerService{
 		consumerDao: consumerDao,
-		resourceDao: resourceDao,
 	}
 }
 
@@ -31,7 +30,6 @@ var _ ConsumerService = &sqlConsumerService{}
 
 type sqlConsumerService struct {
 	consumerDao dao.ConsumerDao
-	resourceDao dao.ResourceDao
 }
 
 func (s *sqlConsumerService) Get(ctx context.Context, id string) (*api.Consumer, *errors.ServiceError) {
@@ -79,6 +77,14 @@ func (s *sqlConsumerService) FindByIDs(ctx context.Context, ids []string) (api.C
 	consumers, err := s.consumerDao.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, errors.GeneralError("Unable to get all consumers: %s", err)
+	}
+	return consumers, nil
+}
+
+func (s *sqlConsumerService) FindByNames(ctx context.Context, names []string) (api.ConsumerList, *errors.ServiceError) {
+	consumers, err := s.consumerDao.FindByNames(ctx, names)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to find consumers by names: %s", err)
 	}
 	return consumers, nil
 }

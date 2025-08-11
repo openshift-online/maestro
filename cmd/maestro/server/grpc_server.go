@@ -15,7 +15,6 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
@@ -196,12 +195,12 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	}
 
 	switch eventType.Action {
-	case common.CreateRequestAction:
+	case types.CreateRequestAction:
 		_, err := svr.resourceService.Create(ctx, res)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create resource: %v", err)
 		}
-	case common.UpdateRequestAction:
+	case types.UpdateRequestAction:
 		found, err := svr.resourceService.Get(ctx, res.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get resource: %v", err)
@@ -215,7 +214,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		if _, err = svr.resourceService.Update(ctx, res); err != nil {
 			return nil, fmt.Errorf("failed to update resource: %v", err)
 		}
-	case common.DeleteRequestAction:
+	case types.DeleteRequestAction:
 		err := svr.resourceService.MarkAsDeleting(ctx, res.ID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to delete resource: %v", err)

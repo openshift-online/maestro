@@ -242,7 +242,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
-		Action:              common.CreateRequestAction,
+		Action:              types.CreateRequestAction,
 	}, resource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
@@ -349,7 +349,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
-		Action:              common.UpdateRequestAction,
+		Action:              types.UpdateRequestAction,
 	}, newResource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
@@ -384,7 +384,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
-		Action:              common.DeleteRequestAction,
+		Action:              types.DeleteRequestAction,
 	}, newResource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
