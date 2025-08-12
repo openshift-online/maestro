@@ -139,7 +139,7 @@ func validate(model interface{}, in map[string]bool, prefix string) *errors.Serv
 	}
 	message := fmt.Sprintf("The following field(s) doesn't exist in `%s`: %s",
 		reflect.TypeOf(model).Name(), strings.Join(fields, ", "))
-	return errors.Validation(message)
+	return errors.Validation("%s", message)
 }
 
 func removeStar(in map[string]bool, name string) map[string]bool {

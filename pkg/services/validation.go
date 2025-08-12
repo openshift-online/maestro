@@ -24,7 +24,7 @@ func ValidateResourceName(resource *api.Resource) error {
 		return nil
 	}
 
-	return fmt.Errorf(errs.ToAggregate().Error())
+	return fmt.Errorf("%s", errs.ToAggregate().Error())
 }
 
 func ValidateConsumer(consumer *api.Consumer) error {
@@ -37,7 +37,7 @@ func ValidateConsumer(consumer *api.Consumer) error {
 		return nil
 	}
 
-	return fmt.Errorf(errs.ToAggregate().Error())
+	return fmt.Errorf("%s", errs.ToAggregate().Error())
 }
 
 func ValidateManifestBundle(manifestBundle datatypes.JSONMap) error {
@@ -84,7 +84,7 @@ func ValidateObject(obj datatypes.JSONMap) error {
 		return nil
 	}
 
-	return fmt.Errorf(errs.ToAggregate().Error())
+	return fmt.Errorf("%s", errs.ToAggregate().Error())
 }
 
 func ValidateManifestBundleUpdate(new, old datatypes.JSONMap) error {
@@ -132,7 +132,7 @@ func ValidateObjectUpdate(new, old datatypes.JSONMap) error {
 		return nil
 	}
 
-	return fmt.Errorf(errs.ToAggregate().Error())
+	return fmt.Errorf("%s", errs.ToAggregate().Error())
 }
 
 // validatedAPIVersion tests whether the value passed is a valid apiVersion. A

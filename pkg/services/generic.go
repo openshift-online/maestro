@@ -39,7 +39,7 @@ var (
 	allFieldsAllowed       = map[string]string{}
 )
 
-// wrap all needed pieces for the LIST funciton
+// wrap all needed pieces for the LIST function
 type listContext struct {
 	ctx              context.Context
 	args             *ListArguments
@@ -186,7 +186,7 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	// parse the search string to SQL WHERE
 	sql, values, err := sqlizer.ToSql()
 	if err != nil {
-		return false, errors.GeneralError(err.Error())
+		return false, errors.GeneralError("%s", err.Error())
 	}
 	(*d).Where(sql, values)
 	return true, nil
@@ -294,7 +294,7 @@ func (s *sqlGenericService) treeWalkForRelatedTables(listCtx *listContext, tslTr
 
 	tslTree, err := ident.Walk(tslTree, walkFn)
 	if err != nil {
-		return tslTree, errors.BadRequest(err.Error())
+		return tslTree, errors.BadRequest("%s", err.Error())
 	}
 
 	return tslTree, nil
@@ -317,7 +317,7 @@ func (s *sqlGenericService) treeWalkForAddingTableName(tslTree tsl.Node, dao *da
 
 	tslTree, err := ident.Walk(tslTree, walkFn)
 	if err != nil {
-		return tslTree, errors.BadRequest(err.Error())
+		return tslTree, errors.BadRequest("%s", err.Error())
 	}
 
 	return tslTree, nil
@@ -333,7 +333,7 @@ func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl
 	// Convert the search tree into SQL [Squirrel] filter
 	sqlizer, err := sqlFilter.Walk(tslTree)
 	if err != nil {
-		return tslTree, nil, errors.BadRequest(err.Error())
+		return tslTree, nil, errors.BadRequest("%s", err.Error())
 	}
 
 	return tslTree, sqlizer, nil

@@ -270,7 +270,7 @@ func (m *RESTFulAPIWatcherStore) process() {
 
 			klog.Warningf("failed to pop the %v requeue it, %v", obj, err)
 			// this is the safe way to re-enqueue.
-			if err := m.workQueue.AddIfNotPresent(obj); err != nil {
+			if err := m.workQueue.Add(obj); err != nil {
 				klog.Errorf("failed to requeue the obj %v, %v", obj, err)
 				return
 			}

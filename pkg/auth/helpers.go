@@ -13,7 +13,7 @@ var log = logger.GetLogger()
 
 func handleError(ctx context.Context, w http.ResponseWriter, code errors.ServiceErrorCode, reason string) {
 	operationID := logger.GetOperationID(ctx)
-	err := errors.New(code, reason)
+	err := errors.New(code, "%s", reason)
 	if err.HttpCode >= 400 && err.HttpCode <= 499 {
 		log.Infof(err.Error())
 	} else {
