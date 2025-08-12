@@ -100,7 +100,7 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 		log.Error(errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
 		// can end this transaction.
-		return *lock.uuid, fmt.Errorf(errMsg)
+		return *lock.uuid, fmt.Errorf("%s", errMsg)
 	}
 
 	UpdateAdvisoryLockCountMetric(lockType, "OK")
@@ -122,7 +122,7 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 		log.Error(errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
 		// can end this transaction.
-		return *lock.uuid, false, fmt.Errorf(errMsg)
+		return *lock.uuid, false, fmt.Errorf("%s", errMsg)
 	}
 
 	UpdateAdvisoryLockCountMetric(lockType, "OK")

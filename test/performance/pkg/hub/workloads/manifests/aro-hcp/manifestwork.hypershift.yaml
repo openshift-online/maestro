@@ -480,7 +480,7 @@ spec:
         pullSecret:
           name: {{ .Name }}-pull
         release:
-          image: registry.ci.openshift.org/ocp:1.23
+          image: registry.ci.openshift.org/ocp:1.24
         secretEncryption:
           aescbc:
             activeKey:
@@ -542,5 +542,5 @@ spec:
             vnetID: /subscriptions/{{ .SubID }}/resourceGroups/networkrelatedrg/providers/Microsoft.Network/virtualNetworks/myvnet
           type: Azure
         release:
-          image: registry.ci.openshift.org/ocp:1.23
+          image: registry.ci.openshift.org/ocp:1.24
         replicas: 2
