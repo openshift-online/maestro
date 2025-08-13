@@ -8,7 +8,7 @@ Maestro is a system to leverage [CloudEvents](https://cloudevents.io/) to transp
 
 Taking MQTT as an example:
 
-![Maestro Architecture](./arch.png)
+![Maestro Architecture](images/arch.png)
 
 ## Why
 
