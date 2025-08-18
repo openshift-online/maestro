@@ -1,3 +1,5 @@
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/openshift-online/maestro)
+
 # Maestro
 
 Maestro is a system to leverage [CloudEvents](https://cloudevents.io/) to transport Kubernetes resources to the target clusters, and then transport the resource status back. The resources are stored in a database and the status is updated in the database as well. The system is composed of two parts: the Maestro server and the Maestro agent.
