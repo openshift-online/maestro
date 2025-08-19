@@ -39,6 +39,9 @@ func NewServerCommand() *cobra.Command {
 }
 
 func runServer(cmd *cobra.Command, args []string) {
+	// Print the git commit hash if available
+	log.Infof("Git Commit: %s", os.Getenv("GIT_COMMIT"))
+
 	err := environments.Environment().Initialize()
 	if err != nil {
 		log.Fatalf("Unable to initialize environment: %s", err.Error())

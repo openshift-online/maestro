@@ -4,13 +4,21 @@ ENV SOURCE_DIR=/maestro
 WORKDIR $SOURCE_DIR
 COPY . $SOURCE_DIR
 
+# Pass GIT Commit to the container for maestro agent
+ARG GIT_COMMIT
+ENV GIT_COMMIT=${GIT_COMMIT}
 ENV GOEXPERIMENT=strictfipsruntime
 ENV CGO_ENABLED=1
-RUN make binary BUILD_OPTS="-tags strictfipsruntime"
+RUN make binary BUILD_OPTS="-tags strictfipsruntime -ldflags \"-X k8s.io/component-base/version.gitVersion=v0.0.0-main -X k8s.io/component-base/version.gitCommit=${GIT_COMMIT}\""
 
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 RUN microdnf update -y && microdnf install -y util-linux && microdnf clean all
+
+# Pass GIT Commit to the container for maestro server
+ARG GIT_COMMIT
+ENV GIT_COMMIT=${GIT_COMMIT}
+
 COPY --from=builder /maestro/maestro /usr/local/bin/
 EXPOSE 8000
 ENTRYPOINT ["/usr/local/bin/maestro", "server"]
