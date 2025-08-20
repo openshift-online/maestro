@@ -27,6 +27,8 @@ spec:
     value: .
   - name: revision
     value: '{{revision}}'
+  - name: build-args
+    value: ["GIT_COMMIT={{revision}}"]
   pipelineSpec:
     finally:
     - name: show-sbom
@@ -114,6 +116,10 @@ spec:
       description: Build a source image.
       name: build-source-image
       type: string
+    - default: []
+      description: Array of --build-arg values ("arg=value" strings) for buildah
+      name: build-args
+      type: array
     results:
     - description: ""
       name: IMAGE_URL
@@ -217,6 +223,9 @@ spec:
         value: $(params.image-expires-after)
       - name: COMMIT_SHA
         value: $(tasks.clone-repository.results.commit)
+      - name: BUILD_ARGS
+        value:
+        - $(params.build-args[*])
       runAfter:
       - prefetch-dependencies
       taskRef:
