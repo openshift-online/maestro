@@ -27,7 +27,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0
 	github.com/lib/pq v1.10.9
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
-	github.com/onsi/ginkgo/v2 v2.23.4
+	github.com/onsi/ginkgo/v2 v2.25.1
 	github.com/onsi/gomega v1.38.0
 	github.com/openshift-online/ocm-common v0.0.30
 	github.com/openshift-online/ocm-sdk-go v0.1.473
@@ -61,9 +61,9 @@ require (
 	k8s.io/component-base v0.33.4
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
-	open-cluster-management.io/api v1.0.1-0.20250805021043-95a93c784286
-	open-cluster-management.io/ocm v1.0.1-0.20250811084745-47cd82fdb3df
-	open-cluster-management.io/sdk-go v1.0.1-0.20250811075710-18b20e146feb
+	open-cluster-management.io/api v1.0.1-0.20250827024027-f3e5dab96ea1
+	open-cluster-management.io/ocm v1.0.1-0.20250903083110-e0476eebb495
+	open-cluster-management.io/sdk-go v1.0.1-0.20250901084824-d4c9f78c2e6a
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -72,6 +72,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.9.0 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
+	github.com/Masterminds/semver/v3 v3.3.1 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/antlr/antlr4 v0.0.0-20200712162734-eb1adaa8a7a6 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.0 // indirect
@@ -95,7 +96,7 @@ require (
 	github.com/felixge/fgprof v0.9.4 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/fxamacker/cbor/v2 v2.7.0 // indirect
-	github.com/go-logr/logr v1.4.2 // indirect
+	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
@@ -187,7 +188,7 @@ require (
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	golang.org/x/time v0.12.0 // indirect
-	golang.org/x/tools v0.35.0 // indirect
+	golang.org/x/tools v0.36.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250218202821-56aae31c358a // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250218202821-56aae31c358a // indirect
@@ -198,9 +199,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.4.7 // indirect
-	k8s.io/apiextensions-apiserver v0.33.3 // indirect
+	k8s.io/apiextensions-apiserver v0.33.4 // indirect
 	k8s.io/kms v0.33.4 // indirect
-	k8s.io/kube-aggregator v0.33.3 // indirect
+	k8s.io/kube-aggregator v0.33.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20250318190949-c8a335a9a2ff // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
 	sigs.k8s.io/controller-runtime v0.21.0 // indirect
