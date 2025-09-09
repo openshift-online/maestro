@@ -88,7 +88,7 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 	}
 
 	// for watch, we need list all works with the search condition from maestro server
-	rbs, _, err := pageList(m.ctx, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
+	rbs, _, err := PageList(m.ctx, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 		searches = append(searches, labelSearch)
 	}
 
-	rbs, nextPage, err := pageList(m.ctx, m.apiClient, strings.Join(searches, " and "), opts)
+	rbs, nextPage, err := PageList(m.ctx, m.apiClient, strings.Join(searches, " and "), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -218,24 +218,15 @@ func (m *RESTFulAPIWatcherStore) Sync() error {
 		return nil
 	}
 
-	hasAll := false
 	namespaces := []string{}
 	for namespace := range m.watchers {
-		if namespace == metav1.NamespaceAll {
-			hasAll = true
-			break
-		}
-
-		namespaces = append(namespaces, fmt.Sprintf("consumer_name='%s'", namespace))
+		namespaces = append(namespaces, namespace)
 	}
 
-	search := []string{fmt.Sprintf("source='%s'", m.sourceID)}
-	if !hasAll {
-		search = append(search, namespaces...)
-	}
+	search := ToSyncSearch(m.sourceID, namespaces)
 
 	// for sync, we need list all works with the search condition from maestro server
-	rbs, _, err := pageList(m.ctx, m.apiClient, strings.Join(search, " or "), metav1.ListOptions{})
+	rbs, _, err := PageList(m.ctx, m.apiClient, search, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}

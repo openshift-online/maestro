@@ -223,6 +223,20 @@ func ToWorkPatch(existingWork, newWork *workv1.ManifestWork) ([]byte, error) {
 	return patchBytes, nil
 }
 
+func ToSyncSearch(sourceID string, namespaces []string) string {
+	searchNamespaces := []string{}
+	for _, ns := range namespaces {
+		if ns == metav1.NamespaceAll {
+			// all namespaces
+			return fmt.Sprintf("source='%s'", sourceID)
+		}
+
+		searchNamespaces = append(searchNamespaces, fmt.Sprintf("consumer_name='%s'", ns))
+	}
+
+	return fmt.Sprintf("source='%s' and (%s)", sourceID, strings.Join(searchNamespaces, " or "))
+}
+
 func marshal(obj map[string]any) ([]byte, error) {
 	unstructuredObj := unstructured.Unstructured{Object: obj}
 	data, err := unstructuredObj.MarshalJSON()
