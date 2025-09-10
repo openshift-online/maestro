@@ -282,15 +282,7 @@ func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string, labelSelector
 	defer m.Unlock()
 
 	watcher, ok := m.watchers[namespace]
-	if ok {
-		if watcher.isStopped() {
-			// delete the stopped watcher
-			delete(m.watchers, namespace)
-			watcher = nil
-			// recreate a new watcher and register it
-			watcher = newWorkWatcher(namespace, labelSelector)
-			m.watchers[namespace] = watcher
-		}
+	if ok && !watcher.isStopped() {
 		return watcher
 	}
 
