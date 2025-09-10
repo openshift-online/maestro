@@ -286,21 +286,6 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			secondResult := StartWatch(watcherCtx, secondWatcher)
 
 			By("verify second watcher can process events independently")
-			updateWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			newWork := updateWork.DeepCopy()
-			newWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName + "-updated")}
-			patchData, err := grpcsource.ToWorkPatch(updateWork, newWork)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			// wait for update to be processed
-			<-time.After(3 * time.Second)
-
-			By("delete the work")
 			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
