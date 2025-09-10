@@ -6,7 +6,9 @@ import (
 	"crypto/x509"
 	"fmt"
 	"net"
+	"open-cluster-management.io/sdk-go/pkg/server/grpc/health"
 	"os"
+	"time"
 
 	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
@@ -143,6 +145,7 @@ func (svr *GRPCServer) Start() error {
 		return err
 	}
 	pbv1.RegisterCloudEventServiceServer(svr.grpcServer, svr)
+	health.RegisterHeartbeatHealthServer(svr.grpcServer, 10*time.Second)
 	return svr.grpcServer.Serve(lis)
 }
 
