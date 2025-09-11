@@ -50,7 +50,7 @@ func TestResourceBundleGet(t *testing.T) {
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
 	Expect(err).NotTo(HaveOccurred())
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	resource, err := h.CreateResource(consumer.Name, deployName, "default", 1)
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
 	Expect(err).NotTo(HaveOccurred())
 
 	res, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resource.ID).Execute()
@@ -151,9 +151,9 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
 	Expect(err).NotTo(HaveOccurred())
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	resource, err := h.CreateResource(consumer.Name, deployName, "default", 1)
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
 	Expect(err).NotTo(HaveOccurred())
-	newResource, err := h.NewResource(consumer.Name, deployName, "default", 2, resource.Version)
+	newResource, err := h.NewResource(resource.ID, consumer.Name, deployName, "default", 2, resource.Version)
 	Expect(err).NotTo(HaveOccurred())
 	newResource.ID = resource.ID
 
@@ -228,10 +228,8 @@ func TestResourceFromGRPC(t *testing.T) {
 	consumer, err := h.CreateConsumer(clusterName)
 	Expect(err).NotTo(HaveOccurred())
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	resource, err := h.NewResource(consumer.Name, deployName, "default", 1, 1)
+	resource, err := h.NewResource(uuid.NewString(), consumer.Name, deployName, "default", 1, 1)
 	Expect(err).NotTo(HaveOccurred())
-	resource.ID = uuid.NewString()
-
 	h.StartControllerManager(ctx)
 	h.StartWorkAgent(ctx, consumer.Name)
 	clientHolder := h.WorkAgentHolder
@@ -342,7 +340,7 @@ func TestResourceFromGRPC(t *testing.T) {
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
 
-	newResource, err := h.NewResource(consumer.Name, deployName, "default", 2, 1)
+	newResource, err := h.NewResource(resource.ID, consumer.Name, deployName, "default", 2, 1)
 	Expect(err).NotTo(HaveOccurred())
 	newResource.ID = *res.Id
 	newResource.Version = *res.Version

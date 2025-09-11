@@ -227,7 +227,7 @@ func TestControllerReconcile(t *testing.T) {
 	time.Sleep(time.Second)
 
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	resource, err := h.CreateResource(consumer.Name, deployName, "default", 1)
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Eventually, the event will be processed by the controller.

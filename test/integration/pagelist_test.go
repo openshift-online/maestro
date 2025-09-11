@@ -30,10 +30,8 @@ func TestListSyncWorks(t *testing.T) {
 
 	// source maestro-1 has one works
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	work1, err := h.NewResource(consumer1.Name, deployName, "default", 1, 1)
+	work1, err := h.NewResource(uuid.NewString(), consumer1.Name, deployName, "default", 1, 1)
 	Expect(err).NotTo(HaveOccurred())
-
-	work1.ID = uuid.NewString()
 	work1.Source = "maestro-1"
 
 	resourceService := h.Env().Services.Resources()
@@ -41,28 +39,22 @@ func TestListSyncWorks(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 
 	// source maestro-2 has two works
-	work2, err := h.NewResource(consumer1.Name, deployName, "default", 1, 1)
+	work2, err := h.NewResource(uuid.NewString(), consumer1.Name, deployName, "default", 1, 1)
 	Expect(err).NotTo(HaveOccurred())
-
-	work2.ID = uuid.NewString()
 	work2.Source = "maestro-2"
 
 	_, err = resourceService.Create(ctx, work2)
 	Expect(err).NotTo(HaveOccurred())
 
-	work3, err := h.NewResource(consumer2.Name, deployName, "default", 1, 1)
+	work3, err := h.NewResource(uuid.NewString(), consumer2.Name, deployName, "default", 1, 1)
 	Expect(err).NotTo(HaveOccurred())
-
-	work3.ID = uuid.NewString()
 	work3.Source = "maestro-2"
 
 	_, err = resourceService.Create(ctx, work3)
 	Expect(err).NotTo(HaveOccurred())
 
-	work4, err := h.NewResource(consumer3.Name, deployName, "default", 1, 1)
+	work4, err := h.NewResource(uuid.NewString(), consumer3.Name, deployName, "default", 1, 1)
 	Expect(err).NotTo(HaveOccurred())
-
-	work4.ID = uuid.NewString()
 	work4.Source = "maestro-2"
 
 	_, err = resourceService.Create(ctx, work4)
