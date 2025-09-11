@@ -415,6 +415,10 @@ func TestStatusControllerSync(t *testing.T) {
 
 	// prepare instances
 	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
+		Meta: api.Meta{ID: "maestro"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{ID: "i1"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
 		t.Fatal(err)
 	}
