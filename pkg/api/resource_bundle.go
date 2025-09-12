@@ -9,7 +9,6 @@ import (
 	"gorm.io/datatypes"
 
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
@@ -46,7 +45,7 @@ func DecodeManifestBundle(manifestBundle datatypes.JSONMap) (*ManifestBundleWrap
 
 	metaData := map[string]any{}
 	extensions := evt.Extensions()
-	if meta, ok := extensions[codec.ExtensionWorkMeta]; ok {
+	if meta, ok := extensions[types.ExtensionWorkMeta]; ok {
 		metaJson, err := cloudeventstypes.ToString(meta)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get work meta extension: %v", err)
@@ -153,7 +152,7 @@ func JSONMAPToCloudEvent(jsonmap datatypes.JSONMap) (*cloudevents.Event, error) 
 	var err error
 	var resJSON []byte
 
-	if metadata, ok := jsonmap[codec.ExtensionWorkMeta]; ok {
+	if metadata, ok := jsonmap[types.ExtensionWorkMeta]; ok {
 		// cloudevents require its extension value as string, so we need convert the metadata object
 		// to string back
 
@@ -168,7 +167,7 @@ func JSONMAPToCloudEvent(jsonmap datatypes.JSONMap) (*cloudevents.Event, error) 
 			return nil, fmt.Errorf("failed to marshal metadata to JSON: %v", err)
 		}
 
-		resCopy[codec.ExtensionWorkMeta] = string(metaJson)
+		resCopy[types.ExtensionWorkMeta] = string(metaJson)
 
 		resJSON, err = resCopy.MarshalJSON()
 		if err != nil {
@@ -201,7 +200,7 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 		return nil, fmt.Errorf("failed to unmarshal cloudevent JSON to JSONMAP: %v", err)
 	}
 
-	if metadata, ok := res[codec.ExtensionWorkMeta]; ok {
+	if metadata, ok := res[types.ExtensionWorkMeta]; ok {
 		// cloudevents treat its extension value as string, so we need convert metadata extension
 		// to an object for supporting to query the resources with metadata
 		objectMeta := map[string]any{}
@@ -209,7 +208,7 @@ func CloudEventToJSONMap(evt *cloudevents.Event) (datatypes.JSONMap, error) {
 		if err := json.Unmarshal([]byte(fmt.Sprintf("%s", metadata)), &objectMeta); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata extension to object: %v", err)
 		}
-		res[codec.ExtensionWorkMeta] = objectMeta
+		res[types.ExtensionWorkMeta] = objectMeta
 	}
 
 	return res, nil
