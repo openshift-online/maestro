@@ -67,6 +67,8 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
+replace open-cluster-management.io/sdk-go => github.com/qiujian16/sdk-go v0.0.0-20250910080815-b3f743a384e2
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	cloud.google.com/go/compute/metadata v0.6.0 // indirect
