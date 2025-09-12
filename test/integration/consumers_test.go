@@ -7,6 +7,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 	"gopkg.in/resty.v1"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -192,7 +193,7 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 
 	// attach resource to the consumer
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	res, err := h.CreateResource(*consumer.Name, deployName, "default", 1)
+	res, err := h.CreateResource(uuid.NewString(), *consumer.Name, deployName, "default", 1)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(res.ID).ShouldNot(BeEmpty())
 
@@ -246,7 +247,7 @@ func TestConsumerDeleting(t *testing.T) {
 				defer wg.Done()
 				for i := 0; i < resourceNum; i++ {
 					deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-					res, err := h.CreateResource(name, deployName, "default", 1)
+					res, err := h.CreateResource(uuid.NewString(), name, deployName, "default", 1)
 					resourceChan <- &Result{
 						resource:     res,
 						consumerName: name,

@@ -227,7 +227,7 @@ func TestControllerReconcile(t *testing.T) {
 	time.Sleep(time.Second)
 
 	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-	resource, err := h.CreateResource(consumer.Name, deployName, "default", 1)
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
 	Expect(err).NotTo(HaveOccurred())
 
 	// Eventually, the event will be processed by the controller.
@@ -414,6 +414,10 @@ func TestStatusControllerSync(t *testing.T) {
 	eventInstanceDao := dao.NewEventInstanceDao(&h.Env().Database.SessionFactory)
 
 	// prepare instances
+	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
+		Meta: api.Meta{ID: "maestro"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{ID: "i1"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
 		t.Fatal(err)

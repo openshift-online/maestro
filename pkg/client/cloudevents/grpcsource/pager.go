@@ -16,8 +16,8 @@ import (
 // maestro server OOM.
 var MaxListPageSize int32 = 400
 
-// pageList assists client code in breaking large list queries into multiple smaller chunks of PageSize or smaller.
-func pageList(ctx context.Context, client *openapi.APIClient, search string, opts metav1.ListOptions) (*openapi.ResourceBundleList, string, error) {
+// PageList assists client code in breaking large list queries into multiple smaller chunks of PageSize or smaller.
+func PageList(ctx context.Context, client *openapi.APIClient, search string, opts metav1.ListOptions) (*openapi.ResourceBundleList, string, error) {
 	items := []openapi.ResourceBundle{}
 
 	page, err := page(opts)
