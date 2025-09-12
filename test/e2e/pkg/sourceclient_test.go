@@ -250,6 +250,59 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				return AssertWatchResult(result)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
+
+		It("should recreate stopped watchers", func() {
+			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
+				ctx,
+				apiClient,
+				grpcOptions,
+				sourceID,
+			)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("create first watcher for namespace")
+			firstWatcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			firstResult := StartWatch(watcherCtx, firstWatcher)
+
+			By("create and process a work with first watcher")
+			workName := "watcher-test-work-" + rand.String(5)
+			work := NewManifestWork(workName)
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for work to be processed
+			<-time.After(3 * time.Second)
+
+			By("stop the first watcher")
+			firstWatcher.Stop()
+
+			// wait for watcher to be fully stopped
+			<-time.After(2 * time.Second)
+
+			By("create second watcher for same namespace after first watcher stopped")
+			secondWatcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			secondResult := StartWatch(watcherCtx, secondWatcher)
+
+			By("verify second watcher can process events independently")
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("verify second watcher received events")
+			Eventually(func() error {
+				if len(secondResult.WatchedWorks) == 0 {
+					return fmt.Errorf("second watcher should have received events")
+				}
+				return nil
+			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+
+			By("verify watchers are independent - first watcher stopped, second continues")
+			Expect(len(firstResult.WatchedWorks)).Should(BeNumerically(">", 0), "first watcher should have processed initial events")
+			Expect(len(secondResult.WatchedWorks)).Should(BeNumerically(">", 0), "second watcher should have processed events after restart")
+
+			secondWatcher.Stop()
+		})
 	})
 
 	Context("List works with source work client", func() {

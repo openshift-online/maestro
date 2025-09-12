@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
+	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/db"
 	"golang.org/x/oauth2"
@@ -73,7 +74,7 @@ func (helper *Helper) NewManifestJSON(deployName, serviceAccount string, replica
 }
 
 // EncodeManifestBundle converts resource manifest JSON into a CloudEvent JSONMap representation.
-func (helper *Helper) EncodeManifestBundle(manifestJSON, deployName, deployNamespace string) (datatypes.JSONMap, error) {
+func (helper *Helper) EncodeManifestBundle(resID, manifestJSON, deployName, deployNamespace string) (datatypes.JSONMap, error) {
 	if len(manifestJSON) == 0 {
 		return nil, nil
 	}
@@ -96,7 +97,7 @@ func (helper *Helper) EncodeManifestBundle(manifestJSON, deployName, deployNames
 
 	source := "maestro"
 	// create a cloud event with the manifest bundle as the data
-	evt := cetypes.NewEventBuilder(source, cetypes.CloudEventsType{}).NewEvent()
+	evt := cetypes.NewEventBuilder(source, cetypes.CloudEventsType{}).WithResourceID(resID).NewEvent()
 	eventPayload := &workpayload.ManifestBundle{
 		Manifests: []workv1.Manifest{
 			{
@@ -145,15 +146,18 @@ func (helper *Helper) EncodeManifestBundle(manifestJSON, deployName, deployNames
 }
 
 // NewResource creates a resource with the given consumer name, deploy name, replicas, and resource version.
-func (helper *Helper) NewResource(consumerName, deployName, serviceAccount string, replicas int, resourceVersion int32) (*api.Resource, error) {
+func (helper *Helper) NewResource(resID, consumerName, deployName, serviceAccount string, replicas int, resourceVersion int32) (*api.Resource, error) {
 	namespace := "default" // default namespace
 	manifestJSON := helper.NewManifestJSON(deployName, serviceAccount, replicas)
-	payload, err := helper.EncodeManifestBundle(manifestJSON, deployName, namespace)
+	payload, err := helper.EncodeManifestBundle(resID, manifestJSON, deployName, namespace)
 	if err != nil {
 		return nil, err
 	}
 
 	resource := &api.Resource{
+		Meta: api.Meta{
+			ID: resID,
+		},
 		ConsumerName: consumerName,
 		Payload:      payload,
 		Version:      resourceVersion,
@@ -164,8 +168,8 @@ func (helper *Helper) NewResource(consumerName, deployName, serviceAccount strin
 
 // CreateResource creates a resource with the given consumer name, deploy name and replicas.
 // It generates a deployment for nginx using the manifestJSON template, assigning a random deploy name to avoid conflicts.
-func (helper *Helper) CreateResource(consumerName, deployName, serviceAccount string, replicas int) (*api.Resource, error) {
-	resource, err := helper.NewResource(consumerName, deployName, serviceAccount, replicas, 1)
+func (helper *Helper) CreateResource(resID, consumerName, deployName, serviceAccount string, replicas int) (*api.Resource, error) {
+	resource, err := helper.NewResource(resID, consumerName, deployName, serviceAccount, replicas, 1)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +199,7 @@ func (helper *Helper) CreateResourceList(consumerName string, count int) ([]*api
 	resources := make([]*api.Resource, count)
 	for i := 0; i < count; i++ {
 		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-		resource, err := helper.CreateResource(consumerName, deployName, "default", 1)
+		resource, err := helper.CreateResource(uuid.NewString(), consumerName, deployName, "default", 1)
 		if err != nil {
 			return resources, err
 		}

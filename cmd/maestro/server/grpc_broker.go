@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/server"
 	servergrpc "open-cluster-management.io/sdk-go/pkg/cloudevents/server/grpc"
@@ -112,6 +114,7 @@ func (s *GRPCBrokerService) RegisterHandler(handler server.EventHandler) {
 type GRPCBroker struct {
 	instanceID         string
 	bindAddress        string
+	grpcServer         *grpc.Server
 	eventServer        server.AgentEventServer
 	eventInstanceDao   dao.EventInstanceDao
 	resourceService    services.ResourceService
@@ -187,13 +190,15 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 
 	// TODO after the sdk go support source grpc server
 	grpcServer := grpc.NewServer(grpcServerOptions...)
-	eventServer := servergrpc.NewGRPCBroker(grpcServer)
+	eventServer := servergrpc.NewGRPCBroker()
+	pbv1.RegisterCloudEventServiceServer(grpcServer, eventServer)
 	svc := NewGRPCBrokerService(resourceService, statusEventService)
 	eventServer.RegisterService(workpayload.ManifestBundleEventDataType, svc)
 
 	return &GRPCBroker{
 		instanceID:         env().Config.MessageBroker.ClientID,
 		bindAddress:        env().Config.HTTPServer.Hostname + ":" + config.BrokerBindPort,
+		grpcServer:         grpcServer,
 		eventServer:        eventServer,
 		eventInstanceDao:   dao.NewEventInstanceDao(&sessionFactory),
 		resourceService:    resourceService,
@@ -205,7 +210,21 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 
 // Start starts the gRPC broker
 func (bkr *GRPCBroker) Start(ctx context.Context) {
-	bkr.eventServer.Start(ctx, bkr.bindAddress)
+	ln, err := net.Listen("tcp", bkr.bindAddress)
+	if err != nil {
+		log.Fatalf("Failed to listen on %s: %s", bkr.bindAddress, err.Error())
+	}
+
+	go func() {
+		if err := bkr.grpcServer.Serve(ln); err != nil {
+			log.Fatalf("Failed to start gRPC broker at %s: %s", bkr.bindAddress, err.Error())
+		}
+	}()
+
+	// wait until context is done
+	<-ctx.Done()
+	log.Infof("Stopping gRPC broker at %s", bkr.bindAddress)
+	bkr.grpcServer.GracefulStop()
 }
 
 // OnCreate is called by the controller when a resource is created on the maestro server.

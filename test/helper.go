@@ -521,7 +521,7 @@ func (helper *Helper) CleanDB() error {
 			// remove table contents instead of dropping table
 			sql := fmt.Sprintf("DELETE FROM %s", table)
 			if err := g2.Exec(sql).Error; err != nil {
-				helper.T.Errorf("error delete content of table %s: %v", table, err)
+				log.Errorf("error delete content of table %s: %v", table, err)
 				return err
 			}
 		}
