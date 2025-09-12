@@ -63,7 +63,7 @@ require (
 	k8s.io/utils v0.0.0-20241210054802-24370beab758
 	open-cluster-management.io/api v1.0.1-0.20250827024027-f3e5dab96ea1
 	open-cluster-management.io/ocm v1.0.1-0.20250903083110-e0476eebb495
-	open-cluster-management.io/sdk-go v1.0.1-0.20250901084824-d4c9f78c2e6a
+	open-cluster-management.io/sdk-go v1.0.1-0.20250915062314-fae48aa0f957
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -211,5 +211,3 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
-
-replace open-cluster-management.io/sdk-go => github.com/clyang82/sdk-go v0.0.0-20250912034656-7ffa823ca243

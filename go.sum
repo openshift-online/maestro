@@ -78,8 +78,6 @@ github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc07
 github.com/cloudevents/sdk-go/protocol/mqtt_paho/v2 v2.0.0-20241008145627-6bcc075b5b6c/go.mod h1:FwZuQ17vf240KYoiIuz0ffRssLYR36Wvq2KJFYWVn88=
 github.com/cloudevents/sdk-go/v2 v2.16.1 h1:G91iUdqvl88BZ1GYYr9vScTj5zzXSyEuqbfE63gbu9Q=
 github.com/cloudevents/sdk-go/v2 v2.16.1/go.mod h1:v/kVOaWjNfbvc6tkhhlkhvLapj8Aa8kvXiH5GiOHCKI=
-github.com/clyang82/sdk-go v0.0.0-20250912034656-7ffa823ca243 h1:OETBO9bOLGk29cf7DCPCBYHQMi3+rWWNrUmQKhUpvUs=
-github.com/clyang82/sdk-go v0.0.0-20250912034656-7ffa823ca243/go.mod h1:JVQupKu0xVcuVP4IUJF7hjvrXK8plZiwGPZcdqngjXk=
 github.com/cockroachdb/apd v1.1.0/go.mod h1:8Sl8LxpKi29FqWXR16WEFZRNSz3SoPzUzeMeY4+DwBQ=
 github.com/confluentinc/confluent-kafka-go/v2 v2.3.0 h1:icCHutJouWlQREayFwCc7lxDAhws08td+W3/gdqgZts=
 github.com/confluentinc/confluent-kafka-go/v2 v2.3.0/go.mod h1:/VTy8iEpe6mD9pkCH5BhijlUl8ulUXymKv1Qig5Rgb8=
@@ -933,6 +931,8 @@ open-cluster-management.io/api v1.0.1-0.20250827024027-f3e5dab96ea1 h1:X5dL1aKnk
 open-cluster-management.io/api v1.0.1-0.20250827024027-f3e5dab96ea1/go.mod h1:lEc5Wkc9ON5ym/qAtIqNgrE7NW7IEOCOC611iQMlnKM=
 open-cluster-management.io/ocm v1.0.1-0.20250903083110-e0476eebb495 h1:ARgB7+Gbl/EBYHxJT2VDvz2T9oKu7AAYDRfbQ9HPQNM=
 open-cluster-management.io/ocm v1.0.1-0.20250903083110-e0476eebb495/go.mod h1:dvpGrRVnpIFCzOGefBzCh4v0LS+pWd8bnnu3ffVxqlc=
+open-cluster-management.io/sdk-go v1.0.1-0.20250915062314-fae48aa0f957 h1:uEtbi4YuyOb+VuFcryucnL5c+FUd4kadjS7QtZgdNT4=
+open-cluster-management.io/sdk-go v1.0.1-0.20250915062314-fae48aa0f957/go.mod h1:JVQupKu0xVcuVP4IUJF7hjvrXK8plZiwGPZcdqngjXk=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 h1:jpcvIRr3GLoUoEKRkHKSmGjxb6lWwrBlJsXc+eUYQHM=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2/go.mod h1:Ve9uj1L+deCXFrPOk1LpFXqTg7LCFzFso6PA48q/XZw=
 sigs.k8s.io/controller-runtime v0.21.0 h1:CYfjpEuicjUecRk+KAeyYh+ouUBn4llGyDYytIGcJS8=
