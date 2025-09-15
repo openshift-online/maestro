@@ -70,7 +70,7 @@ func TestStatusDispatcher(t *testing.T) {
 	labels := []*prommodel.LabelPair{
 		{Name: strPtr("source"), Value: strPtr("maestro")},
 		{Name: strPtr("original_source"), Value: strPtr("none")},
-		{Name: strPtr("cluster"), Value: strPtr(consumer1)},
+		{Name: strPtr("consumer"), Value: strPtr(consumer1)},
 		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
 		{Name: strPtr("action"), Value: strPtr("resync_request")},
@@ -79,7 +79,7 @@ func TestStatusDispatcher(t *testing.T) {
 	labels = []*prommodel.LabelPair{
 		{Name: strPtr("source"), Value: strPtr("maestro")},
 		{Name: strPtr("original_source"), Value: strPtr("none")},
-		{Name: strPtr("cluster"), Value: strPtr(consumer2)},
+		{Name: strPtr("consumer"), Value: strPtr(consumer2)},
 		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
 		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
 		{Name: strPtr("action"), Value: strPtr("resync_request")},
