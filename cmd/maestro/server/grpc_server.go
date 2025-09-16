@@ -269,6 +269,8 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			case evt := <-heartbeatCh:
 				if err := subServer.Send(evt); err != nil {
 					log.Errorf("failed to send heartbeat: %v", err)
+					// Unblock producers (handler select) and exit heartbeat ticker.
+					cancel()
 					select {
 					case sendErrCh <- err:
 					default:
@@ -278,6 +280,8 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			case evt := <-eventCh:
 				if err := subServer.Send(evt); err != nil {
 					log.Errorf("failed to send event: %v", err)
+					// Unblock producers (handler select) and exit heartbeat ticker.
+					cancel()
 					select {
 					case sendErrCh <- err:
 					default:
