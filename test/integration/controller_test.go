@@ -2,6 +2,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/test"
+	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
@@ -414,9 +416,12 @@ func TestStatusControllerSync(t *testing.T) {
 	eventInstanceDao := dao.NewEventInstanceDao(&h.Env().Database.SessionFactory)
 
 	// prepare instances
-	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
-		Meta: api.Meta{ID: "maestro"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
-		t.Fatal(err)
+	if _, err := instanceDao.Get(ctx, "maestro"); err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
+		// create a new instance if not found
+		if _, err := instanceDao.Create(ctx, &api.ServerInstance{
+			Meta: api.Meta{ID: "maestro"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{ID: "i1"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {

@@ -3,6 +3,7 @@ package integration
 import (
 	"context"
 	"encoding/json"
+	e "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -512,28 +513,51 @@ func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkI
 }
 
 func getServerMetrics(t *testing.T, url string) map[string]*prommodel.MetricFamily {
-	// gather metrics from metrics server from url /metrics
+	// 1. Fetch metrics
 	resp, err := http.Get(url)
 	if err != nil {
-		t.Errorf("Error getting metrics:  %v", err)
+		t.Fatalf("Error getting metrics: %v", err)
 	}
 	defer resp.Body.Close()
+
 	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Error getting metrics with status code:  %v", resp.StatusCode)
+		t.Fatalf("Unexpected status code: %v", resp.StatusCode)
 	}
-	body, err := io.ReadAll(resp.Body)
+
+	// 2. Read body and normalize newlines
+	data, err := io.ReadAll(resp.Body)
 	if err != nil {
-		t.Errorf("Error reading metrics:  %v", err)
+		t.Fatalf("Error reading metrics body: %v", err)
 	}
-	parser := expfmt.TextParser{}
-	// Ensure EOL
-	reader := strings.NewReader(strings.ReplaceAll(string(body), "\r\n", "\n"))
-	families, err := parser.TextToMetricFamilies(reader)
-	if err != nil {
-		t.Errorf("Error parsing metrics:  %v", err)
+	normalized := strings.ReplaceAll(string(data), "\r\n", "\n")
+
+	// 3. Use streaming decoder with new format API
+	reader := strings.NewReader(normalized)
+	format := expfmt.NewFormat(expfmt.TypeTextPlain)
+	decoder := expfmt.NewDecoder(reader, format)
+
+	families := make(map[string]*prommodel.MetricFamily)
+	for {
+		mf := &prommodel.MetricFamily{}
+		if err := decoder.Decode(mf); err != nil {
+			if e.Is(err, io.EOF) {
+				break
+			}
+			// Helpful debug log
+			t.Fatalf("Error parsing metrics: %v\nRaw body:\n%s", err, normalized)
+		}
+		families[mf.GetName()] = mf
 	}
 
 	return families
+}
+
+func mustReadAll(t *testing.T, r io.Reader) []byte {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		t.Fatalf("Error reading metrics body: %v", err)
+	}
+	return data
 }
 
 func checkServerCounterMetric(t *testing.T, families map[string]*prommodel.MetricFamily, name string, labels []*prommodel.LabelPair, value float64) {
