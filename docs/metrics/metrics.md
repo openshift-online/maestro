@@ -75,14 +75,14 @@ advisory_unlock_count{status="OK",type="resources"} 7
 ### `cloudevents_received_total`
 
 **Type:** `counter`\
-**Help:** The total number of received CloudEvents, categorized by action, cluster, source, subresource, and type.
+**Help:** The total number of received CloudEvents, categorized by action, consumer, source, subresource, and type.
 
 **Example:**
 
 ```
 # HELP cloudevents_received_total The total number of received CloudEvents.
 # TYPE cloudevents_received_total counter
-cloudevents_received_total{action="update_request",cluster="9894...",source="9894...-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 22
+cloudevents_received_total{action="update_request",consumer="9894...",source="9894...-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 22
 ```
 
 ---
@@ -90,14 +90,14 @@ cloudevents_received_total{action="update_request",cluster="9894...",source="989
 ### `cloudevents_sent_total`
 
 **Type:** `counter`\
-**Help:** The total number of sent CloudEvents, categorized by action, cluster, source, subresource, and type.
+**Help:** The total number of sent CloudEvents, categorized by action, consumer, source, subresource, and type.
 
 **Example:**
 
 ```
 # HELP cloudevents_sent_total The total number of sent CloudEvents.
 # TYPE cloudevents_sent_total counter
-cloudevents_sent_total{action="resync_response",cluster="9894...",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
+cloudevents_sent_total{action="resync_response",consumer="9894...",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
 ```
 
 ---
@@ -205,11 +205,11 @@ resource_processed_total{action="update",id="4bd1408d-36f2-51a8-87aa-76d63dfd1d4
 ```
 # HELP resources_spec_resync_duration_seconds The duration of the resource spec resync in seconds.
 # TYPE resources_spec_resync_duration_seconds histogram
-resources_spec_resync_duration_seconds_bucket{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.1"} 1
-resources_spec_resync_duration_seconds_bucket{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.2"} 1
-resources_spec_resync_duration_seconds_bucket{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.5"} 1
-resources_spec_resync_duration_seconds_sum{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 0.003581495
-resources_spec_resync_duration_seconds_count{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
+resources_spec_resync_duration_seconds_bucket{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.1"} 1
+resources_spec_resync_duration_seconds_bucket{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.2"} 1
+resources_spec_resync_duration_seconds_bucket{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.5"} 1
+resources_spec_resync_duration_seconds_sum{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 0.003581495
+resources_spec_resync_duration_seconds_count{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
 ```
 
 ---
@@ -275,8 +275,8 @@ Refer to [Access Maestro Agent Metrics](https://github.com/openshift-online/maes
 ```
 # HELP cloudevents_received_total The total number of received CloudEvents.
 # TYPE cloudevents_received_total counter
-cloudevents_received_total{action="delete_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-cloudevents_received_total{action="resync_response",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
+cloudevents_received_total{action="delete_request",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+cloudevents_received_total{action="resync_response",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
 ```
 
 ---
@@ -291,9 +291,9 @@ cloudevents_received_total{action="resync_response",cluster="9894f0c9-557a-4048-
 ```
 # HELP cloudevents_sent_total The total number of sent CloudEvents.
 # TYPE cloudevents_sent_total counter
-cloudevents_sent_total{action="delete_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
-cloudevents_sent_total{action="resync_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",original_source="none",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
-cloudevents_sent_total{action="update_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 8
+cloudevents_sent_total{action="delete_request",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
+cloudevents_sent_total{action="resync_request",original_source="none",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
+cloudevents_sent_total{action="update_request",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 8
 ```
 
 ---

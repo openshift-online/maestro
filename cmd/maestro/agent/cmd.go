@@ -25,7 +25,7 @@ var (
 
 func init() {
 	// register the cloud events metrics for the agent
-	generic.RegisterCloudEventsMetrics(legacyregistry.Registerer())
+	generic.RegisterClientCloudEventsMetrics(legacyregistry.Registerer())
 }
 
 // by default uses 1M as the limit for state feedback
