@@ -2,7 +2,9 @@ package integration
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,8 +12,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
-	prommodel "github.com/prometheus/client_model/go"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 )
 
 func TestStatusDispatcher(t *testing.T) {
@@ -21,6 +24,10 @@ func TestStatusDispatcher(t *testing.T) {
 	}
 
 	h, _ := test.RegisterIntegration(t)
+
+	// reset metrics to avoid interference from other tests
+	cegeneric.ResetSourceCloudEventsMetrics()
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
@@ -66,23 +73,15 @@ func TestStatusDispatcher(t *testing.T) {
 
 	// check metrics for status resync
 	time.Sleep(1 * time.Second)
-	families := getServerMetrics(t, "http://localhost:8080/metrics")
-	labels := []*prommodel.LabelPair{
-		{Name: strPtr("source"), Value: strPtr("maestro")},
-		{Name: strPtr("original_source"), Value: strPtr("none")},
-		{Name: strPtr("consumer"), Value: strPtr(consumer1)},
-		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
-		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
-		{Name: strPtr("action"), Value: strPtr("resync_request")},
+	expectedMetrics := fmt.Sprintf(`
+	# HELP cloudevents_sent_total The total number of CloudEvents sent from source.
+	# TYPE cloudevents_sent_total counter
+	cloudevents_sent_total{action="resync_request",consumer="%s",original_source="none",source="maestro",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
+	cloudevents_sent_total{action="resync_request",consumer="%s",original_source="none",source="maestro",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+	`, consumer1, consumer2)
+
+	if err := testutil.GatherAndCompare(prometheus.DefaultGatherer,
+		strings.NewReader(expectedMetrics), "cloudevents_sent_total"); err != nil {
+		t.Errorf("unexpected metrics: %v", err)
 	}
-	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 1.0)
-	labels = []*prommodel.LabelPair{
-		{Name: strPtr("source"), Value: strPtr("maestro")},
-		{Name: strPtr("original_source"), Value: strPtr("none")},
-		{Name: strPtr("consumer"), Value: strPtr(consumer2)},
-		{Name: strPtr("type"), Value: strPtr("io.open-cluster-management.works.v1alpha1.manifestbundles")},
-		{Name: strPtr("subresource"), Value: strPtr(string(types.SubResourceStatus))},
-		{Name: strPtr("action"), Value: strPtr("resync_request")},
-	}
-	checkServerCounterMetric(t, families, "cloudevents_sent_total", labels, 2.0)
 }
