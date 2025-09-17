@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/test"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 )
@@ -60,19 +61,22 @@ func TestListSyncWorks(t *testing.T) {
 	_, err = resourceService.Create(ctx, work4)
 	Expect(err).NotTo(HaveOccurred())
 
+	logger, err := logging.NewStdLoggerBuilder().Build()
+	Expect(err).ShouldNot(HaveOccurred())
+
 	search1 := grpcsource.ToSyncSearch("maestro-1", []string{consumer1.Name})
-	works, _, err := grpcsource.PageList(ctx, client, search1, metav1.ListOptions{})
+	works, _, err := grpcsource.PageList(ctx, logger, client, search1, metav1.ListOptions{})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(len(works.Items)).To(Equal(1))
 
 	search2 := grpcsource.ToSyncSearch("maestro-2", []string{consumer1.Name, consumer2.Name})
-	works, _, err = grpcsource.PageList(ctx, client, search2, metav1.ListOptions{})
+	works, _, err = grpcsource.PageList(ctx, logger, client, search2, metav1.ListOptions{})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(len(works.Items)).To(Equal(2))
 
 	// has a watcher that watches all namespaces
 	search3 := grpcsource.ToSyncSearch("maestro-2", []string{consumer1.Name, metav1.NamespaceAll})
-	works, _, err = grpcsource.PageList(ctx, client, search3, metav1.ListOptions{})
+	works, _, err = grpcsource.PageList(ctx, logger, client, search3, metav1.ListOptions{})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(len(works.Items)).To(Equal(3))
 }

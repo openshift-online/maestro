@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 )
 
 // MaxListPageSize is the maximum size of one page, default is 400.
@@ -17,7 +17,7 @@ import (
 var MaxListPageSize int32 = 400
 
 // PageList assists client code in breaking large list queries into multiple smaller chunks of PageSize or smaller.
-func PageList(ctx context.Context, client *openapi.APIClient, search string, opts metav1.ListOptions) (*openapi.ResourceBundleList, string, error) {
+func PageList(ctx context.Context, logger logging.Logger, client *openapi.APIClient, search string, opts metav1.ListOptions) (*openapi.ResourceBundleList, string, error) {
 	items := []openapi.ResourceBundle{}
 
 	page, err := page(opts)
@@ -35,7 +35,7 @@ func PageList(ctx context.Context, client *openapi.APIClient, search string, opt
 	pageSize := pageSize(int32(limit))
 	offset := (page - 1) * pageSize
 	for {
-		klog.V(4).Infof("list works with search=%s, page=%d, size=%d", search, page, pageSize)
+		logger.Debug(ctx, "list works with search=%s, page=%d, size=%d", search, page, pageSize)
 		rbs, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).
 			Search(search).
 			Page(page).
@@ -44,7 +44,7 @@ func PageList(ctx context.Context, client *openapi.APIClient, search string, opt
 		if err != nil {
 			return nil, "", err
 		}
-		klog.V(4).Infof("listed works total=%d, page=%d, size=%d", rbs.Total, rbs.Page, rbs.Size)
+		logger.Debug(ctx, "listed works total=%d, page=%d, size=%d", rbs.Total, rbs.Page, rbs.Size)
 
 		items = append(items, rbs.Items...)
 		total = rbs.Size + total
