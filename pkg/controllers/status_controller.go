@@ -21,7 +21,7 @@ type StatusController struct {
 	statusEvents     services.StatusEventService
 	instanceDao      dao.InstanceDao
 	eventInstanceDao dao.EventInstanceDao
-	eventsQueue      workqueue.RateLimitingInterface
+	eventsQueue      workqueue.TypedRateLimitingInterface[string]
 }
 
 func NewStatusController(statusEvents services.StatusEventService,
@@ -32,7 +32,13 @@ func NewStatusController(statusEvents services.StatusEventService,
 		statusEvents:     statusEvents,
 		instanceDao:      instanceDao,
 		eventInstanceDao: eventInstanceDao,
-		eventsQueue:      workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "status-event-controller"),
+		eventsQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{
+				Name:            "status-event-controller",
+				MetricsProvider: prometheusMetricsProvider{},
+			},
+		),
 	}
 }
 
@@ -75,7 +81,7 @@ func (sc *StatusController) processNextEvent() bool {
 	}
 	defer sc.eventsQueue.Done(key)
 
-	if err := sc.handleStatusEvent(key.(string)); err != nil {
+	if err := sc.handleStatusEvent(key); err != nil {
 		log.Errorf("Failed to handle the event %v, %v ", key, err)
 
 		// we failed to handle the status event, we should requeue the item to work on later
@@ -99,28 +105,39 @@ func (sc *StatusController) handleStatusEvent(id string) error {
 	if svcErr != nil {
 		if svcErr.Is404() {
 			// the status event is already deleted, we can ignore it
+			statusEventReconciledTotal.WithLabelValues("unknown", string(controllerReconciledStatusSkipped)).Inc()
 			return nil
 		}
+		statusEventReconciledTotal.WithLabelValues("unknown", string(controllerReconciledStatusError)).Inc()
 		return fmt.Errorf("error getting status event with id(%s): %s", id, svcErr)
 	}
 
 	if statusEvent.ReconciledDate != nil {
+		statusEventReconciledTotal.WithLabelValues(string(statusEvent.StatusEventType), string(controllerReconciledStatusSkipped)).Inc()
 		return nil
 	}
+
+	startTime := time.Now()
+	defer func() {
+		statusEventReconcileDuration.WithLabelValues(string(statusEvent.StatusEventType)).Observe(time.Since(startTime).Seconds())
+	}()
 
 	handlerFns, found := sc.controllers[statusEvent.StatusEventType]
 	if !found {
 		log.Infof("No handler functions found for status event '%s'\n", statusEvent.StatusEventType)
+		statusEventReconciledTotal.WithLabelValues(string(statusEvent.StatusEventType), string(controllerReconciledStatusSkipped)).Inc()
 		return nil
 	}
 
 	for _, fn := range handlerFns {
 		err := fn(reqContext, id, statusEvent.ResourceID)
 		if err != nil {
+			statusEventReconciledTotal.WithLabelValues(string(statusEvent.StatusEventType), string(controllerReconciledStatusError)).Inc()
 			return fmt.Errorf("error handling status event %s, %s, %s: %s", statusEvent.StatusEventType, id, statusEvent.ResourceID, err)
 		}
 	}
 
+	statusEventReconciledTotal.WithLabelValues(string(statusEvent.StatusEventType), string(controllerReconciledStatusSuccess)).Inc()
 	return nil
 }
 
@@ -144,6 +161,7 @@ func (sc *StatusController) syncStatusEvents() {
 	readyInstanceIDs, err := sc.instanceDao.FindReadyIDs(ctx)
 	if err != nil {
 		log.Errorf("Failed to find ready instances from db, %v", err)
+		statusControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}
 	log.Infof("purge status events on the ready instances: %s", readyInstanceIDs)
@@ -152,6 +170,7 @@ func (sc *StatusController) syncStatusEvents() {
 	statusEventIDs, err := sc.eventInstanceDao.GetEventsAssociatedWithInstances(ctx, readyInstanceIDs)
 	if err != nil {
 		log.Errorf("Failed to find handled status events from db, %v", err)
+		statusControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}
 
@@ -160,9 +179,12 @@ func (sc *StatusController) syncStatusEvents() {
 	for _, batch := range batches {
 		if err := sc.statusEvents.DeleteAllEvents(ctx, batch); err != nil {
 			log.Errorf("Failed to delete handled status events from db, %v", err)
+			statusControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 			return
 		}
 	}
+
+	statusControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusSuccess)).Inc()
 }
 
 func batchStatusEventIDs(statusEventIDs []string, batchSize int) [][]string {
