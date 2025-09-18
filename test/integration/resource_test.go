@@ -436,6 +436,9 @@ func TestResourceFromGRPC(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	expectedMetrics := `
+	# HELP grpc_server_registered_source_clients Number of registered source clients on the grpc server.
+    # TYPE grpc_server_registered_source_clients gauge
+	grpc_server_registered_source_clients{source="maestro"} 1
 	# HELP grpc_server_called_total Total number of RPCs called on the server.
 	# TYPE grpc_server_called_total counter
 	grpc_server_called_total{code="OK",source="maestro",type="Publish"} 3
@@ -460,7 +463,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	}
 
 	if err := testutil.GatherAndCompare(prometheus.DefaultGatherer,
-		strings.NewReader(expectedMetrics), "cloudevents_sent_total", "grpc_server_message_received_total", "grpc_server_processed_total"); err != nil {
+		strings.NewReader(expectedMetrics), "cloudevents_sent_total", "grpc_server_registered_source_clients", "grpc_server_message_received_total", "grpc_server_processed_total"); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }

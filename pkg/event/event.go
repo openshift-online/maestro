@@ -51,6 +51,8 @@ func (h *EventBroadcaster) Register(source string, handler resourceHandler) stri
 	}
 
 	log.Infof("registered a broadcaster client %s (source=%s)", id, source)
+	grpcRegisteredSourceClientsGaugeMetric.WithLabelValues(source).Inc()
+
 	return id
 }
 
@@ -59,8 +61,15 @@ func (h *EventBroadcaster) Unregister(id string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
+	client, exists := h.clients[id]
+	if !exists {
+		log.Warnf("attempted to unregister non-existent broadcaster client %s", id)
+		return
+	}
+
 	delete(h.clients, id)
-	log.Infof("unregistered broadcaster client %s", id)
+	log.Infof("unregistered broadcaster client %s (source=%s)", id, client.source)
+	grpcRegisteredSourceClientsGaugeMetric.WithLabelValues(client.source).Dec()
 }
 
 // Broadcast broadcasts a resource status change event to all registered clients.
