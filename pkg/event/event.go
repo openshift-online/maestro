@@ -82,6 +82,11 @@ func (h *EventBroadcaster) Start(ctx context.Context) {
 			return
 		case res := <-h.broadcast:
 			h.mu.RLock()
+
+			if len(h.clients) == 0 {
+				log.Warnf("no clients registered on this instance")
+			}
+
 			for _, client := range h.clients {
 				if client.source == res.Source {
 					if err := client.handler(res); err != nil {

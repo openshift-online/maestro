@@ -15,6 +15,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -70,6 +71,11 @@ func main() {
 		},
 	})
 
+	logger, err := logging.NewStdLoggerBuilder().Debug(true).Build()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	grpcOptions := &grpc.GRPCOptions{
 		Dialer:                   &grpc.GRPCDialer{URL: *grpcServerAddr},
 		ServerHealthinessTimeout: serverHealthinessTimeout,
@@ -77,6 +83,7 @@ func main() {
 
 	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
+		logger,
 		maestroAPIClient,
 		grpcOptions,
 		sourceID,
@@ -114,10 +121,8 @@ func main() {
 }
 
 func Print(event watch.Event, printDetails bool) {
-	work := event.Object.(*workv1.ManifestWork)
-	fmt.Printf("watched work (uid=%s) is %s\n", work.UID, event.Type)
-
 	if printDetails {
+		work := event.Object.(*workv1.ManifestWork)
 		workJson, err := json.MarshalIndent(work, "", "  ")
 		if err != nil {
 			log.Fatal(err)

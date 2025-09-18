@@ -9,6 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -120,8 +121,12 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 		It("the work status should be watched", func() {
 			By("create a work watcher client")
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -166,8 +171,12 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		})
 
 		It("the watchers for different namespace", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -218,8 +227,12 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		})
 
 		It("the watchers with label selector", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -252,8 +265,12 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		})
 
 		It("should recreate stopped watchers", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,

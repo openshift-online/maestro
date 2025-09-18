@@ -32,6 +32,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/test"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 )
 
 var log = logger.GetLogger()
@@ -169,9 +170,13 @@ var _ = BeforeSuite(func() {
 		Expect(err).To(Succeed())
 	}
 
+	logger, err := logging.NewStdLoggerBuilder().Build()
+	Expect(err).ShouldNot(HaveOccurred())
+
 	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
 	sourceWorkClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
+		logger,
 		apiClient,
 		grpcOptions,
 		sourceID,
