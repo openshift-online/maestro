@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/ocm-sdk-go/logging"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -20,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/component-base/metrics/testutil"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -86,6 +88,9 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		var initWorkBName string
 
 		BeforeEach(func() {
+			// reset the metrics firstly
+			grpcsource.ResetsourceClientRegisteredWatchersGaugeMetric()
+
 			watcherCtx, watcherCancel = context.WithCancel(ctx)
 
 			// prepare two works firstly
@@ -168,6 +173,15 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			Eventually(func() error {
 				return AssertWatchResult(result)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("the watchers for different namespace", func() {
@@ -224,6 +238,17 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="",source="%s"} 1
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			source_client_registered_watchers{namespace="other",source="%s"} 1
+			`, sourceID, agentTestOpts.consumerName, sourceID, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("the watchers with label selector", func() {
@@ -262,6 +287,15 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			Eventually(func() error {
 				return AssertWatchResult(result)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("should recreate stopped watchers", func() {
@@ -291,6 +325,15 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			// wait for work to be processed
 			<-time.After(3 * time.Second)
 
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
+
 			By("stop the first watcher")
 			firstWatcher.Stop()
 
@@ -319,6 +362,15 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			Expect(len(secondResult.WatchedWorks)).Should(BeNumerically(">", 0), "second watcher should have processed events after restart")
 
 			secondWatcher.Stop()
+
+			expectedMetrics = fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 0
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 	})
 
