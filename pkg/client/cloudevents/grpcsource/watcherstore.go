@@ -297,6 +297,7 @@ func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string, labelSelector
 	watcher = newWorkWatcher(m.ctx, m.logger, m.sourceID, namespace, labelSelector)
 	m.logger.Info(m.ctx, "register watcher %s/%s", m.sourceID, namespace)
 	m.watchers[namespace] = watcher
+	sourceClientRegisteredWatchersGaugeMetric.WithLabelValues(m.sourceID, namespace).Inc()
 	return watcher
 }
 
