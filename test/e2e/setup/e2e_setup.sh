@@ -16,6 +16,7 @@
 
 kind_version=0.12.0
 step_version=0.26.2
+istio_version=1.25.5
 
 export namespace="maestro"
 export agent_namespace="maestro-agent"
@@ -39,6 +40,14 @@ if ! command -v step >/dev/null 2>&1; then
     chmod +x ./step_${step_version}/bin/step
     sudo mv ./step_${step_version}/bin/step /usr/local/bin/step
     rm -rf ./step_${step_version}_amd64.tar.gz ./step_${step_version}
+fi
+
+if ! command -v istioctl >/dev/null 2>&1; then
+    echo "This script will install istioctl (https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/) on your machine."
+    curl -L https://istio.io/downloadIstio | ISTIO_VERSION=${istio_version} sh -
+    chmod +x ./istio-${istio_version}/bin/istioctl
+    sudo mv ./istio-${istio_version}/bin/istioctl /usr/local/bin/istioctl
+    rm -rf ./istio-${istio_version}
 fi
 
 # 1. create KinD cluster
@@ -80,8 +89,21 @@ kubectl create ns openshift-config-managed || true
 kubectl apply -f ./test/e2e/setup/service-ca/
 kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
 
+# 4. install istio
+istioctl install -y \
+  --set profile=default \
+  --set values.gateways.istio-ingressgateway.ports[0].name=https \
+  --set values.gateways.istio-ingressgateway.ports[0].port=443 \
+  --set values.gateways.istio-ingressgateway.ports[0].targetPort=8443 \
+  --set values.gateways.istio-ingressgateway.ports[0].nodePort=30080 \
+  --set values.gateways.istio-ingressgateway.ports[1].name=grpc \
+  --set values.gateways.istio-ingressgateway.ports[1].port=9443 \
+  --set values.gateways.istio-ingressgateway.ports[1].targetPort=9443 \
+  --set values.gateways.istio-ingressgateway.ports[1].nodePort=30090
+
 # 4. create maestro and agent namespaces
 kubectl create namespace $namespace || true
+kubectl label namespace $namespace istio-injection=enabled --overwrite
 kubectl create namespace ${agent_namespace} || true
 
 # 5. create a self-signed certificate for mqtt
@@ -134,10 +156,10 @@ fi
 # 7. deploy maestro into maestro namespace
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
-export maestro_svc_type="NodePort"
-export maestro_svc_node_port=30080
-export grpc_svc_type="NodePort"
-export grpc_svc_node_port=30090
+# export maestro_svc_type="NodePort"
+# export maestro_svc_node_port=30080
+# export grpc_svc_type="NodePort"
+# export grpc_svc_node_port=30090
 export liveness_probe_init_delay_seconds=1
 export readiness_probe_init_delay_seconds=1
 export mqtt_user=""
@@ -157,6 +179,58 @@ make deploy-secrets \
 
 kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
+
+# deloy istio gateway and virtual service for maestro
+cat << EOF | kubectl apply -n $namespace -f -
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: maestro-gateway
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: TLS
+    tls:
+      mode: PASSTHROUGH
+    hosts: ["*"]
+  - port:
+      number: 9443
+      name: grpc
+      protocol: TLS
+    tls:
+      mode: PASSTHROUGH
+    hosts: ["*"]
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: maestro-vs
+spec:
+  hosts: ["*"]
+  gateways:
+  - maestro-gateway
+  tls:
+  - match:
+    - port: 443
+      sniHosts: ["*"]
+    route:
+    - destination:
+        host: maestro.$namespace.svc.cluster.local
+        port:
+          number: 8000
+  - match:
+    - port: 9443
+      sniHosts: ["*"]
+    route:
+    - destination:
+        host: maestro-grpc.$namespace.svc.cluster.local
+        port:
+          number: 8090
+EOF
 
 sleep 30 # wait 30 seconds for the service ready
 
