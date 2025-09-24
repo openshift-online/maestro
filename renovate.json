@@ -1,10 +1,16 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "baseBranches": ["main"],
-  "addLabels": ["ok-to-test"],
-  "schedule": ["every weekend"],
+  "baseBranchPatterns": [
+    "main"
+  ],
+  "addLabels": [
+    "ok-to-test"
+  ],
+  "schedule": [
+    "every weekend"
+  ],
   "timezone": "America/New_York",
-  "gomod":{
+  "gomod": {
     "postUpdateOptions": [
       "gomodUpdateImportPaths",
       "gomodTidy"
