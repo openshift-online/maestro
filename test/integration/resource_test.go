@@ -456,9 +456,9 @@ func TestResourceFromGRPC(t *testing.T) {
 		expectedMetrics += fmt.Sprintf(`
 		# HELP cloudevents_sent_total The total number of CloudEvents sent from source.
 		# TYPE cloudevents_sent_total counter
-		cloudevents_sent_total{action="create_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-		cloudevents_sent_total{action="delete_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-		cloudevents_sent_total{action="update_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+		cloudevents_sent_total{action="create_request",consumer="%s",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+		cloudevents_sent_total{action="delete_request",consumer="%s",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+		cloudevents_sent_total{action="update_request",consumer="%s",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
 		`, clusterName, clusterName, clusterName)
 	}
 
