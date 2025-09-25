@@ -1,9 +1,11 @@
 name: Maestro Pipeline
 
 on:
-  push:
+  workflow_dispatch: {}
+  pull_request_target:
     branches:
       - main
+    types: [opened, synchronize, reopened]
 
 jobs:
   svc-cluster-access:
