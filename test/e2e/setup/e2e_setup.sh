@@ -16,6 +16,7 @@
 
 kind_version=0.12.0
 step_version=0.26.2
+istio_version=1.25.5
 
 export namespace="maestro"
 export agent_namespace="maestro-agent"
@@ -39,6 +40,14 @@ if ! command -v step >/dev/null 2>&1; then
     chmod +x ./step_${step_version}/bin/step
     sudo mv ./step_${step_version}/bin/step /usr/local/bin/step
     rm -rf ./step_${step_version}_amd64.tar.gz ./step_${step_version}
+fi
+
+if ! command -v istioctl >/dev/null 2>&1; then
+    echo "This script will install istioctl (https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/) on your machine."
+    curl -L https://istio.io/downloadIstio | ISTIO_VERSION=${istio_version} sh -
+    chmod +x ./istio-${istio_version}/bin/istioctl
+    sudo mv ./istio-${istio_version}/bin/istioctl /usr/local/bin/istioctl
+    rm -rf ./istio-${istio_version}
 fi
 
 # 1. create KinD cluster
@@ -80,8 +89,13 @@ kubectl create ns openshift-config-managed || true
 kubectl apply -f ./test/e2e/setup/service-ca/
 kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
 
-# 4. create maestro and agent namespaces
+# install istio
+istioctl install --set profile=minimal -y
+
+# 4. create maestro namespace
 kubectl create namespace $namespace || true
+kubectl label namespace $namespace istio-injection=enabled --overwrite
+# create maestro-agent namespace
 kubectl create namespace ${agent_namespace} || true
 
 # 5. create a self-signed certificate for mqtt
@@ -155,6 +169,8 @@ make deploy-secrets \
 	deploy-mqtt-tls \
 	deploy-service-tls
 
+kubectl patch deploy/maestro -n $namespace \
+  -p '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeInboundPorts":"8090,8091","traffic.sidecar.istio.io/excludeOutboundPorts":"8090,8091"}}}}}'
 kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
