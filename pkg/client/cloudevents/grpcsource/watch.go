@@ -54,6 +54,7 @@ func (w *workWatcher) Stop() {
 	defer w.Unlock()
 	// closing a closed channel always panics, therefore check before closing
 	w.logger.Info(w.ctx, "stop the watcher %s/%s", w.source, w.namespace)
+	sourceClientRegisteredWatchersGaugeMetric.WithLabelValues(w.source, w.namespace).Dec()
 	select {
 	case <-w.done:
 		close(w.result)

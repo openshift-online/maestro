@@ -76,8 +76,8 @@ func TestStatusDispatcher(t *testing.T) {
 	expectedMetrics := fmt.Sprintf(`
 	# HELP cloudevents_sent_total The total number of CloudEvents sent from source.
 	# TYPE cloudevents_sent_total counter
-	cloudevents_sent_total{action="resync_request",consumer="%s",original_source="none",source="maestro",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
-	cloudevents_sent_total{action="resync_request",consumer="%s",original_source="none",source="maestro",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+	cloudevents_sent_total{action="resync_request",consumer="%s",source="maestro",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
+	cloudevents_sent_total{action="resync_request",consumer="%s",source="maestro",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
 	`, consumer1, consumer2)
 
 	if err := testutil.GatherAndCompare(prometheus.DefaultGatherer,
