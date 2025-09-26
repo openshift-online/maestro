@@ -2,13 +2,13 @@ name: Maestro Pipeline
 
 on:
   workflow_dispatch: {}
-  pull_request_target:
+  pull_request:
     branches:
       - main
     types: [opened, synchronize, reopened]
 
 jobs:
-  svc-cluster-access:
+  cluster-access:
     runs-on: ubuntu-latest
     permissions:
       id-token: 'write'
@@ -27,6 +27,12 @@ jobs:
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           # if not using federated identity:
           # client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # Install kubelogin (needed for AAD-enabled clusters)
+      - name: Install kubelogin
+        run: |
+          az aks install-cli
+          kubelogin --version
 
       # Get AKS credentials
       - name: Get AKS credentials
@@ -34,62 +40,43 @@ jobs:
           az aks get-credentials \
             --resource-group ${{ secrets.SVC_RESOURCE_GROUP }} \
             --name ${{ secrets.SVC_CLUSTER_NAME }} \
-            --overwrite-existing
-
-      # Install kubelogin (needed for AAD-enabled clusters)
-      - name: Install kubelogin
-        run: |
-          az aks install-cli
-          kubelogin --version
-
-      # Convert kubeconfig for non-interactive login (GitHub runner)
-      - name: Convert kubeconfig for kubelogin
-        run: |
-          kubelogin convert-kubeconfig -l azurecli
-
-      # Verify kubectl works
-      - name: Check cluster access
-        run: kubectl get nodes
-
-  mgmt-cluster-access:
-    runs-on: ubuntu-latest
-    permissions:
-      id-token: 'write'
-      contents: 'read'
-
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-
-      # Login to Azure using OIDC (no secret needed if federated identity is set up)
-      - name: Azure Login
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-          # if not using federated identity:
-          # client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-
-      # Get AKS credentials
-      - name: Get AKS credentials
-        run: |
+            --overwrite-existing \
+            -f ./svc-cluster.kubeconfig
           az aks get-credentials \
             --resource-group ${{ secrets.MGMT_RESOURCE_GROUP }} \
             --name ${{ secrets.MGMT_CLUSTER_NAME }} \
-            --overwrite-existing
-
-      # Install kubelogin (needed for AAD-enabled clusters)
-      - name: Install kubelogin
-        run: |
-          az aks install-cli
-          kubelogin --version
+            --overwrite-existing \
+            -f ./mgmt-cluster.kubeconfig
 
       # Convert kubeconfig for non-interactive login (GitHub runner)
       - name: Convert kubeconfig for kubelogin
         run: |
-          kubelogin convert-kubeconfig -l azurecli
+          kubelogin convert-kubeconfig -l azurecli --kubeconfig ./svc-cluster.kubeconfig
+          kubelogin convert-kubeconfig -l azurecli --kubeconfig ./mgmt-cluster.kubeconfig
 
       # Verify kubectl works
       - name: Check cluster access
-        run: kubectl get nodes
+        run: |
+          kubectl --kubeconfig ./svc-cluster.kubeconfig get pods -A -l app=maestro
+          kubectl --kubeconfig ./mgmt-cluster.kubeconfig get pods -A -l app=maestro-agent
+
+  e2e-test:
+    runs-on: ubuntu-latest
+    needs: cluster-access
+    steps:
+    - uses: actions/checkout@v4
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '>=1.23.0'
+    - name: test
+      run: |
+        curl -fsSL -O https://github.com/knight42/krelay/releases/download/v0.1.2/kubectl-relay_v0.1.2_linux-amd64.tar.gz
+        tar -xzf kubectl-relay_v0.1.2_linux-amd64.tar.gz kubectl-relay
+
+        oc relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
+        oc relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
+        sleep 10
+
+        consumer_name=$(kubectl --kubeconfig ./mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+        ginkgo -v --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=./svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=./mgmt-cluster.kubeconfig -agent-namespace=maestro
