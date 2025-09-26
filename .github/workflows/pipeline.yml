@@ -74,9 +74,9 @@ jobs:
           curl -fsSL -O https://github.com/knight42/krelay/releases/download/v0.1.2/kubectl-relay_v0.1.2_linux-amd64.tar.gz
           tar -xzf kubectl-relay_v0.1.2_linux-amd64.tar.gz kubectl-relay
           chmod a+x kubectl-relay
-          kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
-          kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
+          $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
+          $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
           sleep 10
 
-          consumer_name=$(kubectl --kubeconfig ./mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          ginkgo -v --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=./svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=./mgmt-cluster.kubeconfig -agent-namespace=maestro
+          consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          ginkgo -v --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
