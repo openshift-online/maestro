@@ -60,23 +60,23 @@ jobs:
           kubectl --kubeconfig ./svc-cluster.kubeconfig get pods -A -l app=maestro
           kubectl --kubeconfig ./mgmt-cluster.kubeconfig get pods -A -l app=maestro-agent
 
-  e2e-test:
-    runs-on: ubuntu-latest
-    needs: cluster-access
-    steps:
-    - uses: actions/checkout@v4
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: '>=1.23.0'
-    - name: test
-      run: |
-        curl -fsSL -O https://github.com/knight42/krelay/releases/download/v0.1.2/kubectl-relay_v0.1.2_linux-amd64.tar.gz
-        tar -xzf kubectl-relay_v0.1.2_linux-amd64.tar.gz kubectl-relay
+      # Setup go
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '>=1.23.0'
+      - name: install ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
 
-        oc relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
-        oc relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
-        sleep 10
+      # Running the e2e test
+      - name: e2e test
+        run: |
+          curl -fsSL -O https://github.com/knight42/krelay/releases/download/v0.1.2/kubectl-relay_v0.1.2_linux-amd64.tar.gz
+          tar -xzf kubectl-relay_v0.1.2_linux-amd64.tar.gz kubectl-relay
+          chmod a+x kubectl-relay
+          kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
+          kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
+          sleep 10
 
-        consumer_name=$(kubectl --kubeconfig ./mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-        ginkgo -v --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=./svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=./mgmt-cluster.kubeconfig -agent-namespace=maestro
+          consumer_name=$(kubectl --kubeconfig ./mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          ginkgo -v --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=./svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=./mgmt-cluster.kubeconfig -agent-namespace=maestro
