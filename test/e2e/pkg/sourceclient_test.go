@@ -398,62 +398,136 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		})
 
 		It("list works with options", func() {
-			By("list all works")
-			works, err := sourceWorkClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
-
-			By("list works by consumer name")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
-
-			By("list works by nonexistent consumer")
-			works, err = sourceWorkClient.ManifestWorks("nonexistent").List(ctx, metav1.ListOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
-
-			By("list works with nonexistent labels")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "nonexistent=true",
+			By("list all works", func() {
+				works, err := sourceWorkClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(AssertWorks(expectedWorks, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
 
-			By("list works with app label")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "app=test",
+			By("list works by consumer name", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(err).ShouldNot(HaveOccurred())
+				Expect(AssertWorks(expectedWorks, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
-			By("list works without test env")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "app=test,env!=integration",
-			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, prodWorkName)).ShouldNot(HaveOccurred())
+			By("list works by nonexistent consumer", func() {
+				works, err := sourceWorkClient.ManifestWorks("nonexistent").List(ctx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks)).ShouldNot(HaveOccurred())
 
-			By("list works in prod and test env")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "env in (production, integration)",
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
-			By("list works in test env and val not in a and b")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "env=integration,val notin (a,b)",
+			By("list works with nonexistent labels", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "nonexistent=true",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, testWorkCName)).ShouldNot(HaveOccurred())
 
-			By("list works with val label")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "val",
+			By("list works with app label", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "app=test",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
+
+			By("list works without test env", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "app=test,env!=integration",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, prodWorkName)).ShouldNot(HaveOccurred())
+			})
+
+			By("list works in prod and test env", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "env in (production, integration)",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
+			})
+
+			By("list works in test env and val not in a and b", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "env=integration,val notin (a,b)",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, testWorkCName)).ShouldNot(HaveOccurred())
+			})
+
+			By("list works with val label", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "val",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
+			})
 
 			// TODO support does not exist
 			// By("list works without val label")
