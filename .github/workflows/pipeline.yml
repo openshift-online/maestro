@@ -60,7 +60,7 @@ jobs:
           kubectl --kubeconfig ./svc-cluster.kubeconfig get pods -A -l app=maestro
           kubectl --kubeconfig ./svc-cluster.kubeconfig get service -n maestro
           kubectl --kubeconfig ./mgmt-cluster.kubeconfig get pods -A -l app=maestro-agent
- 
+
       - name: patch the istio
         run: |
           kubectl --kubeconfig ./svc-cluster.kubeconfig patch deploy/maestro -n maestro -p '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeInboundPorts":"8090,8000","traffic.sidecar.istio.io/excludeOutboundPorts":"8090,8000"}}}}}'
@@ -86,8 +86,8 @@ jobs:
       - name: start the e2e test
         run: |
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          ginkgo -v --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
- 
+          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+
       - name: reset the istio annotations
         run: |
           kubectl --kubeconfig ./svc-cluster.kubeconfig patch deploy/maestro -n maestro --type=json -p='[{"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeInboundPorts"}, {"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeOutboundPorts"}]'
