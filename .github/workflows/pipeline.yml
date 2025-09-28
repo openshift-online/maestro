@@ -63,7 +63,7 @@ jobs:
  
       - name: patch the istio
         run: |
-          kubectl --kubeconfig ./svc-cluster.kubeconfig patch deploy/maestro -n maestro -p '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeInboundPorts":"8090","traffic.sidecar.istio.io/excludeOutboundPorts":"8090"}}}}}'
+          kubectl --kubeconfig ./svc-cluster.kubeconfig patch deploy/maestro -n maestro -p '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeInboundPorts":"8090,8000","traffic.sidecar.istio.io/excludeOutboundPorts":"8090,8000"}}}}}'
           kubectl --kubeconfig ./svc-cluster.kubeconfig rollout status deploy/maestro -n maestro --timeout=600s
 
       # Setup go
