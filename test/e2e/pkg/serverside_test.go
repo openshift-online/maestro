@@ -25,7 +25,9 @@ var _ = Describe("ServerSideApply", Ordered, Label("e2e-tests-ssa"), func() {
 	// 	workName := "work-ssa-" + rand.String(5)
 	// 	sleepJobName := fmt.Sprintf("sleep-%s", rand.String(5))
 	// 	manifest := fmt.Sprintf("{\"apiVersion\":\"batch/v1\",\"kind\":\"Job\",\"metadata\":{\"name\":\"%s\",\"namespace\":\"default\"},\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"sleep\",\"image\":\"busybox:1.36\",\"command\":[\"/bin/sh\",\"-c\",\"sleep 10\"]}],\"restartPolicy\":\"Never\"}},\"backoffLimit\":4}}", sleepJobName)
-	// 	It("create the resource with source work client", func() {
+
+	// 	BeforeAll(func() {
+	// 		By("create the resource with source work client")
 	// 		work := &workv1.ManifestWork{
 	// 			ObjectMeta: metav1.ObjectMeta{
 	// 				Name: workName,
@@ -71,6 +73,28 @@ var _ = Describe("ServerSideApply", Ordered, Label("e2e-tests-ssa"), func() {
 	// 		Expect(err).ShouldNot(HaveOccurred())
 	// 	})
 
+	// 	AfterAll(func() {
+	// 		By("delete the resource with source work client")
+	// 		err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+	// 		Expect(err).ShouldNot(HaveOccurred())
+
+	// 		By("check the resource deletion via maestro api")
+	// 		Eventually(func() error {
+	// 			search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+	// 			gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	// 			if err != nil {
+	// 				return err
+	// 			}
+	// 			if resp.StatusCode != http.StatusOK {
+	// 				return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
+	// 			}
+	// 			if len(gotResourceList.Items) != 0 {
+	// 				return fmt.Errorf("expected no resources returned by maestro api")
+	// 			}
+	// 			return nil
+	// 		}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+	// 	})
+
 	// 	It("get the resource via maestro api", func() {
 	// 		search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
 	// 		gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
@@ -107,39 +131,42 @@ var _ = Describe("ServerSideApply", Ordered, Label("e2e-tests-ssa"), func() {
 	// 			return nil
 	// 		}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 	// 	})
-
-	// 	It("delete the resource with source work client", func() {
-	// 		err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-	// 		Expect(err).ShouldNot(HaveOccurred())
-	// 	})
-
-	// 	It("check the resource deletion via maestro api", func() {
-	// 		Eventually(func() error {
-	// 			search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-	// 			gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-	// 			if err != nil {
-	// 				return err
-	// 			}
-	// 			if resp.StatusCode != http.StatusOK {
-	// 				return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-	// 			}
-	// 			if len(gotResourceList.Items) != 0 {
-	// 				return fmt.Errorf("expected no resources returned by maestro api")
-	// 			}
-	// 			return nil
-	// 		}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-	// 	})
 	// })
 
 	Context("Nested Work ServerSideApply Tests", func() {
 		workName := fmt.Sprintf("ssa-work-%s", rand.String(5))
-		It("create a resource with nested work using SSA", func() {
-			nestedWorkName := fmt.Sprintf("nested-work-%s", rand.String(5))
-			nestedWorkNamespace := "default"
+		nestedWorkName := fmt.Sprintf("nested-work-%s", rand.String(5))
+		nestedWorkNamespace := "default"
+		BeforeAll(func() {
+			By("create a resource with nested work using SSA")
 			work := newNestedManifestWork(workName, nestedWorkName, nestedWorkNamespace)
 			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+		})
 
+		AfterAll(func() {
+			By("delete the resource with source work client")
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("check the resource deletion via maestro api")
+			Eventually(func() error {
+				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+				if err != nil {
+					return err
+				}
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
+				}
+				if len(gotResourceList.Items) != 0 {
+					return fmt.Errorf("expected no resources returned by maestro api")
+				}
+				return nil
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+		})
+
+		It("check the nested work is created and not updated", func() {
 			// make sure the nested work is created
 			Eventually(func() error {
 				_, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
@@ -159,28 +186,6 @@ var _ = Describe("ServerSideApply", Ordered, Label("e2e-tests-ssa"), func() {
 
 				return nil
 			}, 1*time.Minute, 1*time.Second).Should(BeNil())
-		})
-
-		It("delete the resource with source work client", func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-		})
-
-		It("check the resource deletion via maestro api", func() {
-			Eventually(func() error {
-				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-				if err != nil {
-					return err
-				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-				}
-				if len(gotResourceList.Items) != 0 {
-					return fmt.Errorf("expected no resources returned by maestro api")
-				}
-				return nil
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 })
