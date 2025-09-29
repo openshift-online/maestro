@@ -20,7 +20,7 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 	Context("Manifestwork CRUD Tests", func() {
 		workName := fmt.Sprintf("work-%s", rand.String(5))
 		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-		It("create a manifestwork with source work client", func() {
+		It("create a manifestwork with via cs-server", func() {
 			err := createWork(workName, deployName)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -36,7 +36,7 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("get the manifestwork via cs api", func() {
+		It("get the manifestwork via cs-server", func() {
 			Eventually(func() error {
 				got, err := getWork(workName)
 				if err != nil {
@@ -67,7 +67,7 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("update the manifestwork via cs api", func() {
+		It("update the manifestwork via cs-server", func() {
 			updating := helper.NewManifestWork(workName, deployName, "default", 2)
 			err := updateWork(workName, updating)
 			Expect(err).ShouldNot(HaveOccurred())
@@ -84,7 +84,7 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the manifestwork via cs api", func() {
+		It("delete the manifestwork via cs-server", func() {
 			err := deleteWork(workName)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -97,7 +97,7 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("check the manifestwork deletion via cs api", func() {
+		It("check the manifestwork deletion via cs-server", func() {
 			Eventually(func() error {
 				_, err := getWork(workName)
 				if err == nil {

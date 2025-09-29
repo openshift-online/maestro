@@ -135,13 +135,10 @@ if [ ! -d "$grpcCertDir" ]; then
 }
 EOF
   step certificate create "maestro-grpc-client" ${grpcCertDir}/client.crt ${grpcCertDir}/client.key --template ${grpcCertDir}/cert.tpl --ca ${grpcCertDir}/ca.crt --ca-key ${grpcCertDir}/ca.key --no-password --insecure
-  kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
 fi
 
-# for the migration test, create the secret in csclient namespace if not exists
-if ! kubectl get secret/maestro-grpc-cert -n csclient >/dev/null 2>&1; then
-  kubectl create secret generic maestro-grpc-cert -n csclient --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
-fi
+kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key || true
+kubectl create secret generic maestro-grpc-cert -n csclient --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key || true
 
 grpcBrokerCertDir="./test/e2e/certs/grpc-broker"
 if [ ! -d "$grpcBrokerCertDir" ]; then
