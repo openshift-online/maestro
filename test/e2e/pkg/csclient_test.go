@@ -20,7 +20,9 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 	Context("Manifestwork CRUD Tests", func() {
 		workName := fmt.Sprintf("work-%s", rand.String(5))
 		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
-		It("create a manifestwork with via cs-server", func() {
+
+		BeforeAll(func() {
+			By("create a manifestwork with via cs-server")
 			err := createWork(workName, deployName)
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -36,7 +38,30 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("get the manifestwork via cs-server", func() {
+		AfterAll(func() {
+			By("delete the manifestwork via cs-server")
+			err := deleteWork(workName)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
+				if err == nil {
+					return fmt.Errorf("deployment %q still exists", deployName)
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			By("check the manifestwork deletion via cs-server")
+			Eventually(func() error {
+				_, err := getWork(workName)
+				if err == nil {
+					return fmt.Errorf("expected work to be deleted")
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+		})
+
+		It("check the manifestwork via cs-server", func() {
 			Eventually(func() error {
 				got, err := getWork(workName)
 				if err != nil {
@@ -79,29 +104,6 @@ var _ = Describe("CSClient", Ordered, Label("e2e-tests-csclient"), func() {
 				}
 				if *deploy.Spec.Replicas != 2 {
 					return fmt.Errorf("unexpected replicas, expected 2, got %d", *deploy.Spec.Replicas)
-				}
-				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("delete the manifestwork via cs-server", func() {
-			err := deleteWork(workName)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			Eventually(func() error {
-				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
-				if err == nil {
-					return fmt.Errorf("deployment %q still exists", deployName)
-				}
-				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("check the manifestwork deletion via cs-server", func() {
-			Eventually(func() error {
-				_, err := getWork(workName)
-				if err == nil {
-					return fmt.Errorf("expected work to be deleted")
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
