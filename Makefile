@@ -451,10 +451,21 @@ e2e-test/teardown:
 	./test/e2e/setup/e2e_teardown.sh
 .PHONY: e2e-test/teardown
 
+# Runs the e2e tests.
+#
+# Args:
+#   TEST_FOCUS: Flags to pass to `ginkgo run`. The `-v` argument is always passed.
+#
+# Example:
+#   make e2e-test/run
+#   make e2e-test/run TEST_FOCUS="--focus=CSClient" run only the CSClient tests
+#   make e2e-test/run TEST_FOCUS="--focus=Resources" run only the Resources tests
+
 e2e-test/run:
-	ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" \
+	ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" $(TEST_FOCUS) \
 	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
+	-cs-server=http://$(shell cat ${PWD}/test/e2e/.external_host_ip):30100 \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
 	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \
 	-server-kubeconfig=${PWD}/test/e2e/.kubeconfig \

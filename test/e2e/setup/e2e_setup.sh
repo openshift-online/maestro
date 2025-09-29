@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# enable istio on the ENABLE_ISTIO env
+enable_istio=${ENABLE_ISTIO:-"false"}
+
 kind_version=0.12.0
 step_version=0.26.2
 istio_version=1.25.5
@@ -42,7 +45,7 @@ if ! command -v step >/dev/null 2>&1; then
     rm -rf ./step_${step_version}_amd64.tar.gz ./step_${step_version}
 fi
 
-if ! command -v istioctl >/dev/null 2>&1; then
+if [ "$enable_istio" = "true" ] && ! command -v istioctl >/dev/null 2>&1; then
     echo "This script will install istioctl (https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/) on your machine."
     curl -L https://istio.io/downloadIstio | ISTIO_VERSION=${istio_version} sh -
     chmod +x ./istio-${istio_version}/bin/istioctl
@@ -62,6 +65,8 @@ nodes:
     hostPort: 30080
   - containerPort: 30090
     hostPort: 30090
+  - containerPort: 30100
+    hostPort: 30100
 EOF
 fi
 
@@ -89,22 +94,19 @@ kubectl create ns openshift-config-managed || true
 kubectl apply -f ./test/e2e/setup/service-ca/
 kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
 
-# 4. install istio
-istioctl install -y \
-  --set profile=default \
-  --set values.gateways.istio-ingressgateway.ports[0].name=https \
-  --set values.gateways.istio-ingressgateway.ports[0].port=443 \
-  --set values.gateways.istio-ingressgateway.ports[0].targetPort=8443 \
-  --set values.gateways.istio-ingressgateway.ports[0].nodePort=30080 \
-  --set values.gateways.istio-ingressgateway.ports[1].name=grpc \
-  --set values.gateways.istio-ingressgateway.ports[1].port=9443 \
-  --set values.gateways.istio-ingressgateway.ports[1].targetPort=9443 \
-  --set values.gateways.istio-ingressgateway.ports[1].nodePort=30090
+# install istio if enabled
+if [ "$enable_istio" = "true" ]; then
+  istioctl install --set profile=minimal -y
+fi
 
-# 4. create maestro and agent namespaces
+# 4. create maestro namespace
 kubectl create namespace $namespace || true
 kubectl label namespace $namespace istio-injection=enabled --overwrite
+# create maestro-agent namespace
 kubectl create namespace ${agent_namespace} || true
+# create csclient namespace
+kubectl create namespace csclient || true
+kubectl label namespace csclient istio-injection=enabled --overwrite
 
 # 5. create a self-signed certificate for mqtt
 mqttCertDir="./test/e2e/certs/mqtt"
@@ -136,6 +138,11 @@ EOF
   kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
 fi
 
+# for the migration test, create the secret in csclient namespace if not exists
+if ! kubectl get secret/maestro-grpc-cert -n csclient >/dev/null 2>&1; then
+  kubectl create secret generic maestro-grpc-cert -n csclient --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
+fi
+
 grpcBrokerCertDir="./test/e2e/certs/grpc-broker"
 if [ ! -d "$grpcBrokerCertDir" ]; then
   mkdir -p $grpcBrokerCertDir
@@ -156,10 +163,10 @@ fi
 # 7. deploy maestro into maestro namespace
 export ENABLE_JWT=false
 export ENABLE_OCM_MOCK=true
-# export maestro_svc_type="NodePort"
-# export maestro_svc_node_port=30080
-# export grpc_svc_type="NodePort"
-# export grpc_svc_node_port=30090
+export maestro_svc_type="NodePort"
+export maestro_svc_node_port=30080
+export grpc_svc_type="NodePort"
+export grpc_svc_node_port=30090
 export liveness_probe_init_delay_seconds=1
 export readiness_probe_init_delay_seconds=1
 export mqtt_user=""
@@ -177,60 +184,12 @@ make deploy-secrets \
 	deploy-mqtt-tls \
 	deploy-service-tls
 
-kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
+# disable grpc tls when istio is enabled because istio provides mutual tls
+if [ "$enable_istio" = "true" ]; then
+  kubectl get deploy/maestro -n $namespace -o json | jq '.spec.template.spec.containers[0].command |= map(select(startswith("--grpc-tls-") | not))' | kubectl apply -f -
+fi
+kubectl wait deploy/maestro-mqtt  --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
-
-# deloy istio gateway and virtual service for maestro
-cat << EOF | kubectl apply -n $namespace -f -
-apiVersion: networking.istio.io/v1beta1
-kind: Gateway
-metadata:
-  name: maestro-gateway
-spec:
-  selector:
-    istio: ingressgateway
-  servers:
-  - port:
-      number: 443
-      name: https
-      protocol: TLS
-    tls:
-      mode: PASSTHROUGH
-    hosts: ["*"]
-  - port:
-      number: 9443
-      name: grpc
-      protocol: TLS
-    tls:
-      mode: PASSTHROUGH
-    hosts: ["*"]
----
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
-metadata:
-  name: maestro-vs
-spec:
-  hosts: ["*"]
-  gateways:
-  - maestro-gateway
-  tls:
-  - match:
-    - port: 443
-      sniHosts: ["*"]
-    route:
-    - destination:
-        host: maestro.$namespace.svc.cluster.local
-        port:
-          number: 8000
-  - match:
-    - port: 9443
-      sniHosts: ["*"]
-    route:
-    - destination:
-        host: maestro-grpc.$namespace.svc.cluster.local
-        port:
-          number: 8090
-EOF
 
 sleep 30 # wait 30 seconds for the service ready
 
@@ -268,3 +227,13 @@ stringData:
 EOF
 
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s
+
+# 10. deploy a client in csclient namespace
+envsubst < ./examples/csclient/deploy.yaml | kubectl apply -f -
+kubectl patch svc/csclient -n csclient -p '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":8080,"nodePort":30100}]}}'
+kubectl wait deploy/csclient -n csclient --for condition=Available=True --timeout=200s
+
+# disable grpc tls when istio is enabled because istio provides mutual tls
+if [ "$enable_istio" = "true" ]; then
+  kubectl get deploy/csclient -n csclient -o json | jq '.spec.template.spec.containers[0].command |= map(select(startswith("--grpc-client-") | not))' | kubectl apply -f -
+fi

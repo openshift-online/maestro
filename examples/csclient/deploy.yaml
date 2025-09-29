@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: csclient
+  namespace: csclient
+  labels:
+    app: csclient
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: csclient
+  template:
+    metadata:
+      labels:
+        app: csclient
+    spec:
+      serviceAccountName: csclient
+      containers:
+        - name: csclient
+          image: quay.io/morvencao/csclient:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          command:
+            - /usr/local/bin/csclient
+            - --source=csclient
+            - --consumer-name=$consumer_name
+            - --maestro-server=https://maestro.maestro:8000
+            - --grpc-server=maestro-grpc.maestro:8090
+            - --grpc-server-ca-file=/config/maestro-grpc-cert/ca.crt
+            - --grpc-client-cert-file=/config/maestro-grpc-cert/client.crt
+            - --grpc-client-key-file=/config/maestro-grpc-cert/client.key
+            - --grpc-client-token-file=/config/csclient-token/token
+          volumeMounts:
+            - name: maestro-grpc-cert
+              mountPath: /config/maestro-grpc-cert
+              readOnly: true
+            - name: csclient-token
+              mountPath: /config/csclient-token
+              readOnly: true
+      volumes:
+        - name: maestro-grpc-cert
+          secret:
+            secretName: maestro-grpc-cert
+            items:
+              - key: ca.crt
+                path: ca.crt
+              - key: client.crt
+                path: client.crt
+              - key: client.key
+                path: client.key
+        - name: csclient-token
+          secret:
+            secretName: csclient-token
+            items:
+              - key: token
+                path: token
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: csclient
+  namespace: csclient
+  labels:
+    app: csclient
+spec:
+  selector:
+    app: csclient
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+  type: ClusterIP
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: csclient-pub-sub
+rules:
+- nonResourceURLs:
+  - /sources/csclient
+  verbs:
+  - pub
+  - sub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: csclient-pub-sub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: csclient-pub-sub
+subjects:
+- kind: ServiceAccount
+  name: csclient
+  namespace: csclient
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: csclient
+  namespace: csclient
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: csclient-token
+  namespace: csclient
+  annotations:
+    kubernetes.io/service-account.name: csclient
+type: kubernetes.io/service-account-token
