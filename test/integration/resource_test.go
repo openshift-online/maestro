@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	cloudevents "github.com/cloudevents/sdk-go/v2"
 	jsonpatch "github.com/evanphx/json-patch"
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
@@ -23,8 +24,10 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/api"
@@ -462,6 +465,39 @@ func TestResourceFromGRPC(t *testing.T) {
 	}
 }
 
+func TestMarkAsDeletingThenUpdate(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// Create a consumer and resource
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
+	Expect(err).NotTo(HaveOccurred())
+
+	resourceService := h.Env().Services.Resources()
+	err = resourceService.MarkAsDeleting(ctx, resource.ID)
+	Expect(err).NotTo(HaveOccurred())
+
+	statusRes := &api.Resource{
+		Meta: api.Meta{
+			ID: resource.ID,
+		},
+		Version: resource.Version,
+		Status:  createStatusWithSequenceID(t, h, resource.ID, fmt.Sprintf("%d", 1)),
+	}
+	_, updated, svcErr := resourceService.UpdateStatus(ctx, statusRes)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(updated).Should(Equal(true))
+
+	res, err := resourceService.Get(ctx, resource.ID)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(len(res.Status)).ShouldNot(Equal(0))
+}
+
 func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkInterface, work *workv1.ManifestWork, newStatus workv1.ManifestWorkStatus) error {
 	// update the work status
 	newWork := work.DeepCopy()
@@ -488,4 +524,46 @@ func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkI
 	}
 
 	return nil
+}
+
+// createStatusWithSequenceID creates a resource status CloudEvent with the given sequence ID
+func createStatusWithSequenceID(t *testing.T, h *test.Helper, resourceID, sequenceID string) map[string]interface{} {
+	source := "test-agent"
+	eventType := cetypes.CloudEventsType{
+		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
+		SubResource:         cetypes.SubResourceStatus,
+		Action:              cetypes.UpdateRequestAction,
+	}
+
+	// Create a cloud event with status data
+	evtBuilder := cetypes.NewEventBuilder(source, eventType).
+		WithResourceID(resourceID).
+		WithResourceVersion(1).
+		WithStatusUpdateSequenceID(sequenceID)
+
+	evt := evtBuilder.NewEvent()
+
+	// Create a simple status payload
+	statusPayload := &workpayload.ManifestBundleStatus{
+		Conditions: []metav1.Condition{
+			{
+				Type:    "Applied",
+				Status:  "True",
+				Message: fmt.Sprintf("Test status update with sequence %s", sequenceID),
+			},
+		},
+	}
+
+	// Set the event data
+	if err := evt.SetData(cloudevents.ApplicationJSON, statusPayload); err != nil {
+		t.Fatalf("failed to set cloud event data: %v", err)
+	}
+
+	// Convert cloudevent to JSONMap
+	statusMap, err := api.CloudEventToJSONMap(&evt)
+	if err != nil {
+		t.Fatalf("failed to convert cloudevent to status map: %v", err)
+	}
+
+	return statusMap
 }

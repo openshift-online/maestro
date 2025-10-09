@@ -51,7 +51,7 @@ func (d *sqlResourceDao) Create(ctx context.Context, resource *api.Resource) (*a
 
 func (d *sqlResourceDao) Update(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Omit(clause.Associations).Updates(resource).Error; err != nil {
+	if err := g2.Unscoped().Omit(clause.Associations).Updates(resource).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}
