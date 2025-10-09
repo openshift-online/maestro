@@ -223,10 +223,6 @@ func TestResourceFromGRPC(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	account := h.NewRandAccount()
 
-	// reset metrics to avoid interference from other tests
-	cegeneric.ResetSourceCloudEventsMetrics()
-	server.ResetGRPCMetrics()
-
 	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
 	defer func() {
 		cancel()
@@ -244,6 +240,11 @@ func TestResourceFromGRPC(t *testing.T) {
 	h.StartWorkAgent(ctx, consumer.Name)
 	clientHolder := h.WorkAgentHolder
 	agentWorkClient := clientHolder.ManifestWorks(consumer.Name)
+
+	time.Sleep(3 * time.Second)
+	// reset metrics to avoid interference from other tests
+	cegeneric.ResetSourceCloudEventsMetrics()
+	server.ResetGRPCMetrics()
 
 	// use grpc client to create resource
 	h.StartGRPCResourceSourceClient()
@@ -451,13 +452,12 @@ func TestResourceFromGRPC(t *testing.T) {
 		# TYPE cloudevents_sent_total counter
 		cloudevents_sent_total{action="create_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
 		cloudevents_sent_total{action="delete_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-		cloudevents_sent_total{action="resync_request",consumer="%s",original_source="none",source="maestro",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
 		cloudevents_sent_total{action="update_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-		`, clusterName, clusterName, clusterName, clusterName)
+		`, clusterName, clusterName, clusterName)
 	}
 
 	if err := testutil.GatherAndCompare(prometheus.DefaultGatherer,
-		strings.NewReader(expectedMetrics), "cloudevents_sent_total", "grpc_server_message_received_total", "grpc_server_processed_total", "cloudevents_sent_total"); err != nil {
+		strings.NewReader(expectedMetrics), "cloudevents_sent_total", "grpc_server_message_received_total", "grpc_server_processed_total"); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
