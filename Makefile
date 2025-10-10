@@ -468,3 +468,10 @@ e2e-test: e2e-test/teardown e2e-test/setup e2e-test/run
 migration-test: e2e-test/teardown
 	./test/e2e/migration/test.sh
 .PHONY: migration-test
+
+e2e/rollout:
+ifndef KUBECONFIG
+	$(error "Must set KUBECONFIG")
+endif
+	KUBECONFIG=$(KUBECONFIG) ./test/e2e/setup/roll_out.sh
+.PHONY: e2e/rollout
