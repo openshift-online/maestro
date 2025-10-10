@@ -61,6 +61,39 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
+		DeferCleanup(func() {
+			// note: wait some time to ensure source work client is connected to the restarted maestro server
+			Eventually(func() error {
+				return sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
+				if err != nil {
+					if errors.IsNotFound(err) {
+						return nil
+					}
+					return err
+				}
+				return fmt.Errorf("nginx deployment still exists")
+			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+				if err != nil {
+					return err
+				}
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
+				}
+				if len(gotResourceList.Items) != 0 {
+					return fmt.Errorf("expected no resources returned by maestro api")
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+		})
+
 		It("shut down maestro server", func() {
 			deploy, err := serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Get(ctx, "maestro", metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -70,6 +103,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			deploy, err = serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Patch(ctx, "maestro", types.MergePatchType, []byte(`{"spec":{"replicas":0}}`), metav1.PatchOptions{
 				FieldManager: "serverTestOpts.kubeClientSet",
 			})
+
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(*deploy.Spec.Replicas).To(Equal(int32(0)))
 
@@ -86,6 +120,17 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+		})
+
+		DeferCleanup(func() {
+			deploy, _ := serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Get(ctx, "maestro", metav1.GetOptions{})
+			if *deploy.Spec.Replicas == 0 {
+				// patch maestro server replicas back
+				_, err := serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Patch(ctx, "maestro", types.MergePatchType, []byte(fmt.Sprintf(`{"spec":{"replicas":%d}}`, maestroServerReplicas)), metav1.PatchOptions{
+					FieldManager: "serverTestOpts.kubeClientSet",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 		})
 
 		It("create serviceaccount for deployment", func() {
@@ -156,41 +201,6 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 
 				return fmt.Errorf("unexpected status")
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("delete the resource with source work client", func() {
-			// note: wait some time to ensure source work client is connected to the restarted maestro server
-			Eventually(func() error {
-				return sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
-
-			Eventually(func() error {
-				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
-				if err != nil {
-					if errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
-				return fmt.Errorf("nginx deployment still exists")
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("check the resource deletion via maestro api", func() {
-			Eventually(func() error {
-				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-				if err != nil {
-					return err
-				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-				}
-				if len(gotResourceList.Items) != 0 {
-					return fmt.Errorf("expected no resources returned by maestro api")
-				}
-				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 })
