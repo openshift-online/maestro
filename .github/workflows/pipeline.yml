@@ -75,20 +75,53 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.0
 
       # Running the e2e test
-      - name: setup the relay
+      - name: setup the relay and jq
         run: |
+          apt install -y jq
           curl -fsSL -O https://github.com/knight42/krelay/releases/download/v0.1.2/kubectl-relay_v0.1.2_linux-amd64.tar.gz
           tar -xzf kubectl-relay_v0.1.2_linux-amd64.tar.gz kubectl-relay
           chmod a+x kubectl-relay
           $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
           $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
           sleep 20
+
       - name: start the e2e test
         run: |
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
           ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
 
+      - name: start to upgrade server
+        run: |
+          KUBECONFIG=$(pwd)/svc-cluster.kubeconfig make e2e/rollout
+          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          if [ $? != 0 ]; then
+            exit 1
+          fi
+
+      - name: start to upgrade agent
+        run: |
+          KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig make e2e/rollout
+          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          if [ $? != 0 ]; then
+            exit 1
+          fi
+
+      - name: Post a message in a channel
+        uses: slackapi/slack-github-action@v2.1.1
+        if: always()
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "*GitHub Action build result*: ${{ job.status }}\n"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "GitHub Action build result: ${{ job.status }}\n"
+
       - name: reset the istio annotations
+        if: always()
         run: |
           kubectl --kubeconfig ./svc-cluster.kubeconfig patch deploy/maestro -n maestro --type=json -p='[{"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeInboundPorts"}, {"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeOutboundPorts"}]'
           kubectl --kubeconfig ./svc-cluster.kubeconfig rollout status deploy/maestro -n maestro --timeout=600s
