@@ -14,10 +14,8 @@ import (
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
@@ -292,10 +290,10 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		}
 	}()
 
-	clientID, errChan := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
+	clientID := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
 		evt, err := encodeResourceStatus(res)
 		if err != nil {
-			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
+			return fmt.Errorf("failed to encode cloudevent: %v", err)
 		}
 
 		log.Infof("send the event to status subscribers, %s", evt.Context)
@@ -310,7 +308,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		select {
 		case eventCh <- pbEvt:
 		case <-ctx.Done():
-			return status.Error(codes.Unavailable, "stream context canceled")
+			return nil
 		}
 
 		return nil
@@ -341,15 +339,11 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 	}()
 
 	select {
-	case err := <-errChan:
-		log.Errorf("unregistering client %s due to error= %v", clientID, err)
-		svr.eventBroadcaster.Unregister(clientID)
-		return err
 	case err := <-sendErrCh:
 		log.Errorf("failed to send event, unregister subscriber %s, error=%v", clientID, err)
 		svr.eventBroadcaster.Unregister(clientID)
 		return err
-	case <-subServer.Context().Done():
+	case <-ctx.Done():
 		svr.eventBroadcaster.Unregister(clientID)
 		return nil
 	}
