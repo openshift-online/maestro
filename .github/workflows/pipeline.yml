@@ -75,11 +75,15 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.0
 
       # Running the e2e test
-      - name: setup the kube port-forward and jq
+      # (TODO), will check to see if we can deprecate the kube relay later.
+      - name: setup the relay and jq
         run: |
           sudo apt install -y jq
-          kubectl --kubeconfig ./svc-cluster.kubeconfig port-forward -n maestro svc/maestro 8000:8000 &
-          kubectl --kubeconfig ./svc-cluster.kubeconfig port-forward -n maestro svc/maestro-grpc 8090:8090 &
+          curl -fsSL -O https://github.com/knight42/krelay/releases/download/v0.1.2/kubectl-relay_v0.1.2_linux-amd64.tar.gz
+          tar -xzf kubectl-relay_v0.1.2_linux-amd64.tar.gz kubectl-relay
+          chmod a+x kubectl-relay
+          $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
+          $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
           sleep 20
 
       - name: start the e2e test
@@ -102,6 +106,12 @@ jobs:
           if [ $? != 0 ]; then
             exit 1
           fi
+
+      # (TODO), will check to see if we can deprecate the kube relay later.
+      - name: delete the relay server
+        if: always()
+        run: |
+          kubectl --kubeconfig ./svc-cluster.kubeconfig delete pods -l app=krelay-server
 
       - name: Post a message in a channel
         uses: slackapi/slack-github-action@v2.1.1
