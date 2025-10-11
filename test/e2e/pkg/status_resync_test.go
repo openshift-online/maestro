@@ -21,7 +21,9 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 		workName := fmt.Sprintf("work-%s", rand.String(5))
 		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 		work := helper.NewManifestWork(workName, deployName, deployName, 1)
-		It("create a resource with source work client", func() {
+
+		BeforeAll(func() {
+			By("create a resource with source work client")
 			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -158,7 +160,8 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the resource with source work client", func() {
+		AfterAll(func() {
+			By("delete the resource with source work client")
 			// note: wait some time to ensure source work client is connected to the restarted maestro server
 			Eventually(func() error {
 				return sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
@@ -174,9 +177,8 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 				return fmt.Errorf("nginx deployment still exists")
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
-		})
 
-		It("check the resource deletion via maestro api", func() {
+			By("check the resource deletion via maestro api")
 			Eventually(func() error {
 				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
 				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()

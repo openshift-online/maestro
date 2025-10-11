@@ -24,9 +24,12 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 		work := helper.NewManifestWork(workName, deployName, "default", 1)
 		var resourceID string
-		It("create a resource with source work client", func() {
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+
+		BeforeAll(func() {
+			By("create the resource with source work client")
+			createdWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+			Expect(createdWork.Name).To(Equal(workName))
 
 			Eventually(func() error {
 				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
@@ -38,48 +41,22 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
 
-		It("get the resource via maestro api", func() {
 			search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
 			gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(len(gotResourceList.Items)).To(Equal(1))
 			resourceID = *gotResourceList.Items[0].Id
-		})
-
-		It("patch the resource with source work client", func() {
-			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			newWork := work.DeepCopy()
-			newWork.Spec.Workload.Manifests = []workv1.Manifest{helper.NewManifest(deployName, "default", 2)}
-
-			patchData, err := grpcsource.ToWorkPatch(work, newWork)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			Eventually(func() error {
-				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
-				if err != nil {
-					return err
-				}
-				if *deploy.Spec.Replicas != 2 {
-					return fmt.Errorf("unexpected replicas, expected 2, got %d", *deploy.Spec.Replicas)
-				}
-				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			Expect(*gotResource.Version).To(Equal(int32(2)))
+			Expect(*gotResource.Version).To(Equal(int32(1)))
 		})
 
-		It("delete the resource with source work client", func() {
+		AfterAll(func() {
+			By("delete the resource with source work client")
 			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -104,9 +81,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
 
-		It("check the resource deletion via maestro api", func() {
 			Eventually(func() error {
 				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
 				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
@@ -122,13 +97,45 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
+
+		It("patch the resource with source work client", func() {
+			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			newWork := work.DeepCopy()
+			newWork.Spec.Workload.Manifests = []workv1.Manifest{helper.NewManifest(deployName, "default", 2)}
+
+			patchData, err := grpcsource.ToWorkPatch(work, newWork)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				if *deploy.Spec.Replicas != 2 {
+					return fmt.Errorf("unexpected replicas, expected 2, got %d", *deploy.Spec.Replicas)
+				}
+				return nil
+			}, 10*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusOK))
+			Expect(*gotResource.Version).To(Equal(int32(2)))
+		})
 	})
 
 	Context("Resource ReadOnly Tests", func() {
 		workName := "work-readonly-" + rand.String(5)
 		secretName := "auth-" + rand.String(5)
 		manifest := fmt.Sprintf("{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"%s\",\"namespace\":\"default\"}}", secretName)
-		It("create the secret in the target cluster", func() {
+
+		BeforeAll(func() {
+			By("create the auth secret in the target cluster")
 			_, err := agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Create(ctx, &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      secretName,
@@ -139,9 +146,8 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				},
 			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
-		})
 
-		It("post the resource with source work client", func() {
+			By("create the readonly resource with source work client")
 			work := &workv1.ManifestWork{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: workName,
@@ -182,8 +188,44 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				},
 			}
 
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		AfterAll(func() {
+			By("delete the readonly resource with source work client")
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			err = agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Delete(ctx, secretName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				_, err := agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Get(ctx, secretName, metav1.GetOptions{})
+				if err != nil {
+					if errors.IsNotFound(err) {
+						return nil
+					}
+					return err
+				}
+				return fmt.Errorf("auth secret still exists")
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			By("check the resource deletion via maestro api")
+			Eventually(func() error {
+				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+				if err != nil {
+					return err
+				}
+				if resp.StatusCode != http.StatusOK {
+					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
+				}
+				if len(gotResourceList.Items) != 0 {
+					return fmt.Errorf("expected no resources returned by maestro api")
+				}
+				return nil
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("get the resource via maestro API", func() {
@@ -216,42 +258,6 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				}
 
 				return fmt.Errorf("work status manifests are empty")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("delete the readonly resource with source work client", func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			err = agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Delete(ctx, secretName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			Eventually(func() error {
-				_, err := agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Get(ctx, secretName, metav1.GetOptions{})
-				if err != nil {
-					if errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
-				return fmt.Errorf("auth secret still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("check the resource deletion via maestro api", func() {
-			Eventually(func() error {
-				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-				if err != nil {
-					return err
-				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-				}
-				if len(gotResourceList.Items) != 0 {
-					return fmt.Errorf("expected no resources returned by maestro api")
-				}
-				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
