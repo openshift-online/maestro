@@ -83,7 +83,10 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				if err != nil {
 					return err
 				}
-				if len(pods.Items) > 0 {
+				for _, pod := range pods.Items {
+					if pod.Status.Phase == corev1.PodSucceeded {
+						continue
+					}
 					return fmt.Errorf("maestro server pods still running")
 				}
 				return nil
