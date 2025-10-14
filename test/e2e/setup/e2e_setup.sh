@@ -14,8 +14,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# enable istio on the ENABLE_ISTIO env
+enable_istio=${ENABLE_ISTIO:-"false"}
+
 kind_version=0.12.0
 step_version=0.26.2
+istio_version=1.25.5
 
 export namespace="maestro"
 export agent_namespace="maestro-agent"
@@ -41,6 +45,14 @@ if ! command -v step >/dev/null 2>&1; then
     rm -rf ./step_${step_version}_amd64.tar.gz ./step_${step_version}
 fi
 
+if [ "$enable_istio" = "true" ] && ! command -v istioctl >/dev/null 2>&1; then
+    echo "This script will install istioctl (https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/) on your machine."
+    curl -L https://istio.io/downloadIstio | ISTIO_VERSION=${istio_version} sh -
+    chmod +x ./istio-${istio_version}/bin/istioctl
+    sudo mv ./istio-${istio_version}/bin/istioctl /usr/local/bin/istioctl
+    rm -rf ./istio-${istio_version}
+fi
+
 # 1. create KinD cluster
 if [ ! -f "$KUBECONFIG" ]; then
   cat << EOF | kind create cluster --name maestro --kubeconfig ${KUBECONFIG} --config=-
@@ -53,24 +65,32 @@ nodes:
     hostPort: 30080
   - containerPort: 30090
     hostPort: 30090
+  - containerPort: 30100
+    hostPort: 30100
 EOF
 fi
 
 # 2. build maestro image and load to KinD cluster
 if [ $external_image_registry == "image-registry.testing" ]; then
-  make image
+  make image csclient-image
   # related issue: https://github.com/kubernetes-sigs/kind/issues/2038
   if command -v docker &> /dev/null; then
       kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
+      kind load docker-image ${external_image_registry}/${namespace}/maestro-csclient:$image_tag --name maestro
   elif command -v podman &> /dev/null; then
       podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
       kind load image-archive /tmp/maestro.tar --name maestro 
       rm /tmp/maestro.tar
+      podman save ${external_image_registry}/${namespace}/maestro-csclient:$image_tag -o /tmp/maestro-csclient.tar
+      kind load image-archive /tmp/maestro-csclient.tar --name maestro
+      rm /tmp/maestro-csclient.tar
   else 
       echo "Neither Docker nor Podman is installed, exiting"
       exit 1
   fi
 fi
+
+export csclient_image=${external_image_registry}/${namespace}/maestro-csclient:$image_tag
 
 # 3. deploy service-ca
 kubectl label node maestro-control-plane node-role.kubernetes.io/master= --overwrite
@@ -80,9 +100,19 @@ kubectl create ns openshift-config-managed || true
 kubectl apply -f ./test/e2e/setup/service-ca/
 kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
 
-# 4. create maestro and agent namespaces
+# install istio if enabled
+if [ "$enable_istio" = "true" ]; then
+  istioctl install --set profile=minimal -y
+fi
+
+# 4. create maestro namespace
 kubectl create namespace $namespace || true
+kubectl label namespace $namespace istio-injection=enabled --overwrite
+# create maestro-agent namespace
 kubectl create namespace ${agent_namespace} || true
+# create csclient namespace
+kubectl create namespace csclient || true
+kubectl label namespace csclient istio-injection=enabled --overwrite
 
 # 5. create a self-signed certificate for mqtt
 mqttCertDir="./test/e2e/certs/mqtt"
@@ -111,8 +141,10 @@ if [ ! -d "$grpcCertDir" ]; then
 }
 EOF
   step certificate create "maestro-grpc-client" ${grpcCertDir}/client.crt ${grpcCertDir}/client.key --template ${grpcCertDir}/cert.tpl --ca ${grpcCertDir}/ca.crt --ca-key ${grpcCertDir}/ca.key --no-password --insecure
-  kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
 fi
+
+kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key || true
+kubectl create secret generic maestro-grpc-cert -n csclient --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key || true
 
 grpcBrokerCertDir="./test/e2e/certs/grpc-broker"
 if [ ! -d "$grpcBrokerCertDir" ]; then
@@ -155,7 +187,11 @@ make deploy-secrets \
 	deploy-mqtt-tls \
 	deploy-service-tls
 
-kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
+# disable grpc tls when istio is enabled because istio provides mutual tls
+if [ "$enable_istio" = "true" ]; then
+  kubectl get deploy/maestro -n $namespace -o json | jq '.spec.template.spec.containers[0].command |= map(select(startswith("--grpc-tls-") | not))' | kubectl apply -f -
+fi
+kubectl wait deploy/maestro-mqtt  --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
 sleep 30 # wait 30 seconds for the service ready
@@ -194,3 +230,13 @@ stringData:
 EOF
 
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s
+
+# 10. deploy a client in csclient namespace
+envsubst < ./examples/csclient/deploy.yaml | kubectl apply -f -
+kubectl patch svc/csclient -n csclient -p '{"spec":{"type":"NodePort","ports":[{"port":80,"targetPort":8080,"nodePort":30100}]}}'
+kubectl wait deploy/csclient -n csclient --for condition=Available=True --timeout=200s
+
+# disable grpc tls when istio is enabled because istio provides mutual tls
+if [ "$enable_istio" = "true" ]; then
+  kubectl get deploy/csclient -n csclient -o json | jq '.spec.template.spec.containers[0].command |= map(select(startswith("--grpc-client-") | not))' | kubectl apply -f -
+fi

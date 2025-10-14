@@ -54,6 +54,7 @@ type serverTestOptions struct {
 var (
 	serverTestOpts    *serverTestOptions
 	agentTestOpts     *agentTestOptions
+	csServerAddress   string
 	apiServerAddress  string
 	apiClient         *openapi.APIClient
 	grpcServerAddress string
@@ -77,6 +78,7 @@ func TestE2E(t *testing.T) {
 func init() {
 	serverTestOpts = &serverTestOptions{}
 	agentTestOpts = &agentTestOptions{}
+	flag.StringVar(&csServerAddress, "cs-server", "", "CS API server address")
 	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro Restful API server address")
 	flag.StringVar(&grpcServerAddress, "grpc-server", "", "Maestro gRPC server address")
 	flag.StringVar(&serverTestOpts.serverNamespace, "server-namespace", "maestro", "Namespace where the maestro server is running")
