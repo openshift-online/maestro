@@ -436,6 +436,9 @@ func TestResourceFromGRPC(t *testing.T) {
 	time.Sleep(3 * time.Second)
 
 	expectedMetrics := `
+	# HELP grpc_server_registered_source_clients Number of registered source clients on the grpc server.
+    # TYPE grpc_server_registered_source_clients gauge
+	grpc_server_registered_source_clients{source="maestro"} 1
 	# HELP grpc_server_called_total Total number of RPCs called on the server.
 	# TYPE grpc_server_called_total counter
 	grpc_server_called_total{code="OK",source="maestro",type="Publish"} 3
@@ -453,14 +456,14 @@ func TestResourceFromGRPC(t *testing.T) {
 		expectedMetrics += fmt.Sprintf(`
 		# HELP cloudevents_sent_total The total number of CloudEvents sent from source.
 		# TYPE cloudevents_sent_total counter
-		cloudevents_sent_total{action="create_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-		cloudevents_sent_total{action="delete_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-		cloudevents_sent_total{action="update_request",consumer="%s",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+		cloudevents_sent_total{action="create_request",consumer="%s",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+		cloudevents_sent_total{action="delete_request",consumer="%s",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+		cloudevents_sent_total{action="update_request",consumer="%s",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
 		`, clusterName, clusterName, clusterName)
 	}
 
 	if err := testutil.GatherAndCompare(prometheus.DefaultGatherer,
-		strings.NewReader(expectedMetrics), "cloudevents_sent_total", "grpc_server_message_received_total", "grpc_server_processed_total"); err != nil {
+		strings.NewReader(expectedMetrics), "cloudevents_sent_total", "grpc_server_registered_source_clients", "grpc_server_message_received_total", "grpc_server_processed_total"); err != nil {
 		t.Errorf("unexpected metrics: %v", err)
 	}
 }
