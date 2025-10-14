@@ -72,19 +72,25 @@ fi
 
 # 2. build maestro image and load to KinD cluster
 if [ $external_image_registry == "image-registry.testing" ]; then
-  make image
+  make image csclient-image
   # related issue: https://github.com/kubernetes-sigs/kind/issues/2038
   if command -v docker &> /dev/null; then
       kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
+      kind load docker-image ${external_image_registry}/${namespace}/maestro-csclient:$image_tag --name maestro
   elif command -v podman &> /dev/null; then
       podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
       kind load image-archive /tmp/maestro.tar --name maestro 
       rm /tmp/maestro.tar
+      podman save ${external_image_registry}/${namespace}/maestro-csclient:$image_tag -o /tmp/maestro-csclient.tar
+      kind load image-archive /tmp/maestro-csclient.tar --name maestro
+      rm /tmp/maestro-csclient.tar
   else 
       echo "Neither Docker nor Podman is installed, exiting"
       exit 1
   fi
 fi
+
+export csclient_image=${external_image_registry}/${namespace}/maestro-csclient:$image_tag
 
 # 3. deploy service-ca
 kubectl label node maestro-control-plane node-role.kubernetes.io/master= --overwrite

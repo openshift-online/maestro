@@ -358,6 +358,10 @@ agent-project:
 image: cmds
 	$(container_tool) build -t "$(external_image_registry)/$(image_repository):$(image_tag)" .
 
+.PHONY: csclient-image
+csclient-image:
+	$(container_tool) build -f examples/csclient/Dockerfile -t "$(external_image_registry)/$(image_repository)-csclient:$(image_tag)" .
+
 .PHONY: push
 push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"

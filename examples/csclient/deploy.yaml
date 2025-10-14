@@ -18,8 +18,8 @@ spec:
       serviceAccountName: csclient
       containers:
         - name: csclient
-          image: quay.io/morvencao/csclient:latest
-          imagePullPolicy: Always
+          image: $csclient_image
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
           command:
