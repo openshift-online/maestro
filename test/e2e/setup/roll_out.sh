@@ -18,7 +18,7 @@ if [ $(kubectl get deploy -n maestro -l app=maestro --no-headers | wc -l | sed '
     image_sha=$(echo -n $maestro_current_image | awk -F ':' '{print $2}')
     if [ $image_sha != $maestro_latest_image_sha ]; then
         # Roll out the maestro
-        kubectl set image deploy/maestro -n maestro *=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro@sha256:$maestro_latest_image_sha
+        kubectl set image deploy/maestro -n maestro *=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro:$maestro_latest_image_sha
         kubectl rollout status deploy/maestro -n maestro --timeout=600s
     fi
 fi
@@ -33,7 +33,7 @@ if [ $(kubectl get deploy -n maestro -l app=maestro-agent --no-headers | wc -l |
     image_sha=$(echo -n $maestro_current_image | awk -F ':' '{print $2}')
     if [ $image_sha != $maestro_latest_image_sha ]; then
         # Roll out the maestro
-        kubectl set image deploy/maestro-agent -n maestro *=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro@sha256:$maestro_latest_image_sha
+        kubectl set image deploy/maestro-agent -n maestro maestro-agent=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro:$maestro_latest_image_sha
         kubectl rollout status deploy/maestro-agent -n maestro --timeout=600s
     fi
 fi
