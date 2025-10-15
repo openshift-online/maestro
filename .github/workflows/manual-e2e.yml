@@ -1,14 +1,28 @@
-name: Maestro Long Running Test
+name: Manual E2E Test
 
 on:
-  schedule:
-  - cron: '0 2 * * *'  # run every day
-
-  # Allow manual triggering of the workflow
+  # Allow manual triggering with input parameters
   workflow_dispatch:
+    inputs:
+      svc_resource_group:
+        description: 'Service cluster Azure resource group'
+        required: true
+        type: string
+      svc_cluster_name:
+        description: 'Service cluster AKS name'
+        required: true
+        type: string
+      mgmt_resource_group:
+        description: 'Management cluster Azure resource group'
+        required: true
+        type: string
+      mgmt_cluster_name:
+        description: 'Management cluster AKS name'
+        required: true
+        type: string
 
 jobs:
-  longrunning-cluster-e2e:
+  manual-cluster-e2e:
     runs-on: ubuntu-latest
     permissions:
       id-token: 'write'
@@ -34,17 +48,17 @@ jobs:
           az aks install-cli
           kubelogin --version
 
-      # Get AKS credentials
+      # Get AKS credentials using input parameters
       - name: Get AKS credentials
         run: |
           az aks get-credentials \
-            --resource-group ${{ secrets.SVC_RESOURCE_GROUP }} \
-            --name ${{ secrets.SVC_CLUSTER_NAME }} \
+            --resource-group ${{ inputs.svc_resource_group }} \
+            --name ${{ inputs.svc_cluster_name }} \
             --overwrite-existing \
             -f ./svc-cluster.kubeconfig
           az aks get-credentials \
-            --resource-group ${{ secrets.MGMT_RESOURCE_GROUP }} \
-            --name ${{ secrets.MGMT_CLUSTER_NAME }} \
+            --resource-group ${{ inputs.mgmt_resource_group }} \
+            --name ${{ inputs.mgmt_cluster_name }} \
             --overwrite-existing \
             -f ./mgmt-cluster.kubeconfig
 
@@ -122,12 +136,12 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
-            text: "*GitHub Action build result*: ${{ job.status }}\n"
+            text: "*Manual E2E Test Result*: ${{ job.status }}\nClusters: SVC=${{ inputs.svc_cluster_name }}, MGMT=${{ inputs.mgmt_cluster_name }}\n"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "GitHub Action build result: ${{ job.status }}\n"
+                  text: "Manual E2E Test Result: ${{ job.status }}\n*Service Cluster*: ${{ inputs.svc_cluster_name }} (RG: ${{ inputs.svc_resource_group }})\n*Management Cluster*: ${{ inputs.mgmt_cluster_name }} (RG: ${{ inputs.mgmt_resource_group }})\n"
 
       - name: reset the istio annotations
         if: always()
