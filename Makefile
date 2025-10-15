@@ -245,7 +245,7 @@ test-integration-mqtt:
 .PHONY: test-integration-mqtt
 
 test-integration-grpc:
-	BROKER=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	BROKER=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-grpc
 
@@ -428,7 +428,7 @@ db/teardown:
 
 .PHONY: mqtt/prepare
 mqtt/prepare:
-	@echo $(shell LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 13) > $(mqtt_password_file)
+	@openssl rand -base64 13 | tr -dc 'a-zA-Z0-9' | head -c 13 > $(mqtt_password_file)
 
 .PHONY: mqtt/setup
 mqtt/setup: mqtt/prepare
