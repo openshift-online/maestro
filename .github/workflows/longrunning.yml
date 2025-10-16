@@ -89,12 +89,12 @@ jobs:
       - name: start the e2e test
         run: |
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect||e2e-tests-csclient)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
 
       - name: start to upgrade server
         run: |
           KUBECONFIG=$(pwd)/svc-cluster.kubeconfig make e2e/rollout
-          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect||e2e-tests-csclient)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
           if [ $? != 0 ]; then
             exit 1
           fi
@@ -102,7 +102,7 @@ jobs:
       - name: start to upgrade agent
         run: |
           KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig make e2e/rollout
-          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect||e2e-tests-csclient)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
           if [ $? != 0 ]; then
             exit 1
           fi

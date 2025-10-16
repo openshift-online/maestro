@@ -45,6 +45,9 @@ nodes:
 EOF
 pushd $output_dir/maestro
 git checkout $commit_sha
+# build and load the csclient image for the old version
+image_tag=$commit_sha external_image_registry=$img_registry internal_image_registry=$img_registry namespace=maestro make csclient-image
+kind load docker-image ${img_registry}/maestro/maestro-csclient:${commit_sha} --name maestro
 image_tag=$commit_sha external_image_registry=$img_registry internal_image_registry=$img_registry make e2e-test/setup e2e-test/run
 popd
 
