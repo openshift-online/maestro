@@ -63,3 +63,6 @@ test/e2e/certs
 unit-test-results.json
 *integration-test-results.json
 test/e2e/setup/aro/aro-hcp
+
+# Ignore troubleshooting logs
+trace_request.*.log
