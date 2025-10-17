@@ -490,7 +490,7 @@ func TestMarkAsDeletingThenUpdate(t *testing.T) {
 			ID: resource.ID,
 		},
 		Version: resource.Version,
-		Status:  createStatusWithSequenceID(t, h, resource.ID, fmt.Sprintf("%d", 1)),
+		Status:  createStatusWithSequenceID(t, resource.ID, fmt.Sprintf("%d", 1)),
 	}
 	_, updated, svcErr := resourceService.UpdateStatus(ctx, statusRes)
 	Expect(svcErr).NotTo(HaveOccurred())
@@ -529,8 +529,118 @@ func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkI
 	return nil
 }
 
+// TestUpdateAndUpdateStatusIsolation ensures that Update and UpdateStatus operations
+// work independently without affecting each other. Specifically:
+// 1. Create a resource
+// 2. Update the status
+// 3. Update the resource payload
+// 4. Verify the status from step 2 is preserved and not affected by the payload update
+func TestUpdateAndUpdateStatusIsolation(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	account := h.NewRandAccount()
+	ctx := h.NewAuthenticatedContext(account)
+
+	// Step 1: Create a resource
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(resource.Version).To(Equal(int32(1)))
+	Expect(len(resource.Status)).To(Equal(0), "Initial resource should have no status")
+
+	resourceService := h.Env().Services.Resources()
+
+	// Step 2: Update the status with sequence ID "1"
+	statusRes1 := &api.Resource{
+		Meta: api.Meta{
+			ID: resource.ID,
+		},
+		Version: resource.Version,
+		Status:  createStatusWithSequenceID(t, resource.ID, "1"),
+	}
+	_, updated, svcErr := resourceService.UpdateStatus(ctx, statusRes1)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(updated).Should(BeTrue(), "Status should be updated")
+
+	// Verify status was set correctly
+	updatedRes, svcErr := resourceService.Get(ctx, resource.ID)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(len(updatedRes.Status)).ShouldNot(Equal(0), "Status should not be empty after update")
+	statusEvt, err := api.JSONMAPToCloudEvent(updatedRes.Status)
+	Expect(err).NotTo(HaveOccurred())
+	statusPayload := &workpayload.ManifestBundleStatus{}
+	Expect(statusEvt.DataAs(statusPayload)).NotTo(HaveOccurred())
+	Expect(statusPayload.Conditions).To(HaveLen(1))
+	Expect(statusPayload.Conditions[0].Type).To(Equal("Applied"))
+	Expect(statusPayload.Conditions[0].Status).To(Equal(metav1.ConditionStatus("True")))
+	initialStatusMessage := statusPayload.Conditions[0].Message
+
+	// Version should still be 1 (UpdateStatus doesn't increment version)
+	Expect(updatedRes.Version).To(Equal(int32(1)))
+
+	// Step 3: Update the resource payload (change replicas from 1 to 3)
+	newResource, err := h.NewResource(resource.ID, consumer.Name, deployName, "default", 3, updatedRes.Version)
+	Expect(err).NotTo(HaveOccurred())
+	newResource.ID = updatedRes.ID
+	newResource.Status = createStatusWithSequenceID(t, resource.ID, "2")
+
+	updatedPayloadRes, svcErr := resourceService.Update(ctx, newResource)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(updatedPayloadRes.Version).To(Equal(int32(2)), "Version should be incremented after Update")
+
+	// Step 4: Verify that the status is preserved and unchanged
+	finalRes, svcErr := resourceService.Get(ctx, resource.ID)
+	Expect(svcErr).NotTo(HaveOccurred())
+
+	// Status should still be present and unchanged
+	Expect(len(finalRes.Status)).ShouldNot(Equal(0), "Status should be preserved after Update")
+
+	finalStatusEvt, err := api.JSONMAPToCloudEvent(finalRes.Status)
+	Expect(err).NotTo(HaveOccurred())
+	finalStatusPayload := &workpayload.ManifestBundleStatus{}
+	Expect(finalStatusEvt.DataAs(finalStatusPayload)).NotTo(HaveOccurred())
+	Expect(finalStatusPayload.Conditions).To(HaveLen(1))
+	Expect(finalStatusPayload.Conditions[0].Type).To(Equal("Applied"))
+	Expect(finalStatusPayload.Conditions[0].Status).To(Equal(metav1.ConditionStatus("True")))
+	Expect(finalStatusPayload.Conditions[0].Message).To(Equal(initialStatusMessage), "Status message should be unchanged")
+
+	// Verify the payload was actually updated (replicas changed from 1 to 3)
+	payloadEvt, err := api.JSONMAPToCloudEvent(finalRes.Payload)
+	Expect(err).NotTo(HaveOccurred())
+	payloadData := &workpayload.ManifestBundle{}
+	Expect(payloadEvt.DataAs(payloadData)).NotTo(HaveOccurred())
+	Expect(payloadData.Manifests).To(HaveLen(1))
+
+	var manifest map[string]interface{}
+	Expect(json.Unmarshal(payloadData.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred())
+	spec := manifest["spec"].(map[string]interface{})
+	Expect(spec["replicas"]).To(Equal(float64(3)), "Replicas should be updated to 3")
+
+	// Additional test: Update status again to verify it still works after a payload update
+	statusRes2 := &api.Resource{
+		Meta: api.Meta{
+			ID: resource.ID,
+		},
+		Version: finalRes.Version, // Now version 2
+		Status:  createStatusWithSequenceID(t, resource.ID, "2"),
+	}
+	updatedRes2, updated2, svcErr := resourceService.UpdateStatus(ctx, statusRes2)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(updated2).Should(BeTrue(), "Status should be updated again")
+	Expect(updatedRes2.Version).To(Equal(int32(2)), "Version should remain 2 after UpdateStatus")
+
+	// Verify the new status
+	newStatusEvt, err := api.JSONMAPToCloudEvent(updatedRes2.Status)
+	Expect(err).NotTo(HaveOccurred())
+	newStatusPayload := &workpayload.ManifestBundleStatus{}
+	Expect(newStatusEvt.DataAs(newStatusPayload)).NotTo(HaveOccurred())
+	Expect(newStatusPayload.Conditions[0].Message).To(ContainSubstring("sequence 2"), "Status should reflect new update")
+}
+
 // createStatusWithSequenceID creates a resource status CloudEvent with the given sequence ID
-func createStatusWithSequenceID(t *testing.T, h *test.Helper, resourceID, sequenceID string) map[string]interface{} {
+func createStatusWithSequenceID(t *testing.T, resourceID, sequenceID string) map[string]interface{} {
 	source := "test-agent"
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: workpayload.ManifestBundleEventDataType,

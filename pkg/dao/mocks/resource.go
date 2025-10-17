@@ -39,6 +39,10 @@ func (d *resourceDaoMock) Update(ctx context.Context, resource *api.Resource) (*
 	return nil, errors.NotImplemented("Resource").AsError()
 }
 
+func (d *resourceDaoMock) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
+	return nil, errors.NotImplemented("Resource").AsError()
+}
+
 func (d *resourceDaoMock) Delete(ctx context.Context, id string, unscoped bool) error {
 	return errors.NotImplemented("Resource").AsError()
 }

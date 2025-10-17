@@ -13,6 +13,7 @@ type ResourceDao interface {
 	Get(ctx context.Context, id string) (*api.Resource, error)
 	Create(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Update(ctx context.Context, resource *api.Resource) (*api.Resource, error)
+	UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, error)
 	Delete(ctx context.Context, id string, unscoped bool) error
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
@@ -51,7 +52,27 @@ func (d *sqlResourceDao) Create(ctx context.Context, resource *api.Resource) (*a
 
 func (d *sqlResourceDao) Update(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Unscoped().Omit(clause.Associations).Updates(resource).Error; err != nil {
+	if err := g2.Unscoped().Omit(clause.Associations).
+		Where("id = ?", resource.ID).
+		Select("version", "payload").
+		Updates(api.Resource{
+			Version: resource.Version,
+			Payload: resource.Payload,
+		}).Error; err != nil {
+		db.MarkForRollback(ctx, err)
+		return nil, err
+	}
+	return resource, nil
+}
+
+func (d *sqlResourceDao) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	if err := g2.Unscoped().Omit(clause.Associations).
+		Where("id = ?", resource.ID).
+		Select("status").
+		Updates(api.Resource{
+			Status: resource.Status,
+		}).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}

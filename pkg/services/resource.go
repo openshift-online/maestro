@@ -177,6 +177,9 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 	}
 
 	// Make sure the requested resource version is consistent with its database version.
+	// If they do not match, the event is stale and can be safely ignored.
+	// The manifestwork status reflects observed generations, ensuring eventual consistency
+	// through subsequent up-to-date events.
 	if found.Version != resource.Version {
 		log.Warnf("Updating status for stale resource; disregard it: id=%s, foundVersion=%d, wantedVersion=%d",
 			resource.ID, found.Version, resource.Version)
@@ -224,8 +227,9 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, false, nil
 	}
 
+	// Only update resource status
 	found.Status = resource.Status
-	updated, err := s.resourceDao.Update(ctx, found)
+	updated, err := s.resourceDao.UpdateStatus(ctx, found)
 	if err != nil {
 		return nil, false, handleUpdateError("Resource", err)
 	}
