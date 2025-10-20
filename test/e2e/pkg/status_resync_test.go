@@ -165,7 +165,9 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 
 				return fmt.Errorf("unexpected status")
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			},
+				10*time.Minute, // timeout is double work resync interval time (4~6 mins)
+				2*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		AfterAll(func() {
