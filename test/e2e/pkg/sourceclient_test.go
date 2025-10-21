@@ -452,6 +452,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		It("list works with options", func() {
 			By("list all works", func() {
 				works, err := sourceWorkClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
 				var expectedWorks []workv1.ManifestWork
 				for _, work := range works.Items {
 					if work.DeletionTimestamp != nil {
@@ -459,7 +460,6 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 					}
 					expectedWorks = append(expectedWorks, work)
 				}
-				Expect(err).ShouldNot(HaveOccurred())
 				Expect(AssertWorks(expectedWorks, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
 
@@ -473,7 +473,6 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 					}
 					expectedWorks = append(expectedWorks, work)
 				}
-				Expect(err).ShouldNot(HaveOccurred())
 				Expect(AssertWorks(expectedWorks, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
 
