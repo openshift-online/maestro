@@ -37,6 +37,8 @@ import (
 
 var log = logger.GetLogger()
 
+var serverHealthinessTimeout = 20 * time.Second
+
 type agentTestOptions struct {
 	agentNamespace string
 	consumerName   string
@@ -54,7 +56,6 @@ type serverTestOptions struct {
 var (
 	serverTestOpts    *serverTestOptions
 	agentTestOpts     *agentTestOptions
-	csServerAddress   string
 	apiServerAddress  string
 	apiClient         *openapi.APIClient
 	grpcServerAddress string
@@ -67,6 +68,7 @@ var (
 	helper            *test.Helper
 	cancel            context.CancelFunc
 	ctx               context.Context
+	dumpLogs          bool
 )
 
 func TestE2E(t *testing.T) {
@@ -78,7 +80,6 @@ func TestE2E(t *testing.T) {
 func init() {
 	serverTestOpts = &serverTestOptions{}
 	agentTestOpts = &agentTestOptions{}
-	flag.StringVar(&csServerAddress, "cs-server", "", "CS API server address")
 	flag.StringVar(&apiServerAddress, "api-server", "", "Maestro Restful API server address")
 	flag.StringVar(&grpcServerAddress, "grpc-server", "", "Maestro gRPC server address")
 	flag.StringVar(&serverTestOpts.serverNamespace, "server-namespace", "maestro", "Namespace where the maestro server is running")
@@ -86,6 +87,7 @@ func init() {
 	flag.StringVar(&agentTestOpts.agentNamespace, "agent-namespace", "maestro-agent", "Namespace where the maestro agent is running")
 	flag.StringVar(&agentTestOpts.consumerName, "consumer-name", "", "Consumer name is used to identify the consumer")
 	flag.StringVar(&agentTestOpts.kubeConfig, "agent-kubeconfig", "", "Path to the kubeconfig file for the maestro agent")
+	flag.BoolVar(&dumpLogs, "dump-logs", true, "Dump the pod logs after test")
 }
 
 var _ = BeforeSuite(func() {
@@ -136,12 +138,8 @@ var _ = BeforeSuite(func() {
 	grpcOptions = &grpcoptions.GRPCOptions{
 		Dialer: &grpcoptions.GRPCDialer{
 			URL: grpcServerAddress,
-			KeepAliveOptions: grpcoptions.KeepAliveOptions{
-				Enable:  true,
-				Time:    6 * time.Second,
-				Timeout: 1 * time.Second,
-			},
 		},
+		ServerHealthinessTimeout: &serverHealthinessTimeout,
 	}
 	sourceID = "sourceclient-test" + rand.String(5)
 	grpcCertSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "maestro-grpc-cert", metav1.GetOptions{})
@@ -191,7 +189,9 @@ var _ = BeforeSuite(func() {
 
 var _ = AfterSuite(func() {
 	// dump debug info
-	dumpDebugInfo()
+	if dumpLogs {
+		dumpDebugInfo()
+	}
 	// clean up the resources
 	Eventually(func() error {
 		return cleanupResources(ctx)

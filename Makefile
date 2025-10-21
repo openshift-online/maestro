@@ -358,9 +358,9 @@ agent-project:
 image: cmds
 	$(container_tool) build -t "$(external_image_registry)/$(image_repository):$(image_tag)" .
 
-.PHONY: csclient-image
-csclient-image:
-	$(container_tool) build -f examples/csclient/Dockerfile -t "$(external_image_registry)/$(image_repository)-csclient:$(image_tag)" .
+.PHONY: e2e-image
+e2e-image:
+	$(container_tool) build -f Dockerfile.e2e -t "$(external_image_registry)/$(image_repository)-e2e:$(image_tag)" .
 
 .PHONY: push
 push: image project
@@ -466,10 +466,9 @@ e2e-test/teardown:
 #   make e2e-test/run TEST_FOCUS="--focus=Resources" run only the Resources tests
 
 e2e-test/run:
-	ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" $(TEST_FOCUS) \
+	ginkgo -v --fail-fast --label-filter='$(LABEL_FILTER)' $(TEST_FOCUS) \
 	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
-	-cs-server=http://$(shell cat ${PWD}/test/e2e/.external_host_ip):30100 \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
 	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \
 	-server-kubeconfig=${PWD}/test/e2e/.kubeconfig \
@@ -483,6 +482,10 @@ e2e-test: e2e-test/teardown e2e-test/setup e2e-test/run
 migration-test: e2e-test/teardown
 	./test/e2e/migration/test.sh
 .PHONY: migration-test
+
+e2e-test/istio:
+	./test/e2e/istio/test.sh
+.PHONY: e2e-test/istio
 
 e2e/rollout:
 ifndef KUBECONFIG
