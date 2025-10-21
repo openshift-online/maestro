@@ -63,7 +63,7 @@ mqtt_client_cert ?= ""
 mqtt_client_key ?= ""
 
 # Log verbosity level
-klog_v:=4
+klog_v:=2
 
 # Location of the JSON web key set used to verify tokens:
 jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
