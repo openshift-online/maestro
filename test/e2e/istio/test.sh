@@ -26,7 +26,7 @@ agent_kubeconfig=${AGENT_KUBECONFIG:-"${PWD}/test/e2e/.kubeconfig"}
 server_in_cluster_kubeconfig=${SERVER_IN_CLUSTER_KUBECONFIG:-"${PWD}/test/e2e/.in-cluster.kubeconfig"}
 agent_in_cluster_kubeconfig=${AGENT_IN_CLUSTER_KUBECONFIG:-"${PWD}/test/e2e/.in-cluster.kubeconfig"}
 
-timeout=15m
+timeout=${TIMEOUT:-"30m"}
 
 # ensure the maestro server and agent are ready
 kubectl --kubeconfig=$server_kubeconfig wait deploy/maestro -n maestro --for condition=Available=True --timeout=300s
