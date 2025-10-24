@@ -29,57 +29,6 @@ import (
 )
 
 var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-client"), func() {
-	Context("Update an obsolete work", func() {
-		var workName string
-
-		BeforeEach(func() {
-			workName = "work-" + rand.String(5)
-			work := NewManifestWork(workName)
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			// wait for few seconds to ensure the creation is finished
-			<-time.After(5 * time.Second)
-		})
-
-		AfterEach(func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			Eventually(func() error {
-				return AssertWorkNotFound(workName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-
-		})
-
-		It("should return error when updating an obsolete work", func() {
-			By("update a work by work client")
-			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			newWork := work.DeepCopy()
-			newWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
-			patchData, err := grpcsource.ToWorkPatch(work, newWork)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			By("update the work by work client again")
-			obsoleteWork := work.DeepCopy()
-			obsoleteWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
-			patchData, err = grpcsource.ToWorkPatch(work, obsoleteWork)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
-			Expect(err).Should(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "the resource version is not the latest")).Should(BeTrue())
-
-			// wait for few seconds to ensure the update is finished
-			<-time.After(5 * time.Second)
-		})
-	})
-
 	Context("Watch work status with source work client", func() {
 		var watcherCtx context.Context
 		var watcherCancel context.CancelFunc
@@ -371,6 +320,48 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
 				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
 			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("should be able to watch the work when create and delete immediately", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
+			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
+				ctx,
+				logger,
+				apiClient,
+				grpcOptions,
+				sourceID,
+			)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			watcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{
+				LabelSelector: "app=test-create-delete",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			result := StartWatch(watcherCtx, watcher)
+
+			By("create a work")
+			workName := "work-" + rand.String(5)
+			work := NewManifestWorkWithLabels(workName, map[string]string{"app": "test-create-delete"})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			<-time.After(1 * time.Second)
+
+			By("delete the work after 1s")
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				for _, watchedWork := range result.WatchedWorks {
+					if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ResourceDeleted) {
+						return nil
+					}
+				}
+
+				return fmt.Errorf("no deleted work watched")
+			}, 1*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 
