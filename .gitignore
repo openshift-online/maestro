@@ -58,6 +58,8 @@ test/e2e/.kubeconfig
 test/e2e/.consumer_id
 test/e2e/.consumer_name
 test/e2e/.external_host_ip
+test/e2e/.in-cluster.kubeconfig
+test/e2e/e2e.test
 test/e2e/report/*
 test/e2e/certs
 unit-test-results.json

@@ -327,6 +327,7 @@ objects:
           - name: maestro-grpc-cert
             secret:
               secretName: maestro-grpc-cert
+              optional: true
           initContainers:
           - name: migration
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}

@@ -1,0 +1,40 @@
+FROM golang:1.24 AS builder
+
+ENV SOURCE_DIR=/maestro
+WORKDIR $SOURCE_DIR
+
+# Copy the entire source code
+COPY . $SOURCE_DIR
+
+# Download dependencies
+RUN go mod download
+
+# Install ginkgo test framework
+RUN go install github.com/onsi/ginkgo/v2/ginkgo@latest
+
+# Build the e2e test binary
+RUN ginkgo build -o ./test/e2e/e2e.test ./test/e2e/pkg
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
+
+RUN microdnf update -y && \
+    microdnf install -y ca-certificates && \
+    microdnf clean all
+
+# Copy the e2e test binary
+COPY --from=builder /maestro/test/e2e/e2e.test /e2e/e2e.test
+
+# Copy reporter package for generating reports
+WORKDIR /e2e
+
+# Create directories for reports and kubeconfig
+RUN mkdir -p /e2e/report /e2e/kubeconfig
+
+LABEL name="maestro-e2e" \
+      vendor="Red Hat, Inc." \
+      version="0.0.1" \
+      summary="maestro E2E Tests" \
+      description="End-to-end tests for Maestro" \
+      io.k8s.description="maestro E2E Tests" \
+      io.k8s.display-name="maestro-e2e" \
+      io.openshift.tags="maestro,e2e,testing"
