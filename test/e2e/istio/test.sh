@@ -32,6 +32,9 @@ timeout=${TIMEOUT:-"30m"}
 kubectl --kubeconfig=$server_kubeconfig wait deploy/maestro -n maestro --for condition=Available=True --timeout=300s
 kubectl --kubeconfig=$agent_kubeconfig wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=300s
 
+# ensure the clusters-service namespace exists
+kubectl --kubeconfig=$server_kubeconfig create namespace clusters-service || true
+
 # cleanup the e2e test jobs
 kubectl --kubeconfig=$server_kubeconfig -n clusters-service delete jobs --all --ignore-not-found
 
