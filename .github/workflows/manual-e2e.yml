@@ -43,10 +43,11 @@ jobs:
           # client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
 
       # Install kubelogin (needed for AAD-enabled clusters)
-      - name: Install kubelogin
+      - name: Install kubelogin and jq
         run: |
           az aks install-cli
           kubelogin --version
+          sudo apt install -y jq
 
       # Get AKS credentials using input parameters
       - name: Get AKS credentials
@@ -75,42 +76,91 @@ jobs:
           kubectl --kubeconfig ./svc-cluster.kubeconfig get service -n maestro
           kubectl --kubeconfig ./mgmt-cluster.kubeconfig get pods -A -l app=maestro-agent
 
-      - name: patch the istio
+      - name: generate the in cluster kubeconfig
         run: |
-          kubectl --kubeconfig ./svc-cluster.kubeconfig patch deploy/maestro -n maestro -p '{"spec":{"template":{"metadata":{"annotations":{"traffic.sidecar.istio.io/excludeInboundPorts":"8090,8000","traffic.sidecar.istio.io/excludeOutboundPorts":"8090,8000"}}}}}'
-          kubectl --kubeconfig ./svc-cluster.kubeconfig rollout status deploy/maestro -n maestro --timeout=600s
+          generate_in_cluster_kube() {
+            kubeconfig=$1
+            type=$2
+            kubectl --kubeconfig $kubeconfig -n default create serviceaccount e2e-test-admin
 
-      # Setup go
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: '>=1.23.0'
-      - name: install ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.22.0
+            cat << EOF | kubectl --kubeconfig $kubeconfig apply -f -
+            apiVersion: rbac.authorization.k8s.io/v1
+            kind: ClusterRoleBinding
+            metadata:
+              name: e2e-test-admin
+            roleRef:
+              apiGroup: rbac.authorization.k8s.io
+              kind: ClusterRole
+              name: cluster-admin
+            subjects:
+            - kind: ServiceAccount
+              name: e2e-test-admin
+              namespace: default
+            EOF
 
-      # Running the e2e test
-      # (TODO), will check to see if we can deprecate the kube relay later.
-      - name: setup the relay and jq
-        run: |
-          sudo apt install -y jq
-          curl -fsSL -O https://github.com/knight42/krelay/releases/download/v0.1.2/kubectl-relay_v0.1.2_linux-amd64.tar.gz
-          tar -xzf kubectl-relay_v0.1.2_linux-amd64.tar.gz kubectl-relay
-          chmod a+x kubectl-relay
-          $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro 8000:8000 &
-          $(pwd)/kubectl-relay --kubeconfig ./svc-cluster.kubeconfig -n maestro svc/maestro-grpc 8090:8090 &
-          sleep 20
+            TOKEN=$(kubectl --kubeconfig $kubeconfig create token e2e-test-admin --namespace default --duration=8760h)
+            API_SERVER=$(kubectl --kubeconfig $kubeconfig config view -o jsonpath='{.clusters[0].cluster.server}')
+            CA_CERT=$(kubectl --kubeconfig $kubeconfig config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
+            cat > ${type}-incluster.kubeconfig <<EOF
+            apiVersion: v1
+            kind: Config
+            clusters:
+            - name: my-cluster
+              cluster:
+                server: "$API_SERVER"
+                certificate-authority-data: "$CA_CERT"
+            users:
+            - name: e2e-test-admin
+              user:
+                token: "$TOKEN"
+            contexts:
+            - name: e2e-test-admin-context
+              context:
+                cluster: my-cluster
+                user: e2e-test-admin
+                namespace: default
+            current-context: e2e-test-admin-context
+            EOF
+          }
+
+          generate_in_cluster_kube $(pwd)/svc-cluster.kubeconfig svc
+          generate_in_cluster_kube $(pwd)/mgmt-cluster.kubeconfig mgmt
 
       - name: start the e2e test
         run: |
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          ginkgo -v --fail-fast --label-filter="!(e2e-tests-csclient)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+
+          AGENT_NAMESPACE=maestro \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
+            SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            bash -x test/e2e/istio/test.sh
+          if [ $? != 0 ]; then
+            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
+            exit 1
+          fi
 
       - name: start to upgrade server
         run: |
           KUBECONFIG=$(pwd)/svc-cluster.kubeconfig make e2e/rollout
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          ginkgo -v --fail-fast --label-filter="!(e2e-tests-csclient)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+
+          AGENT_NAMESPACE=maestro \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
+            SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            bash -x test/e2e/istio/test.sh
           if [ $? != 0 ]; then
+            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
             exit 1
           fi
 
@@ -118,16 +168,20 @@ jobs:
         run: |
           KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig make e2e/rollout
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          ginkgo -v --fail-fast --label-filter="!(e2e-tests-csclient)" ./test/e2e/pkg -- -api-server=http://localhost:8000 -grpc-server=localhost:8090 -server-kubeconfig=$(pwd)/svc-cluster.kubeconfig -consumer-name=$consumer_name -agent-kubeconfig=$(pwd)/mgmt-cluster.kubeconfig -agent-namespace=maestro
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+
+          AGENT_NAMESPACE=maestro \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
+            SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            bash -x test/e2e/istio/test.sh
           if [ $? != 0 ]; then
+            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
             exit 1
           fi
-
-      # (TODO), will check to see if we can deprecate the kube relay later.
-      - name: delete the relay server
-        if: always()
-        run: |
-          kubectl --kubeconfig ./svc-cluster.kubeconfig delete pods -l app=krelay-server
 
       - name: Post a message in a channel
         uses: slackapi/slack-github-action@v2.1.1
@@ -143,8 +197,11 @@ jobs:
                   type: "mrkdwn"
                   text: "Manual E2E Test Result: ${{ job.status }}\n*Service Cluster*: ${{ inputs.svc_cluster_name }} (RG: ${{ inputs.svc_resource_group }})\n*Management Cluster*: ${{ inputs.mgmt_cluster_name }} (RG: ${{ inputs.mgmt_resource_group }})\n"
 
-      - name: reset the istio annotations
+      - name: Clean up
         if: always()
         run: |
-          kubectl --kubeconfig ./svc-cluster.kubeconfig patch deploy/maestro -n maestro --type=json -p='[{"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeInboundPorts"}, {"op":"remove","path":"/spec/template/metadata/annotations/traffic.sidecar.istio.io~1excludeOutboundPorts"}]'
-          kubectl --kubeconfig ./svc-cluster.kubeconfig rollout status deploy/maestro -n maestro --timeout=600s
+          kubectl --kubeconfig $(pwd)/svc-cluster.kubeconfig delete serviceaccount e2e-test-admin
+          kubectl --kubeconfig $(pwd)/svc-cluster.kubeconfig delete clusterrolebinding e2e-test-admin
+          kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig delete serviceaccount e2e-test-admin
+          kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig delete clusterrolebinding e2e-test-admin
+
