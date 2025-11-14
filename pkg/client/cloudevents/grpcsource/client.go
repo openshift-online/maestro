@@ -10,9 +10,11 @@ import (
 
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	sourceclient "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/client"
 	sourcecodec "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	ceclients "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/clients"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/builder"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 )
 
@@ -27,14 +29,14 @@ func NewMaestroGRPCSourceWorkClient(
 		return nil, fmt.Errorf("source id is required")
 	}
 
-	options, err := generic.BuildCloudEventsSourceOptions(opts, fmt.Sprintf("%s-maestro", sourceID), sourceID)
+	options, err := builder.BuildCloudEventsSourceOptions(opts, fmt.Sprintf("%s-maestro", sourceID), sourceID, workpayload.ManifestBundleEventDataType)
 	if err != nil {
 		return nil, err
 	}
 
 	watcherStore := newRESTFulAPIWatcherStore(ctx, logger, apiClient, sourceID)
 
-	cloudEventsClient, err := generic.NewCloudEventSourceClient(
+	cloudEventsClient, err := ceclients.NewCloudEventSourceClient(
 		ctx,
 		options,
 		nil, // resync is disabled, so lister is not required
