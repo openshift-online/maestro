@@ -21,6 +21,7 @@ spec:
           holdApplicationUntilProxyStarts: true
           terminationDrainDuration: 10s
     spec:
+      serviceAccountName: ${service_account_name}
       restartPolicy: Never
       containers:
         - name: e2e-tests

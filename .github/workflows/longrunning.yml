@@ -33,7 +33,7 @@ jobs:
         run: |
           az aks install-cli
           kubelogin --version
-          sudo apt install -y jq
+          sudo apt install -y jq gettext
 
       # Get AKS credentials
       - name: Get AKS credentials
@@ -67,47 +67,47 @@ jobs:
           generate_in_cluster_kube() {
             kubeconfig=$1
             type=$2
-            kubectl --kubeconfig $kubeconfig -n default create serviceaccount e2e-test-admin
+            kubectl --kubeconfig "$kubeconfig" -n default create serviceaccount e2e-test-admin
 
-            cat << EOF | kubectl --kubeconfig $kubeconfig apply -f -
-            apiVersion: rbac.authorization.k8s.io/v1
-            kind: ClusterRoleBinding
-            metadata:
-              name: e2e-test-admin
-            roleRef:
-              apiGroup: rbac.authorization.k8s.io
-              kind: ClusterRole
-              name: cluster-admin
-            subjects:
-            - kind: ServiceAccount
-              name: e2e-test-admin
+            cat << -EOF | kubectl --kubeconfig "$kubeconfig" apply -f -
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: e2e-test-admin
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: cluster-admin
+          subjects:
+          - kind: ServiceAccount
+            name: e2e-test-admin
+            namespace: default
+          -EOF
+
+            TOKEN=$(kubectl --kubeconfig "$kubeconfig" create token e2e-test-admin --namespace default --duration=8760h)
+            API_SERVER=$(kubectl --kubeconfig "$kubeconfig" config view -o jsonpath='{.clusters[0].cluster.server}')
+            CA_CERT=$(kubectl --kubeconfig "$kubeconfig" config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
+            cat > "${type}-incluster.kubeconfig" << -EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: my-cluster
+            cluster:
+              server: "$API_SERVER"
+              certificate-authority-data: "$CA_CERT"
+          users:
+          - name: e2e-test-admin
+            user:
+              token: "$TOKEN"
+          contexts:
+          - name: e2e-test-admin-context
+            context:
+              cluster: my-cluster
+              user: e2e-test-admin
               namespace: default
-            EOF
-
-            TOKEN=$(kubectl --kubeconfig $kubeconfig create token e2e-test-admin --namespace default --duration=8760h)
-            API_SERVER=$(kubectl --kubeconfig $kubeconfig config view -o jsonpath='{.clusters[0].cluster.server}')
-            CA_CERT=$(kubectl --kubeconfig $kubeconfig config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-
-            cat > ${type}-incluster.kubeconfig <<EOF
-            apiVersion: v1
-            kind: Config
-            clusters:
-            - name: my-cluster
-              cluster:
-                server: "$API_SERVER"
-                certificate-authority-data: "$CA_CERT"
-            users:
-            - name: e2e-test-admin
-              user:
-                token: "$TOKEN"
-            contexts:
-            - name: e2e-test-admin-context
-              context:
-                cluster: my-cluster
-                user: e2e-test-admin
-                namespace: default
-            current-context: e2e-test-admin-context
-            EOF
+          current-context: e2e-test-admin-context
+          -EOF
           }
 
           generate_in_cluster_kube $(pwd)/svc-cluster.kubeconfig svc
@@ -125,6 +125,7 @@ jobs:
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
             SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
             AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
             bash -x test/e2e/istio/test.sh
           if [ $? != 0 ]; then
             kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
@@ -144,6 +145,7 @@ jobs:
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
             SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
             AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
             bash -x test/e2e/istio/test.sh
           if [ $? != 0 ]; then
             kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
@@ -163,6 +165,7 @@ jobs:
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
             SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
             AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
             bash -x test/e2e/istio/test.sh
           if [ $? != 0 ]; then
             kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
