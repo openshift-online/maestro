@@ -366,6 +366,21 @@ e2e-image:
 push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
+.PHONY: retrieve-image
+retrieve-image:
+	@echo "Retrieving latest image information from Quay.io..."
+	@echo "export internal_image_registry=quay.io/redhat-user-workloads/maestro-rhtap-tenant" > .image-env
+	@echo "export image_repository=maestro/maestro" >> .image-env
+	@latest_tag=$$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro | python3 -c "import sys, json, re; data = json.load(sys.stdin); tags = [t for t in data.get('tags', {}).values() if not re.search(r'sha256-|on-pr-|maestro-on-pull-request', t.get('name', ''))]; tags.sort(key=lambda x: x.get('last_modified', ''), reverse=True); print(tags[0]['name'] if tags else '')"); \
+	echo "export image_tag=$$latest_tag" >> .image-env
+	@echo "Image configuration saved to .image-env"
+	@echo ""
+	@echo "To use these values, run:"
+	@echo "  source .image-env && make deploy"
+	@echo ""
+	@echo "Or export them manually:"
+	@cat .image-env
+
 deploy-%: project %-template
 	$(oc) apply -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
 
@@ -373,7 +388,7 @@ undeploy-%: project %-template
 	$(oc) delete -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
 
 .PHONY: deploy-agent
-deploy-agent: push agent-project agent-template
+deploy-agent: agent-project agent-template
 	$(oc) apply -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
 
 .PHONY: undeploy-agent
@@ -393,7 +408,6 @@ template: \
 # "baz deleted" messages at the end, after all the noisy templating.
 .PHONY: deploy
 deploy: \
-	push \
 	template \
 	deploy-secrets \
 	deploy-db \
