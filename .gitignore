@@ -49,6 +49,9 @@ secrets/mqtt.password
 secrets/mqtt.config
 hack/mosquitto-passwd.txt
 
+# Ignore image environment file
+.image-env
+
 # Ignore vendor
 vendor/
 

@@ -436,6 +436,7 @@ objects:
         port: grpc
       annotations:
         description: Exposes the grpc service
+        service.alpha.openshift.io/serving-cert-secret-name: maestro-grpc-server-tls
     spec:
       selector:
         app: maestro
