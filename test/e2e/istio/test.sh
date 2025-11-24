@@ -55,6 +55,7 @@ echo "Waiting for job maestro-e2e-tests to start..."
 while true; do
   PHASE=$(kubectl --kubeconfig=$server_kubeconfig -n clusters-service get pods -l app=maestro-e2e -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
   if [[ "$PHASE" == "Running" ]]; then
+    sleep 120
     continue
   elif [[ "$PHASE" == "Succeeded" ]]; then
     POD=$(kubectl --kubeconfig=$server_kubeconfig get pods -n clusters-service -l app=maestro-e2e -o jsonpath='{.items[0].metadata.name}')

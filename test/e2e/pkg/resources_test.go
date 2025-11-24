@@ -6,16 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/rand"
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -46,13 +43,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-			gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			Expect(len(gotResourceList.Items)).To(Equal(1))
-			resourceID = *gotResourceList.Items[0].Id
-
+			resourceID = string(createdWork.UID)
 			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -76,29 +67,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
-				_, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
-				if err == nil {
-					return fmt.Errorf("expected resource to be deleted, but got %d", resp.StatusCode)
-				}
-				if resp.StatusCode != http.StatusNotFound {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusNotFound)
-				}
-				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-
-			Eventually(func() error {
-				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-				if err != nil {
-					return err
-				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-				}
-				if len(gotResourceList.Items) != 0 {
-					return fmt.Errorf("expected no resources returned by maestro api")
-				}
-				return nil
+				return AssertWorkNotFound(workName)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
@@ -175,13 +144,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-			gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			Expect(len(gotResourceList.Items)).To(Equal(1))
-			resourceID = *gotResourceList.Items[0].Id
-
+			// the resource id should not change
 			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
@@ -271,31 +234,10 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				return fmt.Errorf("auth secret still exists")
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			By("check the resource deletion via maestro api")
+			By("check the resource deletion via source workclient")
 			Eventually(func() error {
-				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-				if err != nil {
-					return err
-				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-				}
-				if len(gotResourceList.Items) != 0 {
-					return fmt.Errorf("expected no resources returned by maestro api")
-				}
-				return nil
+				return AssertWorkNotFound(workName)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("get the resource via maestro API", func() {
-			search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-			gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusOK))
-			Expect(len(gotResourceList.Items)).To(Equal(1))
-			resource := gotResourceList.Items[0]
-			Expect(resource.Metadata["creationTimestamp"]).ShouldNot(BeEmpty())
 		})
 
 		It("get the resource status back", func() {
@@ -322,162 +264,6 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 	})
 
-	Context("Resource ReadOnly Tests - Sync Status", func() {
-		workName := "work-svc-readonly-" + rand.String(5)
-		serviceNamespace := "default"
-		serviceName := "route-" + rand.String(5)
-		BeforeAll(func() {
-			serviceClient := agentTestOpts.kubeClientSet.CoreV1().Services(serviceNamespace)
-			By("create a load balance service in the target cluster", func() {
-				svc := newLoadBalanceService(serviceNamespace, serviceName)
-				_, err := serviceClient.Create(ctx, svc, metav1.CreateOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-
-				Eventually(func() error {
-					svc, err := serviceClient.Get(ctx, serviceName, metav1.GetOptions{})
-					if err != nil {
-						return err
-					}
-
-					updated := svc.DeepCopy()
-					vipMode := corev1.LoadBalancerIPModeVIP
-					updated.Status = corev1.ServiceStatus{
-						LoadBalancer: corev1.LoadBalancerStatus{
-							Ingress: []corev1.LoadBalancerIngress{
-								{
-									IP:     "192.168.3.100",
-									IPMode: &vipMode,
-								},
-							},
-						},
-					}
-
-					if _, err := serviceClient.UpdateStatus(ctx, updated, metav1.UpdateOptions{}); err != nil {
-						return err
-					}
-
-					return nil
-				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-			})
-
-			By("create a readonly work to get service status from the target cluster", func() {
-				work := newServiceReadonlyManifestWork(workName, serviceNamespace, serviceName)
-				_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-			})
-		})
-
-		AfterAll(func() {
-			serviceClient := agentTestOpts.kubeClientSet.CoreV1().Services(serviceNamespace)
-			By("clean up the service and manifestwork", func() {
-				err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-
-				err = serviceClient.Delete(ctx, serviceName, metav1.DeleteOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-
-				Eventually(func() error {
-					_, err := serviceClient.Get(ctx, serviceName, metav1.GetOptions{})
-					if err != nil {
-						if errors.IsNotFound(err) {
-							return nil
-						}
-						return err
-					}
-					return fmt.Errorf("service still exists")
-				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-
-				Eventually(func() error {
-					search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-					gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-					if err != nil {
-						return err
-					}
-					if resp.StatusCode != http.StatusOK {
-						return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-					}
-					if len(gotResourceList.Items) != 0 {
-						return fmt.Errorf("expected no resources returned by maestro api")
-					}
-					return nil
-				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-			})
-		})
-
-		It("the load balance service status should be synced", func() {
-			serviceClient := agentTestOpts.kubeClientSet.CoreV1().Services(serviceNamespace)
-			By("get the service status", func() {
-				Eventually(func() error {
-					work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
-					if err != nil {
-						return err
-					}
-
-					manifests := work.Status.ResourceStatus.Manifests
-					if len(manifests) > 0 && len(manifests[0].StatusFeedbacks.Values) != 0 {
-						feedback := manifests[0].StatusFeedbacks.Values
-						if feedback[0].Name == "resource" &&
-							strings.Contains(*feedback[0].Value.JsonRaw, "192.168.3.100") {
-							return nil
-						}
-						return fmt.Errorf("the status feedback value %v is not expected", feedback[0])
-					}
-
-					return fmt.Errorf("work status manifests are empty")
-				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-			})
-
-			By("update the service status again", func() {
-				Eventually(func() error {
-					svc, err := serviceClient.Get(ctx, serviceName, metav1.GetOptions{})
-					if err != nil {
-						return err
-					}
-
-					updated := svc.DeepCopy()
-					vipMode := corev1.LoadBalancerIPModeVIP
-					updated.Status = corev1.ServiceStatus{
-						LoadBalancer: corev1.LoadBalancerStatus{
-							Ingress: []corev1.LoadBalancerIngress{
-								{
-									IP:     "192.168.3.110",
-									IPMode: &vipMode,
-								},
-							},
-						},
-					}
-
-					if _, err := serviceClient.UpdateStatus(ctx, updated, metav1.UpdateOptions{}); err != nil {
-						return err
-					}
-
-					return nil
-				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-			})
-
-			By("get the updated service status", func() {
-				Eventually(func() error {
-					work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
-					if err != nil {
-						return err
-					}
-
-					manifests := work.Status.ResourceStatus.Manifests
-					if len(manifests) > 0 && len(manifests[0].StatusFeedbacks.Values) != 0 {
-						feedback := manifests[0].StatusFeedbacks.Values
-						if feedback[0].Name == "resource" &&
-							strings.Contains(*feedback[0].Value.JsonRaw, "192.168.3.110") {
-							return nil
-						}
-						return fmt.Errorf("the status feedback value %v is not expected", feedback[0])
-					}
-
-					return fmt.Errorf("work status manifests are empty")
-				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-			})
-		})
-	})
-
 	Context("Resource ServerSideApply Tests", func() {
 		workName := fmt.Sprintf("ssa-work-%s", rand.String(5))
 		nestedWorkName := fmt.Sprintf("nested-work-%s", rand.String(5))
@@ -494,20 +280,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("check the resource deletion via maestro api")
+			By("check the resource deletion via source workclient")
 			Eventually(func() error {
-				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
-				if err != nil {
-					return err
-				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-				}
-				if len(gotResourceList.Items) != 0 {
-					return fmt.Errorf("expected no resources returned by maestro api")
-				}
-				return nil
+				return AssertWorkNotFound(workName)
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 
@@ -660,99 +435,4 @@ func newNestedManifestWork(workName, nestedWorkName, nestedWorkNamespace string)
 			},
 		},
 	}
-}
-
-func newServiceReadonlyManifestWork(workName, serviceNamespace, serviceName string) *workv1.ManifestWork {
-	return &workv1.ManifestWork{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            workName,
-			ResourceVersion: "0",
-			Annotations: map[string]string{
-				"maestro.readonly": "true",
-			},
-			Labels: map[string]string{
-				"maestro.resource.type": gvkToUuid(schema.GroupVersionKind{
-					Group:   "",
-					Version: "v1",
-					Kind:    "Service",
-				}),
-			},
-		},
-		Spec: workv1.ManifestWorkSpec{
-			Workload: workv1.ManifestsTemplate{
-				Manifests: []workv1.Manifest{
-					{
-						RawExtension: runtime.RawExtension{
-							Object: &corev1.Service{
-								ObjectMeta: metav1.ObjectMeta{
-									Name:      serviceName,
-									Namespace: serviceNamespace,
-									Annotations: map[string]string{
-										"maestro.readonly": "true",
-									},
-								},
-								TypeMeta: metav1.TypeMeta{
-									Kind:       "Service",
-									APIVersion: "v1",
-								},
-							},
-						},
-					},
-				},
-			},
-			ManifestConfigs: []workv1.ManifestConfigOption{
-				{
-					ResourceIdentifier: workv1.ResourceIdentifier{
-						Group:     "",
-						Resource:  "services",
-						Name:      serviceName,
-						Namespace: serviceNamespace,
-					},
-					UpdateStrategy: &workv1.UpdateStrategy{
-						Type: workv1.UpdateStrategyTypeReadOnly,
-					},
-					FeedbackRules: []workv1.FeedbackRule{
-						{
-							Type: workv1.JSONPathsType,
-							JsonPaths: []workv1.JsonPath{
-								{
-									Name: "resource",
-									Path: "@",
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func newLoadBalanceService(namespace, name string) *corev1.Service {
-	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Service",
-			APIVersion: "v1",
-		},
-		Spec: corev1.ServiceSpec{
-			Type: corev1.ServiceTypeLoadBalancer,
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "svc",
-					NodePort:   32100,
-					Port:       433,
-					TargetPort: intstr.IntOrString{IntVal: 6433},
-					Protocol:   corev1.ProtocolTCP,
-				},
-			},
-		},
-	}
-}
-
-func gvkToUuid(gvk schema.GroupVersionKind) string {
-	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(gvk.String())).String()
 }

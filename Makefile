@@ -493,3 +493,7 @@ ifndef KUBECONFIG
 endif
 	KUBECONFIG=$(KUBECONFIG) ./test/e2e/setup/roll_out.sh
 .PHONY: e2e/rollout
+
+upgrade-test/run: e2e-test/teardown
+	ENABLE_ISTIO="true" ./test/upgrade/test.sh
+.PHONY: upgrade-test/run

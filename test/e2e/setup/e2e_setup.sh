@@ -17,6 +17,8 @@
 # enable istio on the ENABLE_ISTIO env
 enable_istio=${ENABLE_ISTIO:-"false"}
 
+deploy_agent=${deploy_agent:-"true"}
+
 kind_version=0.12.0
 step_version=0.26.2
 istio_version=1.25.5
@@ -212,6 +214,10 @@ kubectl wait deploy/maestro-mqtt  --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
 sleep 30 # wait 30 seconds for the service ready
+
+if [ "$deploy_agent" = "false" ]; then
+  exit 0
+fi
 
 # 8. create a consumer
 export external_host_ip="127.0.0.1"

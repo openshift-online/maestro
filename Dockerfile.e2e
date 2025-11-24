@@ -15,14 +15,22 @@ RUN go install github.com/onsi/ginkgo/v2/ginkgo@latest
 # Build the e2e test binary
 RUN ginkgo build -o ./test/e2e/e2e.test ./test/e2e/pkg
 
+# Build the mock work server binary
+RUN go build -o ./test/mocks/work-server.test ./test/mocks/workserver
+
+# Build the upgrade test binary
+RUN ginkgo build -o ./test/upgrade/upgrade.test ./test/upgrade/pkg
+
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 RUN microdnf update -y && \
     microdnf install -y ca-certificates && \
     microdnf clean all
 
-# Copy the e2e test binary
+# Copy the test binaries
 COPY --from=builder /maestro/test/e2e/e2e.test /e2e/e2e.test
+COPY --from=builder /maestro/test/mocks/work-server.test /e2e/work-server.test
+COPY --from=builder /maestro/test/upgrade/upgrade.test /e2e/upgrade.test
 
 # Copy reporter package for generating reports
 WORKDIR /e2e

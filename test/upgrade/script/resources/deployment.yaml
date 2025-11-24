@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: workserver
+  namespace: clusters-service
+  labels:
+    app: workserver
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: workserver
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workserver
+  namespace: clusters-service
+  labels:
+    app: workserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: workserver
+  template:
+    metadata:
+      labels:
+        app: workserver
+    spec:
+      serviceAccountName: ${service_account_name}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: workserver
+        image: ${image}
+        imagePullPolicy: IfNotPresent
+        command:
+        - /e2e/work-server.test
+        args:
+        - --api-server=http://maestro.maestro:8000
+        - --grpc-server=maestro-grpc.maestro:8090
+        - --consumer-name=${consumer_name}
+        - --bind-address=:8080
+        ports:
+        - containerPort: 8080
+          name: http
+          protocol: TCP
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
