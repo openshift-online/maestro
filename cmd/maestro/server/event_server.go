@@ -89,7 +89,7 @@ func (s *MessageQueueEventServer) Start(ctx context.Context) {
 // startSubscription initiates the subscription to resource status update messages.
 // It runs asynchronously in the background until the provided context is canceled.
 func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
-	s.sourceClient.Subscribe(ctx, func(action types.ResourceAction, resource *api.Resource) error {
+	s.sourceClient.Subscribe(ctx, func(ctx context.Context, action types.ResourceAction, resource *api.Resource) error {
 		log.Infof("received action %s for resource %s", action, resource.ID)
 
 		switch action {

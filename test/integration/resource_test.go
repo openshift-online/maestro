@@ -25,7 +25,7 @@ import (
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
-	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 
@@ -246,7 +246,7 @@ func TestResourceFromGRPC(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 	// reset metrics to avoid interference from other tests
-	cegeneric.ResetSourceCloudEventsMetrics()
+	cemetrics.ResetSourceCloudEventsMetrics()
 	server.ResetGRPCMetrics()
 
 	// use grpc client to create resource

@@ -46,6 +46,7 @@ func TestToManifestWork(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:            "test",
 					Namespace:       "testns",
+					Generation:      1,
 					ResourceVersion: "1",
 				},
 				Spec: workv1.ManifestWorkSpec{
@@ -94,6 +95,7 @@ func TestToManifestWork(t *testing.T) {
 				ObjectMeta: v1.ObjectMeta{
 					Name:            "test",
 					Namespace:       "testns",
+					Generation:      1,
 					ResourceVersion: "1",
 				},
 				Spec: workv1.ManifestWorkSpec{
@@ -220,36 +222,36 @@ func TestToWorkPatch(t *testing.T) {
 		name            string
 		existingWork    *workv1.ManifestWork
 		newWork         *workv1.ManifestWork
-		expectedVersion string
+		expectedVersion int64
 		expectedError   bool
 	}{
 		{
-			name:          "no resourceVersion",
+			name:          "no generation",
 			existingWork:  &workv1.ManifestWork{},
 			expectedError: true,
 		},
 		{
-			name: "resourceVersion is zero",
+			name: "generation is zero",
 			existingWork: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
-					ResourceVersion: "0",
+					Generation: 0,
 				},
 			},
 			expectedError: true,
 		},
 		{
-			name: "should use existing resource version",
+			name: "should use existing generation",
 			existingWork: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
-					ResourceVersion: "1",
+					Generation: 1,
 				},
 			},
 			newWork: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
-					ResourceVersion: "2",
+					Generation: 2,
 				},
 			},
-			expectedVersion: "1",
+			expectedVersion: 1,
 			expectedError:   false,
 		},
 	}
@@ -268,17 +270,18 @@ func TestToWorkPatch(t *testing.T) {
 				t.Errorf("unexpected error %v", err)
 			}
 
-			metadata := map[string]any{}
-			if err := json.Unmarshal(jsonData, &metadata); err != nil {
+			patchMap := map[string]any{}
+			if err := json.Unmarshal(jsonData, &patchMap); err != nil {
 				t.Fatal(err)
 			}
 
-			obj := unstructured.Unstructured{
-				Object: metadata,
+			versionFloat, _, err := unstructured.NestedFloat64(patchMap, "metadata", "generation")
+			if err != nil {
+				t.Fatal(err)
 			}
-			version := obj.GetResourceVersion()
+			version := int64(versionFloat)
 			if version != c.expectedVersion {
-				t.Errorf("expected %s, but got %s", c.expectedVersion, version)
+				t.Errorf("expected %d, but got %d", c.expectedVersion, version)
 			}
 		})
 	}
