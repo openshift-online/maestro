@@ -184,8 +184,8 @@ if [ -n "${ENABLE_BROADCAST_SUBSCRIPTION}" ] && [ "${ENABLE_BROADCAST_SUBSCRIPTI
   export agent_topic="sources/maestro/consumers/+/agentevents"
 fi
 
-make deploy-secrets \
-	deploy-db \
+make deploy-secrets-tls \
+	deploy-db-tls \
 	deploy-mqtt-tls \
 	deploy-service-tls
 

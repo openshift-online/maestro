@@ -56,23 +56,9 @@ parameters:
   description: CPU limit for the API pods.
   value: "1"
 
-- name: OCM_BASE_URL
-  displayName: OCM API Base URL
-  description: Base path for all OCM APIs
-
-- name: OCM_DEBUG
-  displayName: OCM API Debug mode
-  description: Debug mode for OCM API client
-  value: "false"
-
 - name: SERVER_REPLICAS
   description: Number of replicas of the service to run.
   value: "1"
-
-- name: ENABLE_JWT
-  displayName: Enable JWT
-  description: Enable JWT authentication validation
-  value: "true"
 
 - name: ENABLE_HTTPS
   displayName: Enable HTTPS
@@ -109,11 +95,6 @@ parameters:
   description: Server's public hostname
   value: ""
 
-- name: ENABLE_AUTHZ
-  displayName: Enable Authz
-  description: Enable Authorization on endpoints, should only be disabled for debug
-  value: "true"
-
 - name: DB_MAX_OPEN_CONNS
   displayName: Maximum Open Database Connections
   description: Maximum number of open database connections per pod
@@ -132,11 +113,6 @@ parameters:
 - name: ENABLE_METRICS_HTTPS
   displayName: Enable Metrics HTTPS
   description: Enable HTTPS for metrics server
-  value: "false"
-
-- name: ENABLE_OCM_MOCK
-  displayName: Enable OCM Mock
-  description: Enable mock uhc client
   value: "false"
 
 - name: HTTP_READ_TIMEOUT
@@ -259,8 +235,6 @@ objects:
             - --db-max-open-connections=${DB_MAX_OPEN_CONNS}
             - --message-broker-config-file=/secrets/mqtt/config.yaml
             - --message-broker-type=mqtt
-            - --enable-ocm-mock=${ENABLE_OCM_MOCK}
-            - --enable-jwt=${ENABLE_JWT}
             - --enable-https=${ENABLE_HTTPS}
             - --enable-grpc-server=${ENABLE_GRPC_SERVER}
             - --server-hostname=${HTTP_SERVER_HOSTNAME}
@@ -268,10 +242,8 @@ objects:
             - --grpc-server-bindport=${GRPC_SERVER_BINDPORT}
             - --health-check-server-bindport=${HEALTH_CHECK_SERVER_BINDPORT}
             - --enable-health-check-https=${ENABLE_HTTPS}
-            - --enable-authz=${ENABLE_AUTHZ}
             - --enable-db-debug=${ENABLE_DB_DEBUG}
             - --enable-metrics-https=${ENABLE_METRICS_HTTPS}
-            - --enable-sentry=false
             - --http-read-timeout=${HTTP_READ_TIMEOUT}
             - --http-write-timeout=${HTTP_WRITE_TIMEOUT}
             - --label-metrics-inclusion-duration=${LABEL_METRICS_INCLUSION_DURATION}
