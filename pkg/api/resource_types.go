@@ -60,6 +60,10 @@ func (d *Resource) GetResourceVersion() string {
 	return strconv.FormatInt(int64(d.Version), 10)
 }
 
+func (d *Resource) GetGeneration() int64 {
+	return int64(d.Version)
+}
+
 func (d *Resource) GetDeletionTimestamp() *metav1.Time {
 	return &metav1.Time{Time: d.Meta.DeletedAt.Time}
 }

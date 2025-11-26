@@ -2,14 +2,17 @@ package services
 
 import (
 	"context"
-	"k8s.io/klog/v2"
+	"encoding/json"
 	"reflect"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/prometheus/client_golang/prometheus"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -131,6 +134,19 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 
 	// Increase the current resource version and update its manifest.
 	found.Version = found.Version + 1
+	// Also increase metadata generation to ensure version consistency
+	if metadata, ok := resource.Payload[cetypes.ExtensionWorkMeta]; ok {
+		metaJson, err := json.Marshal(metadata)
+		if err != nil {
+			return nil, handleUpdateError("Resource", err)
+		}
+		objectMeta := metav1.ObjectMeta{}
+		if err := json.Unmarshal(metaJson, &objectMeta); err != nil {
+			return nil, handleUpdateError("Resource", err)
+		}
+		objectMeta.Generation = int64(found.Version)
+		resource.Payload[cetypes.ExtensionWorkMeta] = objectMeta
+	}
 	found.Payload = resource.Payload
 
 	updated, err := s.resourceDao.Update(ctx, found)

@@ -23,10 +23,8 @@ import (
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
-	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 
 	"github.com/openshift-online/maestro/cmd/maestro/server"
@@ -246,15 +244,15 @@ func TestResourceFromGRPC(t *testing.T) {
 
 	time.Sleep(3 * time.Second)
 	// reset metrics to avoid interference from other tests
-	cegeneric.ResetSourceCloudEventsMetrics()
+	cemetrics.ResetSourceCloudEventsMetrics()
 	server.ResetGRPCMetrics()
 
 	// use grpc client to create resource
 	h.StartGRPCResourceSourceClient()
-	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestBundleEventDataType,
-		SubResource:         types.SubResourceSpec,
-		Action:              types.CreateRequestAction,
+	err = h.GRPCSourceClient.Publish(ctx, cetypes.CloudEventsType{
+		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
+		SubResource:         cetypes.SubResourceSpec,
+		Action:              cetypes.CreateRequestAction,
 	}, resource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
@@ -337,7 +335,7 @@ func TestResourceFromGRPC(t *testing.T) {
 			return fmt.Errorf("failed to convert jsonmap to cloudevent")
 		}
 
-		manifestStatus := &payload.ManifestBundleStatus{}
+		manifestStatus := &workpayload.ManifestBundleStatus{}
 		if err := evt.DataAs(manifestStatus); err != nil {
 			return fmt.Errorf("failed to unmarshal event payload: %v", err)
 		}
@@ -358,10 +356,10 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 	newResource.ID = *res.Id
 	newResource.Version = *res.Version
-	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestBundleEventDataType,
-		SubResource:         types.SubResourceSpec,
-		Action:              types.UpdateRequestAction,
+	err = h.GRPCSourceClient.Publish(ctx, cetypes.CloudEventsType{
+		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
+		SubResource:         cetypes.SubResourceSpec,
+		Action:              cetypes.UpdateRequestAction,
 	}, newResource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
@@ -380,8 +378,8 @@ func TestResourceFromGRPC(t *testing.T) {
 			return err
 		}
 		// ensure the work version is updated
-		if work.GetResourceVersion() != "2" {
-			return fmt.Errorf("unexpected work version %v", work.GetResourceVersion())
+		if work.GetGeneration() != 2 {
+			return fmt.Errorf("unexpected work version %v", work.GetGeneration())
 		}
 		return nil
 	}, 10*time.Second, 1*time.Second).Should(Succeed())
@@ -393,10 +391,10 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(json.Unmarshal(work.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
 	Expect(manifest["spec"].(map[string]interface{})["replicas"]).To(Equal(float64(2)))
 
-	err = h.GRPCSourceClient.Publish(ctx, types.CloudEventsType{
-		CloudEventsDataType: payload.ManifestBundleEventDataType,
-		SubResource:         types.SubResourceSpec,
-		Action:              types.DeleteRequestAction,
+	err = h.GRPCSourceClient.Publish(ctx, cetypes.CloudEventsType{
+		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
+		SubResource:         cetypes.SubResourceSpec,
+		Action:              cetypes.DeleteRequestAction,
 	}, newResource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
