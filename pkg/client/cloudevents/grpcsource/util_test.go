@@ -47,6 +47,7 @@ func TestToManifestWork(t *testing.T) {
 					Name:            "test",
 					Namespace:       "testns",
 					ResourceVersion: "1",
+					Generation:      1,
 				},
 				Spec: workv1.ManifestWorkSpec{
 					Workload: workv1.ManifestsTemplate{
@@ -95,6 +96,7 @@ func TestToManifestWork(t *testing.T) {
 					Name:            "test",
 					Namespace:       "testns",
 					ResourceVersion: "1",
+					Generation:      1,
 				},
 				Spec: workv1.ManifestWorkSpec{
 					Workload: workv1.ManifestsTemplate{
@@ -217,40 +219,74 @@ func TestToLabelSearch(t *testing.T) {
 
 func TestToWorkPatch(t *testing.T) {
 	cases := []struct {
-		name            string
-		existingWork    *workv1.ManifestWork
-		newWork         *workv1.ManifestWork
-		expectedVersion string
-		expectedError   bool
+		name                    string
+		existingWork            *workv1.ManifestWork
+		newWork                 *workv1.ManifestWork
+		expectedResourceVersion string
+		expectedGeneration      int64
+		expectedError           bool
 	}{
 		{
-			name:          "no resourceVersion",
-			existingWork:  &workv1.ManifestWork{},
-			expectedError: true,
-		},
-		{
-			name: "resourceVersion is zero",
+			name: "generation is zero",
 			existingWork: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
-					ResourceVersion: "0",
+					Generation: 0,
 				},
 			},
 			expectedError: true,
 		},
 		{
-			name: "should use existing resource version",
+			name: "non-zero generation and empty resource version for existing work",
+			existingWork: &workv1.ManifestWork{
+				ObjectMeta: v1.ObjectMeta{
+					Generation: 1,
+				},
+			},
+			newWork: &workv1.ManifestWork{
+				ObjectMeta: v1.ObjectMeta{
+					ResourceVersion: "1",
+					Generation:      2,
+				},
+			},
+			expectedResourceVersion: "",
+			expectedGeneration:      1,
+			expectedError:           false,
+		},
+		{
+			name: "non-zero generation and zero resource version for existing work",
+			existingWork: &workv1.ManifestWork{
+				ObjectMeta: v1.ObjectMeta{
+					ResourceVersion: "0",
+					Generation:      1,
+				},
+			},
+			newWork: &workv1.ManifestWork{
+				ObjectMeta: v1.ObjectMeta{
+					ResourceVersion: "1",
+					Generation:      2,
+				},
+			},
+			expectedResourceVersion: "0",
+			expectedGeneration:      1,
+			expectedError:           false,
+		},
+		{
+			name: "non-zero generation and resource version for existing work",
 			existingWork: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
 					ResourceVersion: "1",
+					Generation:      1,
 				},
 			},
 			newWork: &workv1.ManifestWork{
 				ObjectMeta: v1.ObjectMeta{
 					ResourceVersion: "2",
+					Generation:      2,
 				},
 			},
-			expectedVersion: "1",
-			expectedError:   false,
+			expectedResourceVersion: "1",
+			expectedGeneration:      1,
+			expectedError:           false,
 		},
 	}
 
@@ -268,17 +304,25 @@ func TestToWorkPatch(t *testing.T) {
 				t.Errorf("unexpected error %v", err)
 			}
 
-			metadata := map[string]any{}
-			if err := json.Unmarshal(jsonData, &metadata); err != nil {
+			patchMap := map[string]any{}
+			if err := json.Unmarshal(jsonData, &patchMap); err != nil {
 				t.Fatal(err)
 			}
 
 			obj := unstructured.Unstructured{
-				Object: metadata,
+				Object: patchMap,
 			}
-			version := obj.GetResourceVersion()
-			if version != c.expectedVersion {
-				t.Errorf("expected %s, but got %s", c.expectedVersion, version)
+			resourceVersion := obj.GetResourceVersion()
+			if resourceVersion != c.expectedResourceVersion {
+				t.Errorf("expected resource version %s, but got %s", c.expectedResourceVersion, resourceVersion)
+			}
+			generationFloat, _, err := unstructured.NestedFloat64(patchMap, "metadata", "generation")
+			if err != nil {
+				t.Fatal(err)
+			}
+			generation := int64(generationFloat)
+			if generation != c.expectedGeneration {
+				t.Errorf("expected generation %d, but got %d", c.expectedGeneration, generation)
 			}
 		})
 	}

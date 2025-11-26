@@ -103,7 +103,7 @@ func (s *GRPCBrokerService) HandleStatusUpdate(ctx context.Context, evt *ce.Even
 }
 
 // RegisterHandler register the handler to the service.
-func (s *GRPCBrokerService) RegisterHandler(handler server.EventHandler) {
+func (s *GRPCBrokerService) RegisterHandler(ctx context.Context, handler server.EventHandler) {
 	// do nothing
 }
 
@@ -196,7 +196,7 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 	eventServer := servergrpc.NewGRPCBroker()
 	pbv1.RegisterCloudEventServiceServer(grpcServer, eventServer)
 	svc := NewGRPCBrokerService(resourceService, statusEventService)
-	eventServer.RegisterService(workpayload.ManifestBundleEventDataType, svc)
+	eventServer.RegisterService(context.Background(), workpayload.ManifestBundleEventDataType, svc)
 
 	return &GRPCBroker{
 		instanceID:         env().Config.MessageBroker.ClientID,

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"context"
 	"fmt"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,7 +24,7 @@ func (s *CreateOnlyWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 	return nil, fmt.Errorf("unsupported")
 }
 
-func (s *CreateOnlyWatcherStore) HandleReceivedResource(action types.ResourceAction, work *workv1.ManifestWork) error {
+func (s *CreateOnlyWatcherStore) HandleReceivedResource(ctx context.Context, action types.ResourceAction, work *workv1.ManifestWork) error {
 	// do nothing
 	return nil
 }

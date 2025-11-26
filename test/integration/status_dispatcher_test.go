@@ -14,7 +14,8 @@ import (
 	"github.com/openshift-online/maestro/test"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
-	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+
+	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
 )
 
 func TestStatusDispatcher(t *testing.T) {
@@ -26,7 +27,7 @@ func TestStatusDispatcher(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
 	// reset metrics to avoid interference from other tests
-	cegeneric.ResetSourceCloudEventsMetrics()
+	cemetrics.ResetSourceCloudEventsMetrics()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {

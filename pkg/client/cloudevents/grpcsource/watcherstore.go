@@ -116,7 +116,7 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 }
 
 // HandleReceivedWork sends the received works to the watch channel
-func (m *RESTFulAPIWatcherStore) HandleReceivedResource(action types.ResourceAction, work *workv1.ManifestWork) error {
+func (m *RESTFulAPIWatcherStore) HandleReceivedResource(ctx context.Context, action types.ResourceAction, work *workv1.ManifestWork) error {
 	switch action {
 	case types.StatusModified:
 		watchType := watch.Modified

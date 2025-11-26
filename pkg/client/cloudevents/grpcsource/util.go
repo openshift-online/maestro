@@ -32,8 +32,11 @@ func ToManifestWork(rb *openapi.ResourceBundle) (*workv1.ManifestWork, error) {
 		return nil, err
 	}
 	work.ObjectMeta = objectMeta
-	// use the maestro resource version as the work resource version
+	// (Deprecated) use the maestro resource version as the work resource version.
+	// Note: work resource version tracking is deprecated, use work generation instead.
 	work.ObjectMeta.ResourceVersion = fmt.Sprintf("%d", *rb.Version)
+	// use the maestro resource version as the work generation
+	work.ObjectMeta.Generation = int64(*rb.Version)
 
 	// get spec from resource
 	manifests := []workv1.Manifest{}
@@ -174,17 +177,13 @@ func ToLabelSearch(opts metav1.ListOptions) (labels.Selector, string, bool, erro
 }
 
 // ToWorkPatch returns a merge patch between an existing work and a new work.
-// The patch will keep the resource version of an existing work, and only patch a work of
+// The patch will keep the generation of an existing work, and only patch a work of
 // labels, annotations, finalizers, owner references and spec.
 func ToWorkPatch(existingWork, newWork *workv1.ManifestWork) ([]byte, error) {
 	existingWork = existingWork.DeepCopy()
 
-	if existingWork.ResourceVersion == "" {
-		return nil, fmt.Errorf("the existing work resource version is not found")
-	}
-
-	if existingWork.ResourceVersion == "0" {
-		return nil, fmt.Errorf("the existing work resource version cannot be zero")
+	if existingWork.Generation == 0 {
+		return nil, fmt.Errorf("the generation of existing work is zero")
 	}
 
 	oldData, err := json.Marshal(&workv1.ManifestWork{
@@ -202,8 +201,11 @@ func ToWorkPatch(existingWork, newWork *workv1.ManifestWork) ([]byte, error) {
 
 	newData, err := json.Marshal(&workv1.ManifestWork{
 		ObjectMeta: metav1.ObjectMeta{
-			UID:             existingWork.UID,
+			UID: existingWork.UID,
+			// (Deprecated) resourceVersion tracking will be removed.
+			// Use generation for version tracking instead.
 			ResourceVersion: existingWork.ResourceVersion,
+			Generation:      existingWork.Generation,
 			Labels:          newWork.Labels,
 			Annotations:     newWork.Annotations,
 			Finalizers:      newWork.Finalizers,
