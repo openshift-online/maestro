@@ -7,6 +7,7 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/google/uuid"
+
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -31,6 +32,14 @@ func (codec *Codec) EventDataType() cetypes.CloudEventsDataType {
 }
 
 func (codec *Codec) Encode(source string, eventType cetypes.CloudEventsType, res *api.Resource) (*cloudevents.Event, error) {
+	// use resource id as the resource payload metadata name to ensure the payload metadata name is
+	// unique on the agent side
+	if err := resetPayloadMetadataNameWithResID(res); err != nil {
+		return nil, err
+	}
+
+	// converts a resource payload to a CloudEvent
+	// If the resource payload has metadata the event will have the metadata extension
 	evt, err := api.JSONMAPToCloudEvent(res.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert resource payload to cloudevent: %v", err)
@@ -106,4 +115,21 @@ func (codec *Codec) Decode(evt *cloudevents.Event) (*api.Resource, error) {
 	}
 
 	return resource, nil
+}
+
+func resetPayloadMetadataNameWithResID(res *api.Resource) error {
+	metadata, ok := res.Payload[cetypes.ExtensionWorkMeta]
+	if !ok {
+		// the resource payload does not have metadata, do nothing
+		// the agent will using resource id as the payload metadata name
+		return nil
+	}
+
+	metaObj, ok := metadata.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("unsupported object type %T", metadata)
+	}
+	metaObj["name"] = res.ID
+	res.Payload[cetypes.ExtensionWorkMeta] = metaObj
+	return nil
 }
