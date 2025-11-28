@@ -10,7 +10,6 @@ import (
 	"time"
 
 	ce "github.com/cloudevents/sdk-go/v2"
-	cetypes "github.com/cloudevents/sdk-go/v2/types"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -24,10 +23,13 @@ import (
 	servergrpc "open-cluster-management.io/sdk-go/pkg/cloudevents/server/grpc"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 )
+
+const source = "maestro"
 
 var _ EventServer = &GRPCBroker{}
 
@@ -290,63 +292,18 @@ func (s *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool, 
 
 // decodeResourceStatus translates a CloudEvent into a resource containing the status JSON map.
 func decodeResourceStatus(evt *ce.Event) (*api.Resource, error) {
-	evtExtensions := evt.Context.GetExtensions()
-
-	clusterName, err := cetypes.ToString(evtExtensions[types.ExtensionClusterName])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get clustername extension: %v", err)
-	}
-
-	resourceID, err := cetypes.ToString(evtExtensions[types.ExtensionResourceID])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get resourceid extension: %v", err)
-	}
-
-	resourceVersion, err := cetypes.ToInteger(evtExtensions[types.ExtensionResourceVersion])
-	if err != nil {
-		return nil, fmt.Errorf("failed to get resourceversion extension: %v", err)
-	}
-
-	status, err := api.CloudEventToJSONMap(evt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert cloudevent to resource status: %v", err)
-	}
-
-	resource := &api.Resource{
-		Source:       evt.Source(),
-		ConsumerName: clusterName,
-		Version:      resourceVersion,
-		Meta: api.Meta{
-			ID: resourceID,
-		},
-		Status: status,
-	}
-
-	return resource, nil
+	codec := cloudevents.NewCodec(source)
+	return codec.Decode(evt)
 }
 
 // encodeResourceSpec translates a resource spec JSON map into a CloudEvent.
 func encodeResourceSpec(resource *api.Resource) (*ce.Event, error) {
-	evt, err := api.JSONMAPToCloudEvent(resource.Payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert resource payload to cloudevent: %v", err)
-	}
-
 	eventType := types.CloudEventsType{
 		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
 		Action:              types.EventAction("create_request"),
 	}
-	evt.SetType(eventType.String())
-	evt.SetSource("maestro")
-	// TODO set resource.Source with a new extension attribute if the agent needs
-	evt.SetExtension(types.ExtensionResourceID, resource.ID)
-	evt.SetExtension(types.ExtensionResourceVersion, int64(resource.Version))
-	evt.SetExtension(types.ExtensionClusterName, resource.ConsumerName)
 
-	if !resource.GetDeletionTimestamp().IsZero() {
-		evt.SetExtension(types.ExtensionDeletionTimestamp, resource.GetDeletionTimestamp().Time)
-	}
-
-	return evt, nil
+	codec := cloudevents.NewCodec(source)
+	return codec.Encode(source, eventType, resource)
 }
