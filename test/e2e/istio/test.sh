@@ -50,13 +50,28 @@ envsubst '${image} ${agent_namespace} ${consumer_name} ${service_account_name}' 
 
 sleep 5
 
-echo "Waiting for job clusters-service/maestro-e2e-tests to complete (timeout: ${timeout})..."
-kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait --for=condition=complete --timeout=${timeout} job/maestro-e2e-tests 2>/dev/null && {
-    echo "Job completed successfully"
+# Wait for pod to exist and be running
+echo "Waiting for job maestro-e2e-tests to start..."
+while true; do
+  PHASE=$(kubectl --kubeconfig=$server_kubeconfig -n clusters-service get pods -l app=maestro-e2e -o jsonpath='{.items[0].status.phase}' 2>/dev/null)
+  if [[ "$PHASE" == "Running" ]]; then
+    continue
+  elif [[ "$PHASE" == "Succeeded" ]]; then
+    POD=$(kubectl --kubeconfig=$server_kubeconfig get pods -n clusters-service -l app=maestro-e2e -o jsonpath='{.items[0].metadata.name}')
+    echo "Job Succeeded"
+    echo "-----------------------------"
+    echo "Streaming logs from pod: $POD"
+    kubectl --kubeconfig=$server_kubeconfig logs $POD -n clusters-service
     exit 0
-}
+  elif [[ "$PHASE" == "Failed" ]]; then
+    # Stream logs
+    echo "Job failed"
+    echo "-----------------------------"
+    echo "Streaming logs from pod: $POD"
+    POD=$(kubectl --kubeconfig=$server_kubeconfig get pods -l app=maestro-e2e -n clusters-service -o jsonpath='{.items[0].metadata.name}')
+    kubectl --kubeconfig=$server_kubeconfig logs -f $POD -n clusters-service
+    exit 1
+  fi
+  sleep 10
+done
 
-echo "Job failed"
-echo "-----------------------------"
-kubectl --kubeconfig=$server_kubeconfig -n clusters-service logs -l job-name=maestro-e2e-tests
-exit 1
