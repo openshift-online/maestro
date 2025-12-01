@@ -38,3 +38,6 @@ LABEL name="maestro-e2e" \
       io.k8s.description="maestro E2E Tests" \
       io.k8s.display-name="maestro-e2e" \
       io.openshift.tags="maestro,e2e,testing"
+
+# Additional tags for Konflux to generate latest tag
+LABEL konflux.additional-tags="latest"

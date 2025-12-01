@@ -31,3 +31,6 @@ LABEL name="maestro" \
       io.k8s.description="maestro API" \
       io.k8s.display-name="maestro" \
       io.openshift.tags="maestro"
+
+# Additional tags for Konflux to generate latest tag
+LABEL konflux.additional-tags="latest"
