@@ -359,8 +359,7 @@ retrieve-image:
 	@command -v python3 >/dev/null 2>&1 || { echo "Error: python3 is required but not installed"; exit 1; }
 	@echo "export internal_image_registry=quay.io/redhat-user-workloads/maestro-rhtap-tenant" > .image-env
 	@echo "export image_repository=maestro/maestro" >> .image-env
-	@latest_tag=$$(curl -sf -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro | python3 -c "import sys, json, re; data = json.load(sys.stdin); tags = [t for t in data.get('tags', {}).values() if not re.search(r'sha256-|on-pr-|maestro-on-pull-request', t.get('name', ''))]; tags.sort(key=lambda x: x.get('last_modified', ''), reverse=True); latest = tags[0]['name'] if tags else ''; print(latest) if latest else sys.exit(1)" || { echo "Error: Failed to retrieve image tag from Quay"; exit 1; }); \
-	echo "export image_tag=$$latest_tag" >> .image-env
+	@echo "export image_tag=latest" >> .image-env
 	@echo "Image configuration saved to .image-env"
 	@echo ""
 	@echo "To use these values, run:"
