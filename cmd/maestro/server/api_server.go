@@ -9,7 +9,6 @@ import (
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
-	_ "github.com/auth0/go-jwt-middleware"
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ghodss/yaml"
 	_ "github.com/golang-jwt/jwt/v4"

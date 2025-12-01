@@ -1,0 +1,210 @@
+name: Manual E2E Test
+
+on:
+  # Allow manual triggering with input parameters
+  workflow_dispatch:
+    inputs:
+      svc_resource_group:
+        description: 'Service cluster Azure resource group'
+        required: true
+        type: string
+      svc_cluster_name:
+        description: 'Service cluster AKS name'
+        required: true
+        type: string
+      mgmt_resource_group:
+        description: 'Management cluster Azure resource group'
+        required: true
+        type: string
+      mgmt_cluster_name:
+        description: 'Management cluster AKS name'
+        required: true
+        type: string
+
+jobs:
+  manual-cluster-e2e:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: 'write'
+      contents: 'read'
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Login to Azure using OIDC (no secret needed if federated identity is set up)
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          # if not using federated identity:
+          # client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+
+      # Install kubelogin (needed for AAD-enabled clusters)
+      - name: Install kubelogin and jq
+        run: |
+          az aks install-cli
+          kubelogin --version
+          sudo apt install -y jq gettext
+
+      # Get AKS credentials using input parameters
+      - name: Get AKS credentials
+        run: |
+          az aks get-credentials \
+            --resource-group ${{ inputs.svc_resource_group }} \
+            --name ${{ inputs.svc_cluster_name }} \
+            --overwrite-existing \
+            -f ./svc-cluster.kubeconfig
+          az aks get-credentials \
+            --resource-group ${{ inputs.mgmt_resource_group }} \
+            --name ${{ inputs.mgmt_cluster_name }} \
+            --overwrite-existing \
+            -f ./mgmt-cluster.kubeconfig
+
+      # Convert kubeconfig for non-interactive login (GitHub runner)
+      - name: Convert kubeconfig for kubelogin
+        run: |
+          kubelogin convert-kubeconfig -l azurecli --kubeconfig ./svc-cluster.kubeconfig
+          kubelogin convert-kubeconfig -l azurecli --kubeconfig ./mgmt-cluster.kubeconfig
+
+      # Verify kubectl works
+      - name: Check cluster access
+        run: |
+          kubectl --kubeconfig ./svc-cluster.kubeconfig get pods -A -l app=maestro
+          kubectl --kubeconfig ./svc-cluster.kubeconfig get service -n maestro
+          kubectl --kubeconfig ./mgmt-cluster.kubeconfig get pods -A -l app=maestro-agent
+
+      - name: generate the in cluster kubeconfig
+        run: |
+          generate_in_cluster_kube() {
+            kubeconfig=$1
+            type=$2
+            kubectl --kubeconfig "$kubeconfig" -n default create serviceaccount e2e-test-admin
+
+            cat << -EOF | kubectl --kubeconfig "$kubeconfig" apply -f -
+          apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: e2e-test-admin
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: cluster-admin
+          subjects:
+          - kind: ServiceAccount
+            name: e2e-test-admin
+            namespace: default
+          -EOF
+
+            TOKEN=$(kubectl --kubeconfig "$kubeconfig" create token e2e-test-admin --namespace default --duration=8760h)
+            API_SERVER=$(kubectl --kubeconfig "$kubeconfig" config view -o jsonpath='{.clusters[0].cluster.server}')
+            CA_CERT=$(kubectl --kubeconfig "$kubeconfig" config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+
+            cat > "${type}-incluster.kubeconfig" << -EOF
+          apiVersion: v1
+          kind: Config
+          clusters:
+          - name: my-cluster
+            cluster:
+              server: "$API_SERVER"
+              certificate-authority-data: "$CA_CERT"
+          users:
+          - name: e2e-test-admin
+            user:
+              token: "$TOKEN"
+          contexts:
+          - name: e2e-test-admin-context
+            context:
+              cluster: my-cluster
+              user: e2e-test-admin
+              namespace: default
+          current-context: e2e-test-admin-context
+          -EOF
+          }
+
+          generate_in_cluster_kube $(pwd)/svc-cluster.kubeconfig svc
+          generate_in_cluster_kube $(pwd)/mgmt-cluster.kubeconfig mgmt
+
+      - name: start the e2e test
+        run: |
+          consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+
+          AGENT_NAMESPACE=maestro \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
+            SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
+            bash -x test/e2e/istio/test.sh
+          if [ $? != 0 ]; then
+            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
+            exit 1
+          fi
+
+      - name: start to upgrade server
+        run: |
+          KUBECONFIG=$(pwd)/svc-cluster.kubeconfig make e2e/rollout
+          consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+
+          AGENT_NAMESPACE=maestro \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
+            SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
+            bash -x test/e2e/istio/test.sh
+          if [ $? != 0 ]; then
+            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
+            exit 1
+          fi
+
+      - name: start to upgrade agent
+        run: |
+          KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig make e2e/rollout
+          consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+
+          AGENT_NAMESPACE=maestro \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
+            SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
+            bash -x test/e2e/istio/test.sh
+          if [ $? != 0 ]; then
+            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
+            exit 1
+          fi
+
+      - name: Post a message in a channel
+        uses: slackapi/slack-github-action@v2.1.1
+        if: always()
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: "*Manual E2E Test Result*: ${{ job.status }}\nClusters: SVC=${{ inputs.svc_cluster_name }}, MGMT=${{ inputs.mgmt_cluster_name }}\n"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "Manual E2E Test Result: ${{ job.status }}\n*Service Cluster*: ${{ inputs.svc_cluster_name }} (RG: ${{ inputs.svc_resource_group }})\n*Management Cluster*: ${{ inputs.mgmt_cluster_name }} (RG: ${{ inputs.mgmt_resource_group }})\n"
+
+      - name: Clean up
+        if: always()
+        run: |
+          kubectl --kubeconfig $(pwd)/svc-cluster.kubeconfig delete serviceaccount e2e-test-admin
+          kubectl --kubeconfig $(pwd)/svc-cluster.kubeconfig delete clusterrolebinding e2e-test-admin
+          kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig delete serviceaccount e2e-test-admin
+          kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig delete clusterrolebinding e2e-test-admin
+

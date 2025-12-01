@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
@@ -8,21 +9,52 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
+	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
+	workv1 "open-cluster-management.io/api/work/v1"
 )
 
 var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status-resync-restart"), func() {
 	Context("Resync resource status after maestro server restarts", func() {
+		var watcherCtx context.Context
+		var watcherCancel context.CancelFunc
+
+		var watcherClient workv1client.WorkV1Interface
+		var watchedResult *WatchedResult
+
 		var maestroServerReplicas int
 		workName := fmt.Sprintf("work-%s", rand.String(5))
 		deployName := fmt.Sprintf("nginx-%s", rand.String(5))
 		work := helper.NewManifestWork(workName, deployName, deployName, 1)
-		It("create a resource with source work client", func() {
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+
+		BeforeAll(func() {
+			watcherCtx, watcherCancel = context.WithCancel(ctx)
+
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
+			watcherClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
+				ctx,
+				logger,
+				apiClient,
+				grpcOptions,
+				sourceID,
+			)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("start status watching")
+			watcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			watchedResult = StartWatch(watcherCtx, watcher)
+
+			By("create a resource with source work client")
+			_, err = watcherClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -37,7 +69,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
-				work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+				work, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -59,6 +91,13 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 
 				return fmt.Errorf("unexpected status, expected error looking up service account default/nginx")
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				if len(watchedResult.WatchedWorks) != 0 {
+					return nil
+				}
+				return fmt.Errorf("no works watched")
+			}, 1*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("shut down maestro server", func() {
@@ -81,11 +120,18 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				if err != nil {
 					return err
 				}
-				if len(pods.Items) > 0 {
+				// (TODO), the maestro pod may be in completed status so we skip the Completed status check here
+				for _, pod := range pods.Items {
+					if pod.Status.Phase == corev1.PodSucceeded {
+						continue
+					}
 					return fmt.Errorf("maestro server pods still running")
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			// remove the watched works
+			watchedResult.WatchedWorks = []*workv1.ManifestWork{}
 		})
 
 		It("create serviceaccount for deployment", func() {
@@ -117,24 +163,36 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				if err != nil {
 					return err
 				}
-				if len(pods.Items) != maestroServerReplicas {
-					return fmt.Errorf("unexpected maestro server pod count, expected %d, got %d", maestroServerReplicas, len(pods.Items))
-				}
+
+				// (TODO), the maestro pod may be in completed status so we skip the Completed status check here
+				availablePods := 0
 				for _, pod := range pods.Items {
-					if pod.Status.Phase != "Running" {
-						return fmt.Errorf("maestro server pod not in running state")
+					if pod.Status.Phase == corev1.PodSucceeded {
+						continue
 					}
-					if pod.Status.ContainerStatuses[0].State.Running == nil {
-						return fmt.Errorf("maestro server container not in running state")
+					if pod.Status.Phase == corev1.PodRunning && pod.Status.ContainerStatuses[0].State.Running != nil {
+						availablePods++
 					}
 				}
+				if availablePods != maestroServerReplicas {
+					return fmt.Errorf("unexpected available maestro server pod count, expected %d, got %d", maestroServerReplicas, availablePods)
+				}
+
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the resource status is resynced", func() {
+			// the watcher should resynced
 			Eventually(func() error {
-				work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+				if len(watchedResult.WatchedWorks) != 0 {
+					return nil
+				}
+				return fmt.Errorf("no works watched")
+			}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				work, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
@@ -155,13 +213,54 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 
 				return fmt.Errorf("unexpected status")
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			},
+				10*time.Minute, // timeout is double work resync interval time (4~6 mins)
+				2*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the resource with source work client", func() {
+		AfterAll(func() {
+			By("Startup the maestro server if its shutdown", func() {
+				deploy, err := serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Get(ctx, "maestro", metav1.GetOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				if *deploy.Spec.Replicas == 0 {
+					deploy, err := serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Patch(ctx, "maestro", types.MergePatchType, fmt.Appendf(nil, `{"spec":{"replicas":%d}}`, maestroServerReplicas), metav1.PatchOptions{
+						FieldManager: "serverTestOpts.kubeClientSet",
+					})
+					Expect(err).ShouldNot(HaveOccurred())
+					Expect(*deploy.Spec.Replicas).To(Equal(int32(maestroServerReplicas)))
+
+					// ensure maestro server pod is up and running
+					Eventually(func() error {
+						pods, err := serverTestOpts.kubeClientSet.CoreV1().Pods(serverTestOpts.serverNamespace).List(ctx, metav1.ListOptions{
+							LabelSelector: "app=maestro",
+						})
+						if err != nil {
+							return err
+						}
+
+						// (TODO), the maestro pod may be in completed status so we skip the Completed status check here
+						availablePods := 0
+						for _, pod := range pods.Items {
+							if pod.Status.Phase == corev1.PodSucceeded {
+								continue
+							}
+							if pod.Status.Phase == corev1.PodRunning && pod.Status.ContainerStatuses[0].State.Running != nil {
+								availablePods++
+							}
+						}
+						if availablePods != maestroServerReplicas {
+							return fmt.Errorf("unexpected available maestro server pod count, expected %d, got %d", maestroServerReplicas, availablePods)
+						}
+
+						return nil
+					}, 1*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+				}
+			})
+
+			By("delete the resource with source work client")
 			// note: wait some time to ensure source work client is connected to the restarted maestro server
 			Eventually(func() error {
-				return sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+				return watcherClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
 			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -174,9 +273,8 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 				return fmt.Errorf("nginx deployment still exists")
 			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
-		})
 
-		It("check the resource deletion via maestro api", func() {
+			By("check the resource deletion via maestro api")
 			Eventually(func() error {
 				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
 				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
@@ -191,6 +289,8 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			watcherCancel()
 		})
 	})
 })

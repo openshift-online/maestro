@@ -5,11 +5,10 @@ import (
 	"fmt"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
 
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
-	workv1 "open-cluster-management.io/api/work/v1"
 
 	sourceclient "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/client"
 	sourcecodec "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
@@ -19,6 +18,7 @@ import (
 
 func NewMaestroGRPCSourceWorkClient(
 	ctx context.Context,
+	logger logging.Logger,
 	apiClient *openapi.APIClient,
 	opts *grpc.GRPCOptions,
 	sourceID string,
@@ -32,9 +32,9 @@ func NewMaestroGRPCSourceWorkClient(
 		return nil, err
 	}
 
-	watcherStore := newRESTFulAPIWatcherStore(ctx, apiClient, sourceID)
+	watcherStore := newRESTFulAPIWatcherStore(ctx, logger, apiClient, sourceID)
 
-	cloudEventsClient, err := generic.NewCloudEventSourceClient[*workv1.ManifestWork](
+	cloudEventsClient, err := generic.NewCloudEventSourceClient(
 		ctx,
 		options,
 		nil, // resync is disabled, so lister is not required
@@ -55,8 +55,9 @@ func NewMaestroGRPCSourceWorkClient(
 				return
 			case <-cloudEventsClient.ReconnectedChan():
 				// reconnect happened, sync the works for current watchers
+				logger.Info(ctx, "client (source=%s) is reconnected, sync the works for current watchers", sourceID)
 				if err := watcherStore.Sync(); err != nil {
-					klog.Errorf("failed to sync the works %v", err)
+					logger.Error(ctx, "failed to sync the works %v", err)
 				}
 			}
 		}

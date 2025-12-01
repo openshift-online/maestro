@@ -16,27 +16,7 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 		consumerA := openapi.Consumer{Name: openapi.PtrString(fmt.Sprintf("consumer-a-%s", rand.String(5)))}
 		consumerB := openapi.Consumer{Name: openapi.PtrString(fmt.Sprintf("consumer-b-%s", rand.String(5)))}
 
-		AfterAll(func() {
-			// delete the consumer
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerA.Id).Execute()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-
-			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
-			Expect(err.Error()).To(ContainSubstring("Not Found"))
-			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
-
-			// delete the consumer
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
-
-			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
-			Expect(err.Error()).To(ContainSubstring("Not Found"))
-			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
-		})
-
-		It("create consumer", func() {
+		BeforeAll(func() {
 			// create a consumer
 			created, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerA).Execute()
 			Expect(err).To(Succeed())
@@ -60,6 +40,26 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
+		})
+
+		AfterAll(func() {
+			// delete the consumer
+			resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerA.Id).Execute()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
+			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
+			Expect(err.Error()).To(ContainSubstring("Not Found"))
+			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+
+			// delete the consumer
+			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
+
+			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
+			Expect(err.Error()).To(ContainSubstring("Not Found"))
+			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 		})
 
 		It("list consumers", func() {

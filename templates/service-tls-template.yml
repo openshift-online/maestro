@@ -34,7 +34,7 @@ parameters:
 - name: KLOG_V
   displayName: KLOG V Level
   description: Log verbosity level
-  value: "4"
+  value: "2"
 
 - name: MEMORY_REQUEST
   description: Memory request for the API pods.
@@ -327,6 +327,7 @@ objects:
           - name: maestro-grpc-cert
             secret:
               secretName: maestro-grpc-cert
+              optional: true
           initContainers:
           - name: migration
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}

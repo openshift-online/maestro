@@ -63,7 +63,7 @@ mqtt_client_cert ?= ""
 mqtt_client_key ?= ""
 
 # Log verbosity level
-klog_v:=4
+klog_v:=2
 
 # Location of the JSON web key set used to verify tokens:
 jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
@@ -245,7 +245,7 @@ test-integration-mqtt:
 .PHONY: test-integration-mqtt
 
 test-integration-grpc:
-	BROKER=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	BROKER=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-grpc
 
@@ -358,6 +358,10 @@ agent-project:
 image: cmds
 	$(container_tool) build -t "$(external_image_registry)/$(image_repository):$(image_tag)" .
 
+.PHONY: e2e-image
+e2e-image:
+	$(container_tool) build -f Dockerfile.e2e -t "$(external_image_registry)/$(image_repository)-e2e:$(image_tag)" .
+
 .PHONY: push
 push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
@@ -424,7 +428,7 @@ db/teardown:
 
 .PHONY: mqtt/prepare
 mqtt/prepare:
-	@echo $(shell LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 13) > $(mqtt_password_file)
+	@openssl rand -base64 13 | tr -dc 'a-zA-Z0-9' | head -c 13 > $(mqtt_password_file)
 
 .PHONY: mqtt/setup
 mqtt/setup: mqtt/prepare
@@ -451,8 +455,18 @@ e2e-test/teardown:
 	./test/e2e/setup/e2e_teardown.sh
 .PHONY: e2e-test/teardown
 
+# Runs the e2e tests.
+#
+# Args:
+#   TEST_FOCUS: Flags to pass to `ginkgo run`. The `-v` argument is always passed.
+#
+# Example:
+#   make e2e-test/run
+#   make e2e-test/run TEST_FOCUS="--focus=CSClient" run only the CSClient tests
+#   make e2e-test/run TEST_FOCUS="--focus=Resources" run only the Resources tests
+
 e2e-test/run:
-	ginkgo -v --fail-fast --label-filter="!(e2e-tests-spec-resync-reconnect||e2e-tests-status-resync-reconnect)" \
+	ginkgo -v --fail-fast --label-filter='$(LABEL_FILTER)' $(TEST_FOCUS) \
 	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
 	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
@@ -468,3 +482,14 @@ e2e-test: e2e-test/teardown e2e-test/setup e2e-test/run
 migration-test: e2e-test/teardown
 	./test/e2e/migration/test.sh
 .PHONY: migration-test
+
+e2e-test/istio:
+	./test/e2e/istio/test.sh
+.PHONY: e2e-test/istio
+
+e2e/rollout:
+ifndef KUBECONFIG
+	$(error "Must set KUBECONFIG")
+endif
+	KUBECONFIG=$(KUBECONFIG) ./test/e2e/setup/roll_out.sh
+.PHONY: e2e/rollout

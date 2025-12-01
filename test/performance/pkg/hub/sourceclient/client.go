@@ -14,6 +14,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/test/performance/pkg/util"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 )
 
 const sourceID = "maestro-performance-test"
@@ -29,11 +30,17 @@ func main() {
 
 	maestroAPIClient := util.NewMaestroAPIClient(maestroServerAddr)
 
+	logger, err := logging.NewStdLoggerBuilder().Build()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
 	grpcOptions.Dialer.URL = grpcServerAddr
 
 	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
+		logger,
 		maestroAPIClient,
 		grpcOptions,
 		sourceID,

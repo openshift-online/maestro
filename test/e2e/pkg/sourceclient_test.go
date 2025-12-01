@@ -9,6 +9,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/ocm-sdk-go/logging"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -19,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/component-base/metrics/testutil"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -26,57 +29,6 @@ import (
 )
 
 var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-client"), func() {
-	Context("Update an obsolete work", func() {
-		var workName string
-
-		BeforeEach(func() {
-			workName = "work-" + rand.String(5)
-			work := NewManifestWork(workName)
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			// wait for few seconds to ensure the creation is finished
-			<-time.After(5 * time.Second)
-		})
-
-		AfterEach(func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			Eventually(func() error {
-				return AssertWorkNotFound(workName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-
-		})
-
-		It("should return error when updating an obsolete work", func() {
-			By("update a work by work client")
-			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			newWork := work.DeepCopy()
-			newWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
-			patchData, err := grpcsource.ToWorkPatch(work, newWork)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			By("update the work by work client again")
-			obsoleteWork := work.DeepCopy()
-			obsoleteWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
-			patchData, err = grpcsource.ToWorkPatch(work, obsoleteWork)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
-			Expect(err).Should(HaveOccurred())
-			Expect(strings.Contains(err.Error(), "the resource version is not the latest")).Should(BeTrue())
-
-			// wait for few seconds to ensure the update is finished
-			<-time.After(5 * time.Second)
-		})
-	})
-
 	Context("Watch work status with source work client", func() {
 		var watcherCtx context.Context
 		var watcherCancel context.CancelFunc
@@ -85,6 +37,9 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		var initWorkBName string
 
 		BeforeEach(func() {
+			// reset the metrics firstly
+			grpcsource.ResetsourceClientRegisteredWatchersGaugeMetric()
+
 			watcherCtx, watcherCancel = context.WithCancel(ctx)
 
 			// prepare two works firstly
@@ -120,8 +75,12 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 		It("the work status should be watched", func() {
 			By("create a work watcher client")
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -163,11 +122,24 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			Eventually(func() error {
 				return AssertWatchResult(result)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("the watchers for different namespace", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -215,11 +187,26 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				}
 				return nil
 			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="",source="%s"} 1
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			source_client_registered_watchers{namespace="other",source="%s"} 1
+			`, sourceID, agentTestOpts.consumerName, sourceID, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("the watchers with label selector", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -249,11 +236,24 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			Eventually(func() error {
 				return AssertWatchResult(result)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		It("should recreate stopped watchers", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
 			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 				ctx,
+				logger,
 				apiClient,
 				grpcOptions,
 				sourceID,
@@ -273,6 +273,15 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 			// wait for work to be processed
 			<-time.After(3 * time.Second)
+
+			expectedMetrics := fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 1
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
 
 			By("stop the first watcher")
 			firstWatcher.Stop()
@@ -302,6 +311,57 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			Expect(len(secondResult.WatchedWorks)).Should(BeNumerically(">", 0), "second watcher should have processed events after restart")
 
 			secondWatcher.Stop()
+
+			expectedMetrics = fmt.Sprintf(`
+			# HELP source_client_registered_watchers Number of registered watchers for a source client.
+			# TYPE source_client_registered_watchers gauge
+			source_client_registered_watchers{namespace="%s",source="%s"} 0
+			`, agentTestOpts.consumerName, sourceID)
+			err = testutil.GatherAndCompare(prometheus.DefaultGatherer,
+				strings.NewReader(expectedMetrics), "source_client_registered_watchers")
+			Expect(err).ShouldNot(HaveOccurred())
+		})
+
+		It("should be able to watch the work when create and delete immediately", func() {
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
+			watcherClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
+				ctx,
+				logger,
+				apiClient,
+				grpcOptions,
+				sourceID,
+			)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			watcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{
+				LabelSelector: "app=test-create-delete",
+			})
+			Expect(err).ShouldNot(HaveOccurred())
+			result := StartWatch(watcherCtx, watcher)
+
+			By("create a work")
+			workName := "work-" + rand.String(5)
+			work := NewManifestWorkWithLabels(workName, map[string]string{"app": "test-create-delete"})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			<-time.After(1 * time.Second)
+
+			By("delete the work after 1s")
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				for _, watchedWork := range result.WatchedWorks {
+					if meta.IsStatusConditionTrue(watchedWork.Status.Conditions, common.ResourceDeleted) {
+						return nil
+					}
+				}
+
+				return fmt.Errorf("no deleted work watched")
+			}, 1*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -381,62 +441,135 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		})
 
 		It("list works with options", func() {
-			By("list all works")
-			works, err := sourceWorkClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
-
-			By("list works by consumer name")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
-
-			By("list works by nonexistent consumer")
-			works, err = sourceWorkClient.ManifestWorks("nonexistent").List(ctx, metav1.ListOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
-
-			By("list works with nonexistent labels")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "nonexistent=true",
+			By("list all works", func() {
+				works, err := sourceWorkClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items)).ShouldNot(HaveOccurred())
 
-			By("list works with app label")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "app=test",
+			By("list works by consumer name", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, workName, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
-			By("list works without test env")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "app=test,env!=integration",
-			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, prodWorkName)).ShouldNot(HaveOccurred())
+			By("list works by nonexistent consumer", func() {
+				works, err := sourceWorkClient.ManifestWorks("nonexistent").List(ctx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks)).ShouldNot(HaveOccurred())
 
-			By("list works in prod and test env")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "env in (production, integration)",
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 
-			By("list works in test env and val not in a and b")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "env=integration,val notin (a,b)",
+			By("list works with nonexistent labels", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "nonexistent=true",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, testWorkCName)).ShouldNot(HaveOccurred())
 
-			By("list works with val label")
-			works, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
-				LabelSelector: "val",
+			By("list works with app label", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "app=test",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
 			})
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(AssertWorks(works.Items, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
+
+			By("list works without test env", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "app=test,env!=integration",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, prodWorkName)).ShouldNot(HaveOccurred())
+			})
+
+			By("list works in prod and test env", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "env in (production, integration)",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, prodWorkName, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
+			})
+
+			By("list works in test env and val not in a and b", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "env=integration,val notin (a,b)",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, testWorkCName)).ShouldNot(HaveOccurred())
+			})
+
+			By("list works with val label", func() {
+				works, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).List(ctx, metav1.ListOptions{
+					LabelSelector: "val",
+				})
+				Expect(err).ShouldNot(HaveOccurred())
+				var expectedWorks []workv1.ManifestWork
+				for _, work := range works.Items {
+					if work.DeletionTimestamp != nil {
+						continue
+					}
+					expectedWorks = append(expectedWorks, work)
+				}
+				Expect(AssertWorks(expectedWorks, testWorkAName, testWorkBName, testWorkCName)).ShouldNot(HaveOccurred())
+			})
 
 			// TODO support does not exist
 			// By("list works without val label")

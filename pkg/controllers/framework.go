@@ -55,7 +55,7 @@ type KindControllerManager struct {
 	controllers map[string]map[api.EventType][]ControllerHandlerFunc
 	eventFilter EventFilter
 	events      services.EventService
-	eventsQueue workqueue.RateLimitingInterface
+	eventsQueue workqueue.TypedRateLimitingInterface[string]
 }
 
 func NewKindControllerManager(eventFilter EventFilter, events services.EventService) *KindControllerManager {
@@ -63,11 +63,17 @@ func NewKindControllerManager(eventFilter EventFilter, events services.EventServ
 		controllers: map[string]map[api.EventType][]ControllerHandlerFunc{},
 		eventFilter: eventFilter,
 		events:      events,
-		eventsQueue: workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "event-controller"),
+		eventsQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[string](),
+			workqueue.TypedRateLimitingQueueConfig[string]{
+				Name:            "event-controller",
+				MetricsProvider: prometheusMetricsProvider{},
+			},
+		),
 	}
 }
 
-func (km *KindControllerManager) Queue() workqueue.RateLimitingInterface {
+func (km *KindControllerManager) Queue() workqueue.TypedRateLimitingInterface[string] {
 	return km.eventsQueue
 }
 
@@ -133,32 +139,43 @@ func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 		if svcErr.Is404() {
 			// the event is already deleted, we can ignore it
 			log.Infof("Event with id (%s) is not found", id)
+			specEventReconciledTotal.WithLabelValues("unknown", string(controllerReconciledStatusSkipped)).Inc()
 			return true, nil
 		}
+		specEventReconciledTotal.WithLabelValues("unknown", string(controllerReconciledStatusError)).Inc()
 		return false, fmt.Errorf("error getting event with id (%s): %s", id, svcErr)
 	}
 
 	if event.ReconciledDate != nil {
 		// the event is already reconciled, we can ignore it
 		log.Infof("Event with id (%s) is already reconciled", id)
+		specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusSkipped)).Inc()
 		return true, nil
 	}
+
+	startTime := time.Now()
+	defer func() {
+		specEventReconcileDuration.WithLabelValues(string(event.EventType)).Observe(time.Since(startTime).Seconds())
+	}()
 
 	source, found := km.controllers[event.Source]
 	if !found {
 		log.Infof("No controllers found for '%s'\n", event.Source)
+		specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusSkipped)).Inc()
 		return true, nil
 	}
 
 	handlerFns, found := source[event.EventType]
 	if !found {
 		log.Infof("No handler functions found for '%s-%s'\n", event.Source, event.EventType)
+		specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusSkipped)).Inc()
 		return true, nil
 	}
 
 	for _, fn := range handlerFns {
 		err := fn(reqContext, event.SourceID)
 		if err != nil {
+			specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusError)).Inc()
 			return false, fmt.Errorf("error handing event %s-%s (%s): %s", event.Source, event.EventType, id, err)
 		}
 	}
@@ -167,9 +184,11 @@ func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 	now := time.Now()
 	event.ReconciledDate = &now
 	if _, svcErr := km.events.Replace(reqContext, event); svcErr != nil {
+		specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusError)).Inc()
 		return false, fmt.Errorf("error updating event with id (%s): %s", id, svcErr)
 	}
 
+	specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusSuccess)).Inc()
 	// the event is reconciled, we can ignore it
 	return true, nil
 }
@@ -192,7 +211,7 @@ func (km *KindControllerManager) processNextEvent() bool {
 	}
 	defer km.eventsQueue.Done(key)
 
-	if reconciled, err := km.handleEvent(key.(string)); !reconciled {
+	if reconciled, err := km.handleEvent(key); !reconciled {
 		if err != nil {
 			log.Errorf("Failed to handle the event %v, %v ", key, err)
 		}
@@ -215,6 +234,7 @@ func (km *KindControllerManager) syncEvents() {
 		// this process is called periodically, so if the error happened, we will wait for the next cycle to handle
 		// this again
 		log.Errorf("Failed to delete reconciled events from db: %v", err)
+		specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}
 
@@ -222,6 +242,7 @@ func (km *KindControllerManager) syncEvents() {
 	unreconciledEvents, err := km.events.FindAllUnreconciledEvents(context.Background())
 	if err != nil {
 		log.Errorf("Failed to list unreconciled events from db: %v", err)
+		specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}
 
@@ -229,4 +250,6 @@ func (km *KindControllerManager) syncEvents() {
 	for _, event := range unreconciledEvents {
 		km.eventsQueue.Add(event.ID)
 	}
+
+	specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusSuccess)).Inc()
 }

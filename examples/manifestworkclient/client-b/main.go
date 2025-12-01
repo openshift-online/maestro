@@ -12,6 +12,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -60,11 +61,17 @@ func main() {
 		},
 	})
 
+	logger, err := logging.NewStdLoggerBuilder().Build()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
 	grpcOptions.Dialer.URL = *grpcServerAddr
 
 	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
+		logger,
 		maestroAPIClient,
 		grpcOptions,
 		sourceID,

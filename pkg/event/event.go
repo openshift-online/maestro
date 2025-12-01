@@ -18,7 +18,6 @@ type resourceHandler func(res *api.Resource) error
 type eventClient struct {
 	source  string
 	handler resourceHandler
-	errChan chan<- error
 }
 
 // EventBroadcaster is a component that can broadcast resource status change events to registered clients.
@@ -41,20 +40,20 @@ func NewEventBroadcaster() *EventBroadcaster {
 }
 
 // Register registers a client and return client id and error channel.
-func (h *EventBroadcaster) Register(source string, handler resourceHandler) (string, <-chan error) {
+func (h *EventBroadcaster) Register(source string, handler resourceHandler) string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	id := uuid.NewString()
-	errChan := make(chan error)
 	h.clients[id] = &eventClient{
 		source:  source,
 		handler: handler,
-		errChan: errChan,
 	}
 
 	log.Infof("registered a broadcaster client %s (source=%s)", id, source)
-	return id, errChan
+	grpcRegisteredSourceClientsGaugeMetric.WithLabelValues(source).Inc()
+
+	return id
 }
 
 // Unregister unregisters a client by id
@@ -62,9 +61,15 @@ func (h *EventBroadcaster) Unregister(id string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	close(h.clients[id].errChan)
+	client, exists := h.clients[id]
+	if !exists {
+		log.Warnf("attempted to unregister non-existent broadcaster client %s", id)
+		return
+	}
+
 	delete(h.clients, id)
-	log.Infof("unregistered broadcaster client %s", id)
+	log.Infof("unregistered broadcaster client %s (source=%s)", id, client.source)
+	grpcRegisteredSourceClientsGaugeMetric.WithLabelValues(client.source).Dec()
 }
 
 // Broadcast broadcasts a resource status change event to all registered clients.
@@ -82,10 +87,15 @@ func (h *EventBroadcaster) Start(ctx context.Context) {
 			return
 		case res := <-h.broadcast:
 			h.mu.RLock()
+
+			if len(h.clients) == 0 {
+				log.Warnf("no clients registered on this instance")
+			}
+
 			for _, client := range h.clients {
 				if client.source == res.Source {
 					if err := client.handler(res); err != nil {
-						client.errChan <- err
+						log.Errorf("failed to handle resource %s: %v", res.ID, err)
 					}
 				}
 			}

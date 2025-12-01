@@ -14,8 +14,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# enable istio on the ENABLE_ISTIO env
+enable_istio=${ENABLE_ISTIO:-"false"}
+
 kind_version=0.12.0
 step_version=0.26.2
+istio_version=1.25.5
+
+rest_api_schema=https
 
 export namespace="maestro"
 export agent_namespace="maestro-agent"
@@ -41,6 +47,14 @@ if ! command -v step >/dev/null 2>&1; then
     rm -rf ./step_${step_version}_amd64.tar.gz ./step_${step_version}
 fi
 
+if [ "$enable_istio" = "true" ] && ! command -v istioctl >/dev/null 2>&1; then
+    echo "This script will install istioctl (https://istio.io/latest/docs/ops/diagnostic-tools/istioctl/) on your machine."
+    curl -L https://istio.io/downloadIstio | ISTIO_VERSION=${istio_version} sh -
+    chmod +x ./istio-${istio_version}/bin/istioctl
+    sudo mv ./istio-${istio_version}/bin/istioctl /usr/local/bin/istioctl
+    rm -rf ./istio-${istio_version}
+fi
+
 # 1. create KinD cluster
 if [ ! -f "$KUBECONFIG" ]; then
   cat << EOF | kind create cluster --name maestro --kubeconfig ${KUBECONFIG} --config=-
@@ -53,19 +67,25 @@ nodes:
     hostPort: 30080
   - containerPort: 30090
     hostPort: 30090
+  - containerPort: 30100
+    hostPort: 30100
 EOF
 fi
 
 # 2. build maestro image and load to KinD cluster
 if [ $external_image_registry == "image-registry.testing" ]; then
-  make image
+  make image e2e-image
   # related issue: https://github.com/kubernetes-sigs/kind/issues/2038
   if command -v docker &> /dev/null; then
       kind load docker-image ${external_image_registry}/${namespace}/maestro:$image_tag --name maestro
+      kind load docker-image ${external_image_registry}/${namespace}/maestro-e2e:$image_tag --name maestro
   elif command -v podman &> /dev/null; then
       podman save ${external_image_registry}/${namespace}/maestro:$image_tag -o /tmp/maestro.tar 
       kind load image-archive /tmp/maestro.tar --name maestro 
       rm /tmp/maestro.tar
+      podman save ${external_image_registry}/${namespace}/maestro-e2e:$image_tag -o /tmp/maestro-e2e.tar
+      kind load image-archive /tmp/maestro-e2e.tar --name maestro
+      rm /tmp/maestro-e2e.tar
   else 
       echo "Neither Docker nor Podman is installed, exiting"
       exit 1
@@ -80,9 +100,20 @@ kubectl create ns openshift-config-managed || true
 kubectl apply -f ./test/e2e/setup/service-ca/
 kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
 
-# 4. create maestro and agent namespaces
+# 4. create namespaces
+# create maestro namespace
 kubectl create namespace $namespace || true
+# create maestro-agent namespace
 kubectl create namespace ${agent_namespace} || true
+# create clusters-service namespace
+kubectl create namespace clusters-service || true
+
+# install istio if enabled
+if [ "$enable_istio" = "true" ]; then
+  istioctl install --set profile=minimal -y
+  kubectl label namespace $namespace istio-injection=enabled --overwrite
+  kubectl label namespace clusters-service istio-injection=enabled --overwrite
+fi
 
 # 5. create a self-signed certificate for mqtt
 mqttCertDir="./test/e2e/certs/mqtt"
@@ -111,7 +142,10 @@ if [ ! -d "$grpcCertDir" ]; then
 }
 EOF
   step certificate create "maestro-grpc-client" ${grpcCertDir}/client.crt ${grpcCertDir}/client.key --template ${grpcCertDir}/cert.tpl --ca ${grpcCertDir}/ca.crt --ca-key ${grpcCertDir}/ca.key --no-password --insecure
-  kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key
+fi
+
+if [ "$enable_istio" != "true" ]; then
+  kubectl create secret generic maestro-grpc-cert -n $namespace --from-file=ca.crt=${grpcCertDir}/ca.crt --from-file=server.crt=${grpcCertDir}/server.crt --from-file=server.key=${grpcCertDir}/server.key --from-file=client.crt=${grpcCertDir}/client.crt --from-file=client.key=${grpcCertDir}/client.key || true
 fi
 
 grpcBrokerCertDir="./test/e2e/certs/grpc-broker"
@@ -155,7 +189,26 @@ make deploy-secrets \
 	deploy-mqtt-tls \
 	deploy-service-tls
 
-kubectl wait deploy/maestro-mqtt -n $namespace --for condition=Available=True --timeout=200s
+# disable grpc and http tls when istio is enabled because istio provides mutual tls
+if [ "$enable_istio" = "true" ]; then
+  kubectl get deploy/maestro -n $namespace -o json \
+  | jq '
+    .spec.template.spec.containers |= map(
+      if .name == "service" then
+        .command |= (
+          map(select(startswith("--grpc-tls-") | not)) |
+          map(select(startswith("--grpc-broker-") | not)) |
+          map(select(. != "--grpc-client-ca-file=/secrets/maestro-grpc-cert/ca.crt")) |
+          map(if . == "--enable-https=true" then "--enable-https=false" else . end)
+        )
+      else
+        .
+      end
+    )
+  ' | kubectl apply -f -
+  rest_api_schema="http"
+fi
+kubectl wait deploy/maestro-mqtt  --for condition=Available=True --timeout=200s
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=200s
 
 sleep 30 # wait 30 seconds for the service ready
@@ -166,7 +219,7 @@ echo $external_host_ip > ./test/e2e/.external_host_ip
 
 # the consumer name is not specified, the consumer id will be used as the consumer name
 if [ ! -f "./test/e2e/.consumer_name" ]; then
-  consumer_name=$(curl -s -k -X POST -H "Content-Type: application/json" https://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq '.id')
+  consumer_name=$(curl -s -k -X POST -H "Content-Type: application/json" ${rest_api_schema}://${external_host_ip}:30080/api/maestro/v1/consumers -d '{}' | jq '.id')
   consumer_name=$(echo "$consumer_name" | sed 's/"//g')
   echo $consumer_name > ./test/e2e/.consumer_name
 fi
@@ -194,3 +247,13 @@ stringData:
 EOF
 
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s
+
+# prepare a in-cluster kubeconfig
+if [ "$enable_istio" = "true" ]; then
+  in_cluster_kubeconfig=${PWD}/test/e2e/.in-cluster.kubeconfig
+  kubectl --kubeconfig ${KUBECONFIG} config view --minify --flatten > $in_cluster_kubeconfig
+  context=$(kubectl --kubeconfig ${in_cluster_kubeconfig} config current-context)
+  cluster_name=$(kubectl config view -o jsonpath="{.contexts[?(@.name==\"${context}\")].context.cluster}")
+  cluster_ip=$(kubectl --kubeconfig ${in_cluster_kubeconfig} get svc kubernetes -n default -o jsonpath="{.spec.clusterIP}")
+  kubectl --kubeconfig ${in_cluster_kubeconfig} config set-cluster "${cluster_name}" --server="https://${cluster_ip}"
+fi

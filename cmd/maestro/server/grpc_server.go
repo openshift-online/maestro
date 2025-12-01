@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"time"
 
 	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
+	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
@@ -32,12 +34,13 @@ import (
 // GRPCServer includes a gRPC server and a resource service
 type GRPCServer struct {
 	pbv1.UnimplementedCloudEventServiceServer
-	grpcServer        *grpc.Server
-	eventBroadcaster  *event.EventBroadcaster
-	resourceService   services.ResourceService
-	disableAuthorizer bool
-	grpcAuthorizer    grpcauthorizer.GRPCAuthorizer
-	bindAddress       string
+	grpcServer             *grpc.Server
+	eventBroadcaster       *event.EventBroadcaster
+	resourceService        services.ResourceService
+	disableAuthorizer      bool
+	grpcAuthorizer         grpcauthorizer.GRPCAuthorizer
+	bindAddress            string
+	heartbeatCheckInterval time.Duration
 }
 
 // NewGRPCServer creates a new GRPCServer
@@ -125,12 +128,13 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 	}
 
 	return &GRPCServer{
-		grpcServer:        grpc.NewServer(grpcServerOptions...),
-		eventBroadcaster:  eventBroadcaster,
-		resourceService:   resourceService,
-		disableAuthorizer: disableTLS,
-		grpcAuthorizer:    grpcAuthorizer,
-		bindAddress:       env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
+		grpcServer:             grpc.NewServer(grpcServerOptions...),
+		eventBroadcaster:       eventBroadcaster,
+		resourceService:        resourceService,
+		disableAuthorizer:      disableTLS,
+		grpcAuthorizer:         grpcAuthorizer,
+		bindAddress:            env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
+		heartbeatCheckInterval: config.HeartbeatCheckInterval,
 	}
 }
 
@@ -242,10 +246,54 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		}
 	}
 
-	clientID, errChan := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
+	ctx, cancel := context.WithCancel(subServer.Context())
+	defer cancel()
+
+	// TODO make the channel size configurable
+	eventCh := make(chan *pbv1.CloudEvent, 100)
+	heartbeatCh := make(chan *pbv1.CloudEvent, 10)
+	sendErrCh := make(chan error, 1)
+
+	// send events
+	// The grpc send is not concurrency safe and non-blocking, see: https://github.com/grpc/grpc-go/blob/v1.75.1/stream.go#L1571
+	// Return the error without wrapping, as it includes the gRPC error code and message for further handling.
+	// For unrecoverable errors, such as a connection closed by an intermediate proxy, push the error to subscriber's
+	// error channel to unregister the subscriber.
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case evt := <-heartbeatCh:
+				if err := subServer.Send(evt); err != nil {
+					log.Errorf("failed to send heartbeat: %v", err)
+					// Unblock producers (handler select) and exit heartbeat ticker.
+					cancel()
+					select {
+					case sendErrCh <- err:
+					default:
+					}
+					return
+				}
+			case evt := <-eventCh:
+				if err := subServer.Send(evt); err != nil {
+					log.Errorf("failed to send event: %v", err)
+					// Unblock producers (handler select) and exit heartbeat ticker.
+					cancel()
+					select {
+					case sendErrCh <- err:
+					default:
+					}
+					return
+				}
+			}
+		}
+	}()
+
+	clientID := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
 		evt, err := encodeResourceStatus(res)
 		if err != nil {
-			return fmt.Errorf("failed to encode resource %s to cloudevent: %v", res.ID, err)
+			return fmt.Errorf("failed to encode cloudevent: %v", err)
 		}
 
 		log.Infof("send the event to status subscribers, %s", evt.Context)
@@ -257,21 +305,45 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to convert cloudevent to protobuf: %v", err)
 		}
 
-		// send the cloudevent to the subscriber
-		// TODO: error handling to address errors beyond network issues.
-		if err := subServer.Send(pbEvt); err != nil {
-			return err
+		select {
+		case eventCh <- pbEvt:
+		case <-ctx.Done():
+			return nil
 		}
 
 		return nil
 	})
 
+	go func() {
+		ticker := time.NewTicker(svr.heartbeatCheckInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				heartbeat := &pbv1.CloudEvent{
+					SpecVersion: "1.0",
+					Id:          uuid.New().String(),
+					Type:        types.HeartbeatCloudEventsType,
+				}
+
+				select {
+				case heartbeatCh <- heartbeat:
+				default:
+					log.Warn("send channel is full, dropping heartbeat")
+				}
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
 	select {
-	case err := <-errChan:
-		log.Infof("unregistering client %s due to error= %v", clientID, err)
+	case err := <-sendErrCh:
+		log.Errorf("failed to send event, unregister subscriber %s, error=%v", clientID, err)
 		svr.eventBroadcaster.Unregister(clientID)
 		return err
-	case <-subServer.Context().Done():
+	case <-ctx.Done():
 		svr.eventBroadcaster.Unregister(clientID)
 		return nil
 	}

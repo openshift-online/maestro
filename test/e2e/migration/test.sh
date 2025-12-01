@@ -29,9 +29,23 @@ mkdir -p $output_dir
 
 # run the e2e-test in the main repo with the commit sha
 git clone https://github.com/openshift-online/maestro.git "$output_dir/maestro"
+# for upgrade test, we need to use kind to create the cluster that mapping sufficient ports
+cat << EOF | kind create cluster --name maestro --kubeconfig $output_dir/maestro/test/e2e/.kubeconfig --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 30080
+    hostPort: 30080
+  - containerPort: 30090
+    hostPort: 30090
+  - containerPort: 30100
+    hostPort: 30100
+EOF
 pushd $output_dir/maestro
 git checkout $commit_sha
-image_tag=$commit_sha external_image_registry=$img_registry internal_image_registry=$img_registry make e2e-test
+image_tag=$commit_sha external_image_registry=$img_registry internal_image_registry=$img_registry make e2e-test/setup e2e-test/run
 popd
 
 # copy the configurations

@@ -44,20 +44,16 @@ func main() {
 	// set the logging config file
 	viper.SetConfigFile(logConfigFile)
 	// default log level is info
-	viper.SetDefault(varLogLevel, "info")
+	logger.SetLogLevel("info")
 	if err := viper.ReadInConfig(); err != nil {
-		if _, ok := err.(*os.PathError); ok {
-			log.Infof("no config file '%s'", logConfigFile)
-		} else {
-			log.Errorf("failed to read the config file '%s': %v", logConfigFile, err)
-		}
+		log.Warnf("failed to read the log config file '%s', using info as default log level, %v", logConfigFile, err)
 	} else {
 		logger.SetLogLevel(viper.GetString(varLogLevel))
 	}
 	// monitor the changes in the config file
 	viper.WatchConfig()
 	viper.OnConfigChange(func(e fsnotify.Event) {
-		log.Infof("config file changed: %s, new log level: %s", e.Name, viper.GetString(varLogLevel))
+		log.Infof("log config file changed: %s, new log level: %s", e.Name, viper.GetString(varLogLevel))
 		logger.SetLogLevel(viper.GetString(varLogLevel))
 	})
 

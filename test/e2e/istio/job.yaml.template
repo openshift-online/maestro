@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: maestro-e2e-tests
+  namespace: clusters-service
+  labels:
+    app: maestro-e2e
+    job-type: e2e-tests
+spec:
+  # Number of retries before considering the job as failed
+  backoffLimit: 0
+  # Time to keep the job after completion (for log inspection)
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: maestro-e2e
+      annotations:
+        sidecar.istio.io/inject: "true"
+        proxy.istio.io/config: |
+          holdApplicationUntilProxyStarts: true
+          terminationDrainDuration: 10s
+    spec:
+      serviceAccountName: ${service_account_name}
+      restartPolicy: Never
+      containers:
+        - name: e2e-tests
+          image: ${image}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: AGENT_NAMESPACE
+              value: "${agent_namespace}"
+            - name: CONSUMER_NAME
+              value: "${consumer_name}"
+          command: ["/bin/sh", "-c"]
+          args:
+            - |-
+              /e2e/e2e.test \
+                -api-server=http://maestro.maestro:8000 \
+                -grpc-server=maestro-grpc.maestro:8090 \
+                -server-kubeconfig=/e2e/kubeconfig/server.kubeconfig \
+                -agent-kubeconfig=/e2e/kubeconfig/agent.kubeconfig \
+                -server-namespace=maestro \
+                -agent-namespace=${agent_namespace} \
+                -consumer-name=${consumer_name} \
+                -dump-logs=false
+              exit_code=$?
+              echo "Test exited with code: $exit_code"
+              # Signal istio-proxy to quit
+              curl -sf -X POST http://localhost:15020/quitquitquit
+              exit $exit_code
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /e2e/kubeconfig
+              readOnly: true
+            - name: test-reports
+              mountPath: /e2e/report
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: maestro-e2e-kubeconfig
+        - name: test-reports
+          emptyDir: {}

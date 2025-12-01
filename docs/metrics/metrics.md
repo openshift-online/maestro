@@ -1,6 +1,6 @@
 # Maestro Metrics
 
-This document describes the Prometheus metrics exposed by the Maestro server and Maestro agent. Each metric includes its name, type, a short description, and an example of the exported data.
+This document describes the Prometheus metrics exposed by the Maestro server, Maestro agent and Maestro Source Client. Each metric includes its name, type, a short description, and an example of the exported data.
 
 ## Maestro Server Metrics
 
@@ -75,14 +75,14 @@ advisory_unlock_count{status="OK",type="resources"} 7
 ### `cloudevents_received_total`
 
 **Type:** `counter`\
-**Help:** The total number of received CloudEvents, categorized by action, cluster, source, subresource, and type.
+**Help:** The total number of received CloudEvents, categorized by action, consumer, source, subresource, and type.
 
 **Example:**
 
 ```
 # HELP cloudevents_received_total The total number of received CloudEvents.
 # TYPE cloudevents_received_total counter
-cloudevents_received_total{action="update_request",cluster="9894...",source="9894...-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 22
+cloudevents_received_total{action="update_request",consumer="9894...",source="9894...-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 22
 ```
 
 ---
@@ -90,14 +90,28 @@ cloudevents_received_total{action="update_request",cluster="9894...",source="989
 ### `cloudevents_sent_total`
 
 **Type:** `counter`\
-**Help:** The total number of sent CloudEvents, categorized by action, cluster, source, subresource, and type.
+**Help:** The total number of sent CloudEvents, categorized by action, consumer, source, subresource, and type.
 
 **Example:**
 
 ```
 # HELP cloudevents_sent_total The total number of sent CloudEvents.
 # TYPE cloudevents_sent_total counter
-cloudevents_sent_total{action="resync_response",cluster="9894...",original_source="none",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
+cloudevents_sent_total{action="resync_response",consumer="9894...",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
+```
+
+---
+
+### `grpc_server_registered_source_clients`
+
+**Type:** `gauge`\
+**Help:** Number of registered source clients on the gRPC server.
+**Example:**
+
+```
+# HELP grpc_server_registered_source_clients Number of registered source clients on the grpc server.
+# TYPE grpc_server_registered_source_clients gauge
+grpc_server_registered_source_clients{source="maestro"} 1
 ```
 
 ---
@@ -205,11 +219,11 @@ resource_processed_total{action="update",id="4bd1408d-36f2-51a8-87aa-76d63dfd1d4
 ```
 # HELP resources_spec_resync_duration_seconds The duration of the resource spec resync in seconds.
 # TYPE resources_spec_resync_duration_seconds histogram
-resources_spec_resync_duration_seconds_bucket{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.1"} 1
-resources_spec_resync_duration_seconds_bucket{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.2"} 1
-resources_spec_resync_duration_seconds_bucket{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.5"} 1
-resources_spec_resync_duration_seconds_sum{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 0.003581495
-resources_spec_resync_duration_seconds_count{cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
+resources_spec_resync_duration_seconds_bucket{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.1"} 1
+resources_spec_resync_duration_seconds_bucket{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.2"} 1
+resources_spec_resync_duration_seconds_bucket{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles",le="0.5"} 1
+resources_spec_resync_duration_seconds_sum{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 0.003581495
+resources_spec_resync_duration_seconds_count{consumer="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
 ```
 
 ---
@@ -259,6 +273,282 @@ rest_api_inbound_request_duration_count{code="404",method="GET",path="/api/maest
 ```
 ---
 
+### `spec_controller_event_reconcile_total`
+
+**Type:** `counter`\
+**Help:** Total number of events reconciled by the spec controller.
+
+**Example:**
+
+```
+# HELP spec_controller_event_reconcile_total Total number of events reconciled by the spec controller
+# TYPE spec_controller_event_reconcile_total counter
+spec_controller_event_reconcile_total{event_type="Create",status="success"} 4
+spec_controller_event_reconcile_total{event_type="Delete",status="success"} 5
+spec_controller_event_reconcile_total{event_type="Update",status="success"} 2
+```
+
+---
+
+### `spec_controller_event_reconcile_duration_seconds`
+
+**Type:** `histogram`\
+**Help:** Time spent reconciling spec events by the spec controller.
+
+**Example:**
+
+```
+# HELP spec_controller_event_reconcile_duration_seconds Time spent reconciling spec events by the spec controller
+# TYPE spec_controller_event_reconcile_duration_seconds histogram
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="0.005"} 1
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="0.01"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="0.025"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="0.05"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="0.1"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="0.25"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="0.5"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="1"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="2.5"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="5"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="10"} 2
+spec_controller_event_reconcile_duration_seconds_bucket{event_type="Update",le="+Inf"} 2
+spec_controller_event_reconcile_duration_seconds_sum{event_type="Update"} 0.008431955
+spec_controller_event_reconcile_duration_seconds_count{event_type="Update"} 2
+```
+
+---
+
+### `spec_controller_event_sync_operation_total`
+
+**Type:** `counter`\
+**Help:** Total number of sync operations performed by the spec controller
+
+**Example:**
+
+```
+# HELP spec_controller_event_sync_operation_total Total number of sync operations performed by the spec controller
+# TYPE spec_controller_event_sync_operation_total counter
+spec_controller_event_sync_operation_total{status="success"} 1
+```
+
+---
+
+### `status_controller_event_reconcile_total`
+
+**Type:** `counter`\
+**Help:** Total number of events reconciled by the status controller
+
+**Example:**
+
+```
+# HELP status_controller_event_reconcile_total Total number of events reconciled by the status controller
+# TYPE status_controller_event_reconcile_total counter
+status_controller_event_reconcile_total{event_type="StatusUpdate",status="success"} 2
+```
+
+---
+
+### `status_controller_event_reconcile_duration_seconds`
+
+**Type:** `histogram`\
+**Help:** Time spent reconciling status events by the status controller
+
+**Example:**
+
+```
+# HELP status_controller_event_reconcile_duration_seconds Time spent reconciling status events by the status controller
+# TYPE status_controller_event_reconcile_duration_seconds histogram
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="0.005"} 1
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="0.01"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="0.025"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="0.05"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="0.1"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="0.25"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="0.5"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="1"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="2.5"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="5"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="10"} 2
+status_controller_event_reconcile_duration_seconds_bucket{event_type="StatusUpdate",le="+Inf"} 2
+status_controller_event_reconcile_duration_seconds_sum{event_type="StatusUpdate"} 0.008764748
+status_controller_event_reconcile_duration_seconds_count{event_type="StatusUpdate"} 2
+```
+
+---
+
+### `status_controller_event_sync_operation_total`
+
+**Type:** `counter`\
+**Help:** Total number of sync operations performed by the status controller
+
+**Example:**
+
+```
+# HELP status_controller_event_sync_operation_total Total number of sync operations performed by the status controller
+# TYPE status_controller_event_sync_operation_total counter
+status_controller_event_sync_operation_total{status="success"} 1
+```
+
+---
+
+### `workqueue_adds_total`
+
+**Type:** `counter`\
+**Help:** Total number of adds handled by workqueue
+
+**Example:**
+
+```
+# HELP workqueue_adds_total Total number of adds handled by workqueue
+# TYPE workqueue_adds_total counter
+workqueue_adds_total{queue_name="event-controller"} 11
+workqueue_adds_total{queue_name="status-event-controller"} 37
+```
+
+---
+
+### `workqueue_depth`
+
+**Type:** `gauge`\
+**Help:** Current depth of workqueue
+
+**Example:**
+
+```
+# HELP workqueue_depth Current depth of workqueue
+# TYPE workqueue_depth gauge
+workqueue_depth{queue_name="event-controller"} 0
+workqueue_depth{queue_name="status-event-controller"} 0
+```
+
+---
+
+### `workqueue_longest_running_processor_seconds`
+
+**Type:** `gauge`\
+**Help:** How many seconds has the longest running processor for workqueue been running.
+
+**Example:**
+
+```
+# HELP workqueue_longest_running_processor_seconds How many seconds has the longest running processor for workqueue been running.
+# TYPE workqueue_longest_running_processor_seconds gauge
+workqueue_longest_running_processor_seconds{queue_name="event-controller"} 0
+workqueue_longest_running_processor_seconds{queue_name="status-event-controller"} 0
+```
+
+---
+
+### `workqueue_queue_duration_seconds`
+
+**Type:** `histogram`\
+**Help:** How long in seconds an item stays in workqueue before being requested.
+
+**Example:**
+
+```
+# HELP workqueue_queue_duration_seconds How long in seconds an item stays in workqueue before being requested.
+# TYPE workqueue_queue_duration_seconds histogram
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="9.999999999999999e-06"} 2
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="9.999999999999999e-05"} 11
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="0.001"} 11
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="0.01"} 11
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="0.1"} 11
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="1"} 11
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="10"} 11
+workqueue_queue_duration_seconds_bucket{queue_name="event-controller",le="+Inf"} 11
+workqueue_queue_duration_seconds_sum{queue_name="event-controller"} 0.000131226
+workqueue_queue_duration_seconds_count{queue_name="event-controller"} 11
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="1e-08"} 0
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="1e-07"} 0
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="1e-06"} 0
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="9.999999999999999e-06"} 17
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="9.999999999999999e-05"} 30
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="0.001"} 30
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="0.01"} 37
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="0.1"} 37
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="1"} 37
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="10"} 37
+workqueue_queue_duration_seconds_bucket{queue_name="status-event-controller",le="+Inf"} 37
+workqueue_queue_duration_seconds_sum{queue_name="status-event-controller"} 0.023241323999999997
+workqueue_queue_duration_seconds_count{queue_name="status-event-controller"} 37
+```
+
+---
+
+### `workqueue_retries_total`
+
+**Type:** `counter`\
+**Help:** Total number of retries handled by workqueue
+
+**Example:**
+
+```
+# HELP workqueue_retries_total Total number of retries handled by workqueue
+# TYPE workqueue_retries_total counter
+workqueue_retries_total{queue_name="event-controller"} 0
+workqueue_retries_total{queue_name="status-event-controller"} 0
+```
+
+---
+
+### `workqueue_unfinished_work_seconds`
+
+**Type:** `gauge`\
+**Help:** How many seconds of work has done that is in progress and hasn't been observed by work_duration. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases.
+
+**Example:**
+
+```
+# HELP workqueue_unfinished_work_seconds How many seconds of work has done that is in progress and hasn't been observed by work_duration. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases.
+# TYPE workqueue_unfinished_work_seconds gauge
+workqueue_unfinished_work_seconds{queue_name="event-controller"} 0
+workqueue_unfinished_work_seconds{queue_name="status-event-controller"} 0
+```
+
+---
+
+### `workqueue_work_duration_seconds`
+
+**Type:** `histogram`\
+**Help:** How long in seconds processing an item from workqueue takes.
+
+**Example:**
+
+```
+# HELP workqueue_work_duration_seconds How long in seconds processing an item from workqueue takes.
+# TYPE workqueue_work_duration_seconds histogram
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="0.001"} 0
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="0.01"} 10
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="0.1"} 11
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="1"} 11
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="10"} 11
+workqueue_work_duration_seconds_bucket{queue_name="event-controller",le="+Inf"} 11
+workqueue_work_duration_seconds_sum{queue_name="event-controller"} 0.069483419
+workqueue_work_duration_seconds_count{queue_name="event-controller"} 11
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="1e-08"} 0
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="1e-07"} 0
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="1e-06"} 0
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="9.999999999999999e-06"} 0
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="9.999999999999999e-05"} 0
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="0.001"} 0
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="0.01"} 37
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="0.1"} 37
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="1"} 37
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="10"} 37
+workqueue_work_duration_seconds_bucket{queue_name="status-event-controller",le="+Inf"} 37
+workqueue_work_duration_seconds_sum{queue_name="status-event-controller"} 0.16573688499999997
+workqueue_work_duration_seconds_count{queue_name="status-event-controller"} 37
+```
+
 ## Maestro Agent Metrics
 
 Refer to [Access Maestro Agent Metrics](https://github.com/openshift-online/maestro/edit/main/docs/troubleshooting.md#access-maestro-agent-metrics) for detailed instructions on accessing the metrics in your runtime environment.
@@ -275,8 +565,8 @@ Refer to [Access Maestro Agent Metrics](https://github.com/openshift-online/maes
 ```
 # HELP cloudevents_received_total The total number of received CloudEvents.
 # TYPE cloudevents_received_total counter
-cloudevents_received_total{action="delete_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
-cloudevents_received_total{action="resync_response",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
+cloudevents_received_total{action="delete_request",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 2
+cloudevents_received_total{action="resync_response",source="maestro",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
 ```
 
 ---
@@ -291,9 +581,9 @@ cloudevents_received_total{action="resync_response",cluster="9894f0c9-557a-4048-
 ```
 # HELP cloudevents_sent_total The total number of sent CloudEvents.
 # TYPE cloudevents_sent_total counter
-cloudevents_sent_total{action="delete_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
-cloudevents_sent_total{action="resync_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",original_source="none",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
-cloudevents_sent_total{action="update_request",cluster="9894f0c9-557a-4048-9e69-ce676ecb0ba2",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 8
+cloudevents_sent_total{action="delete_request",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 3
+cloudevents_sent_total{action="resync_request",original_source="none",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="spec",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 1
+cloudevents_sent_total{action="update_request",original_source="maestro",source="9894f0c9-557a-4048-9e69-ce676ecb0ba2-work-agent",subresource="status",type="io.open-cluster-management.works.v1alpha1.manifestbundles"} 8
 ```
 
 ---
@@ -318,7 +608,7 @@ manifestworks_processed_total{action="watch",code="Success"} 1
 
 ### `rest_client_exec_plugin_certificate_rotation_age`
 
-**Type:** `histogram`  
+**Type:** `histogram`\
 **Help:** [ALPHA] Histogram of the number of seconds the last auth exec plugin client certificate lived before being rotated. If auth exec plugin client certificates are unused, histogram will contain no data.
 
 **Example:**
@@ -334,7 +624,7 @@ rest_client_exec_plugin_certificate_rotation_age_count 0
 
 ### `rest_client_exec_plugin_ttl_seconds`
 
-**Type:** `gauge`  
+**Type:** `gauge`\
 **Help:** [ALPHA] Gauge of the shortest TTL (time-to-live) of the client certificate(s) managed by the auth exec plugin. The value is in seconds until certificate expiry (negative if already expired). If auth exec plugins are unused or manage no TLS certificates, the value will be +INF.
 
 **Example:**
@@ -348,7 +638,7 @@ rest_client_exec_plugin_ttl_seconds +Inf
 
 ### `rest_client_rate_limiter_duration_seconds`
 
-**Type:** `histogram`  
+**Type:** `histogram`\
 **Help:** [ALPHA] Client side rate limiter latency in seconds. Broken down by verb, and host.
 
 **Example:**
@@ -364,7 +654,7 @@ rest_client_rate_limiter_duration_seconds_count{host="10.96.0.1:443",verb="DELET
 
 ### `rest_client_request_duration_seconds`
 
-**Type:** `histogram`  
+**Type:** `histogram`\
 **Help:** [ALPHA] Request latency in seconds. Broken down by verb, and host.
 
 **Example:**
@@ -380,7 +670,7 @@ rest_client_request_duration_seconds_count{host="10.96.0.1:443",verb="DELETE"} 9
 
 ### `rest_client_request_size_bytes`
 
-**Type:** `histogram`  
+**Type:** `histogram`\
 **Help:** [ALPHA] Request size in bytes. Broken down by verb and host.
 
 **Example:**
@@ -396,7 +686,7 @@ rest_client_request_size_bytes_count{host="10.96.0.1:443",verb="DELETE"} 9
 
 ### `rest_client_requests_total`
 
-**Type:** `counter`  
+**Type:** `counter`\
 **Help:** [ALPHA] Number of HTTP requests, partitioned by status code, method, and host.
 
 **Example:**
@@ -411,7 +701,7 @@ rest_client_requests_total{code="200",host="10.96.0.1:443",method="GET"} 3912
 
 ### `rest_client_response_size_bytes`
 
-**Type:** `histogram`  
+**Type:** `histogram`\
 **Help:** [ALPHA] Response size in bytes. Broken down by verb and host.
 
 **Example:**
@@ -427,7 +717,7 @@ rest_client_response_size_bytes_count{host="10.96.0.1:443",verb="DELETE"} 9
 
 ### `rest_client_transport_cache_entries`
 
-**Type:** `gauge`  
+**Type:** `gauge`\
 **Help:** [ALPHA] Number of transport entries in the internal cache.
 
 **Example:**
@@ -441,7 +731,7 @@ rest_client_transport_cache_entries 1
 
 ### `rest_client_transport_create_calls_total`
 
-**Type:** `counter`  
+**Type:** `counter`\
 **Help:** [ALPHA] Number of calls to get a new transport, partitioned by the result of the operation hit: obtained from the cache, miss: created and added to the cache, uncacheable: created and not cached
 
 **Example:**
@@ -456,7 +746,7 @@ rest_client_transport_create_calls_total{result="miss"} 1
 
 ### `workqueue_adds_total`
 
-**Type:** `counter`  
+**Type:** `counter`\ 
 **Help:** [ALPHA] Total number of adds handled by workqueue
 
 **Example:**
@@ -471,7 +761,7 @@ workqueue_adds_total{name="AvailableStatusController"} 40
 
 ### `workqueue_depth`
 
-**Type:** `gauge`  
+**Type:** `gauge`\
 **Help:** [ALPHA] Current depth of workqueue
 
 **Example:**
@@ -486,7 +776,7 @@ workqueue_depth{name="AvailableStatusController"} 0
 
 ### `workqueue_longest_running_processor_seconds`
 
-**Type:** `gauge`  
+**Type:** `gauge`\
 **Help:** [ALPHA] How many seconds has the longest running processor for workqueue been running.
 
 **Example:**
@@ -501,7 +791,7 @@ workqueue_longest_running_processor_seconds{name="AvailableStatusController"} 0
 
 ### `workqueue_queue_duration_seconds`
 
-**Type:** `histogram`  
+**Type:** `histogram`\
 **Help:** [ALPHA] How long in seconds an item stays in workqueue before being requested.
 
 **Example:**
@@ -518,7 +808,7 @@ workqueue_queue_duration_seconds_count{name="AppliedManifestWorkFinalizer"} 24
 
 ### `workqueue_retries_total`
 
-**Type:** `counter`  
+**Type:** `counter`\
 **Help:** [ALPHA] Total number of retries handled by workqueue
 
 **Example:**
@@ -533,7 +823,7 @@ workqueue_retries_total{name="AvailableStatusController"} 32
 
 ### `workqueue_unfinished_work_seconds`
 
-**Type:** `gauge`  
+**Type:** `gauge`\
 **Help:** [ALPHA] How many seconds of work has done that is in progress and hasn't been observed by work_duration. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases.
 
 **Example:**
@@ -548,7 +838,7 @@ workqueue_unfinished_work_seconds{name="AvailableStatusController"} 0
 
 ### `workqueue_work_duration_seconds`
 
-**Type:** `histogram`  
+**Type:** `histogram`\
 **Help:** [ALPHA] How long in seconds processing an item from workqueue takes.
 
 **Example:**
@@ -563,4 +853,23 @@ workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="1
 workqueue_work_duration_seconds_bucket{name="AppliedManifestWorkFinalizer",le="+Inf"} 24
 workqueue_work_duration_seconds_sum{name="AppliedManifestWorkFinalizer"} 0.10679658900000001
 workqueue_work_duration_seconds_count{name="AppliedManifestWorkFinalizer"} 24
+```
+
+## Maestro Source Client Metrics
+
+If you're using pkg/client/cloud/grpcsource to implement a custom source client, you can also expose these metrics.
+
+---
+
+### `source_client_registered_watchers`
+
+**Type:** `gauge`\
+**Help:** Number of registered watchers on the source client.
+
+**Example:**
+```
+# HELP source_client_registered_watchers Number of registered watchers for a source client.
+# TYPE source_client_registered_watchers gauge
+source_client_registered_watchers{namespace="",source="grpc-source"} 1
+source_client_registered_watchers{namespace="cluster1",source="grpc-source"} 1
 ```

@@ -47,7 +47,7 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 	}
 
 	// register resource resync metrics for cloud event source client
-	cegeneric.RegisterCloudEventsMetrics(prometheus.DefaultRegisterer)
+	cegeneric.RegisterSourceCloudEventsMetrics(prometheus.DefaultRegisterer)
 
 	return &SourceClientImpl{
 		Codec:                  codec,

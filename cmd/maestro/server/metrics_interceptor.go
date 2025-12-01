@@ -26,7 +26,7 @@ func newMetricsUnaryInterceptor() grpc.UnaryServerInterceptor {
 		// extract the type from the method name
 		methodInfo := strings.Split(info.FullMethod, "/")
 		if len(methodInfo) != 3 || methodInfo[2] != "Publish" {
-			return nil, fmt.Errorf("invalid method name: %s", info.FullMethod)
+			return handler(ctx, req)
 		}
 		t := methodInfo[2]
 		pubReq, ok := req.(*pbv1.PublishRequest)
@@ -103,7 +103,7 @@ func newMetricsStreamInterceptor() grpc.StreamServerInterceptor {
 		}
 		methodInfo := strings.Split(info.FullMethod, "/")
 		if len(methodInfo) != 3 || methodInfo[2] != "Subscribe" {
-			return fmt.Errorf("invalid method name for stream method: %s", info.FullMethod)
+			return handler(srv, stream)
 		}
 		t := methodInfo[2]
 		source := ""

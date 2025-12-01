@@ -27,7 +27,9 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 		deployC := fmt.Sprintf("nginx-c-%s", rand.String(5))
 		workNameC := fmt.Sprintf("work-c-%s", rand.String(5))
 		workC := helper.NewManifestWork(workNameC, deployC, "default", 1)
-		It("create resource A with source work client", func() {
+
+		BeforeAll(func() {
+			By("create resource A with source work client")
 			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, workA, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -41,10 +43,9 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 				}
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
 
-		It("create resource B with source work client", func() {
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, workB, metav1.CreateOptions{})
+			By("create resource B with source work client")
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, workB, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() error {
@@ -215,9 +216,16 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("delete the nginx A and nginx C resource", func() {
+		AfterAll(func() {
+			By("delete the nginx A, and nginx C resources and B if not deleted")
 			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workNameA, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workNameB, metav1.GetOptions{})
+			if err == nil || !errors.IsNotFound(err) {
+				err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workNameB, metav1.DeleteOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 
 			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workNameC, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
@@ -234,6 +242,17 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
+				if err != nil {
+					if errors.IsNotFound(err) {
+						return nil
+					}
+					return err
+				}
+				return fmt.Errorf("nginx B deployment %s still exists", deployB)
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
 				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
 				if err != nil {
 					if errors.IsNotFound(err) {
@@ -243,9 +262,8 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 				}
 				return fmt.Errorf("nginx C deployment %s still exists", deployC)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
 
-		It("check the resource deletion via maestro api", func() {
+			By("check the resource deletion via maestro api")
 			Eventually(func() error {
 				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
 				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()

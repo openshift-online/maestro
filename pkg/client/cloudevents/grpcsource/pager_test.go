@@ -6,6 +6,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource/mock"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -144,7 +145,12 @@ func TestPageList(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			getter.Set(c.resourceBundles)
 
-			list, next, err := PageList(context.Background(), client, "", c.listOpts)
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			list, next, err := PageList(context.Background(), logger, client, "", c.listOpts)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}

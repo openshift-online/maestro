@@ -14,7 +14,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
@@ -190,8 +189,8 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	}
 
 	// set work meta from spec event to status event
-	if workMeta, ok := specEvent.Extensions()[codec.ExtensionWorkMeta]; ok {
-		statusEvent.SetExtension(codec.ExtensionWorkMeta, workMeta)
+	if workMeta, ok := specEvent.Extensions()[types.ExtensionWorkMeta]; ok {
+		statusEvent.SetExtension(types.ExtensionWorkMeta, workMeta)
 	}
 
 	// convert the resource status cloudevent back to resource status jsonmap
@@ -285,7 +284,7 @@ func broadcastStatusEvent(ctx context.Context,
 	}
 
 	// broadcast the resource status to subscribers
-	log.Infof("Broadcast the resource status, id=%s, statusEventType=%s", resource.ID, statusEvent.StatusEventType)
+	log.Infof("Broadcast the resource status, id=%s, source=%s, statusEventType=%s", resource.ID, resource.Source, statusEvent.StatusEventType)
 	eventBroadcaster.Broadcast(resource)
 
 	// add the event instance record

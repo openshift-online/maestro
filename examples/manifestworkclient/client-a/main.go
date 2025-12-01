@@ -15,6 +15,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -29,7 +30,10 @@ var (
 	maestroServerAddr = flag.String("maestro-server", "https://127.0.0.1:30080", "The Maestro server address")
 	grpcServerAddr    = flag.String("grpc-server", "127.0.0.1:30090", "The GRPC server address")
 	consumerName      = flag.String("consumer-name", "", "The Consumer Name")
-	printWorkDetails  = flag.Bool("print-work-details", false, "Print work details")
+	// The serverHealthinessTimeout should be greater than the server heartbeat check interval (--heartbeat-check-interval)
+	// e.g. by default, the server heartbeat check interval is 10s, setting serverHealthinessTimeout to 20s
+	serverHealthinessTimeout = flag.Duration("server-healthiness-timeout", 20*time.Second, "The server healthiness timeout")
+	printWorkDetails         = flag.Bool("print-work-details", false, "Print work details")
 )
 
 func main() {
@@ -67,11 +71,19 @@ func main() {
 		},
 	})
 
-	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
-	grpcOptions.Dialer.URL = *grpcServerAddr
+	logger, err := logging.NewStdLoggerBuilder().Debug(true).Build()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	grpcOptions := &grpc.GRPCOptions{
+		Dialer:                   &grpc.GRPCDialer{URL: *grpcServerAddr},
+		ServerHealthinessTimeout: serverHealthinessTimeout,
+	}
 
 	workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
+		logger,
 		maestroAPIClient,
 		grpcOptions,
 		sourceID,
@@ -109,10 +121,8 @@ func main() {
 }
 
 func Print(event watch.Event, printDetails bool) {
-	work := event.Object.(*workv1.ManifestWork)
-	fmt.Printf("watched work (uid=%s) is %s\n", work.UID, event.Type)
-
 	if printDetails {
+		work := event.Object.(*workv1.ManifestWork)
 		workJson, err := json.MarshalIndent(work, "", "  ")
 		if err != nil {
 			log.Fatal(err)

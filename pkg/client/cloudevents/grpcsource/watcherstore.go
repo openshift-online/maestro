@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
-	"k8s.io/klog/v2"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 
@@ -42,13 +42,17 @@ type RESTFulAPIWatcherStore struct {
 
 	watchers  map[string]*workWatcher
 	workQueue cache.Queue
+
+	logger logging.Logger
 }
 
 var _ store.ClientWatcherStore[*workv1.ManifestWork] = &RESTFulAPIWatcherStore{}
 
-func newRESTFulAPIWatcherStore(ctx context.Context, apiClient *openapi.APIClient, sourceID string) *RESTFulAPIWatcherStore {
+func newRESTFulAPIWatcherStore(ctx context.Context,
+	logger logging.Logger, apiClient *openapi.APIClient, sourceID string) *RESTFulAPIWatcherStore {
 	s := &RESTFulAPIWatcherStore{
 		ctx:       ctx,
+		logger:    logger,
 		sourceID:  sourceID,
 		apiClient: apiClient,
 		watchers:  make(map[string]*workWatcher),
@@ -88,7 +92,7 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 	}
 
 	// for watch, we need list all works with the search condition from maestro server
-	rbs, _, err := PageList(m.ctx, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
+	rbs, _, err := PageList(m.ctx, m.logger, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -102,6 +106,7 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 			return nil, err
 		}
 
+		m.logger.Debug(m.ctx, "enqueue the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
 		if err := m.workQueue.Add(work); err != nil {
 			return nil, err
 		}
@@ -143,6 +148,7 @@ func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWo
 		return nil, false, err
 	}
 
+	m.logger.Debug(m.ctx, "get the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
 	return work, true, nil
 }
 
@@ -165,7 +171,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 		searches = append(searches, labelSearch)
 	}
 
-	rbs, nextPage, err := PageList(m.ctx, m.apiClient, strings.Join(searches, " and "), opts)
+	rbs, nextPage, err := PageList(m.ctx, m.logger, m.apiClient, strings.Join(searches, " and "), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -176,6 +182,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 			return nil, err
 		}
 
+		m.logger.Debug(m.ctx, "list the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
 		works = append(works, work)
 	}
 
@@ -226,7 +233,7 @@ func (m *RESTFulAPIWatcherStore) Sync() error {
 	search := ToSyncSearch(m.sourceID, namespaces)
 
 	// for sync, we need list all works with the search condition from maestro server
-	rbs, _, err := PageList(m.ctx, m.apiClient, search, metav1.ListOptions{})
+	rbs, _, err := PageList(m.ctx, m.logger, m.apiClient, search, metav1.ListOptions{})
 	if err != nil {
 		return err
 	}
@@ -238,6 +245,7 @@ func (m *RESTFulAPIWatcherStore) Sync() error {
 			return err
 		}
 
+		m.logger.Debug(m.ctx, "enqueue the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
 		if err := m.workQueue.Add(work); err != nil {
 			return err
 		}
@@ -259,17 +267,17 @@ func (m *RESTFulAPIWatcherStore) process() {
 				return
 			}
 
-			klog.Warningf("failed to pop the %v requeue it, %v", obj, err)
+			m.logger.Warn(m.ctx, "failed to pop the %v requeue it, %v", obj, err)
 			// this is the safe way to re-enqueue.
 			if err := m.workQueue.Add(obj); err != nil {
-				klog.Errorf("failed to requeue the obj %v, %v", obj, err)
+				m.logger.Error(m.ctx, "failed to requeue the obj %v, %v", obj, err)
 				return
 			}
 		}
 
 		work, ok := obj.(*workv1.ManifestWork)
 		if !ok {
-			klog.Errorf("unknown the object type %T from the event queue", obj)
+			m.logger.Error(m.ctx, "unknown the object type %T from the event queue", obj)
 			return
 		}
 
@@ -286,8 +294,10 @@ func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string, labelSelector
 		return watcher
 	}
 
-	watcher = newWorkWatcher(namespace, labelSelector)
+	watcher = newWorkWatcher(m.ctx, m.logger, m.sourceID, namespace, labelSelector)
+	m.logger.Info(m.ctx, "register watcher %s/%s", m.sourceID, namespace)
 	m.watchers[namespace] = watcher
+	sourceClientRegisteredWatchersGaugeMetric.WithLabelValues(m.sourceID, namespace).Inc()
 	return watcher
 }
 

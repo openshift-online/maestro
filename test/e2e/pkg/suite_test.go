@@ -32,9 +32,12 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/test"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 )
 
 var log = logger.GetLogger()
+
+var serverHealthinessTimeout = 20 * time.Second
 
 type agentTestOptions struct {
 	agentNamespace string
@@ -65,6 +68,7 @@ var (
 	helper            *test.Helper
 	cancel            context.CancelFunc
 	ctx               context.Context
+	dumpLogs          bool
 )
 
 func TestE2E(t *testing.T) {
@@ -83,6 +87,7 @@ func init() {
 	flag.StringVar(&agentTestOpts.agentNamespace, "agent-namespace", "maestro-agent", "Namespace where the maestro agent is running")
 	flag.StringVar(&agentTestOpts.consumerName, "consumer-name", "", "Consumer name is used to identify the consumer")
 	flag.StringVar(&agentTestOpts.kubeConfig, "agent-kubeconfig", "", "Path to the kubeconfig file for the maestro agent")
+	flag.BoolVar(&dumpLogs, "dump-logs", true, "Dump the pod logs after test")
 }
 
 var _ = BeforeSuite(func() {
@@ -133,12 +138,8 @@ var _ = BeforeSuite(func() {
 	grpcOptions = &grpcoptions.GRPCOptions{
 		Dialer: &grpcoptions.GRPCDialer{
 			URL: grpcServerAddress,
-			KeepAliveOptions: grpcoptions.KeepAliveOptions{
-				Enable:  true,
-				Time:    6 * time.Second,
-				Timeout: 1 * time.Second,
-			},
 		},
+		ServerHealthinessTimeout: &serverHealthinessTimeout,
 	}
 	sourceID = "sourceclient-test" + rand.String(5)
 	grpcCertSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "maestro-grpc-cert", metav1.GetOptions{})
@@ -169,23 +170,40 @@ var _ = BeforeSuite(func() {
 		Expect(err).To(Succeed())
 	}
 
+	logger, err := logging.NewStdLoggerBuilder().Build()
+	Expect(err).ShouldNot(HaveOccurred())
+
 	grpcClient = pbv1.NewCloudEventServiceClient(grpcConn)
 	sourceWorkClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
 		ctx,
+		logger,
 		apiClient,
 		grpcOptions,
 		sourceID,
 	)
 	Expect(err).ShouldNot(HaveOccurred())
+
+	// check the resources left over from previous tests
+	Expect(checkResources(ctx)).To(Succeed())
 })
 
 var _ = AfterSuite(func() {
 	// dump debug info
-	dumpDebugInfo()
+	if dumpLogs {
+		dumpDebugInfo()
+	}
+	// clean up the resources
+	Eventually(func() error {
+		return cleanupResources(ctx)
+	}, 2*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
+
+	// close the grpc connection
 	if grpcConn != nil {
 		grpcConn.Close()
 	}
+	// remove the grpc cert dir
 	os.RemoveAll(grpcCertDir)
+	// cancel the context
 	cancel()
 })
 
@@ -237,4 +255,113 @@ func dumpPodLogs(ctx context.Context, kubeClient kubernetes.Interface, podSelect
 	}
 
 	return nil
+}
+
+func checkResources(ctx context.Context) error {
+	By("check the resources left over after previous tests")
+	search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+	gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	if len(gotResourceList.Items) != 0 {
+		return fmt.Errorf("resource leak detected: %d resources found", len(gotResourceList.Items))
+	}
+
+	By("check the kube manifestworks in the cluster")
+	workList, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list manifestworks: %v", err)
+	}
+	works := make([]string, 0)
+	if len(workList.Items) != 0 {
+		for _, work := range workList.Items {
+			works = append(works, work.Name)
+		}
+	}
+
+	By("check the appliedmanifestworks in the cluster left over from previous tests")
+	appliedWorks, err := agentTestOpts.workClientSet.WorkV1().AppliedManifestWorks().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list appliedmanifestworks: %v", err)
+	}
+	leftAppliedWorks := make([]string, 0)
+	for _, appliedWork := range appliedWorks.Items {
+		if contains(appliedWork.Spec.ManifestWorkName, works) {
+			continue
+		}
+		leftAppliedWorks = append(leftAppliedWorks, appliedWork.Name)
+	}
+
+	if len(leftAppliedWorks) != 0 {
+		return fmt.Errorf("resource leak detected: %d appliedmanifestworks found", len(leftAppliedWorks))
+	}
+
+	return nil
+}
+
+func cleanupResources(ctx context.Context) error {
+	By("check the resources left over after test")
+	search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
+	gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+	if len(gotResourceList.Items) != 0 {
+		return fmt.Errorf("resource leak detected: %d resources found", len(gotResourceList.Items))
+	}
+
+	By("clean up the left over resources after test")
+	if len(gotResourceList.Items) > 0 {
+		for _, resource := range gotResourceList.Items {
+			_, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdDelete(ctx, *resource.Id).Execute()
+			if err != nil {
+				return fmt.Errorf("failed to delete the resource %s: %v", *resource.Id, err)
+			}
+		}
+	}
+
+	By("check the kube manifestworks in the cluster")
+	workList, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list manifestworks: %v", err)
+	}
+	works := make([]string, 0)
+	if len(workList.Items) != 0 {
+		for _, work := range workList.Items {
+			works = append(works, work.Name)
+		}
+	}
+
+	By("clean up the left over appliedmanifestwork after test")
+	appliedWorks, err := agentTestOpts.workClientSet.WorkV1().AppliedManifestWorks().List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to list appliedmanifestworks: %v", err)
+	}
+	for _, appliedWork := range appliedWorks.Items {
+		if contains(appliedWork.Spec.ManifestWorkName, works) {
+			continue
+		}
+		err := agentTestOpts.workClientSet.WorkV1().AppliedManifestWorks().Delete(ctx, appliedWork.Name, metav1.DeleteOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to delete the appliedmanifestwork %s: %v", appliedWork.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func contains(s string, list []string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
