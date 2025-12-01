@@ -40,7 +40,7 @@ ensuring that resource status is continuously updated and monitored.
 **Improve Security Architecture**: Maestro enhances security by eliminating the need for kubeconfigs,
 reducing the need for direct access to clusters.
 
-## Run for the first time
+## Run in Local Environment
 
 ### Make a build, run postgres and mqtt broker
 
@@ -80,70 +80,28 @@ $ ./maestro migration
 # Verify they ran in the database
 $ make db/login
 
-root@f076ddf94520:/# psql -h localhost -U maestro maestro
-psql (14.4 (Debian 14.4-1.pgdg110+1))
+podman exec -it psql-maestro bash -c "psql -h localhost -U maestro maestro"
+psql (17.2 (Debian 17.2-1.pgdg120+1))
 Type "help" for help.
 
 maestro=# \dt
                  List of relations
- Schema |    Name    | Type  |        Owner        
---------+------------+-------+---------------------
- public | resources  | table | maestro
- public | events     | table | maestro
- public | migrations | table | maestro
-(3 rows)
-
-
-```
-
-### Test the application
-
-```shell
-
-$ make test
-$ make test-integration
-$ make e2e-test
-
+ Schema |       Name       | Type  |  Owner
+--------+------------------+-------+---------
+ public | consumers        | table | maestro
+ public | event_instances  | table | maestro
+ public | events           | table | maestro
+ public | migrations       | table | maestro
+ public | resources        | table | maestro
+ public | server_instances | table | maestro
+ public | status_events    | table | maestro
+(7 rows)
 ```
 
 ### Running the Service
 
 ```shell
-
 $ make run
-
-```
-
-To verify that the server is working use the curl command:
-
-```shell
-
-$ curl http://localhost:8000/api/maestro/v1/consumers | jq
-
-```
-
-That should return a 401 response like this, because it needs authentication:
-
-```json
-{
-  "kind": "Error",
-  "id": "401",
-  "href": "/api/maestro/errors/401",
-  "code": "API-401",
-  "reason": "Request doesn't contain the 'Authorization' header or the 'cs_jwt' cookie"
-}
-```
-
-
-Authentication in the default configuration is done through the RedHat SSO, so you need to login with a Red Hat customer portal user in the right account (created as part of the onboarding doc) and then you can retrieve the token to use below on https://console.redhat.com/openshift/token
-To authenticate, use the ocm tool against your local service. The ocm tool is available on https://console.redhat.com/openshift/downloads
-
-#### Login to your local service
-
-```shell
-
-ocm login --token=${OCM_ACCESS_TOKEN} --url=http://localhost:8000
-
 ```
 
 #### List the consumers
@@ -151,7 +109,7 @@ ocm login --token=${OCM_ACCESS_TOKEN} --url=http://localhost:8000
 This will be empty if no consumer is ever created
 
 ```shell
-$ ocm get /api/maestro/v1/consumers
+$ curl http://localhost:8000/api/maestro/v1/consumers
 {
   "items": [],
   "kind": "ConsumerList",
@@ -164,26 +122,26 @@ $ ocm get /api/maestro/v1/consumers
 #### Create a consumer:
 
 ```shell
-$ ocm post /api/maestro/v1/consumers << EOF
-{
-  "name": "cluster1"
-}
-EOF
+$ curl -X POST -H "Content-Type: application/json" \
+    http://localhost:8000/api/maestro/v1/consumers \
+    -d '{
+    "name": "cluster1"
+  }'
 ```
 
 #### Get the consumer:
 
 ```shell
-$ ocm get /api/maestro/v1/consumers
+$ curl http://localhost:8000/api/maestro/v1/consumers
 {
   "items": [
     {
-      "created_at":"2023-12-08T11:35:08.557450505Z",
-      "href":"/api/maestro/v1/consumers/3f28c601-5028-47f4-9264-5cc43f2f27fb",
-      "id":"3f28c601-5028-47f4-9264-5cc43f2f27fb",
-      "kind":"Consumer",
-      "name":"cluster1",
-      "updated_at":"2023-12-08T11:35:08.557450505Z"
+      "created_at": "2025-11-26T17:20:14.535108+08:00",
+      "href": "/api/maestro/v1/consumers/219ac81e-cd5c-4d22-9e03-e4eaa4f55aa1",
+      "id": "219ac81e-cd5c-4d22-9e03-e4eaa4f55aa1",
+      "kind": "Consumer",
+      "name": "cluster1",
+      "updated_at": "2025-11-26T17:20:14.535108+08:00"
     }
   ],
   "kind": "ConsumerList",
@@ -191,7 +149,6 @@ $ ocm get /api/maestro/v1/consumers
   "size": 1,
   "total": 1
 }
-EOF
 ```
 
 #### Create a resource bundle
@@ -201,17 +158,17 @@ You can create a resource bundle with manifestwork client based on grpc, check t
 #### List the resource bundle
 
 ```shell
-ocm get /api/maestro/v1/resource-bundles
+curl http://localhost:8000/api/maestro/v1/resource-bundles
 {
   "items": [
     {
       "consumer_name": "cluster1",
-      "created_at": "2023-11-23T09:26:13.43061Z",
+      "created_at": "2025-11-26T17:23:08.964138+08:00",
       "delete_option": {
-        "propagationPolicy":"Foreground"
+        "propagationPolicy": "Foreground"
       },
-      "href": "/api/maestro/v1/resource-bundles/f428e21d-71cb-47a4-8d7f-82a65d9a4048",
-      "id": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
+      "href": "/api/maestro/v1/resource-bundles/916777c0-0950-56c5-bb78-c884a111303b",
+      "id": "916777c0-0950-56c5-bb78-c884a111303b",
       "kind": "ResourceBundle",
       "manifest_configs": [
         {
@@ -237,113 +194,49 @@ ocm get /api/maestro/v1/resource-bundles
           }
         }
       ],
-      "manifest": {
-        "apiVersion": "apps/v1",
-        "kind": "Deployment",
-        "metadata": {
-          "name": "nginx",
-          "namespace": "default"
-        },
-        "spec": {
-          "replicas": 1,
-          "selector": {
-            "matchLabels": {
-              "app": "nginx"
-            }
+      "manifests": [
+        {
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          "metadata": {
+            "name": "nginx",
+            "namespace": "default"
           },
-          "template": {
-            "metadata": {
-              "labels": {
+          "spec": {
+            "replicas": 1,
+            "selector": {
+              "matchLabels": {
                 "app": "nginx"
               }
             },
-            "spec": {
-              "containers": [
-                {
-                  "image": "nginxinc/nginx-unprivileged",
-                  "name": "nginx"
+            "template": {
+              "metadata": {
+                "labels": {
+                  "app": "nginx"
                 }
-              ]
+              },
+              "spec": {
+                "containers": [
+                  {
+                    "image": "nginxinc/nginx-unprivileged",
+                    "imagePullPolicy": "IfNotPresent",
+                    "name": "nginx"
+                  }
+                ]
+              }
             }
           }
         }
-      },
+      ],
       "metadata": {
-        "creationTimestamp": "2023-11-23T09:26:13.43061Z",
+        "creationTimestamp": "2025-11-26T17:23:08+08:00",
         "name": "nginx-work",
         "namespace": "cluster1",
         "resourceVersion": "0",
-        "uid": "f428e21d-71cb-47a4-8d7f-82a65d9a4048"
+        "uid": "916777c0-0950-56c5-bb78-c884a111303b"
       },
-      "name": "f428e21d-71cb-47a4-8d7f-82a65d9a4048",
-      "status": {
-        "ObservedVersion": 1,
-        "SequenceID": "1892524904994050048",
-        "conditions": [
-          {
-            "lastTransitionTime": "2023-11-23T09:26:13Z",
-            "message": "Apply manifest work complete",
-            "reason": "AppliedManifestWorkComplete",
-            "status": "True",
-            "type": "Applied"
-          },
-          {
-            "lastTransitionTime": "2023-11-23T09:26:13Z",
-            "message": "All resources are available",
-            "reason": "ResourcesAvailable",
-            "status": "True",
-            "type": "Available"
-          }
-        ],
-        "resourceStatus": [
-          {
-            "conditions": [
-              {
-                "lastTransitionTime": "2023-11-23T09:26:13Z",
-                "message": "Apply manifest complete",
-                "reason": "AppliedManifestComplete",
-                "status": "True",
-                "type": "Applied"
-              },
-              {
-                "lastTransitionTime": "2023-11-23T09:26:13Z",
-                "message": "Resource is available",
-                "reason": "ResourceAvailable",
-                "status": "True",
-                "type": "Available"
-              },
-              {
-                "lastTransitionTime": "2023-11-23T09:26:13Z",
-                "message": "",
-                "reason": "StatusFeedbackSynced",
-                "status": "True",
-                "type": "StatusFeedbackSynced"
-              }
-            ],
-            "resourceMeta": {
-              "group": "apps",
-              "kind": "Deployment",
-              "name": "nginx",
-              "namespace": "default",
-              "ordinal": 0,
-              "resource": "deployments",
-              "version": "v1"
-            },
-            "statusFeedback": {
-              "values": [
-                {
-                  "fieldValue": {
-                    "jsonRaw": "{\"availableReplicas\":1,\"conditions\":[{\"lastTransitionTime\":\"2023-11-23T09:26:13Z\",\"lastUpdateTime\":\"2023-11-23T09:26:13Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2023-11-23T09:26:13Z\",\"lastUpdateTime\":\"2023-11-23T09:26:13Z\",\"message\":\"ReplicaSet \\\"nginx-5b4fb7d77b\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"}],\"observedGeneration\":1,\"readyReplicas\":1,\"replicas\":1,\"updatedReplicas\":1}",
-                    "type": "JsonRaw"
-                  },
-                  "name": "status"
-                }
-              ]
-            }
-          }
-        ]
-      },
-      "updated_at": "2023-11-23T09:26:13.457419Z",
+      "name": "916777c0-0950-56c5-bb78-c884a111303b",
+      "updated_at": "2025-11-26T17:23:08.964138+08:00",
       "version": 1
     }
   ],
@@ -354,12 +247,11 @@ ocm get /api/maestro/v1/resource-bundles
 }
 ```
 
-#### Run in OpenShift
+## Run in OpenShift
 
-Take OpenShift Local as an example to deploy the maestro. If you want to deploy maestro in an OpenShift cluster, you need to set the `external_apps_domain` environment variable to point your cluster.
-```shell
-$ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontroller default -o jsonpath='{.status.domain}'`
-```
+If you are using an OpenShift cluster in the cloud, you need to export Kubeconfig to point to your cluster and skip the CRC login step. If you are using CodeReady Containers (CRC) locally, you need to login to the CRC cluster first.
+
+### Log into CRC
 
 Use OpenShift Local to deploy to a local openshift cluster. Be sure to have CRC running locally:
 
@@ -370,10 +262,7 @@ OpenShift:       Running (v4.13.12)
 RAM Usage:       7.709GB of 30.79GB
 Disk Usage:      23.75GB of 32.68GB (Inside the CRC VM)
 Cache Usage:     37.62GB
-Cache Directory: /home/mturansk/.crc/cache
 ```
-
-Log into CRC:
 
 ```shell
 $ make crc/login
@@ -382,36 +271,46 @@ Logged into "https://api.crc.testing:6443" as "kubeadmin" using existing credent
 
 You have access to 66 projects, the list has been suppressed. You can list all projects with 'oc projects'
 
-Using project "ocm-mturansk".
+Using project "default".
 Login Succeeded!
 ```
 
-Deploy maestro:
+### Set external_apps_domain
 
-We will push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman.
+You need to set the `external_apps_domain` environment variable to point your cluster.
+```shell
+$ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontroller default -o jsonpath='{.status.domain}'`
+```
+
+### Deploy Maestro
+
+If you want to push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman. Then run `make push` to push the image to the registry.
+
+If you want to use the existing image, you can run `make retrieve-image` to retrieve the image info and run `source .image-env` to set the image environment variables.
 
 ```shell
 $ make deploy
 
-$ oc get pod -n maestro
+$ oc get pod -n maestro-root
 NAME                            READY   STATUS      RESTARTS   AGE
 maestro-85c847764-4xdt6         1/1     Running     0          62s
-maestro-db-1-deploy             0/1     Completed   0          62s
-maestro-db-1-kwv4h              1/1     Running     0          61s
+maestro-db-5d4c4679f5-r92vg     1/1     Running     0          61s
 maestro-mqtt-6cb7bdf46c-kcczm   1/1     Running     0          63s
 ```
 
-Create a consumer:
+### Create a Consumer
 
 ```shell
-$ ocm login --token=${OCM_ACCESS_TOKEN} --url=https://maestro.${external_apps_domain} --insecure
+$ curl -k -X POST -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    https://maestro.${external_apps_domain}/api/maestro/v1/consumers \
+    -d '{
+    "name": "cluster1"
+  }'
+```
+You should get a response like this:
 
-$ ocm post /api/maestro/v1/consumers << EOF
-{
-  "name": "cluster1"
-}
-EOF
-
+```shell
 {
   "created_at":"2023-12-08T11:35:08.557450505Z",
   "href":"/api/maestro/v1/consumers/3f28c601-5028-47f4-9264-5cc43f2f27fb",
@@ -420,10 +319,9 @@ EOF
   "name":"cluster1",
   "updated_at":"2023-12-08T11:35:08.557450505Z"
 }
-
 ```
 
-Deploy maestro agent:
+### Deploy Maestro Agent
 
 ```shell
 $ export consumer_name=cluster1
@@ -435,31 +333,22 @@ maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
 
 Now you can create a resource bundle with manifestwork client based on grpc, check the [document](./examples/manifestworkclient/client/README.md) for more details.
 
-## Make a new Kind
+## Run in KinD Cluster
 
-1. Add to openapi.yaml
-2. Generate the new structs/clients (`make generate`)
+You can also run the maestro in a KinD cluster locally. The simplest way is to use the provided script to create a KinD cluster and deploy the maestro in the cluster. It creates a KinD cluster with name `maestro`, and deploys the maestro server and agent in the cluster.
 
-## Configure maestro server
-
-### MQTT Configuration
-
-Using the `--mqtt-config-file` to specify the MQTT configuration file for maestro server, the format of the configuration file can be yaml or json, it contains the following configurations
-
-```yaml
-brokerHost: <MQTT broker host, e.g. 127.0.0.1:1883>
-username: <the username for MQTT broker, if required by username and password authentication>
-password: <the password for MQTT broker, if required by username and password authentication>
-caFile: <the CA of the MQTT broker, if required by mTLS authentication>
-clientCertFile: <the cert of the MQTT client, if required by mTLS authentication>
-clientKeyFile: <the cert key of the MQTT client, if required by mTLS authentication>
-topics:
-  sourceEvents: sources/maestro/consumers/+/sourceevents
-  agentEvents: <the topic for agent events>
+```shell
+$ make e2e-test/setup
 ```
-
-For `topics.agentEvents`
-
-- If the MQTT broker supports the [shared subscriptions](
-https://docs.oasis-open.org/mqtt/mqtt/v5.0/os/mqtt-v5.0-os.html#_Toc3901250), the topic needs to be set to `$share/statussubscribers/sources/maestro/consumers/+/agentevents`
-- If the MQTT broker does not support the shared subscriptions, the topic needs to be set to `sources/maestro/consumers/+/agentevents` and set the maestro server flag `--subscription-type` to `broadcast`
+The Kubeconfig of the KinD cluster is in `./test/e2e/.kubeconfig`.
+```shell
+$ export KUBECONFIG=$(pwd)/test/e2e/.kubeconfig
+$ kubectl get pods -n maestro
+NAME                             READY   STATUS    RESTARTS   AGE
+maestro-85c847764-4xdt6          1/1     Running   0          5m
+maestro-db-65f57d978c-c68        1/1     Running   0          5m
+maestro-mqtt-6cb7bdf46c-kcczm    1/1     Running   0          5m
+$ kubectl get pods -n maestro-agent
+NAME                             READY   STATUS    RESTARTS   AGE
+maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          3m
+```

@@ -37,6 +37,7 @@ func (c *OCMConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.TokenURL, "ocm-token-url", c.TokenURL, "The base URL that OCM uses to request tokens, stage by default")
 	fs.BoolVar(&c.Debug, "ocm-debug", c.Debug, "Debug flag for OCM API")
 	fs.BoolVar(&c.EnableMock, "enable-ocm-mock", c.EnableMock, "Enable mock ocm clients")
+	fs.MarkDeprecated("enable-ocm-mock", "this flag is deprecated and will be removed in a future release. OCM integration is no longer supported.")
 }
 
 func (c *OCMConfig) ReadFiles() error {

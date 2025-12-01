@@ -30,6 +30,7 @@ Before creating a resource bundle with manifestwork client, review the manifestw
 ```shell
 $ go run ./main.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -manifestwork_file=./manifestwork.json -action=create
 ```
+If your maestro server is running with HTTP, you need to pass `-maestro-server=http://127.0.0.1:8000` to the command above.
 
 Note: If your gRPC server enable authentication and authorization, you'll need to provide the CA file for the server and the client's token. For example, after setting up Maestro with `make e2e-test/setup`, you can retrieve the gRPC server's CA, client certificate, key, and token using the following command:
 

@@ -65,9 +65,6 @@ mqtt_client_key ?= ""
 # Log verbosity level
 klog_v:=2
 
-# Location of the JSON web key set used to verify tokens:
-jwks_url:=https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
-
 # consumer name from the database. it is used by the maestro agent to identify itself
 consumer_name ?= cluster1
 
@@ -75,11 +72,12 @@ consumer_name ?= cluster1
 CLIENT_ID ?= maestro
 CLIENT_SECRET ?= maestro
 
-# Enable JWT token verify and authz middleware
-ENABLE_JWT ?= true
-ENABLE_AUTHZ ?= true
-ENABLE_OCM_MOCK ?= false
+# Enable gRPC server and disable gRPC broker by default
 ENABLE_GRPC_SERVER ?= true
+ENABLE_GRPC_BROKER ?= false
+
+# Enable TLS
+ENABLE_TLS ?= false
 
 # message driver type, mqtt or grpc, default is mqtt.
 MESSAGE_DRIVER_TYPE ?= mqtt
@@ -113,7 +111,7 @@ agent_topic ?= "\$$share/statussubscribers/sources/maestro/consumers/+/agenteven
 # Prints a list of useful targets.
 help:
 	@echo ""
-	@echo "OpenShift CLuster Manager Example Service"
+	@echo "Maestro Service"
 	@echo ""
 	@echo "make verify               verify source code"
 	@echo "make lint                 run golangci-lint"
@@ -153,10 +151,6 @@ endif
 
 ifndef TEST_SUMMARY_FORMAT
 	TEST_SUMMARY_FORMAT=short-verbose
-endif
-
-ifndef OCM_BASE_URL
-	OCM_BASE_URL:="https://api.integration.openshift.com"
 endif
 
 # Checks if a GOPATH is set, or emits an error message
@@ -291,8 +285,13 @@ cmds:
 # NOTE multiline variables are a PITA in Make. To use them in `oc process` later on, we need to first
 # export them as environment variables, then use the environment variable in `oc process`
 %-template:
+	@if [ "$(ENABLE_TLS)" = "true" ]; then \
+		TEMPLATE_FILE="templates/$*-tls-template.yml"; \
+	else \
+		TEMPLATE_FILE="templates/$*-template.yml"; \
+	fi; \
 	oc process \
-		--filename="templates/$*-template.yml" \
+		--filename="$$TEMPLATE_FILE" \
 		--local="true" \
 		--ignore-unknown-parameters="true" \
 		--param="ENVIRONMENT=$(MAESTRO_ENV)" \
@@ -317,22 +316,9 @@ cmds:
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \
 		--param="VERSION=$(version)" \
-		--param="ENABLE_JWT=$(ENABLE_JWT)" \
-		--param="ENABLE_AUTHZ=$(ENABLE_AUTHZ)" \
-		--param="AUTHZ_RULES=$$AUTHZ_RULES" \
-		--param="ENABLE_SENTRY"=false \
-		--param="SENTRY_KEY"=TODO \
-		--param="JWKS_URL=$(jwks_url)" \
-		--param="OCM_SERVICE_CLIENT_ID=$(CLIENT_ID)" \
-		--param="OCM_SERVICE_CLIENT_SECRET=$(CLIENT_SECRET)" \
-		--param="TOKEN=$(token)" \
-		--param="OCM_BASE_URL=$(OCM_BASE_URL)" \
-		--param="ENVOY_IMAGE=$(envoy_image)" \
-		--param="ENABLE_JQS="false \
 		--param="AGENT_NAMESPACE=${agent_namespace}" \
 		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
 		--param="CONSUMER_NAME=$(consumer_name)" \
-		--param="ENABLE_OCM_MOCK=$(ENABLE_OCM_MOCK)" \
 		--param="ENABLE_GRPC_SERVER=$(ENABLE_GRPC_SERVER)" \
 		--param="MESSAGE_DRIVER_TYPE"=$(MESSAGE_DRIVER_TYPE) \
 		--param="MAESTRO_SVC_TYPE"=$(maestro_svc_type) \
@@ -366,6 +352,23 @@ e2e-image:
 push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
+.PHONY: retrieve-image
+retrieve-image:
+	@echo "Retrieving latest image information from Quay.io..."
+	@command -v curl >/dev/null 2>&1 || { echo "Error: curl is required but not installed"; exit 1; }
+	@command -v python3 >/dev/null 2>&1 || { echo "Error: python3 is required but not installed"; exit 1; }
+	@echo "export internal_image_registry=quay.io/redhat-user-workloads/maestro-rhtap-tenant" > .image-env
+	@echo "export image_repository=maestro/maestro" >> .image-env
+	@latest_tag=$$(curl -sf -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro | python3 -c "import sys, json, re; data = json.load(sys.stdin); tags = [t for t in data.get('tags', {}).values() if not re.search(r'sha256-|on-pr-|maestro-on-pull-request', t.get('name', ''))]; tags.sort(key=lambda x: x.get('last_modified', ''), reverse=True); latest = tags[0]['name'] if tags else ''; print(latest) if latest else sys.exit(1)" || { echo "Error: Failed to retrieve image tag from Quay"; exit 1; }); \
+	echo "export image_tag=$$latest_tag" >> .image-env
+	@echo "Image configuration saved to .image-env"
+	@echo ""
+	@echo "To use these values, run:"
+	@echo "  source .image-env && make deploy"
+	@echo ""
+	@echo "Or export them manually:"
+	@cat .image-env
+
 deploy-%: project %-template
 	$(oc) apply -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
 
@@ -373,7 +376,7 @@ undeploy-%: project %-template
 	$(oc) delete -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
 
 .PHONY: deploy-agent
-deploy-agent: push agent-project agent-template
+deploy-agent: agent-project agent-template
 	$(oc) apply -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
 
 .PHONY: undeploy-agent
@@ -393,7 +396,6 @@ template: \
 # "baz deleted" messages at the end, after all the noisy templating.
 .PHONY: deploy
 deploy: \
-	push \
 	template \
 	deploy-secrets \
 	deploy-db \

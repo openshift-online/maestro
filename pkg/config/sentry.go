@@ -30,6 +30,7 @@ func NewSentryConfig() *SentryConfig {
 
 func (c *SentryConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.BoolVar(&c.Enabled, "enable-sentry", c.Enabled, "Enable sentry error monitoring")
+	fs.MarkDeprecated("enable-sentry", "this flag is deprecated and will be removed in a future release. Sentry integration is no longer supported.")
 	fs.StringVar(&c.KeyFile, "sentry-key-file", c.KeyFile, "File containing Sentry key")
 	fs.StringVar(&c.URL, "sentry-url", c.URL, "Base URL of Sentry isntance")
 	fs.StringVar(&c.Project, "sentry-project", c.Project, "Sentry project to report to")
