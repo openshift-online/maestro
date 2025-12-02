@@ -352,22 +352,6 @@ e2e-image:
 push: image project
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
-.PHONY: retrieve-image
-retrieve-image:
-	@echo "Retrieving latest image information from Quay.io..."
-	@command -v curl >/dev/null 2>&1 || { echo "Error: curl is required but not installed"; exit 1; }
-	@command -v python3 >/dev/null 2>&1 || { echo "Error: python3 is required but not installed"; exit 1; }
-	@echo "export internal_image_registry=quay.io/redhat-user-workloads/maestro-rhtap-tenant" > .image-env
-	@echo "export image_repository=maestro/maestro" >> .image-env
-	@echo "export image_tag=latest" >> .image-env
-	@echo "Image configuration saved to .image-env"
-	@echo ""
-	@echo "To use these values, run:"
-	@echo "  source .image-env && make deploy"
-	@echo ""
-	@echo "Or export them manually:"
-	@cat .image-env
-
 deploy-%: project %-template
 	$(oc) apply -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
 
