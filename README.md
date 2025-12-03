@@ -286,9 +286,12 @@ $ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontr
 
 If you want to push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman. Then run `make push` to push the image to the registry.
 
-If you want to use the existing image, you can run `make retrieve-image` to retrieve the image info and run `source .image-env` to set the image environment variables.
+If you want to use the existing image, set the image environment variables.
 
 ```shell
+$ export internal_image_registry=quay.io/redhat-user-workloads/maestro-rhtap-tenant
+$ export image_repository=maestro/maestro
+$ export image_tag=latest
 $ make deploy
 
 $ oc get pod -n maestro-root
