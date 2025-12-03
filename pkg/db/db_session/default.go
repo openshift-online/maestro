@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"k8s.io/klog/v2"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -138,25 +139,26 @@ func (f *Default) DirectDB() *sql.DB {
 }
 
 func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.DatabaseConfig, channel string, callback func(id string)) {
+	logger := klog.FromContext(ctx)
 	for {
 		select {
 		case <-ctx.Done():
-			log.Infof("Context cancelled, stopping channel [%s] monitor", channel)
+			logger.Info("Context cancelled, stopping channel monitor", "channel", channel)
 			return
 		case n := <-l.Notify:
 			if n != nil {
-				log.Debugf("Received event from channel [%s] : %s", n.Channel, n.Extra)
+				logger.V(4).Info("Received event from channel", "channel", n.Channel, "extra", n.Extra)
 				callback(n.Extra)
 			} else {
 				// nil notification means the connection was closed
-				log.Infof("recreate the listener for channel [%s] due to the connection loss", channel)
+				logger.Info("recreate the listener for channel due to the connection loss", "channel", channel)
 				l.Close()
 				// recreate the listener
 				l = newListener(ctx, dbConfig, channel)
 			}
 		case <-time.After(10 * time.Second):
 			if err := l.Ping(); err != nil {
-				log.Infof("recreate the listener due to ping failed, %s", err.Error())
+				logger.Info("recreate the listener due to ping failed", "error", err)
 				l.Close()
 				// recreate the listener
 				l = newListener(ctx, dbConfig, channel)
@@ -166,9 +168,11 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 }
 
 func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel string) *pq.Listener {
+	logger := klog.FromContext(ctx)
+
 	plog := func(ev pq.ListenerEventType, err error) {
 		if err != nil {
-			log.Error(fmt.Sprintf("Listener: the state of the underlying database connection changes, (eventType=%d) %v", ev, err.Error()))
+			logger.Error(err, "Listener: the state of the underlying database connection changes", "eventType", ev)
 		}
 	}
 	connstr := dbConfig.ConnectionString(true)
@@ -193,9 +197,10 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 }
 
 func (f *Default) NewListener(ctx context.Context, channel string, callback func(id string)) *pq.Listener {
+	logger := klog.FromContext(ctx)
 	listener := newListener(ctx, f.config, channel)
 
-	log.Infof("Starting listener for %s", channel)
+	logger.Info("Starting listener", "channel", channel)
 	go waitForNotification(ctx, listener, f.config, channel, callback)
 	return listener
 }

@@ -3,9 +3,8 @@ package logging
 import (
 	"encoding/json"
 	"io"
+	"k8s.io/klog/v2"
 	"net/http"
-
-	"github.com/openshift-online/maestro/pkg/logger"
 )
 
 func NewJSONLogFormatter() *jsonLogFormatter {
@@ -16,13 +15,13 @@ type jsonLogFormatter struct{}
 
 var _ LogFormatter = &jsonLogFormatter{}
 
-func (f *jsonLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
+func (f *jsonLogFormatter) FormatRequestLog(logger klog.Logger, r *http.Request) (string, error) {
 	jsonlog := jsonRequestLog{
 		Method:     r.Method,
 		RequestURI: r.RequestURI,
 		RemoteAddr: r.RemoteAddr,
 	}
-	if logger.GetLoggerLevel() == "debug" {
+	if logger.V(4).Enabled() {
 		jsonlog.Header = r.Header
 		jsonlog.Body = r.Body
 	}
@@ -34,9 +33,9 @@ func (f *jsonLogFormatter) FormatRequestLog(r *http.Request) (string, error) {
 	return string(log[:]), nil
 }
 
-func (f *jsonLogFormatter) FormatResponseLog(info *ResponseInfo) (string, error) {
+func (f *jsonLogFormatter) FormatResponseLog(logger klog.Logger, info *ResponseInfo) (string, error) {
 	jsonlog := jsonResponseLog{Header: nil, Status: info.Status, Elapsed: info.Elapsed}
-	if logger.GetLoggerLevel() == "debug" {
+	if logger.V(4).Enabled() {
 		jsonlog.Body = string(info.Body[:])
 	}
 	log, err := json.Marshal(jsonlog)

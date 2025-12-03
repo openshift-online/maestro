@@ -2,14 +2,12 @@ package event
 
 import (
 	"context"
+	"k8s.io/klog/v2"
 	"sync"
 
 	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/logger"
 )
-
-var log = logger.GetLogger()
 
 // resourceHandler is a function that can handle resource status change events.
 type resourceHandler func(res *api.Resource) error
@@ -40,7 +38,9 @@ func NewEventBroadcaster() *EventBroadcaster {
 }
 
 // Register registers a client and return client id and error channel.
-func (h *EventBroadcaster) Register(source string, handler resourceHandler) string {
+func (h *EventBroadcaster) Register(ctx context.Context, source string, handler resourceHandler) string {
+	logger := klog.FromContext(ctx)
+
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -50,25 +50,26 @@ func (h *EventBroadcaster) Register(source string, handler resourceHandler) stri
 		handler: handler,
 	}
 
-	log.Infof("registered a broadcaster client %s (source=%s)", id, source)
+	logger.Info("registered a broadcaster client", "id", id, "source", source)
 	grpcRegisteredSourceClientsGaugeMetric.WithLabelValues(source).Inc()
 
 	return id
 }
 
 // Unregister unregisters a client by id
-func (h *EventBroadcaster) Unregister(id string) {
+func (h *EventBroadcaster) Unregister(ctx context.Context, id string) {
+	logger := klog.FromContext(ctx).WithValues("id", id)
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
 	client, exists := h.clients[id]
 	if !exists {
-		log.Warnf("attempted to unregister non-existent broadcaster client %s", id)
+		logger.Info("attempted to unregister non-existent broadcaster client")
 		return
 	}
 
 	delete(h.clients, id)
-	log.Infof("unregistered broadcaster client %s (source=%s)", id, client.source)
+	logger.Info("unregistered broadcaster client", "source", client.source)
 	grpcRegisteredSourceClientsGaugeMetric.WithLabelValues(client.source).Dec()
 }
 
@@ -79,8 +80,9 @@ func (h *EventBroadcaster) Broadcast(res *api.Resource) {
 
 // Start starts the event broadcaster and waits for events to broadcast.
 func (h *EventBroadcaster) Start(ctx context.Context) {
-	log.Infof("Starting event broadcaster")
+	logger := klog.FromContext(ctx)
 
+	logger.Info("Starting event broadcaster")
 	for {
 		select {
 		case <-ctx.Done():
@@ -89,13 +91,13 @@ func (h *EventBroadcaster) Start(ctx context.Context) {
 			h.mu.RLock()
 
 			if len(h.clients) == 0 {
-				log.Warnf("no clients registered on this instance")
+				logger.Info("no clients registered on this instance")
 			}
 
 			for _, client := range h.clients {
 				if client.source == res.Source {
 					if err := client.handler(res); err != nil {
-						log.Errorf("failed to handle resource %s: %v", res.ID, err)
+						logger.Error(err, "failed to handle resource", "resourceID", res.ID)
 					}
 				}
 			}

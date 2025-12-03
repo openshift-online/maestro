@@ -3,13 +3,14 @@ package db
 import (
 	"encoding/json"
 	"fmt"
+	loggertracing "github.com/openshift-online/maestro/pkg/logger"
+	"k8s.io/klog/v2"
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/openshift-online/maestro/pkg/db/db_context"
 
 	"github.com/openshift-online/maestro/pkg/errors"
-	"github.com/openshift-online/maestro/pkg/logger"
 )
 
 // TransactionMiddleware creates a new HTTP middleware that begins a database transaction
@@ -18,11 +19,12 @@ func TransactionMiddleware(next http.Handler, connection SessionFactory) http.Ha
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Create a new Context with the transaction stored in it.
 		ctx, err := NewContext(r.Context(), connection)
+		logger := klog.FromContext(ctx)
 		if err != nil {
-			log.With("error", err.Error()).Error("Could not create transaction")
+			logger.Error(err, "Could not create transaction")
 			// use default error to avoid exposing internals to users
 			err := errors.GeneralError("")
-			operationID := logger.GetOperationID(ctx)
+			operationID := loggertracing.GetOperationID(ctx)
 			writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))
 			return
 		}

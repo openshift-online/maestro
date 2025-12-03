@@ -17,6 +17,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/protobuf/types/known/emptypb"
+	"k8s.io/klog/v2"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
@@ -44,7 +45,13 @@ type GRPCServer struct {
 }
 
 // NewGRPCServer creates a new GRPCServer
-func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *event.EventBroadcaster, config config.GRPCServerConfig, grpcAuthorizer grpcauthorizer.GRPCAuthorizer) *GRPCServer {
+func NewGRPCServer(
+	ctx context.Context,
+	resourceService services.ResourceService,
+	eventBroadcaster *event.EventBroadcaster,
+	config config.GRPCServerConfig, grpcAuthorizer grpcauthorizer.GRPCAuthorizer) *GRPCServer {
+	logger := klog.FromContext(ctx)
+
 	grpcServerOptions := make([]grpc.ServerOption, 0)
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxRecvMsgSize(config.MaxReceiveMessageSize))
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxSendMsgSize(config.MaxSendMessageSize))
@@ -67,7 +74,7 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 	if !disableTLS {
 		// Check tls cert and key path path
 		if config.TLSCertFile == "" || config.TLSKeyFile == "" {
-			check(
+			check(ctx,
 				fmt.Errorf("unspecified required --grpc-tls-cert-file, --grpc-tls-key-file"),
 				"Can't start gRPC server",
 			)
@@ -76,7 +83,7 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 		// Serve with TLS
 		serverCerts, err := tls.LoadX509KeyPair(config.TLSCertFile, config.TLSKeyFile)
 		if err != nil {
-			check(fmt.Errorf("failed to load server certificates: %v", err), "Can't start gRPC server")
+			check(ctx, fmt.Errorf("failed to load server certificates: %v", err), "Can't start gRPC server")
 		}
 
 		tlsConfig := &tls.Config{
@@ -92,31 +99,31 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 
 		if config.GRPCAuthNType == "mtls" {
 			if len(config.ClientCAFile) == 0 {
-				check(fmt.Errorf("no client CA file specified when using mtls authorization type"), "Can't start gRPC server")
+				check(ctx, fmt.Errorf("no client CA file specified when using mtls authorization type"), "Can't start gRPC server")
 			}
 
 			certPool, err := x509.SystemCertPool()
 			if err != nil {
-				check(fmt.Errorf("failed to load system cert pool: %v", err), "Can't start gRPC server")
+				check(ctx, fmt.Errorf("failed to load system cert pool: %v", err), "Can't start gRPC server")
 			}
 
 			caPEM, err := os.ReadFile(config.ClientCAFile)
 			if err != nil {
-				check(fmt.Errorf("failed to read client CA file: %v", err), "Can't start gRPC server")
+				check(ctx, fmt.Errorf("failed to read client CA file: %v", err), "Can't start gRPC server")
 			}
 
 			if ok := certPool.AppendCertsFromPEM(caPEM); !ok {
-				check(fmt.Errorf("failed to append client CA to cert pool"), "Can't start gRPC server")
+				check(ctx, fmt.Errorf("failed to append client CA to cert pool"), "Can't start gRPC server")
 			}
 
 			tlsConfig.ClientCAs = certPool
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
-			log.Infof("Serving gRPC service with mTLS at %s", config.ServerBindPort)
+			logger.Info("Serving gRPC service with mTLS", "port", config.ServerBindPort)
 		} else {
 			grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
-			log.Infof("Serving gRPC service with TLS at %s", config.ServerBindPort)
+			logger.Info("Serving gRPC service with TLS", "port", config.ServerBindPort)
 		}
 	} else {
 		// append metrics interceptor
@@ -124,7 +131,7 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 			grpc.UnaryInterceptor(newMetricsUnaryInterceptor()),
 			grpc.StreamInterceptor(newMetricsStreamInterceptor()))
 		// Note: Do not use this in production.
-		log.Infof("Serving gRPC service without TLS at %s", config.ServerBindPort)
+		logger.Info("Serving gRPC service without TLS", "port", config.ServerBindPort)
 	}
 
 	return &GRPCServer{
@@ -139,11 +146,12 @@ func NewGRPCServer(resourceService services.ResourceService, eventBroadcaster *e
 }
 
 // Start starts the gRPC server
-func (svr *GRPCServer) Start() error {
-	log.Info("Starting gRPC server")
+func (svr *GRPCServer) Start(ctx context.Context) error {
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting gRPC server")
 	lis, err := net.Listen("tcp", svr.bindAddress)
 	if err != nil {
-		log.Errorf("failed to listen: %v", err)
+		logger.Error(err, "failed to listen")
 		return err
 	}
 	pbv1.RegisterCloudEventServiceServer(svr.grpcServer, svr)
@@ -157,6 +165,7 @@ func (svr *GRPCServer) Stop() {
 
 // Publish implements the Publish method of the CloudEventServiceServer interface
 func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest) (*emptypb.Empty, error) {
+	logger := klog.FromContext(ctx)
 	// WARNING: don't use "evt, err := pb.FromProto(pubReq.Event)" to convert protobuf to cloudevent
 	evt, err := binding.ToEvent(ctx, grpcprotocol.NewMessage(pubReq.Event))
 	if err != nil {
@@ -181,8 +190,8 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	log.Infof("receive the event from client, %s", evt.Context)
-	log.Debugf("receive the event from client, evt=%s", evt)
+	logger.Info("receive the event from client", "context", evt.Context)
+	logger.V(4).Info("receive the event from client", "event", evt)
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -254,6 +263,8 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 	heartbeatCh := make(chan *pbv1.CloudEvent, 10)
 	sendErrCh := make(chan error, 1)
 
+	logger := klog.FromContext(ctx)
+
 	// send events
 	// The grpc send is not concurrency safe and non-blocking, see: https://github.com/grpc/grpc-go/blob/v1.75.1/stream.go#L1571
 	// Return the error without wrapping, as it includes the gRPC error code and message for further handling.
@@ -266,7 +277,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 				return
 			case evt := <-heartbeatCh:
 				if err := subServer.Send(evt); err != nil {
-					log.Errorf("failed to send heartbeat: %v", err)
+					logger.Error(err, "failed to send heartbeat")
 					// Unblock producers (handler select) and exit heartbeat ticker.
 					cancel()
 					select {
@@ -277,7 +288,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 				}
 			case evt := <-eventCh:
 				if err := subServer.Send(evt); err != nil {
-					log.Errorf("failed to send event: %v", err)
+					logger.Error(err, "failed to send event")
 					// Unblock producers (handler select) and exit heartbeat ticker.
 					cancel()
 					select {
@@ -290,18 +301,18 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		}
 	}()
 
-	clientID := svr.eventBroadcaster.Register(subReq.Source, func(res *api.Resource) error {
+	clientID := svr.eventBroadcaster.Register(ctx, subReq.Source, func(res *api.Resource) error {
 		evt, err := encodeResourceStatus(res)
 		if err != nil {
 			return fmt.Errorf("failed to encode cloudevent: %v", err)
 		}
 
-		log.Infof("send the event to status subscribers, %s", evt.Context)
-		log.Debugf("send the event to status subscribers, evt=%s", evt)
+		logger.Info("send the event to status subscribers", "context", evt.Context)
+		logger.V(4).Info("send the event to status subscribers", "event", evt)
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
-		if err = grpcprotocol.WritePBMessage(context.TODO(), binding.ToMessage(evt), pbEvt); err != nil {
+		if err = grpcprotocol.WritePBMessage(ctx, binding.ToMessage(evt), pbEvt); err != nil {
 			return fmt.Errorf("failed to convert cloudevent to protobuf: %v", err)
 		}
 
@@ -330,7 +341,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 				select {
 				case heartbeatCh <- heartbeat:
 				default:
-					log.Warn("send channel is full, dropping heartbeat")
+					logger.Info("send channel is full, dropping heartbeat")
 				}
 			case <-ctx.Done():
 				return
@@ -340,11 +351,11 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 
 	select {
 	case err := <-sendErrCh:
-		log.Errorf("failed to send event, unregister subscriber %s, error=%v", clientID, err)
-		svr.eventBroadcaster.Unregister(clientID)
+		logger.Error(err, "failed to send event, unregister subscriber", "subscriber", clientID)
+		svr.eventBroadcaster.Unregister(ctx, clientID)
 		return err
 	case <-ctx.Done():
-		svr.eventBroadcaster.Unregister(clientID)
+		svr.eventBroadcaster.Unregister(ctx, clientID)
 		return nil
 	}
 }
@@ -432,6 +443,7 @@ func encodeResourceStatus(resource *api.Resource) (*ce.Event, error) {
 // respondResyncStatusRequest responds to the status resync request by comparing the status hash of the resources
 // from the database and the status hash in the request, and then respond the resources whose status is changed.
 func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, evt *ce.Event) error {
+	logger := klog.FromContext(ctx)
 	objs, serviceErr := svr.resourceService.FindBySource(ctx, evt.Source())
 	if serviceErr != nil {
 		return fmt.Errorf("failed to list resources: %s", serviceErr)
@@ -455,7 +467,7 @@ func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, evt *ce.E
 		lastHash, ok := findStatusHash(string(obj.GetUID()), statusHashes.Hashes)
 		if !ok {
 			// ignore the resource that is not on the source, but exists on the maestro, wait for the source deleting it
-			log.Infof("The resource %s is not found from the maestro, ignore", obj.GetUID())
+			logger.Info("The resource is not found from the maestro, ignore", "objectID", obj.GetUID())
 			continue
 		}
 

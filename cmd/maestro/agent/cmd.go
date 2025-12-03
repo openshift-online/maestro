@@ -63,7 +63,7 @@ func NewAgentCommand() *cobra.Command {
 	return cmd
 }
 
-// addFlags overrides cluster name and leader leader election flags from the agentOption
+// addFlags overrides cluster name and leader election flags from the agentOption
 func addFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&commonOptions.SpokeClusterName, "consumer-name",
 		commonOptions.SpokeClusterName, "Name of the consumer")

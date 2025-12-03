@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"k8s.io/klog/v2"
 	"sync"
 	"time"
 
@@ -14,12 +15,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 )
-
-var log = logger.GetLogger()
 
 var _ Dispatcher = &HashDispatcher{}
 
@@ -76,6 +74,7 @@ func (d *HashDispatcher) Start(ctx context.Context) {
 
 // resyncOnReconnect listens for the client reconnected signal and resyncs current consumers for this source.
 func (d *HashDispatcher) resyncOnReconnect(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	// receive client reconnect signal and resync current consumers for this source
 	for {
 		select {
@@ -84,7 +83,7 @@ func (d *HashDispatcher) resyncOnReconnect(ctx context.Context) {
 		case <-d.sourceClient.ReconnectedChan():
 			// when receiving a client reconnected signal, we resync current consumers for this source
 			if err := d.sourceClient.Resync(ctx, d.consumerSet.ToSlice()); err != nil {
-				log.Error(fmt.Sprintf("failed to resync resourcs status for consumers (%s), %v", d.consumerSet.ToSlice(), err))
+				logger.Error(err, "failed to resync resources status for consumers", "consumers", d.consumerSet.ToSlice())
 			}
 		}
 	}
@@ -98,13 +97,13 @@ func (d *HashDispatcher) Dispatch(consumerName string) bool {
 }
 
 // updateConsumerSet updates the consumer set for the current instance based on the hashing ring.
-func (d *HashDispatcher) updateConsumerSet() error {
+func (d *HashDispatcher) updateConsumerSet(ctx context.Context, logger klog.Logger) error {
 	// return if the hashing ring is not ready
 	if d.consistent == nil || len(d.consistent.GetMembers()) == 0 {
 		return nil
 	}
 	// get all consumers and update the consumer set for the current instance
-	consumers, err := d.consumerDao.All(context.TODO())
+	consumers, err := d.consumerDao.All(ctx)
 	if err != nil {
 		return fmt.Errorf("unable to list consumers: %s", err.Error())
 	}
@@ -128,7 +127,7 @@ func (d *HashDispatcher) updateConsumerSet() error {
 	_ = d.consumerSet.Append(toAddConsumers...)
 	d.consumerSet.RemoveAll(toRemoveConsumers...)
 	if len(toAddConsumers) != 0 || len(toRemoveConsumers) != 0 {
-		log.Debugf("Consumers set for current instance: %s", d.consumerSet.String())
+		logger.V(4).Info("Consumers set for current instance", "consumers", d.consumerSet.String())
 	}
 	return nil
 }
@@ -150,9 +149,10 @@ func (d *HashDispatcher) startStatusResyncWorkers(ctx context.Context) {
 
 // check checks the instances & consumers and updates the hashing ring and consumer set for the current instance.
 func (d *HashDispatcher) check(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	instances, err := d.instanceDao.All(ctx)
 	if err != nil {
-		log.Error(fmt.Sprintf("Unable to get all maestro instances: %s", err.Error()))
+		logger.Error(err, "Unable to get all maestro instances")
 		return
 	}
 
@@ -192,19 +192,20 @@ func (d *HashDispatcher) check(ctx context.Context) {
 	}
 
 	if !addedMembers.IsEmpty() || !removedMembers.IsEmpty() {
-		log.Debugf("newly added server instances are %s and removed server instances are %s from the hash ring",
-			addedMembers.String(), removedMembers.String())
+		logger.V(4).Info("newly added server instances and removed server instances from the hash ring",
+			"addedMembers", addedMembers.String(), "removedMembers", removedMembers.String())
 	}
 
 	// need update consumerset always to ensure the consumers are located to specified server instance
-	if err := d.updateConsumerSet(); err != nil {
-		log.Error(fmt.Sprintf("Unable to update consumer set: %s", err.Error()))
+	if err := d.updateConsumerSet(ctx, logger); err != nil {
+		logger.Error(err, "Unable to update consumer set")
 	}
 }
 
 // processNextResync attempts to resync resource status updates for new consumers added to the current maestro instance
 // using the cloudevents source client. It returns true if the resync is successful.
 func (d *HashDispatcher) processNextResync(ctx context.Context) bool {
+	logger := klog.FromContext(ctx)
 	key, shutdown := d.workQueue.Get()
 	if shutdown {
 		// workqueue has been shutdown, return false
@@ -226,11 +227,14 @@ func (d *HashDispatcher) processNextResync(ctx context.Context) bool {
 		return true
 	}
 
-	log.Infof("processing status resync request for consumer %s", consumerName)
+	logger.Info("processing status resync request for consumer", "consumer", consumerName)
 	if err := d.sourceClient.Resync(ctx, []string{consumerName}); err != nil {
-		log.Error(fmt.Sprintf("failed to resync resourcs status for consumer %s: %s", consumerName, err))
+		logger.Error(err, "failed to resync resources status for consumer", "consumer", consumerName)
 		// Put the item back on the workqueue to handle any transient errors.
 		d.workQueue.AddRateLimited(key)
+	} else {
+		// Resync succeeded, forget the key to reset the rate limiter.
+		d.workQueue.Forget(key)
 	}
 
 	return true

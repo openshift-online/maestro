@@ -2,6 +2,8 @@ package server
 
 import (
 	"context"
+	
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/controllers"
@@ -9,7 +11,9 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 )
 
-func NewControllersServer(eventServer EventServer, eventFilter controllers.EventFilter) *ControllersServer {
+func NewControllersServer(ctx context.Context, eventServer EventServer, eventFilter controllers.EventFilter) *ControllersServer {
+	logger := klog.FromContext(ctx)
+
 	s := &ControllersServer{
 		StatusController: controllers.NewStatusController(
 			env().Services.StatusEvents(),
@@ -20,7 +24,7 @@ func NewControllersServer(eventServer EventServer, eventFilter controllers.Event
 
 	// disable the spec controller if the message broker is disabled
 	if !env().Config.MessageBroker.Disable {
-		log.Debugf("Message broker is enabled, setting up kind controller manager")
+		logger.V(4).Info("Message broker is enabled, setting up kind controller manager")
 		s.KindControllerManager = controllers.NewKindControllerManager(
 			eventFilter,
 			env().Services.Events(),
@@ -53,17 +57,19 @@ type ControllersServer struct {
 
 // Start is a blocking call that starts this controller server
 func (s ControllersServer) Start(ctx context.Context) {
+	logger := klog.FromContext(ctx).WithName("maestro-controllers")
+	ctx = klog.NewContext(ctx, logger)
 	if s.KindControllerManager != nil {
-		log.Infof("Kind controller handling events")
-		go s.KindControllerManager.Run(ctx.Done())
+		logger.Info("Kind controller handling events")
+		go s.KindControllerManager.Run(ctx)
 
-		log.Infof("Kind controller listening for events")
+		logger.Info("Kind controller listening for events")
 		go env().Database.SessionFactory.NewListener(ctx, "events", s.KindControllerManager.AddEvent)
 	}
 
-	log.Infof("Status controller handling events")
-	go s.StatusController.Run(ctx.Done())
-	log.Infof("Status controller listening for status events")
+	logger.Info("Status controller handling events")
+	go s.StatusController.Run(ctx)
+	logger.Info("Status controller listening for status events")
 	go env().Database.SessionFactory.NewListener(ctx, "status_events", s.StatusController.AddStatusEvent)
 
 	// block until the context is done

@@ -6,18 +6,26 @@ import (
 	"net/http"
 
 	"github.com/openshift-online/maestro/pkg/errors"
-	"github.com/openshift-online/maestro/pkg/logger"
+	logtracing "github.com/openshift-online/maestro/pkg/logger"
+	"k8s.io/klog/v2"
 )
 
-var log = logger.GetLogger()
-
 func handleError(ctx context.Context, w http.ResponseWriter, code errors.ServiceErrorCode, reason string) {
-	operationID := logger.GetOperationID(ctx)
+	logger := klog.FromContext(ctx)
+
+	operationID := logtracing.GetOperationID(ctx)
 	err := errors.New(code, "%s", reason)
 	if err.HttpCode >= 400 && err.HttpCode <= 499 {
-		log.Infof(err.Error())
+		logger.Info("client error",
+			"error", err.Error(),
+			"code", err.HttpCode,
+			"op-id", operationID,
+		)
 	} else {
-		log.Error(err.Error())
+		logger.Error(err, "server error",
+			"code", err.HttpCode,
+			"op-id", operationID,
+		)
 	}
 
 	writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))

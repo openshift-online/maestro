@@ -20,19 +20,18 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/openshift-online/maestro/pkg/logger"
+	"k8s.io/klog/v2"
 )
-
-var log = logger.GetLogger()
 
 // SendAPI sends API documentation response.
 func SendAPI(w http.ResponseWriter, r *http.Request) {
 	// Set the content type:
 	w.Header().Set("Content-Type", "application/json")
+
+	logger := klog.FromContext(r.Context())
 
 	// Prepare the body:
 	versions := []VersionMetadata{
@@ -56,8 +55,7 @@ func SendAPI(w http.ResponseWriter, r *http.Request) {
 	// Send the response:
 	_, err = w.Write(data)
 	if err != nil {
-		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
-		log.Error(err)
+		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
 		sentry.CaptureException(err)
 		return
 	}
@@ -67,6 +65,8 @@ func SendAPI(w http.ResponseWriter, r *http.Request) {
 func SendAPIV1(w http.ResponseWriter, r *http.Request) {
 	// Set the content type:
 	w.Header().Set("Content-Type", "application/json")
+
+	logger := klog.FromContext(r.Context())
 
 	// Prepare the body:
 	id := "v1"
@@ -92,7 +92,8 @@ func SendAPIV1(w http.ResponseWriter, r *http.Request) {
 	// Send the response:
 	_, err = w.Write(data)
 	if err != nil {
-		log.Errorf("Can't send response body for request '%s'", r.URL.Path)
+		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
+		sentry.CaptureException(err)
 		return
 	}
 }

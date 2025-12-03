@@ -8,6 +8,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/openshift-online/maestro/pkg/errors"
+	"k8s.io/klog/v2"
 )
 
 // SendNotFound sends a 404 response with some details about the non existing resource.
@@ -38,8 +39,8 @@ func SendNotFound(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 	_, err = w.Write(data)
 	if err != nil {
-		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
-		log.Error(err)
+		logger := klog.FromContext(r.Context())
+		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
 		sentry.CaptureException(err)
 		return
 	}
@@ -60,8 +61,8 @@ func SendUnauthorized(w http.ResponseWriter, r *http.Request, message string) {
 	w.WriteHeader(http.StatusUnauthorized)
 	_, err = w.Write(data)
 	if err != nil {
-		err = fmt.Errorf("cannot send response body for request '%s'", r.URL.Path)
-		log.Error(err)
+		logger := klog.FromContext(r.Context())
+		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
 		sentry.CaptureException(err)
 		return
 	}
@@ -72,12 +73,8 @@ func SendPanic(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	_, err := w.Write(panicBody)
 	if err != nil {
-		err = fmt.Errorf(
-			"cannot send panic response for request '%s': %s",
-			r.URL.Path,
-			err.Error(),
-		)
-		log.Error(err)
+		logger := klog.FromContext(r.Context())
+		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
 		sentry.CaptureException(err)
 	}
 }
@@ -108,7 +105,7 @@ func init() {
 			"cannot create the panic error body: %s",
 			err.Error(),
 		)
-		log.Error(err)
+		klog.Error(err)
 		sentry.CaptureException(err)
 		os.Exit(1)
 	}

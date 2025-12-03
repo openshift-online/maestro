@@ -6,10 +6,7 @@ import (
 	"strconv"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
-	"github.com/openshift-online/maestro/pkg/logger"
 )
-
-var log = logger.GetLogger()
 
 const (
 	// Prefix used for error code strings
@@ -107,7 +104,6 @@ func New(code ServiceErrorCode, reason string, values ...interface{}) *ServiceEr
 	var err *ServiceError
 	exists, err := Find(code)
 	if !exists {
-		log.Errorf("Undefined error code used: %d", code)
 		err = &ServiceError{ErrorGeneral, "Unspecified error", 500}
 	}
 

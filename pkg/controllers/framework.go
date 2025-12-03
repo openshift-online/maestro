@@ -6,11 +6,11 @@ import (
 	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 )
 
 /*
@@ -36,8 +36,6 @@ consumers for the lock will fail fast on redundant messages.
 type ControllerHandlerContextKey string
 
 const EventID ControllerHandlerContextKey = "event"
-
-var log = logger.GetLogger()
 
 // defaultEventsSyncPeriod is a default events sync period (10 hours)
 // given a long period because we have a queue in the controller, it will help us to handle most expected errors, this
@@ -87,21 +85,22 @@ func (km *KindControllerManager) AddEvent(id string) {
 	km.eventsQueue.Add(id)
 }
 
-func (km *KindControllerManager) Run(stopCh <-chan struct{}) {
-	log.Infof("Starting event controller")
+func (km *KindControllerManager) Run(ctx context.Context) {
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting event controller")
 	defer km.eventsQueue.ShutDown()
 
 	// start a goroutine to sync all events periodically
 	// use a jitter to avoid multiple instances syncing the events at the same time
-	go wait.JitterUntil(km.syncEvents, defaultEventsSyncPeriod, 0.25, true, stopCh)
+	go wait.JitterUntilWithContext(ctx, km.syncEvents, defaultEventsSyncPeriod, 0.25, true)
 
 	// start a goroutine to handle the event from the event queue
 	// the .Until will re-kick the runWorker one second after the runWorker completes
-	go wait.Until(km.runWorker, time.Second, stopCh)
+	go wait.UntilWithContext(ctx, km.runWorker, time.Second)
 
 	// wait until we're told to stop
-	<-stopCh
-	log.Infof("Shutting down event controller")
+	<-ctx.Done()
+	logger.Info("Shutting down event controller")
 }
 
 func (km *KindControllerManager) add(source string, ev api.EventType, fns []ControllerHandlerFunc) {
@@ -116,8 +115,9 @@ func (km *KindControllerManager) add(source string, ev api.EventType, fns []Cont
 	km.controllers[source][ev] = append(km.controllers[source][ev], fns...)
 }
 
-func (km *KindControllerManager) handleEvent(id string) (bool, error) {
-	reqContext := context.WithValue(context.Background(), EventID, id)
+func (km *KindControllerManager) handleEvent(ctx context.Context, id string) (bool, error) {
+	logger := klog.FromContext(ctx).WithValues(EventID, id)
+	reqContext := context.WithValue(klog.NewContext(ctx, logger), EventID, id)
 
 	// check if the event should be processed by this instance
 	shouldProcess, err := km.eventFilter.Filter(reqContext, id)
@@ -130,7 +130,7 @@ func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 		// the event should not be processed by this instance at present
 		// we put the event to the queue again until the event has been reconciled by
 		// a certain instance.
-		log.Infof("Event with id (%s) should not be processed by this instance", id)
+		logger.Info("Event should not be processed by this instance")
 		return false, nil
 	}
 
@@ -138,7 +138,7 @@ func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 	if svcErr != nil {
 		if svcErr.Is404() {
 			// the event is already deleted, we can ignore it
-			log.Infof("Event with id (%s) is not found", id)
+			logger.Info("Event is not found")
 			specEventReconciledTotal.WithLabelValues("unknown", string(controllerReconciledStatusSkipped)).Inc()
 			return true, nil
 		}
@@ -148,7 +148,7 @@ func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 
 	if event.ReconciledDate != nil {
 		// the event is already reconciled, we can ignore it
-		log.Infof("Event with id (%s) is already reconciled", id)
+		logger.Info("Event is already reconciled")
 		specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusSkipped)).Inc()
 		return true, nil
 	}
@@ -160,14 +160,14 @@ func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 
 	source, found := km.controllers[event.Source]
 	if !found {
-		log.Infof("No controllers found for '%s'\n", event.Source)
+		logger.Info("No controllers found", "source", event.Source)
 		specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusSkipped)).Inc()
 		return true, nil
 	}
 
 	handlerFns, found := source[event.EventType]
 	if !found {
-		log.Infof("No handler functions found for '%s-%s'\n", event.Source, event.EventType)
+		logger.Info("No handler functions found", "source", event.Source, "eventType", event.EventType)
 		specEventReconciledTotal.WithLabelValues(string(event.EventType), string(controllerReconciledStatusSkipped)).Inc()
 		return true, nil
 	}
@@ -193,15 +193,15 @@ func (km *KindControllerManager) handleEvent(id string) (bool, error) {
 	return true, nil
 }
 
-func (km *KindControllerManager) runWorker() {
+func (km *KindControllerManager) runWorker(ctx context.Context) {
 	// hot loop until we're told to stop. processNextEvent will automatically wait until there's work available, so
 	// we don't worry about secondary waits
-	for km.processNextEvent() {
+	for km.processNextEvent(ctx) {
 	}
 }
 
 // processNextEvent deals with one key off the queue.
-func (km *KindControllerManager) processNextEvent() bool {
+func (km *KindControllerManager) processNextEvent(ctx context.Context) bool {
 	// pull the next event item from queue.
 	// events queue blocks until it can return an item to be processed
 	key, quit := km.eventsQueue.Get()
@@ -211,9 +211,11 @@ func (km *KindControllerManager) processNextEvent() bool {
 	}
 	defer km.eventsQueue.Done(key)
 
-	if reconciled, err := km.handleEvent(key); !reconciled {
+	logger := klog.FromContext(ctx).WithValues("key", key)
+
+	if reconciled, err := km.handleEvent(ctx, key); !reconciled {
 		if err != nil {
-			log.Errorf("Failed to handle the event %v, %v ", key, err)
+			logger.Error(err, "Failed to handle the event")
 		}
 
 		// the event is not reconciled, we requeue it to work on later
@@ -227,21 +229,22 @@ func (km *KindControllerManager) processNextEvent() bool {
 	return true
 }
 
-func (km *KindControllerManager) syncEvents() {
-	log.Infof("purge all reconciled events")
+func (km *KindControllerManager) syncEvents(ctx context.Context) {
+	logger := klog.FromContext(ctx)
+	logger.Info("purge all reconciled events")
 	// delete the reconciled events from the database firstly
-	if err := km.events.DeleteAllReconciledEvents(context.Background()); err != nil {
+	if err := km.events.DeleteAllReconciledEvents(ctx); err != nil {
 		// this process is called periodically, so if the error happened, we will wait for the next cycle to handle
 		// this again
-		log.Errorf("Failed to delete reconciled events from db: %v", err)
+		logger.Error(err, "Failed to delete reconciled events from db")
 		specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}
 
-	log.Infof("sync all unreconciled events")
-	unreconciledEvents, err := km.events.FindAllUnreconciledEvents(context.Background())
+	logger.Info("sync all unreconciled events")
+	unreconciledEvents, err := km.events.FindAllUnreconciledEvents(ctx)
 	if err != nil {
-		log.Errorf("Failed to list unreconciled events from db: %v", err)
+		logger.Error(err, "Failed to list unreconciled events from db")
 		specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}

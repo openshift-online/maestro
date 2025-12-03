@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"net/http"
 
 	gorillahandlers "github.com/gorilla/handlers"
@@ -14,34 +15,20 @@ import (
 	"github.com/openshift-online/maestro/pkg/logger"
 )
 
-func (s *apiServer) routes() *mux.Router {
+func (s *apiServer) routes(ctx context.Context) *mux.Router {
 	services := &env().Services
 
 	openAPIDefinitions, err := s.loadOpenAPISpec("openapi.yaml")
 	if err != nil {
-		check(err, "Can't load OpenAPI specification")
+		check(ctx, err, "Can't load OpenAPI specification")
 	}
 
 	resourceBundleHandler := handlers.NewResourceBundleHandler(services.Resources(), services.Generic())
 	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Resources(), services.Generic())
 	errorsHandler := handlers.NewErrorsHandler()
 
-	var authMiddleware auth.JWTMiddleware
-	authMiddleware = &auth.AuthMiddlewareMock{}
-	if env().Config.HTTPServer.EnableJWT {
-		var err error
-		authMiddleware, err = auth.NewAuthMiddleware()
-		check(err, "Unable to create auth middleware")
-	}
-	if authMiddleware == nil {
-		check(err, "Unable to create auth middleware: missing middleware")
-	}
-
+	authMiddleware := &auth.AuthMiddlewareMock{}
 	authzMiddleware := auth.NewAuthzMiddlewareMock()
-	if env().Config.HTTPServer.EnableAuthz {
-		// TODO: authzMiddleware, err = auth.NewAuthzMiddleware()
-		check(err, "Unable to create authz middleware")
-	}
 
 	// mainRouter is top level "/"
 	mainRouter := mux.NewRouter()
@@ -51,7 +38,7 @@ func (s *apiServer) routes() *mux.Router {
 	mainRouter.Use(logger.OperationIDMiddleware)
 
 	// Request logging middleware logs pertinent information about the request and response
-	mainRouter.Use(logging.RequestLoggingMiddleware)
+	logging.RegisterLoggerMiddleware(ctx, mainRouter)
 
 	//  /api/maestro
 	apiRouter := mainRouter.PathPrefix("/api/maestro").Subrouter()

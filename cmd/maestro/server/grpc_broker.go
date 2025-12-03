@@ -16,6 +16,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/klog/v2"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -124,7 +125,9 @@ type GRPCBroker struct {
 }
 
 // NewGRPCBroker creates a new gRPC broker with the given configuration.
-func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
+func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster) EventServer {
+	logger := klog.FromContext(ctx)
+
 	config := *env().Config.GRPCServer
 	grpcServerOptions := make([]grpc.ServerOption, 0)
 	grpcServerOptions = append(grpcServerOptions, grpc.MaxRecvMsgSize(config.MaxReceiveMessageSize))
@@ -148,7 +151,7 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 	if !disableTLS {
 		// Check tls cert and key path path
 		if config.BrokerTLSCertFile == "" || config.BrokerTLSKeyFile == "" {
-			check(
+			check(ctx,
 				fmt.Errorf("unspecified required --grpc-broker-tls-cert-file, --grpc-broker-tls-key-file"),
 				"Can't start gRPC broker",
 			)
@@ -156,7 +159,7 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 		// Serve with TLS
 		serverCerts, err := tls.LoadX509KeyPair(config.BrokerTLSCertFile, config.BrokerTLSKeyFile)
 		if err != nil {
-			check(fmt.Errorf("failed to load broker certificates: %v", err), "Can't start gRPC broker")
+			check(ctx, fmt.Errorf("failed to load broker certificates: %v", err), "Can't start gRPC broker")
 		}
 		tlsConfig := &tls.Config{
 			Certificates: []tls.Certificate{serverCerts},
@@ -166,22 +169,22 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 		if config.BrokerClientCAFile != "" {
 			certPool, err := x509.SystemCertPool()
 			if err != nil {
-				check(fmt.Errorf("failed to load system cert pool: %v", err), "Can't start gRPC broker")
+				check(ctx, fmt.Errorf("failed to load system cert pool: %v", err), "Can't start gRPC broker")
 			}
 			caPEM, err := os.ReadFile(config.BrokerClientCAFile)
 			if err != nil {
-				check(fmt.Errorf("failed to read broker client CA file: %v", err), "Can't start gRPC broker")
+				check(ctx, fmt.Errorf("failed to read broker client CA file: %v", err), "Can't start gRPC broker")
 			}
 			if ok := certPool.AppendCertsFromPEM(caPEM); !ok {
-				check(fmt.Errorf("failed to append broker client CA to cert pool"), "Can't start gRPC broker")
+				check(ctx, fmt.Errorf("failed to append broker client CA to cert pool"), "Can't start gRPC broker")
 			}
 			tlsConfig.ClientCAs = certPool
 			tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
 		}
 		grpcServerOptions = append(grpcServerOptions, grpc.Creds(credentials.NewTLS(tlsConfig)))
-		log.Infof("Serving gRPC broker with TLS at %s", config.BrokerBindPort)
+		logger.Info("Serving gRPC broker with TLS", "port", config.BrokerBindPort)
 	} else {
-		log.Infof("Serving gRPC broker without TLS at %s", config.BrokerBindPort)
+		logger.Info("Serving gRPC broker without TLS", "port", config.BrokerBindPort)
 	}
 
 	sessionFactory := env().Database.SessionFactory
@@ -210,20 +213,21 @@ func NewGRPCBroker(eventBroadcaster *event.EventBroadcaster) EventServer {
 
 // Start starts the gRPC broker
 func (bkr *GRPCBroker) Start(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	ln, err := net.Listen("tcp", bkr.bindAddress)
 	if err != nil {
-		log.Fatalf("Failed to listen on %s: %s", bkr.bindAddress, err.Error())
+		check(ctx, err, "Failed to start gRPC broker listener")
 	}
 
 	go func() {
 		if err := bkr.grpcServer.Serve(ln); err != nil {
-			log.Fatalf("Failed to start gRPC broker at %s: %s", bkr.bindAddress, err.Error())
+			check(ctx, err, "gRPC broker terminated with errors")
 		}
 	}()
 
 	// wait until context is done
 	<-ctx.Done()
-	log.Infof("Stopping gRPC broker at %s", bkr.bindAddress)
+	logger.Info("Stopping gRPC broker", "bindAddress", bkr.bindAddress)
 	bkr.grpcServer.GracefulStop()
 }
 
@@ -263,6 +267,7 @@ func (s *GRPCBroker) OnStatusUpdate(ctx context.Context, eventID, resourceID str
 // by verifying the resource consumer name is in the subscriber list, ensuring the
 // event will be only processed when the consumer is subscribed to the current broker.
 func (s *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool, error) {
+	logger := klog.FromContext(ctx)
 	evt, err := s.eventService.Get(ctx, eventID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get event %s: %s", eventID, err.Error())
@@ -277,7 +282,7 @@ func (s *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool, 
 	if svcErr != nil {
 		// if the resource is not found, it indicates the resource has been handled by other instances.
 		if svcErr.Is404() {
-			log.Debugf("The resource %s has been deleted, mark the event as reconciled", evt.SourceID)
+			logger.V(4).Info("The resource has been deleted, mark the event as reconciled", "source", evt.SourceID)
 			now := time.Now()
 			evt.ReconciledDate = &now
 			if _, svcErr := s.eventService.Replace(ctx, evt); svcErr != nil {

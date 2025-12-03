@@ -4,13 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"k8s.io/klog/v2"
 	"net/http"
 
 	"github.com/openshift-online/maestro/pkg/errors"
-	"github.com/openshift-online/maestro/pkg/logger"
+	loggertracing "github.com/openshift-online/maestro/pkg/logger"
 )
-
-var log = logger.GetLogger()
 
 // handlerConfig defines the common things each REST controller must do.
 // The corresponding handle() func runs the basic handlerConfig.
@@ -32,12 +31,13 @@ type errorHandlerFunc func(ctx context.Context, w http.ResponseWriter, err *erro
 type httpAction func() (interface{}, *errors.ServiceError)
 
 func handleError(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError) {
-	operationID := logger.GetOperationID(ctx)
+	operationID := loggertracing.GetOperationID(ctx)
+	logger := klog.FromContext(ctx)
 	// If this is a 400 error, its the user's issue, log as info rather than error
 	if err.HttpCode >= 400 && err.HttpCode <= 499 {
-		log.Info(err)
+		logger.Info("user request error", "error", err)
 	} else {
-		log.Error(err)
+		logger.Error(err, "user request error")
 	}
 	writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))
 }

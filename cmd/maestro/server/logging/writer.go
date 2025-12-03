@@ -1,11 +1,12 @@
 package logging
 
 import (
+	"k8s.io/klog/v2"
 	"net/http"
 )
 
-func NewLoggingWriter(w http.ResponseWriter, r *http.Request, f LogFormatter) *loggingWriter {
-	return &loggingWriter{ResponseWriter: w, request: r, formatter: f}
+func NewLoggingWriter(logger klog.Logger, w http.ResponseWriter, r *http.Request, f LogFormatter) *loggingWriter {
+	return &loggingWriter{ResponseWriter: w, request: r, formatter: f, logger: logger}
 }
 
 type loggingWriter struct {
@@ -14,6 +15,7 @@ type loggingWriter struct {
 	formatter      LogFormatter
 	responseStatus int
 	responseBody   []byte
+	logger         klog.Logger
 }
 
 func (writer *loggingWriter) Write(body []byte) (int, error) {
@@ -29,14 +31,14 @@ func (writer *loggingWriter) WriteHeader(status int) {
 func (writer *loggingWriter) log(logMsg string, err error) {
 	switch err {
 	case nil:
-		log.Debug(logMsg)
+		writer.logger.V(4).Info(logMsg)
 	default:
-		log.With("error", err.Error()).Error("Unable to log request/response for log.")
+		writer.logger.Error(err, "Unable to format request/response log")
 	}
 }
 
 func (writer *loggingWriter) prepareRequestLog() (string, error) {
-	return writer.formatter.FormatRequestLog(writer.request)
+	return writer.formatter.FormatRequestLog(writer.logger, writer.request)
 }
 
 func (writer *loggingWriter) prepareResponseLog(elapsed string) (string, error) {
@@ -47,5 +49,5 @@ func (writer *loggingWriter) prepareResponseLog(elapsed string) (string, error) 
 		Elapsed: elapsed,
 	}
 
-	return writer.formatter.FormatResponseLog(info)
+	return writer.formatter.FormatResponseLog(writer.logger, info)
 }
