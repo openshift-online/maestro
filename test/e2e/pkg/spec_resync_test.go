@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"fmt"
-	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -263,17 +262,14 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 				return fmt.Errorf("nginx C deployment %s still exists", deployC)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			By("check the resource deletion via maestro api")
+			By("check the resource deletion via source workclient")
 			Eventually(func() error {
-				search := fmt.Sprintf("consumer_name = '%s'", agentTestOpts.consumerName)
-				gotResourceList, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+				mwGRPCClient := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName)
+				workList, err := mwGRPCClient.List(ctx, metav1.ListOptions{})
 				if err != nil {
-					return err
+					return fmt.Errorf("failed to list manifestwork: %v", err)
 				}
-				if resp.StatusCode != http.StatusOK {
-					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusOK)
-				}
-				if len(gotResourceList.Items) != 0 {
+				if len(workList.Items) != 0 {
 					return fmt.Errorf("expected no resources returned by maestro api")
 				}
 				return nil

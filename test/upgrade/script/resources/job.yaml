@@ -1,0 +1,58 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: maestro-upgrade-tests
+  namespace: clusters-service
+  labels:
+    app: maestro-upgrade
+    job-type: upgrade-tests
+spec:
+  # Number of retries before considering the job as failed
+  backoffLimit: 0
+  # Time to keep the job after completion (for log inspection)
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: maestro-upgrade
+      annotations:
+        sidecar.istio.io/inject: "true"
+        proxy.istio.io/config: |
+          holdApplicationUntilProxyStarts: true
+          terminationDrainDuration: 10s
+    spec:
+      serviceAccountName: ${service_account_name}
+      restartPolicy: Never
+      containers:
+        - name: upgrade-tests
+          image: ${image}
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |-
+              /e2e/upgrade.test \
+                -agent-kubeconfig=/e2e/kubeconfig/agent.kubeconfig
+              exit_code=$?
+              echo "Test exited with code: $exit_code"
+              # Signal istio-proxy to quit
+              curl -sf -X POST http://localhost:15020/quitquitquit
+              exit $exit_code
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /e2e/kubeconfig
+              readOnly: true
+            - name: test-reports
+              mountPath: /e2e/report
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: maestro-upgrade-test-kubeconfig
+        - name: test-reports
+          emptyDir: {}

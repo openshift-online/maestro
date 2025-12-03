@@ -68,3 +68,4 @@ test/e2e/certs
 unit-test-results.json
 *integration-test-results.json
 test/e2e/setup/aro/aro-hcp
+test/upgrade/report/*

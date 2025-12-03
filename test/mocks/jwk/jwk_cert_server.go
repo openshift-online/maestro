@@ -1,4 +1,4 @@
-package mocks
+package jwk
 
 import (
 	"crypto"
@@ -30,7 +30,7 @@ func NewJWKCertServerMock(t *testing.T, pubKey crypto.PublicKey, jwkKID string, 
 				t.Errorf("Unable to marshal public jwk: %s", err)
 				return
 			}
-			fmt.Fprintf(w, fmt.Sprintf(`{"keys":[%s]}`, string(jwkBytes)))
+			fmt.Fprintf(w, `{"keys":[%s]}`, string(jwkBytes))
 		},
 	)
 

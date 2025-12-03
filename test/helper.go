@@ -48,7 +48,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
-	"github.com/openshift-online/maestro/test/mocks"
+	"github.com/openshift-online/maestro/test/mocks/jwk"
 )
 
 const (
@@ -446,7 +446,7 @@ func (helper *Helper) NewAccount(username, name, email string) *amv1.Account {
 
 	acct, err := builder.Build()
 	if err != nil {
-		helper.T.Errorf(fmt.Sprintf("Unable to build account: %s", err))
+		helper.T.Fatalf("Unable to build account: %s", err)
 	}
 	return acct
 }
@@ -457,7 +457,7 @@ func (helper *Helper) NewAuthenticatedContext(account *amv1.Account) context.Con
 }
 
 func (helper *Helper) StartJWKCertServerMock() (teardown func() error) {
-	jwkURL, teardown = mocks.NewJWKCertServerMock(helper.T, helper.JWTCA, jwkKID, jwkAlg)
+	jwkURL, teardown = jwk.NewJWKCertServerMock(helper.T, helper.JWTCA, jwkKID, jwkAlg)
 	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
 	return teardown
 }

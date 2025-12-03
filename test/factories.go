@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"time"
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
@@ -381,8 +382,7 @@ func (helper *Helper) NewEvent(source, action, consumerName, resourceID, deployN
 	return &evt, nil
 }
 
-func (helper *Helper) CreateGRPCAuthRule(ctx context.Context, kubeClient kubernetes.Interface, ruleName, resourceType, resourceID string, actions []string) error {
-	// create the cluster rolefor grpc authz
+func (helper *Helper) AddGRPCAuthRule(ctx context.Context, kubeClient kubernetes.Interface, ruleName, resourceType, resourceID string) error {
 	nonResourceUrl := ""
 	switch resourceType {
 	case "source":
@@ -393,35 +393,47 @@ func (helper *Helper) CreateGRPCAuthRule(ctx context.Context, kubeClient kuberne
 		return fmt.Errorf("unsupported resource type: %s", resourceType)
 	}
 
-	_, err := kubeClient.RbacV1().ClusterRoles().Create(ctx, &rbacv1.ClusterRole{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: ruleName,
-		},
-		Rules: []rbacv1.PolicyRule{
-			{
-				NonResourceURLs: []string{nonResourceUrl},
-				Verbs:           actions,
-			},
-		},
-	}, metav1.CreateOptions{})
-	if errors.IsAlreadyExists(err) {
-		// update the cluster role
-		_, err = kubeClient.RbacV1().ClusterRoles().Update(ctx, &rbacv1.ClusterRole{
+	clusterRole, err := kubeClient.RbacV1().ClusterRoles().Get(ctx, ruleName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		_, newErr := kubeClient.RbacV1().ClusterRoles().Create(ctx, &rbacv1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: ruleName,
 			},
 			Rules: []rbacv1.PolicyRule{
 				{
 					NonResourceURLs: []string{nonResourceUrl},
-					Verbs:           actions,
+					Verbs:           []string{"pub", "sub"},
 				},
 			},
-		}, metav1.UpdateOptions{})
-		if err != nil {
-			return err
-		}
+		}, metav1.CreateOptions{})
+
+		return newErr
 	}
 
+	if err != nil {
+		return err
+	}
+
+	if len(clusterRole.Rules) != 1 {
+		return fmt.Errorf("unexpected rules in: %s", ruleName)
+	}
+
+	policyRule := clusterRole.Rules[0]
+	if slices.Contains(policyRule.NonResourceURLs, nonResourceUrl) {
+		// no change, do nothing
+		return nil
+	}
+
+	newClusterRole := clusterRole.DeepCopy()
+	newClusterRole.Rules = []rbacv1.PolicyRule{
+		{
+			NonResourceURLs: append(policyRule.NonResourceURLs, nonResourceUrl),
+			Verbs:           []string{"pub", "sub"},
+		},
+	}
+
+	// update the cluster role
+	_, err = kubeClient.RbacV1().ClusterRoles().Update(ctx, newClusterRole, metav1.UpdateOptions{})
 	return err
 }
 
