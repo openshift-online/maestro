@@ -18,15 +18,15 @@
 img_registry="quay.io/redhat-user-workloads/maestro-rhtap-tenant"
 last_tag=${last_tag:-"latest"}
 
-#### prepare test env
-# 1. setup the test env with the last maestro server and agent
-image_tag=$last_tag external_image_registry=$img_registry internal_image_registry=$img_registry make e2e-test/setup
+# 1. deploy the last maestro server and agent
+image_tag=$last_tag external_image_registry=$img_registry internal_image_registry=$img_registry make test-env/deploy-server
+image_tag=$last_tag external_image_registry=$img_registry internal_image_registry=$img_registry make test-env/deploy-agent
 # 2. deploy the mock workserver with the last maestro grpc work client and init the workloads
 IMAGE="$img_registry/maestro-e2e:$last_tag" ${PWD}/test/upgrade/script/run.sh
 
 #### server upgrade test
 # 1. upgrade the maestro server with the latest image
-deploy_agent="false" make e2e-test/setup
+make test-env/deploy-server
 # 2. run last upgrade test with the latest maestro server
 IMAGE="$img_registry/maestro-e2e:$last_tag" ${PWD}/test/upgrade/script/run.sh
 # 3. run last e2e test with the latest maestro server
@@ -34,7 +34,7 @@ IMAGE="$img_registry/maestro-e2e:$last_tag" ${PWD}/test/e2e/istio/test.sh
 
 #### maestro agent and grpc work client upgrade test
 # 1. upgrade the maestro agent and the workserver with the latest image
-make e2e-test/setup
+make test-env/deploy-agent
 # 2. run upgrade test with the latest test image
 ${PWD}/test/upgrade/script/run.sh
 # 3. run e2e test with the latest maestro agent and grpc work client

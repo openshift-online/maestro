@@ -133,6 +133,18 @@ parameters:
   description: A cluster's last telemetry date needs be within in this duration in order to have labels collected
   value: "168h"
 
+- name: MAESTRO_SVC_TYPE
+  value: "ClusterIP"
+
+- name: MAESTRO_SVC_NODE_PORT
+  value: "0"
+
+- name: GRPC_SVC_TYPE
+  value: "ClusterIP"
+
+- name: GRPC_SVC_NODE_PORT
+  value: "0"
+
 objects:
   - kind: ServiceAccount
     apiVersion: v1
@@ -202,6 +214,10 @@ objects:
           - name: ${MESSAGE_DRIVER_TYPE}
             secret:
               secretName: maestro-mqtt
+          - name: mqtt-certs
+            secret:
+              secretName: maestro-server-certs
+            optional: true
           initContainers:
           - name: migration
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}
@@ -232,6 +248,8 @@ objects:
               mountPath: /secrets/rds
             - name: ${MESSAGE_DRIVER_TYPE}
               mountPath: /secrets/${MESSAGE_DRIVER_TYPE}
+            - name: mqtt-certs
+              mountPath: /secrets/mqtt-certs
             env:
               - name: "MAESTRO_ENV"
                 value: "${ENVIRONMENT}"
@@ -301,8 +319,10 @@ objects:
     spec:
       selector:
         app: maestro
+      type: ${MAESTRO_SVC_TYPE}
       ports:
-        - port: 8000
+        - nodePort: ${{MAESTRO_SVC_NODE_PORT}}
+          port: 8000
           targetPort: 8000
           protocol: TCP
 
@@ -337,8 +357,10 @@ objects:
     spec:
       selector:
         app: maestro
+      type: ${GRPC_SVC_TYPE}
       ports:
         - name: grpc
+          nodePort: ${{GRPC_SVC_NODE_PORT}}
           port: 8090
           targetPort: 8090
           protocol: TCP

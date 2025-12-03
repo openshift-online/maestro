@@ -449,43 +449,64 @@ crc/login:
 	@oc whoami --show-token | $(container_tool) login --username kubeadmin --password-stdin "$(external_image_registry)"
 .PHONY: crc/login
 
-e2e-test/setup:
-	./test/e2e/setup/e2e_setup.sh
-.PHONY: e2e-test/setup
+# Set up the test environment infrastructure
+# Creates necessary namespaces, secrets, and prerequisites (database, MQTT/gRPC broker) for running e2e/upgrade tests
+test-env/setup:
+	./test/setup/env_setup.sh
+.PHONY: test-env/setup
 
-e2e-test/teardown:
-	./test/e2e/setup/e2e_teardown.sh
-.PHONY: e2e-test/teardown
+# Deploy the Maestro server component to the test environment
+test-env/deploy-server:
+	./test/setup/deploy_server.sh
+.PHONY: test-env/deploy-server
+
+# Deploy the Maestro agent component to the test environment
+# Configures agent to connect to the deployed server
+test-env/deploy-agent:
+	./test/setup/deploy_agent.sh
+.PHONY: test-env/deploy-agent
+
+# Clean up the test environment
+# Removes all deployed resources, namespaces, and test artifacts
+test-env/cleanup:
+	./test/setup/env_cleanup.sh
+.PHONY: test-env/cleanup
+
+# Prepare the test environment
+test-env: test-env/cleanup test-env/setup test-env/deploy-server test-env/deploy-agent
+.PHONY: test-env
 
 # Runs the e2e tests.
 #
 # Args:
-#   TEST_FOCUS: Flags to pass to `ginkgo run`. The `-v` argument is always passed.
+#   TEST_FOCUS: Flags to pass to `ginkgo run`.
+# The `-v` argument is always passed.
 #
 # Example:
 #   make e2e-test/run
-#   make e2e-test/run TEST_FOCUS="--focus=CSClient" run only the CSClient tests
 #   make e2e-test/run TEST_FOCUS="--focus=Resources" run only the Resources tests
-
 e2e-test/run:
 	ginkgo -v --fail-fast --label-filter='$(LABEL_FILTER)' $(TEST_FOCUS) \
 	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
-	-api-server=https://$(shell cat ${PWD}/test/e2e/.external_host_ip):30080 \
-	-grpc-server=$(shell cat ${PWD}/test/e2e/.external_host_ip):30090 \
-	-server-kubeconfig=${PWD}/test/e2e/.kubeconfig \
-	-consumer-name=$(shell cat ${PWD}/test/e2e/.consumer_name) \
-	-agent-kubeconfig=${PWD}/test/e2e/.kubeconfig
+	-api-server=$(shell cat ${PWD}/test/_output/.external_restapi_endpoint) \
+	-grpc-server=$(shell cat ${PWD}/test/_output/.external_grpc_endpoint) \
+	-server-kubeconfig=${PWD}/test/_output/.kubeconfig \
+	-agent-kubeconfig=${PWD}/test/_output/.kubeconfig \
+	-consumer-name=$(shell cat ${PWD}/test/_output/.consumer_name)
 .PHONY: e2e-test/run
 
-e2e-test: e2e-test/teardown e2e-test/setup e2e-test/run
+# Runs the e2e tests in local.
+# Args:
+#   ENABLE_MAESTRO_TLS: ENABLE Maestro services TLS, default is false
+#
+# Example:
+#   make e2e-test
+#   ENABLE_MAESTRO_TLS=true make e2e-test
+e2e-test: test-env e2e-test/run
 .PHONY: e2e-test
 
-migration-test: e2e-test/teardown
-	./test/e2e/migration/test.sh
-.PHONY: migration-test
-
-e2e-test/istio:
+e2e-test/istio: test-env
 	./test/e2e/istio/test.sh
 .PHONY: e2e-test/istio
 
@@ -496,6 +517,6 @@ endif
 	KUBECONFIG=$(KUBECONFIG) ./test/e2e/setup/roll_out.sh
 .PHONY: e2e/rollout
 
-upgrade-test/run: e2e-test/teardown
-	ENABLE_ISTIO="true" ./test/upgrade/test.sh
-.PHONY: upgrade-test/run
+upgrade-test: test-env/cleanup test-env/setup
+	./test/upgrade/test.sh
+.PHONY: upgrade-test

@@ -14,14 +14,32 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-timeout=${timeout:-"30m"}
+timeout=${timeout:-"5m"}
 
 export image=${IMAGE:-"image-registry.testing/maestro/maestro-e2e:latest"}
-export consumer_name=${CONSUMER_NAME:-$(cat "${PWD}/test/e2e/.consumer_name")}
+export consumer_name=${CONSUMER_NAME:-$(cat "${PWD}/test/_output/.consumer_name")}
 export service_account_name=${SERVICE_ACCOUNT_NAME:-"default"}
 
-export server_kubeconfig=${SERVER_KUBECONFIG:-"${PWD}/test/e2e/.kubeconfig"}
-export agent_in_cluster_kubeconfig=${AGENT_IN_CLUSTER_KUBECONFIG:-"${PWD}/test/e2e/.in-cluster.kubeconfig"}
+export server_kubeconfig=${SERVER_KUBECONFIG:-"${PWD}/test/_output/.kubeconfig"}
+export agent_in_cluster_kubeconfig=${AGENT_IN_CLUSTER_KUBECONFIG:-"${PWD}/test/_output/.in-cluster.kubeconfig"}
+
+if [ ! -f "$server_kubeconfig" ]; then
+  echo "ERROR: server_kubeconfig not found at $server_kubeconfig" >&2
+  exit 1
+fi
+
+if [ ! -f "$agent_in_cluster_kubeconfig" ]; then
+  echo "ERROR: agent_in_cluster_kubeconfig not found at $agent_in_cluster_kubeconfig" >&2
+  exit 1
+fi
+
+if [ -z "$consumer_name" ]; then
+  echo "ERROR: consumer_name not found in test/_output/.consumer_name" >&2
+  exit 1
+fi
+
+# ensure the maestro server is ready
+kubectl --kubeconfig=$server_kubeconfig wait deploy/maestro -n maestro --for condition=Available=True --timeout=300s
 
 # ensure the clusters-service namespace exists
 kubectl --kubeconfig=$server_kubeconfig create namespace clusters-service || true
@@ -29,7 +47,9 @@ kubectl --kubeconfig=$server_kubeconfig create namespace clusters-service || tru
 # deploy the mock work-server
 envsubst '${image} ${consumer_name} ${service_account_name}' < ${PWD}/test/upgrade/script/resources/deployment.yaml | kubectl --kubeconfig=$server_kubeconfig apply -f -
 
-sleep 10
+sleep 10 # wait for deploy is created
+
+kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait deploy/workserver --for condition=Available=True --timeout=300s
 
 # cleanup the test jobs
 kubectl --kubeconfig=$server_kubeconfig -n clusters-service delete jobs --all --ignore-not-found
@@ -42,17 +62,19 @@ kubectl --kubeconfig=$server_kubeconfig -n clusters-service create secret generi
 # deploy the upgrade test job
 envsubst '${image} ${service_account_name}' < ${PWD}/test/upgrade/script/resources/job.yaml | kubectl --kubeconfig=$server_kubeconfig apply -f -
 
-sleep 10
+sleep 10 # wait for job created
 
-# Wait for pod to exist and be running
 echo "Waiting for job clusters-service/maestro-upgrade-tests to complete (timeout: ${timeout})..."
-kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait --for=condition=complete --timeout=${timeout} job/maestro-upgrade-tests 2>/dev/null && {
+if kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait --for=condition=complete --timeout=${timeout} job/maestro-upgrade-tests 2>/dev/null; then
+  # Check if job actually succeeded
+  succeeded=$(kubectl --kubeconfig=$server_kubeconfig -n clusters-service get job maestro-upgrade-tests -o jsonpath='{.status.succeeded}')
+  if [ "$succeeded" = "1" ]; then
     echo "Job completed successfully"
     kubectl --kubeconfig=$server_kubeconfig -n clusters-service logs -l app=maestro-upgrade
     exit 0
-}
+  fi
+fi
 
-echo "Job failed"
-echo "-----------------------------"
+echo "Job clusters-service/maestro-upgrade-tests failed"
 kubectl --kubeconfig=$server_kubeconfig -n clusters-service logs -l app=maestro-upgrade
 exit 1

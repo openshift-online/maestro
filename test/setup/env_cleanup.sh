@@ -14,9 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+kind_version=0.12.0
+
 if ! command -v kind >/dev/null 2>&1; then 
     echo "This script will install kind (https://kind.sigs.k8s.io/) on your machine."
-    curl -Lo ./kind-amd64 "https://kind.sigs.k8s.io/dl/v0.12.0/kind-$(uname)-amd64"
+    curl -Lo ./kind-amd64 "https://kind.sigs.k8s.io/dl/${kind_version}/kind-$(uname)-amd64"
     chmod +x ./kind-amd64
     sudo mv ./kind-amd64 /usr/local/bin/kind
 fi
@@ -24,7 +26,4 @@ fi
 kind delete cluster --name maestro
 
 # cleanup the generated files
-rm -rf ./test/e2e/.kubeconfig
-rm -rf ./test/e2e/.consumer_name
-rm -rf ./test/e2e/.external_host_ip
-rm -rf ./test/e2e/certs
+rm -rf ./test/_output

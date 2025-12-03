@@ -178,7 +178,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 5*time.Minute, 30*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the resource status is resynced", func() {

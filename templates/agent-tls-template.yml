@@ -326,9 +326,11 @@ objects:
         - name: mqtt-certs
           secret:
             secretName: maestro-agent-certs
+            optional: true
         - name: grpc-broker-cert
           secret:
             secretName: maestro-grpc-broker-cert
+            optional: true
 
 - apiVersion: v1
   kind: Secret

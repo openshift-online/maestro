@@ -10,6 +10,12 @@ metadata:
   name: maestro-db
 parameters:
 
+  - name: DATABASE_HOST
+    description: Hostname for the database server.
+    displayName: Database Hostname Name
+    required: true
+    value: maestro-db.maestro
+
   - name: DATABASE_SERVICE_NAME
     description: The name of the OpenShift Service exposed for the database.
     displayName: Database Service Name
@@ -172,6 +178,17 @@ objects:
       name: ${DB_SECRET_NAME}
     stringData:
       db.host: ${DATABASE_SERVICE_NAME}
+      db.port: "5432"
+      db.name: ${DATABASE_NAME}
+      db.user: ${DATABASE_USER}
+      db.password: ${DATABASE_PASSWORD}
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: maestro-rds
+    stringData:
+      db.host: ${DATABASE_HOST}
       db.port: "5432"
       db.name: ${DATABASE_NAME}
       db.user: ${DATABASE_USER}

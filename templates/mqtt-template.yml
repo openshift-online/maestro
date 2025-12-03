@@ -21,6 +21,24 @@ parameters:
     required: true
     value: "quay.io/maestro/eclipse-mosquitto:2.0.18"
 
+  - name: MQTT_HOST
+    description: Hostname for the mqtt broker.
+    required: true
+
+  - name: MQTT_PORT
+    description: Port for the mqtt broker.
+    required: true
+
+  - name: MQTT_USER
+    description: User for the mqtt broker.
+
+  - name: MQTT_PASSWORD
+    description: Password for the mqtt broker.
+
+  - name: AGENT_TOPIC
+    description: "the topic of agent"
+    required: true
+
 objects:
   - apiVersion: v1
     kind: Service
@@ -88,3 +106,16 @@ objects:
       mosquitto.conf: |
         listener 1883 0.0.0.0
         allow_anonymous true
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: maestro-mqtt
+    stringData:
+      config.yaml: |
+        brokerHost: ${MQTT_HOST}:${MQTT_PORT}
+        username: ${MQTT_USER}
+        password: ${MQTT_PASSWORD}
+        topics:
+          sourceEvents: sources/maestro/consumers/+/sourceevents
+          agentEvents: ${AGENT_TOPIC}

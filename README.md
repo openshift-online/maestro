@@ -338,11 +338,21 @@ Now you can create a resource bundle with manifestwork client based on grpc, che
 You can also run the maestro in a KinD cluster locally. The simplest way is to use the provided script to create a KinD cluster and deploy the maestro in the cluster. It creates a KinD cluster with name `maestro`, and deploys the maestro server and agent in the cluster.
 
 ```shell
-$ make e2e-test/setup
+$ make test-env
 ```
-The Kubeconfig of the KinD cluster is in `./test/e2e/.kubeconfig`.
+The Kubeconfig of the KinD cluster is in `./test/_output/.kubeconfig`.
 ```shell
-$ export KUBECONFIG=$(pwd)/test/e2e/.kubeconfig
+$ export KUBECONFIG=$(pwd)/test/_output/.kubeconfig
+$ kubectl -n maestro get svc
+NAME                  TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+maestro               NodePort    10.96.143.3     <none>        8000:30080/TCP   7m42s
+maestro-db            ClusterIP   10.96.53.61     <none>        5432/TCP         7m59s
+maestro-grpc          NodePort    10.96.114.161   <none>        8090:30090/TCP   7m42s
+maestro-healthcheck   ClusterIP   10.96.67.145    <none>        8083/TCP         7m42s
+maestro-metrics       ClusterIP   10.96.201.253   <none>        8080/TCP         7m42s
+maestro-mqtt          ClusterIP   10.96.241.85    <none>        1883/TCP         7m59s
+maestro-mqtt-agent    ClusterIP   10.96.215.21    <none>        1883/TCP         7m59s
+maestro-mqtt-server   ClusterIP   10.96.72.129    <none>        1883/TCP         7m59s
 $ kubectl get pods -n maestro
 NAME                             READY   STATUS    RESTARTS   AGE
 maestro-85c847764-4xdt6          1/1     Running   0          5m
