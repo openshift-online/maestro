@@ -116,9 +116,10 @@ jobs:
       - name: start the e2e test
         run: |
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
 
           AGENT_NAMESPACE=maestro \
-            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:latest \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
             CONSUMER_NAME=$consumer_name \
             SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
@@ -135,9 +136,10 @@ jobs:
         run: |
           KUBECONFIG=$(pwd)/svc-cluster.kubeconfig make e2e/rollout
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
 
           AGENT_NAMESPACE=maestro \
-            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:latest \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
             CONSUMER_NAME=$consumer_name \
             SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
@@ -154,9 +156,10 @@ jobs:
         run: |
           KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig make e2e/rollout
           consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
 
           AGENT_NAMESPACE=maestro \
-            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:latest \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
             CONSUMER_NAME=$consumer_name \
             SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
