@@ -2,6 +2,8 @@ package db
 
 import (
 	"context"
+	"errors"
+	"k8s.io/klog/v2"
 
 	dbContext "github.com/openshift-online/maestro/pkg/db/db_context"
 )
@@ -21,22 +23,23 @@ func NewContext(ctx context.Context, connection SessionFactory) (context.Context
 
 // Resolve resolves the current transaction according to the rollback flag.
 func Resolve(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	tx, ok := dbContext.Transaction(ctx)
 	if !ok {
-		log.Error("Could not retrieve transaction from context")
+		logger.Error(errors.New("missing transaction"), "Could not retrieve transaction from context")
 		return
 	}
 
 	if tx.MarkedForRollback() {
 		if err := tx.Rollback(); err != nil {
-			log.With("error", err.Error()).Error("Could not rollback transaction")
+			logger.Error(err, "Could not rollback transaction")
 			return
 		}
-		log.Infof("Rolled back transaction")
+		logger.Info("Rolled back transaction")
 	} else {
 		if err := tx.Commit(); err != nil {
 			// TODO:  what does the user see when this occurs? seems like they will get a false positive
-			log.With("error", err.Error()).Error("Could not commit transaction")
+			logger.Error(err, "Could not commit transaction")
 			return
 		}
 	}
@@ -44,11 +47,12 @@ func Resolve(ctx context.Context) {
 
 // MarkForRollback flags the transaction stored in the context for rollback and logs whatever error caused the rollback
 func MarkForRollback(ctx context.Context, err error) {
+	logger := klog.FromContext(ctx)
 	transaction, ok := dbContext.Transaction(ctx)
 	if !ok {
-		log.Error("failed to mark transaction for rollback: could not retrieve transaction from context")
+		logger.Error(errors.New("could not retrieve transaction from context"), "Failed to mark transaction for rollback")
 		return
 	}
 	transaction.SetRollbackFlag(true)
-	log.Infof("Marked transaction for rollback, err: %v", err)
+	logger.Info("Marked transaction for rollback", "error", err)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	e "errors"
 	"fmt"
+	"k8s.io/klog/v2"
 	"reflect"
 	"strings"
 
@@ -218,6 +219,7 @@ func (s *sqlGenericService) addJoins(listCtx *listContext, d *dao.GenericDao) {
 
 func (s *sqlGenericService) loadList(listCtx *listContext, d *dao.GenericDao) *errors.ServiceError {
 	args := listCtx.args
+	logger := klog.FromContext(listCtx.ctx)
 
 	(*d).Count(listCtx.resourceList, &listCtx.pagingMeta.Total)
 
@@ -228,13 +230,13 @@ func (s *sqlGenericService) loadList(listCtx *listContext, d *dao.GenericDao) *e
 
 	switch {
 	case args.Size > MAX_LIST_SIZE:
-		log.Warn("A query with a size greater than the maximum was requested.")
+		logger.Info("A query with a size greater than the maximum was requested.")
 	case args.Size < 0:
-		log.Warn("A query with an unbound size was requested.")
+		logger.Info("A query with an unbound size was requested.")
 	case args.Size == 0:
 		// This early return is not only performant, but also necessary.
 		// gorm does not support Limit(0) any longer.
-		log.Infof("A query with 0 size requested, returning early without collecting any resources from database")
+		logger.Info("A query with 0 size requested, returning early without collecting any resources from database")
 		return nil
 	}
 

@@ -84,9 +84,9 @@ func TestControllerFrameworkWithLockBasedEventFilter(t *testing.T) {
 	})
 	Expect(err).To(BeNil())
 
-	mgr.handleEvent("1")
-	mgr.handleEvent("2")
-	mgr.handleEvent("3")
+	mgr.handleEvent(ctx, "1")
+	mgr.handleEvent(ctx, "2")
+	mgr.handleEvent(ctx, "3")
 
 	Expect(ctrl.addCounter).To(Equal(1))
 	Expect(ctrl.updateCounter).To(Equal(1))
@@ -195,9 +195,9 @@ func TestControllerFrameworkWithPredicatedEventFilter(t *testing.T) {
 	})
 	Expect(err).To(BeNil())
 
-	mgr.handleEvent("1")
-	mgr.handleEvent("2")
-	mgr.handleEvent("3")
+	mgr.handleEvent(ctx, "1")
+	mgr.handleEvent(ctx, "2")
+	mgr.handleEvent(ctx, "3")
 
 	Expect(ctrl.addCounter).To(Equal(1))
 	Expect(ctrl.updateCounter).To(Equal(0))

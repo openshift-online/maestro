@@ -6,6 +6,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"k8s.io/klog/v2"
 	"net/http"
 	"os"
 	"testing"
@@ -29,13 +30,10 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/test"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 )
-
-var log = logger.GetLogger()
 
 var serverHealthinessTimeout = 20 * time.Second
 
@@ -212,7 +210,7 @@ var _ = ReportAfterSuite("Maestro e2e Test Report", func(report Report) {
 	if junitReportFile != "" {
 		err := reporter.GenerateJUnitReport(report, junitReportFile)
 		if err != nil {
-			log.Errorf("Failed to generate the report due to: %v", err)
+			klog.Errorf("Failed to generate the report due to: %v", err)
 		}
 	}
 })
@@ -245,13 +243,13 @@ func dumpPodLogs(ctx context.Context, kubeClient kubernetes.Interface, podSelect
 			return fmt.Errorf("failed to read pod logs: %v", err)
 		}
 
-		log.Infof("=========================================== POD LOGS START ===========================================")
-		log.Infof("Pod %s/%s phase: %s", pod.Name, podNamespace, string(pod.Status.Phase))
+		klog.Infof("=========================================== POD LOGS START ===========================================")
+		klog.Infof("Pod %s/%s phase: %s", pod.Name, podNamespace, string(pod.Status.Phase))
 		for _, containerStatus := range pod.Status.ContainerStatuses {
-			log.Infof("Container %s status: %v", containerStatus.Name, containerStatus.State)
+			klog.Infof("Container %s status: %v", containerStatus.Name, containerStatus.State)
 		}
-		log.Infof("Pod %s/%s logs: \n%s", pod.Name, podNamespace, buf.String())
-		log.Infof("=========================================== POD LOGS STOP ===========================================")
+		klog.Infof("Pod %s/%s logs: \n%s", pod.Name, podNamespace, buf.String())
+		klog.Infof("=========================================== POD LOGS STOP ===========================================")
 	}
 
 	return nil

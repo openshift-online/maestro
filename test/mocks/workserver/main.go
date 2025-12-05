@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"k8s.io/klog/v2"
 	"net/http"
 	"os"
 	"os/signal"
@@ -24,15 +25,12 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/test/mocks/workserver/requests"
 	"github.com/openshift-online/maestro/test/mocks/workserver/watcher"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 
 	workv1 "open-cluster-management.io/api/work/v1"
 )
-
-var log = logger.GetLogger()
 
 var serverHealthinessTimeout = 20 * time.Second
 
@@ -154,11 +152,11 @@ func (s *WorkServer) Initialize() error {
 	}
 	s.watchedWorks = watcher.StartWatch(s.ctx, watch)
 
-	log.Infof("Mock server initialized successfully")
-	log.Infof("API Server: %s", s.apiServerAddress)
-	log.Infof("gRPC Server: %s", s.grpcServerAddress)
-	log.Infof("Consumer: %s", s.consumerName)
-	log.Infof("Bind Address: %s", s.bindAddress)
+	klog.Infof("Mock server initialized successfully")
+	klog.Infof("API Server: %s", s.apiServerAddress)
+	klog.Infof("gRPC Server: %s", s.grpcServerAddress)
+	klog.Infof("Consumer: %s", s.consumerName)
+	klog.Infof("Bind Address: %s", s.bindAddress)
 
 	return nil
 }
@@ -171,7 +169,7 @@ func (s *WorkServer) Start() error {
 	router.HandleFunc("/api/v1/works/{name}", s.handleUpdateWork).Methods("PATCH")
 	router.HandleFunc("/api/v1/works/{name}", s.handleGetWork).Methods("GET")
 
-	log.Infof("Starting mock server on %s", s.bindAddress)
+	klog.Infof("Starting mock server on %s", s.bindAddress)
 	return http.ListenAndServe(s.bindAddress, router)
 }
 
@@ -268,7 +266,7 @@ func main() {
 	server.ParseFlags()
 
 	if err := server.Initialize(); err != nil {
-		log.Fatalf("Failed to initialize server: %v", err)
+		klog.Fatalf("Failed to initialize server: %v", err)
 	}
 
 	// Handle graceful shutdown
@@ -277,14 +275,14 @@ func main() {
 
 	go func() {
 		<-sigCh
-		log.Infof("Shutting down mock server...")
+		klog.Infof("Shutting down mock server...")
 		if err := server.Shutdown(); err != nil {
-			log.Errorf("Error during shutdown: %v", err)
+			klog.Errorf("Error during shutdown: %v", err)
 		}
 		os.Exit(0)
 	}()
 
 	if err := server.Start(); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		klog.Fatalf("Failed to start server: %v", err)
 	}
 }

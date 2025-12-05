@@ -3,6 +3,7 @@ package upgrade_test
 import (
 	"context"
 	"flag"
+	"k8s.io/klog/v2"
 	"os"
 	"testing"
 
@@ -14,12 +15,9 @@ import (
 
 	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
 	"github.com/openshift-online/maestro/test/mocks/workserver/client"
 )
-
-var log = logger.GetLogger()
 
 var (
 	ctx               context.Context
@@ -64,7 +62,7 @@ var _ = ReportAfterSuite("Maestro Upgrade Test Report", func(report Report) {
 	if junitReportFile != "" {
 		err := reporter.GenerateJUnitReport(report, junitReportFile)
 		if err != nil {
-			log.Errorf("Failed to generate the report due to: %v", err)
+			klog.Errorf("Failed to generate the report due to: %v", err)
 		}
 	}
 })

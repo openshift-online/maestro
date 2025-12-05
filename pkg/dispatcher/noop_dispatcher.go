@@ -3,6 +3,7 @@ package dispatcher
 import (
 	"context"
 	"fmt"
+	"k8s.io/klog/v2"
 	"strings"
 
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
@@ -32,12 +33,15 @@ func NewNoopDispatcher(sessionFactory db.SessionFactory, sourceClient cloudevent
 
 // Start is a no-op implementation.
 func (d *NoopDispatcher) Start(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	// handle client reconnected signal and resync status from consumers for this source
 	go d.resyncOnReconnect(ctx)
 
 	// listen for server_instance update
-	log.Infof("NoopDispatcher listening for server_instances updates")
-	go d.sessionFactory.NewListener(ctx, "server_instances", d.onInstanceUpdate)
+	logger.Info("NoopDispatcher listening for server_instances updates")
+	go d.sessionFactory.NewListener(ctx, "server_instances", func(ids string) {
+		d.onInstanceUpdate(logger, ids)
+	})
 
 	// wait until context is canceled
 	<-ctx.Done()
@@ -46,6 +50,7 @@ func (d *NoopDispatcher) Start(ctx context.Context) {
 
 // resyncOnReconnect listens for client reconnected signal and resyncs all consumers for this source.
 func (d *NoopDispatcher) resyncOnReconnect(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	// receive client reconnect signal and resync current consumers for this source
 	for {
 		select {
@@ -57,7 +62,7 @@ func (d *NoopDispatcher) resyncOnReconnect(ctx context.Context) {
 			consumerIDs := []string{}
 			consumers, err := d.consumerDao.All(ctx)
 			if err != nil {
-				log.Error(fmt.Sprintf("failed to get all consumers: %v", err))
+				logger.Error(err, "failed to get all consumers")
 				continue
 			}
 
@@ -65,23 +70,23 @@ func (d *NoopDispatcher) resyncOnReconnect(ctx context.Context) {
 				consumerIDs = append(consumerIDs, c.ID)
 			}
 			if err := d.sourceClient.Resync(ctx, consumerIDs); err != nil {
-				log.Error(fmt.Sprintf("failed to resync resourcs status for consumers (%s), %v", consumerIDs, err))
+				logger.Error(err, "failed to resync resources status for consumers", "consumers", consumerIDs)
 			}
 		}
 	}
 }
 
-func (d *NoopDispatcher) onInstanceUpdate(ids string) {
+func (d *NoopDispatcher) onInstanceUpdate(logger klog.Logger, ids string) {
 	states := strings.Split(ids, ":")
 	if len(states) != 2 {
-		log.Infof("watched server instances updated with invalid ids: %s", ids)
+		logger.Info("watched server instances updated with invalid ids", "IDs", ids)
 		return
 	}
 	idList := strings.Split(states[1], ",")
 	if states[0] == "unready" && len(idList) > 0 {
 		// only call onInstanceDown once with empty instance id to reduce the number of status resync requests
 		if err := d.onInstanceDown(); err != nil {
-			log.Errorf("failed to call OnInstancesDown: %s", err)
+			logger.Error(err, "failed to call OnInstancesDown")
 		}
 	}
 }

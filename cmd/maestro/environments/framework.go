@@ -2,6 +2,7 @@ package environments
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -11,11 +12,11 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 
 	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
@@ -37,8 +38,6 @@ func init() {
 		}
 	})
 }
-
-var log = logger.GetLogger()
 
 // EnvironmentImpl defines a set of behaviors for an OCM environment.
 // Each environment provides a set of flags for basic set/override of the environment.
@@ -71,7 +70,7 @@ func (e *Env) AddFlags(flags *pflag.FlagSet) error {
 // This should be called after the e.Config has been set appropriately though AddFlags and pasing, done elsewhere
 // The environment does NOT handle flag parsing
 func (e *Env) Initialize() error {
-	log.Infof("Initializing environment: %s", e.Name)
+	klog.Infof("Initializing environment: %s", e.Name)
 
 	envImpl, found := environments[e.Name]
 	if !found {
@@ -157,7 +156,7 @@ func (e *Env) LoadClients() error {
 
 	// Create OCM Authz client
 	if e.Config.OCM.EnableMock {
-		log.Debugf("Using Mock OCM Authz Client")
+		klog.V(4).Info("Using Mock OCM Authz Client")
 		e.Clients.OCM, err = ocm.NewClientMock(ocmConfig)
 	} else {
 		e.Clients.OCM, err = ocm.NewClient(ocmConfig)
@@ -168,7 +167,7 @@ func (e *Env) LoadClients() error {
 
 	// Create CloudEvents Source client
 	if e.Config.MessageBroker.EnableMock {
-		log.Debugf("Using Mock CloudEvents Source Client")
+		klog.V(4).Info("Using Mock CloudEvents Source Client")
 		e.Clients.CloudEventsSource = cloudevents.NewSourceClientMock(e.Services.Resources())
 	} else {
 		if !e.Config.MessageBroker.Disable {
@@ -196,12 +195,12 @@ func (e *Env) LoadClients() error {
 	// Create GRPC authorizer based on configuration
 	if e.Config.GRPCServer.EnableGRPCServer {
 		if e.Config.GRPCServer.GRPCAuthNType == "mock" {
-			log.Debugf("Using Mock GRPC Authorizer")
+			klog.V(4).Info("Using Mock GRPC Authorizer")
 			e.Clients.GRPCAuthorizer = grpcauthorizer.NewMockGRPCAuthorizer()
 		} else {
 			kubeConfig, err := clientcmd.BuildConfigFromFlags("", e.Config.GRPCServer.GRPCAuthorizerConfig)
 			if err != nil {
-				log.Warnf("Unable to load kubeconfig from file %s: %v, falling back to in-cluster config", e.Config.GRPCServer.GRPCAuthorizerConfig, err)
+				klog.Warningf("Unable to load kubeconfig from file %s: %v, falling back to in-cluster config", e.Config.GRPCServer.GRPCAuthorizerConfig, err)
 				kubeConfig, err = rest.InClusterConfig()
 				if err != nil {
 					return fmt.Errorf("Unable to retrieve kube client config: %v", err)
@@ -225,12 +224,12 @@ func (e *Env) InitializeSentry() error {
 		key := e.Config.Sentry.Key
 		url := e.Config.Sentry.URL
 		project := e.Config.Sentry.Project
-		log.Debugf("Sentry error reporting enabled to %s on project %s", url, project)
+		klog.V(4).Infof("Sentry error reporting enabled to %s on project %s", url, project)
 		options.Dsn = fmt.Sprintf("https://%s@%s/%s", key, url, project)
 	} else {
 		// Setting the DSN to an empty string effectively disables sentry
 		// See https://godoc.org/github.com/getsentry/sentry-go#ClientOptions Dsn
-		log.Debugf("Disabling Sentry error reporting")
+		klog.V(4).Info("Disabling Sentry error reporting")
 		options.Dsn = ""
 	}
 

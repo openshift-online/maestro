@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/db"
 )
@@ -42,6 +43,7 @@ func NewLockBasedEventFilter(lockFactory db.LockFactory) EventFilter {
 
 // Filter attempts to acquire a lock on the event ID. Returns true if successful, false and error otherwise.
 func (h *LockBasedEventFilter) Filter(ctx context.Context, id string) (bool, error) {
+	logger := klog.FromContext(ctx).WithValues(EventID, id)
 	// lock the Event with a fail-fast advisory lock context.
 	// this allows concurrent processing of many events by one or many controller managers.
 	// allow the lock to be released by the handler goroutine and allow this function to continue.
@@ -54,7 +56,7 @@ func (h *LockBasedEventFilter) Filter(ctx context.Context, id string) (bool, err
 	}
 
 	if !acquired {
-		log.Infof("Event %s is processed by another worker", id)
+		logger.Info("Event is processed by another worker")
 		return false, nil
 	}
 

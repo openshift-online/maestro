@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"k8s.io/klog/v2"
 	"sync"
 	"time"
 
@@ -16,10 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
-	"github.com/openshift-online/maestro/pkg/logger"
 )
-
-var log = logger.GetLogger()
 
 var testOnce sync.Once
 
@@ -57,12 +55,12 @@ func (f *Test) Init(config *config.DatabaseConfig) {
 	// Only the first time
 	testOnce.Do(func() {
 		if err := initDatabase(config, db.Migrate); err != nil {
-			log.Errorf("error initializing test database: %s", err)
+			klog.Error(err, "error initializing test database")
 			return
 		}
 
 		if err := resetDB(config); err != nil {
-			log.Errorf("error resetting test database: %s", err)
+			klog.Error(err, "error resetting test database")
 			return
 		}
 	})

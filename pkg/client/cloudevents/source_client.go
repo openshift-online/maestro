@@ -5,9 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/pkg/services"
 	"github.com/prometheus/client_golang/prometheus"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -17,8 +17,6 @@ import (
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
-
-var log = logger.GetLogger()
 
 // SourceClient is an interface for publishing resource events to consumers
 // subscribing to and resyncing resource status from consumers.
@@ -57,10 +55,13 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 }
 
 func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
+	logger := klog.FromContext(ctx).WithValues("resourceID", id)
+	ctx = klog.NewContext(ctx, logger)
+
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		if err.Is404() {
-			log.Infof("skipping to publish create request for resource %s as it is not found", id)
+			logger.Info("skipping to publish create request for resource as it is not found")
 			return nil
 		}
 
@@ -68,18 +69,18 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 	}
 
 	if !resource.Meta.DeletedAt.Time.IsZero() {
-		log.Infof("delete resource %s as it is not created on the agent yet", resource.ID)
+		logger.Info("delete resource as it is not created on the agent yet")
 		return s.ResourceService.Delete(ctx, id)
 	}
 
-	log.Infof("Publishing resource %s for db row insert", resource.ID)
+	logger.Info("Publishing resource for db row insert")
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("create_request"),
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
-		log.Errorf("Failed to publish resource %s: %v", resource.ID, err)
+		logger.Error(err, "Failed to publish resource")
 		return err
 	}
 
@@ -87,23 +88,26 @@ func (s *SourceClientImpl) OnCreate(ctx context.Context, id string) error {
 }
 
 func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
+	logger := klog.FromContext(ctx).WithValues("resourceID", id)
+	ctx = klog.NewContext(ctx, logger)
+
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		if err.Is404() {
-			log.Infof("skipping to publish update request for resource %s as it is not found", id)
+			logger.Info("skipping to publish update request for resource as it is not found")
 			return nil
 		}
 		return err
 	}
 
-	log.Infof("Publishing resource %s for db row update", resource.ID)
+	logger.Info("Publishing resource for db row update")
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("update_request"),
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
-		log.Errorf("Failed to publish resource %s: %v", resource.ID, err)
+		logger.Error(err, "Failed to publish resource")
 		return err
 	}
 
@@ -111,10 +115,13 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 }
 
 func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
+	logger := klog.FromContext(ctx).WithValues("resourceID", id)
+	ctx = klog.NewContext(ctx, logger)
+
 	resource, err := s.ResourceService.Get(ctx, id)
 	if err != nil {
 		if err.Is404() {
-			log.Infof("skipping to publish delete request for resource %s as it is not found", id)
+			logger.Info("skipping to publish delete request for resource as it is not found")
 			return nil
 		}
 		return err
@@ -124,14 +131,14 @@ func (s *SourceClientImpl) OnDelete(ctx context.Context, id string) error {
 	if resource.Meta.DeletedAt.Time.IsZero() {
 		return fmt.Errorf("resource %s has not been marked as deleting", resource.ID)
 	}
-	log.Infof("Publishing resource %s for db row delete", resource.ID)
+	logger.Info("Publishing resource for db row delete")
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceSpec,
 		Action:              cetypes.EventAction("delete_request"),
 	}
 	if err := s.CloudEventSourceClient.Publish(ctx, eventType, resource); err != nil {
-		log.Errorf("Failed to publish resource %s: %v", resource.ID, err)
+		logger.Error(err, "Failed to publish resource")
 		return err
 	}
 
@@ -143,7 +150,10 @@ func (s *SourceClientImpl) Subscribe(ctx context.Context, handlers ...cegeneric.
 }
 
 func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error {
-	log.Infof("Resyncing resource status from consumers %v", consumers)
+	logger := klog.FromContext(ctx).WithValues("consumers", consumers)
+	ctx = klog.NewContext(ctx, logger)
+
+	logger.Info("Resyncing resource status from consumers")
 	for _, consumer := range consumers {
 		if err := s.CloudEventSourceClient.Resync(ctx, consumer); err != nil {
 			return err

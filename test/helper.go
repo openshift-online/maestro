@@ -5,6 +5,8 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
+	"k8s.io/klog/v2"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -17,8 +19,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
-	"github.com/openshift-online/maestro/pkg/logger"
-
 	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
 	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 
@@ -61,7 +61,6 @@ const (
 
 var helper *Helper
 var once sync.Once
-var log = logger.GetLogger()
 
 // TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 var jwkURL string
@@ -112,7 +111,6 @@ func NewHelper(t *testing.T) *Helper {
 			log.Fatalf("Unable to add environment flags: %s", err.Error())
 		}
 		if logLevel := os.Getenv("LOGLEVEL"); logLevel != "" {
-			log.Infof("Using custom loglevel: %s", logLevel)
 			pflag.CommandLine.Set("-v", logLevel)
 		}
 		pflag.Parse()
@@ -142,7 +140,7 @@ func NewHelper(t *testing.T) *Helper {
 
 		// Set the healthcheck interval to 1 second for testing
 		helper.Env().Config.HealthCheck.HeartbeartInterval = 1
-		helper.HealthCheckServer = server.NewHealthCheckServer()
+		helper.HealthCheckServer = server.NewHealthCheckServer(ctx)
 		// Disable TLS for testing
 		helper.Env().Config.GRPCServer.DisableTLS = true
 
@@ -157,7 +155,7 @@ func NewHelper(t *testing.T) *Helper {
 			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
 			helper.EventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory))
 		} else {
-			helper.EventServer = server.NewGRPCBroker(helper.EventBroadcaster)
+			helper.EventServer = server.NewGRPCBroker(ctx, helper.EventBroadcaster)
 			helper.EventFilter = controllers.NewPredicatedEventFilter(helper.EventServer.PredicateEvent)
 		}
 
@@ -177,8 +175,8 @@ func NewHelper(t *testing.T) *Helper {
 		helper.startEventBroadcaster()
 		helper.startAPIServer()
 		helper.startMetricsServer()
-		helper.startHealthCheckServer(helper.Ctx)
-		helper.startEventServer(helper.Ctx)
+		helper.startHealthCheckServer()
+		helper.startEventServer()
 	})
 	helper.T = t
 	return helper
@@ -199,12 +197,14 @@ func (helper *Helper) Teardown() {
 
 func (helper *Helper) startAPIServer() {
 	// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
+	logger := klog.FromContext(helper.Ctx)
+
 	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
-	helper.APIServer = server.NewAPIServer(helper.EventBroadcaster)
+	helper.APIServer = server.NewAPIServer(helper.Ctx, helper.EventBroadcaster)
 	go func() {
-		log.Debug("Test API server started")
-		helper.APIServer.Start()
-		log.Debug("Test API server stopped")
+		logger.V(4).Info("Test API server started")
+		helper.APIServer.Start(helper.Ctx)
+		logger.V(4).Info("Test API server stopped")
 	}()
 }
 
@@ -216,11 +216,12 @@ func (helper *Helper) stopAPIServer() error {
 }
 
 func (helper *Helper) startMetricsServer() {
+	logger := klog.FromContext(helper.Ctx)
 	helper.MetricsServer = server.NewMetricsServer()
 	go func() {
-		log.Debug("Test Metrics server started")
-		helper.MetricsServer.Start()
-		log.Debug("Test Metrics server stopped")
+		logger.V(4).Info("Test Metrics server started")
+		helper.MetricsServer.Start(helper.Ctx)
+		logger.V(4).Info("Test Metrics server stopped")
 	}()
 }
 
@@ -231,11 +232,12 @@ func (helper *Helper) stopMetricsServer() error {
 	return nil
 }
 
-func (helper *Helper) startHealthCheckServer(ctx context.Context) {
+func (helper *Helper) startHealthCheckServer() {
+	logger := klog.FromContext(helper.Ctx)
 	go func() {
-		log.Debug("Test health check server started")
-		helper.HealthCheckServer.Start(ctx)
-		log.Debug("Test health check server stopped")
+		logger.V(4).Info("Test health check server started")
+		helper.HealthCheckServer.Start(helper.Ctx)
+		logger.V(4).Info("Test health check server stopped")
 	}()
 }
 
@@ -244,19 +246,21 @@ func (helper *Helper) sendShutdownSignal() error {
 	return nil
 }
 
-func (helper *Helper) startEventServer(ctx context.Context) {
+func (helper *Helper) startEventServer() {
+	logger := klog.FromContext(helper.Ctx)
 	go func() {
-		log.Debug("Test event server started")
-		helper.EventServer.Start(ctx)
-		log.Debug("Test event server stopped")
+		logger.V(4).Info("Test event server started")
+		helper.EventServer.Start(helper.Ctx)
+		logger.V(4).Info("Test event server stopped")
 	}()
 }
 
 func (helper *Helper) startEventBroadcaster() {
+	logger := klog.FromContext(helper.Ctx)
 	go func() {
-		log.Debug("Test event broadcaster started")
+		logger.V(4).Info("Test event broadcaster started")
 		helper.EventBroadcaster.Start(helper.Ctx)
-		log.Debug("Test event broadcaster stopped")
+		logger.V(4).Info("Test event broadcaster stopped")
 	}()
 }
 
@@ -358,17 +362,20 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 func (helper *Helper) RestartServer() {
 	helper.stopAPIServer()
 	helper.startAPIServer()
-	log.Debug("Test API server restarted")
+	logger := klog.FromContext(helper.Ctx)
+	logger.V(4).Info("Test API server restarted")
 }
 
 func (helper *Helper) RestartMetricsServer() {
 	helper.stopMetricsServer()
 	helper.startMetricsServer()
-	log.Debug("Test metrics server restarted")
+	logger := klog.FromContext(helper.Ctx)
+	logger.V(4).Info("Test metrics server restarted")
 }
 
 func (helper *Helper) Reset() {
-	log.Infof("Reseting testing environment")
+	logger := klog.FromContext(helper.Ctx)
+	logger.Info("Resetting testing environment")
 	env := helper.Env()
 	// Reset the configuration
 	env.Config = config.NewApplicationConfig()
@@ -507,6 +514,7 @@ func (helper *Helper) ClearAllTables() {
 }
 
 func (helper *Helper) CleanDB() error {
+	logger := klog.FromContext(helper.Ctx)
 	g2 := helper.DBFactory.New(context.Background())
 
 	// TODO: this list should not be static or otherwise not hard-coded here.
@@ -521,7 +529,7 @@ func (helper *Helper) CleanDB() error {
 			// remove table contents instead of dropping table
 			sql := fmt.Sprintf("DELETE FROM %s", table)
 			if err := g2.Exec(sql).Error; err != nil {
-				log.Errorf("error delete content of table %s: %v", table, err)
+				logger.Error(err, "error delete content of table", "table", table)
 				return err
 			}
 		}

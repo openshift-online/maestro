@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"k8s.io/klog/v2"
 
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ghodss/yaml"
@@ -35,10 +36,10 @@ func env() *environments.Env {
 	return environments.Environment()
 }
 
-func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
+func NewAPIServer(ctx context.Context, eventBroadcaster *event.EventBroadcaster) Server {
 	s := &apiServer{}
 
-	mainRouter := s.routes()
+	mainRouter := s.routes(ctx)
 
 	// Sentryhttp middleware performs two operations:
 	// 1) Attaches an instance of *sentry.Hub to the request’s context. Accessit by using the sentry.GetHubFromContext() method on the request
@@ -63,7 +64,7 @@ func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 			InfoV(glog.Level(1)).
 			DebugV(glog.Level(5)).
 			Build()
-		check(err, "Unable to create authentication logger")
+		check(ctx, err, "Unable to create authentication logger")
 
 		// Create the handler that verifies that tokens are valid:
 		mainHandler, err = authentication.NewHandler().
@@ -77,7 +78,7 @@ func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 			Public("^/api/maestro/v1/errors(/.*)?$").
 			Next(mainHandler).
 			Build()
-		check(err, "Unable to create authentication handler")
+		check(ctx, err, "Unable to create authentication handler")
 	}
 
 	// TODO: remove all cloud.redhat.com once migration to console.redhat.com is complete
@@ -136,35 +137,36 @@ func NewAPIServer(eventBroadcaster *event.EventBroadcaster) Server {
 	}
 
 	if env().Config.GRPCServer.EnableGRPCServer {
-		s.grpcServer = NewGRPCServer(env().Services.Resources(), eventBroadcaster, *env().Config.GRPCServer, env().Clients.GRPCAuthorizer)
+		s.grpcServer = NewGRPCServer(ctx, env().Services.Resources(), eventBroadcaster, *env().Config.GRPCServer, env().Clients.GRPCAuthorizer)
 	}
 	return s
 }
 
 // Serve start the blocking call to Serve.
 // Useful for breaking up ListenAndServer (Start) when you require the server to be listening before continuing
-func (s apiServer) Serve(listener net.Listener) {
+func (s apiServer) Serve(ctx context.Context, listener net.Listener) {
+	logger := klog.FromContext(ctx)
 	var err error
 	if env().Config.HTTPServer.EnableHTTPS {
 		// Check https cert and key path path
 		if env().Config.HTTPServer.HTTPSCertFile == "" || env().Config.HTTPServer.HTTPSKeyFile == "" {
-			check(
+			check(ctx,
 				fmt.Errorf("unspecified required --https-cert-file, --https-key-file"),
 				"Can't start https server",
 			)
 		}
 
 		// Serve with TLS
-		log.Infof("Serving with TLS at %s", env().Config.HTTPServer.BindPort)
+		logger.Info("Serving with TLS", "port", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.ServeTLS(listener, env().Config.HTTPServer.HTTPSCertFile, env().Config.HTTPServer.HTTPSKeyFile)
 	} else {
-		log.Infof("Serving without TLS at %s", env().Config.HTTPServer.BindPort)
+		logger.Info("Serving without TLS", "port", env().Config.HTTPServer.BindPort)
 		err = s.httpServer.Serve(listener)
 	}
 
 	// Web server terminated.
-	check(err, "Web server terminated with errors")
-	log.Info("Web server terminated")
+	check(ctx, err, "Web server terminated with errors")
+	logger.Info("Web server terminated")
 }
 
 // Listen only start the listener, not the server.
@@ -174,19 +176,20 @@ func (s apiServer) Listen() (listener net.Listener, err error) {
 }
 
 // Start listening on the configured port and start the server. This is a convenience wrapper for Listen() and Serve(listener Listener)
-func (s apiServer) Start() {
-
+func (s apiServer) Start(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	if env().Config.GRPCServer.EnableGRPCServer {
 		// start the grpc server
 		defer s.grpcServer.Stop()
-		go s.grpcServer.Start()
+		go s.grpcServer.Start(ctx)
 	}
 
 	listener, err := s.Listen()
 	if err != nil {
-		log.Fatalf("Unable to start API server: %s", err)
+		logger.Error(err, "Unable to start API server")
+		return
 	}
-	s.Serve(listener)
+	s.Serve(ctx, listener)
 
 	// after the server exits but before the application terminates
 	// we need to explicitly close Go's sql connection pool.

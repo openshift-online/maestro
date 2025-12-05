@@ -1,24 +1,23 @@
 package server
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"os"
 	"strings"
 
 	"github.com/getsentry/sentry-go"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
-	"github.com/openshift-online/maestro/pkg/logger"
 )
 
-var log = logger.GetLogger()
-
 type Server interface {
-	Start()
+	Start(ctx context.Context)
 	Stop() error
 	Listen() (net.Listener, error)
-	Serve(net.Listener)
+	Serve(ctx context.Context, listener net.Listener)
 }
 
 func removeTrailingSlash(next http.Handler) http.Handler {
@@ -29,9 +28,10 @@ func removeTrailingSlash(next http.Handler) http.Handler {
 }
 
 // Exit on error
-func check(err error, msg string) {
+func check(ctx context.Context, err error, msg string) {
 	if err != nil && err != http.ErrServerClosed {
-		log.Errorf("%s: %s", msg, err)
+		logger := klog.FromContext(ctx)
+		logger.Error(err, msg)
 		sentry.CaptureException(err)
 		sentry.Flush(environments.Environment().Config.Sentry.Timeout)
 		os.Exit(1)

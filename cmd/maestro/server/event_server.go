@@ -12,6 +12,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/klog/v2"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -74,7 +75,8 @@ func NewMessageQueueEventServer(eventBroadcaster *event.EventBroadcaster, status
 // Start initializes and runs the event server. It starts the subscription
 // to resource status update messages and the status dispatcher.
 func (s *MessageQueueEventServer) Start(ctx context.Context) {
-	log.Infof("Starting message queue event server")
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting message queue event server")
 
 	// start subscribing to resource status update messages.
 	s.startSubscription(ctx)
@@ -83,20 +85,22 @@ func (s *MessageQueueEventServer) Start(ctx context.Context) {
 
 	// wait until context is canceled
 	<-ctx.Done()
-	log.Infof("Shutting down message queue event server")
+	logger.Info("Shutting down message queue event server")
 }
 
 // startSubscription initiates the subscription to resource status update messages.
 // It runs asynchronously in the background until the provided context is canceled.
 func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 	s.sourceClient.Subscribe(ctx, func(action types.ResourceAction, resource *api.Resource) error {
-		log.Infof("received action %s for resource %s", action, resource.ID)
+		logger := klog.FromContext(ctx).WithValues("resourceID", resource.ID, "action", action)
+		logger.Info("received action for resource")
+		ctx = klog.NewContext(ctx, logger)
 
 		switch action {
 		case types.StatusModified:
 			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 				// the resource is not owned by the current instance, skip
-				log.Infof("skipping resource status update %s as it is not owned by the current instance", resource.ID)
+				logger.Info("skipping resource status update as it is not owned by the current instance")
 				return nil
 			}
 
@@ -157,12 +161,13 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
 // otherwise, updates the resource status and creates a status event.
 func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
-	log.Infof("handle resource status update %s by the current instance", resource.ID)
+	logger := klog.FromContext(ctx)
+	logger.Info("handle resource status update by the current instance")
 
 	found, svcErr := resourceService.Get(ctx, resource.ID)
 	if svcErr != nil {
 		if svcErr.Is404() {
-			log.Warnf("skipping resource %s as it is not found", resource.ID)
+			logger.Info("skipping resource as it is not found")
 			return nil
 		}
 
@@ -222,7 +227,7 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 			return fmt.Errorf("failed to delete resource %s: %s", resource.ID, svcErr.Error())
 		}
 
-		log.Infof("resource %s status delete event was sent", resource.ID)
+		logger.Info("resource status delete event was sent")
 	} else {
 		// update the resource status
 		_, updated, svcErr := resourceService.UpdateStatus(ctx, resource)
@@ -240,7 +245,7 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 				return fmt.Errorf("failed to create status event for resource status update %s: %s", resource.ID, sErr.Error())
 			}
 
-			log.Infof("resource %s status update event was sent", resource.ID)
+			logger.Info("resource status update event was sent")
 		}
 	}
 
@@ -257,6 +262,8 @@ func broadcastStatusEvent(ctx context.Context,
 	if sErr != nil {
 		return fmt.Errorf("failed to get status event %s: %s", eventID, sErr.Error())
 	}
+
+	logger := klog.FromContext(ctx).WithValues("resourceID", resourceID, "instanceID", instanceID, "eventID", eventID)
 
 	var resource *api.Resource
 	// check if the status event is delete event
@@ -275,7 +282,7 @@ func broadcastStatusEvent(ctx context.Context,
 		resource, sErr = resourceService.Get(ctx, resourceID)
 		if sErr != nil {
 			if sErr.Is404() {
-				log.Infof("skipping resource %s as it is not found", resourceID)
+				logger.Info("skipping resource as it is not found")
 				return nil
 			}
 
@@ -284,7 +291,8 @@ func broadcastStatusEvent(ctx context.Context,
 	}
 
 	// broadcast the resource status to subscribers
-	log.Infof("Broadcast the resource status, id=%s, source=%s, statusEventType=%s", resource.ID, resource.Source, statusEvent.StatusEventType)
+	logger.Info("Broadcast the resource status",
+		"source", resource.Source, "statusEventType", statusEvent.StatusEventType)
 	eventBroadcaster.Broadcast(resource)
 
 	// add the event instance record

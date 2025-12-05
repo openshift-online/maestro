@@ -10,6 +10,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 )
 
 const StatusEventID ControllerHandlerContextKey = "status_event"
@@ -47,31 +48,33 @@ func (sc *StatusController) AddStatusEvent(id string) {
 	sc.eventsQueue.Add(id)
 }
 
-func (sc *StatusController) Run(stopCh <-chan struct{}) {
-	log.Infof("Starting status event controller")
+func (sc *StatusController) Run(ctx context.Context) {
+	logger := klog.FromContext(ctx)
+	logger.Info("Starting status event controller")
 	defer sc.eventsQueue.ShutDown()
 
 	// use a jitter to avoid multiple instances syncing the events at the same time
-	go wait.JitterUntil(sc.syncStatusEvents, defaultEventsSyncPeriod, 0.25, true, stopCh)
+	go wait.JitterUntilWithContext(ctx, sc.syncStatusEvents, defaultEventsSyncPeriod, 0.25, true)
 
 	// start a goroutine to handle the status event from the event queue
 	// the .Until will re-kick the runWorker one second after the runWorker completes
-	go wait.Until(sc.runWorker, time.Second, stopCh)
+	go wait.UntilWithContext(ctx, sc.runWorker, time.Second)
 
 	// wait until we're told to stop
-	<-stopCh
-	log.Infof("Shutting down status event controller")
+	<-ctx.Done()
+	logger.Info("Shutting down status event controller")
 }
 
-func (sc *StatusController) runWorker() {
+func (sc *StatusController) runWorker(ctx context.Context) {
 	// hot loop until we're told to stop. processNextEvent will automatically wait until there's work available, so
 	// we don't worry about secondary waits
-	for sc.processNextEvent() {
+	for sc.processNextEvent(ctx) {
 	}
 }
 
 // processNextEvent deals with one key off the queue.
-func (sc *StatusController) processNextEvent() bool {
+func (sc *StatusController) processNextEvent(ctx context.Context) bool {
+	logger := klog.FromContext(ctx)
 	// pull the next status event item from queue.
 	// events queue blocks until it can return an item to be processed
 	key, quit := sc.eventsQueue.Get()
@@ -81,8 +84,8 @@ func (sc *StatusController) processNextEvent() bool {
 	}
 	defer sc.eventsQueue.Done(key)
 
-	if err := sc.handleStatusEvent(key); err != nil {
-		log.Errorf("Failed to handle the event %v, %v ", key, err)
+	if err := sc.handleStatusEvent(ctx, key); err != nil {
+		logger.Error(err, "Failed to handle the event", "key", key)
 
 		// we failed to handle the status event, we should requeue the item to work on later
 		// this method will add a backoff to avoid hotlooping on particular items
@@ -98,9 +101,9 @@ func (sc *StatusController) processNextEvent() bool {
 // syncStatusEvents handles the status event with the given ID.
 // It reads the status event from the database and is called on each replica
 // without locking, ensuring the status event is broadcast to all subscribers.
-func (sc *StatusController) handleStatusEvent(id string) error {
-	ctx := context.Background()
-	reqContext := context.WithValue(ctx, StatusEventID, id)
+func (sc *StatusController) handleStatusEvent(ctx context.Context, id string) error {
+	logger := klog.FromContext(ctx).WithValues(StatusEventID, id)
+	reqContext := context.WithValue(klog.NewContext(ctx, logger), StatusEventID, id)
 	statusEvent, svcErr := sc.statusEvents.Get(reqContext, id)
 	if svcErr != nil {
 		if svcErr.Is404() {
@@ -124,7 +127,7 @@ func (sc *StatusController) handleStatusEvent(id string) error {
 
 	handlerFns, found := sc.controllers[statusEvent.StatusEventType]
 	if !found {
-		log.Infof("No handler functions found for status event '%s'\n", statusEvent.StatusEventType)
+		logger.Info("No handler functions found for status event", "statusEventType", statusEvent.StatusEventType)
 		statusEventReconciledTotal.WithLabelValues(string(statusEvent.StatusEventType), string(controllerReconciledStatusSkipped)).Inc()
 		return nil
 	}
@@ -155,21 +158,20 @@ func (sc *StatusController) add(ev api.StatusEventType, fns []StatusHandlerFunc)
 	sc.controllers[ev] = append(sc.controllers[ev], fns...)
 }
 
-func (sc *StatusController) syncStatusEvents() {
-	ctx := context.Background()
-
+func (sc *StatusController) syncStatusEvents(ctx context.Context) {
+	logger := klog.FromContext(ctx)
 	readyInstanceIDs, err := sc.instanceDao.FindReadyIDs(ctx)
 	if err != nil {
-		log.Errorf("Failed to find ready instances from db, %v", err)
+		logger.Error(err, "Failed to find ready instances from db")
 		statusControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}
-	log.Infof("purge status events on the ready instances: %s", readyInstanceIDs)
+	logger.V(2).Info("purge status events on the ready instances", "readyInstanceIDs", readyInstanceIDs)
 
 	// find the status events that already were dispatched to all ready instances
 	statusEventIDs, err := sc.eventInstanceDao.GetEventsAssociatedWithInstances(ctx, readyInstanceIDs)
 	if err != nil {
-		log.Errorf("Failed to find handled status events from db, %v", err)
+		logger.Error(err, "Failed to find handled status events from db")
 		statusControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 		return
 	}
@@ -178,7 +180,7 @@ func (sc *StatusController) syncStatusEvents() {
 	batches := batchStatusEventIDs(statusEventIDs, 500)
 	for _, batch := range batches {
 		if err := sc.statusEvents.DeleteAllEvents(ctx, batch); err != nil {
-			log.Errorf("Failed to delete handled status events from db, %v", err)
+			logger.Error(err, "Failed to delete handled status events from db")
 			statusControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
 			return
 		}

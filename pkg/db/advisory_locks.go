@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"k8s.io/klog/v2"
 	"sync"
 	"time"
 
@@ -88,6 +89,8 @@ func NewAdvisoryLockFactory(connection SessionFactory) *AdvisoryLockFactory {
 }
 
 func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lockType LockType) (string, error) {
+	logger := klog.FromContext(ctx)
+
 	lock, err := f.newLock(ctx, id, lockType)
 	if err != nil {
 		return "", err
@@ -97,7 +100,7 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 	if err := lock.lock(); err != nil {
 		UpdateAdvisoryLockCountMetric(lockType, "ERROR")
 		errMsg := fmt.Sprintf("error obtaining the advisory lock for id %s type %s, %v", id, lockType, err)
-		log.Error(errMsg)
+		logger.Error(err, errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
 		// can end this transaction.
 		return *lock.uuid, fmt.Errorf("%s", errMsg)
@@ -109,6 +112,8 @@ func (f *AdvisoryLockFactory) NewAdvisoryLock(ctx context.Context, id string, lo
 }
 
 func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string, lockType LockType) (string, bool, error) {
+	logger := klog.FromContext(ctx)
+
 	lock, err := f.newLock(ctx, id, lockType)
 	if err != nil {
 		return "", false, err
@@ -119,7 +124,7 @@ func (f *AdvisoryLockFactory) NewNonBlockingLock(ctx context.Context, id string,
 	if err != nil {
 		UpdateAdvisoryLockCountMetric(lockType, "ERROR")
 		errMsg := fmt.Sprintf("error obtaining the non blocking advisory lock for id %s type %s, %v", id, lockType, err)
-		log.Error(errMsg)
+		logger.Error(err, errMsg)
 		// the lock transaction is already started, if error happens, we return the transaction id, so that the caller
 		// can end this transaction.
 		return *lock.uuid, false, fmt.Errorf("%s", errMsg)
@@ -149,6 +154,8 @@ func (f *AdvisoryLockFactory) newLock(ctx context.Context, id string, lockType L
 
 // Unlock searches current locks and unlocks the one matching its owner id.
 func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
+	logger := klog.FromContext(ctx).WithValues("owner", uuid)
+
 	if uuid == "" {
 		return
 	}
@@ -158,7 +165,7 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 		// the resolving UUID belongs to a service call that did *not* initiate the lock.
 		// we can safely ignore this, knowing the top-most func in the call stack
 		// will provide the correct UUID.
-		log.Debugf("Caller not lock owner. Owner %s", uuid)
+		logger.V(4).Info("Caller not lock owner")
 		return
 	}
 
@@ -170,11 +177,11 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 
 	if err := lock.unlock(); err != nil {
 		UpdateAdvisoryUnlockCountMetric(lockType, "ERROR")
-		log.With("lockID", lockID).With("lockType", lockType).With("owner", uuid).Errorf("error unlocking advisory lock: %v", err)
+		logger.Error(err, "error unlocking advisory lock", "lockID", lockID, "lockType", lockType)
+	} else {
+		UpdateAdvisoryUnlockCountMetric(lockType, "OK")
+		UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
 	}
-
-	UpdateAdvisoryUnlockCountMetric(lockType, "OK")
-	UpdateAdvisoryLockDurationMetric(lockType, "OK", lock.startTime)
 
 	f.lockStore.delete(uuid)
 }

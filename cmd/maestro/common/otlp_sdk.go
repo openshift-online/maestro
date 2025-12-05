@@ -11,11 +11,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.25.0"
-
-	errors "github.com/zgalor/weberr"
-	"go.uber.org/zap"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/constants"
+	errors "github.com/zgalor/weberr"
 )
 
 // Without a specific configuration, a noop tracer is used by default.
@@ -24,8 +23,8 @@ import (
 //     value: http(s)://<service>.<namespace>:4318
 //   - name: OTEL_TRACES_EXPORTER
 //     value: otlp
-func InstallOpenTelemetryTracer(ctx context.Context, log *zap.SugaredLogger) (func(context.Context) error, error) {
-	log.Infof("initializing OpenTelemetry tracer")
+func InstallOpenTelemetryTracer(ctx context.Context, logger klog.Logger) (func(context.Context) error, error) {
+	logger.Info("initializing OpenTelemetry tracer")
 
 	exp, err := autoexport.NewSpanExporter(ctx, autoexport.WithFallbackSpanExporter(newNoopFactory))
 	if err != nil {
@@ -58,7 +57,7 @@ func InstallOpenTelemetryTracer(ctx context.Context, log *zap.SugaredLogger) (fu
 	otel.SetTextMapPropagator(propagator)
 
 	otel.SetErrorHandler(otelErrorHandlerFunc(func(err error) {
-		log.Errorf("OpenTelemetry.ErrorHandler: %v", err)
+		logger.Error(err, "OpenTelemetry.ErrorHandler")
 	}))
 
 	return shutdown, nil
