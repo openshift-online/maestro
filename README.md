@@ -365,3 +365,6 @@ $ kubectl get pods -n maestro-agent
 NAME                             READY   STATUS    RESTARTS   AGE
 maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          3m
 ```
+
+
+
