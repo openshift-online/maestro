@@ -21,6 +21,36 @@ parameters:
     required: true
     value: "quay.io/maestro/eclipse-mosquitto:2.0.18"
 
+  - name: MQTT_HOST
+    description: Hostname for the mqtt broker.
+    required: true
+
+  - name: MQTT_PORT
+    description: Port for the mqtt broker.
+    required: true
+
+  - name: MQTT_USER
+    description: User for the mqtt broker.
+
+  - name: MQTT_PASSWORD
+    description: Password for the mqtt broker.
+
+  - name: MQTT_ROOT_CERT
+    description: Root Certificate for the mqtt broker.
+    required: true
+
+  - name: MQTT_CLIENT_CERT
+    description: Client certificate to access the mqtt broker.
+    required: true
+
+  - name: MQTT_CLIENT_KEY
+    description: Client private key to access the mqtt broker.
+    required: true
+
+  - name: AGENT_TOPIC
+    description: "the topic of agent"
+    required: true
+
 objects:
   - apiVersion: v1
     kind: Service
@@ -127,3 +157,19 @@ objects:
         certfile /mosquitto/certs/server.crt
         tls_version tlsv1.2
         require_certificate true
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: maestro-mqtt
+    stringData:
+      config.yaml: |
+        brokerHost: ${MQTT_HOST}:${MQTT_PORT}
+        username: ${MQTT_USER}
+        password: ${MQTT_PASSWORD}
+        caFile: ${MQTT_ROOT_CERT}
+        clientCertFile: ${MQTT_CLIENT_CERT}
+        clientKeyFile: ${MQTT_CLIENT_KEY}
+        topics:
+          sourceEvents: sources/maestro/consumers/+/sourceevents
+          agentEvents: ${AGENT_TOPIC}

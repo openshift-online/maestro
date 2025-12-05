@@ -24,7 +24,7 @@ $ export CONSUMER_NAME=cluster1
 $ go run ./grpcclient.go -source=$SOURCE_ID -consumer-name=$CONSUMER_NAME -cloudevent-file ./cloudevent.json
 ```
 
-Note: If your gRPC server enable authentication and authorization, you'll need to provide the CA file for the server and the client's token. For example, after setting up Maestro with `make e2e-test/setup`, you can retrieve the gRPC server's CA, client certificate, key, and token using the following command:
+Note: If your gRPC server enable authentication and authorization, you'll need to provide the CA file for the server and the client's token. For example, after setting up Maestro with `make test-env`, you can retrieve the gRPC server's CA, client certificate, key, and token using the following command:
 
 ```shell
 kubectl -n maestro get secret maestro-grpc-cert -o jsonpath="{.data.ca\.crt}" | base64 -d > /tmp/grpc-server-ca.crt

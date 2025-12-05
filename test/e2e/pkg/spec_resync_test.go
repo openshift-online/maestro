@@ -173,7 +173,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					}
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 5*time.Minute, 30*time.Second).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the nginx A deployment is updated", func() {

@@ -260,6 +260,7 @@ objects:
           - name: grpc-broker-tls
             secret:
               secretName: maestro-grpc-broker-cert
+              optional: true
           - name: service
             secret:
               secretName: maestro
@@ -269,12 +270,14 @@ objects:
           - name: ${MESSAGE_DRIVER_TYPE}
             secret:
               secretName: maestro-mqtt
+              optional: true
           - name: authentication
             configMap:
               name: authentication
           - name: mqtt-certs
             secret:
               secretName: maestro-server-certs
+              optional: true
           - name: maestro-grpc-cert
             secret:
               secretName: maestro-grpc-cert

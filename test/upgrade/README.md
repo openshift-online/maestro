@@ -19,7 +19,7 @@ To run the complete upgrade test sequence (recommended):
 
 ```bash
 cd $HOME/go/src/github.com/openshift-online/maestro
-make upgrade-test/run
+ENABLE_ISTIO=true make upgrade-test
 ```
 
 This will:
@@ -35,7 +35,7 @@ This will:
 To test upgrade from a specific version:
 
 ```bash
-last_tag="<a specific release version>" make upgrade-test/run
+last_tag="<a specific release version>" ENABLE_ISTIO=true make upgrade-test
 ```
 
 ## Test Scenarios
@@ -57,7 +57,7 @@ The upgrade test suite (`test.sh`) validates upgrade compatibility through three
 
 **Step 1** - Upgrade server only:
 ```bash
-deploy_agent="false" make e2e-test/setup
+make test-env/deploy-server
 ```
 - Upgrades Maestro server to latest version
 - Keeps Maestro agent on last stable version
@@ -86,16 +86,16 @@ IMAGE="$img_registry/maestro-e2e:$last_tag" ${PWD}/test/e2e/istio/test.sh
 
 **Step 1** - Upgrade agent and work-server:
 ```bash
-make e2e-test/setup
+make test-env/deploy-agent
 ```
 - Upgrades Maestro agent to latest version
-- Upgrades mock work-server to latest gRPC work client
 - Server already upgraded in Phase 2
 
 **Step 2** - Run upgrade tests with latest test image:
 ```bash
 ${PWD}/test/upgrade/script/run.sh
 ```
+- Upgrades mock work-server to latest gRPC work client
 - Uses latest version's test suite
 - Validates:
   - **Update Deployment via Work**: New client can update deployments through new server

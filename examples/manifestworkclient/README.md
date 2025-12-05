@@ -64,7 +64,7 @@ if err != nil {
 
 ## Run the example
 
-1. Run `make e2e-test/setup` to prepare the environment
+1. Run `make test-env` to prepare the environment
 
 2. Run the client-a `go run examples/manifestworkclient/client-a/main.go --consumer-name=$(cat test/e2e/.consumer_name)` to watch the status of works in a terminal
 

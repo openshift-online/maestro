@@ -31,6 +31,7 @@ jobs:
         env:
           container_tool: docker
           SERVER_REPLICAS: 2
+          ENABLE_MAESTRO_TLS: true
   e2e-broadcast-subscription:
     runs-on: ubuntu-22.04
     steps:
@@ -60,8 +61,6 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
       - name: Test E2E
         run: |
-          make e2e-test/teardown
-          make e2e-test/setup
           make e2e-test/istio
         env:
           container_tool: docker
@@ -84,7 +83,8 @@ jobs:
           container_tool: docker
           SERVER_REPLICAS: 2
           MESSAGE_DRIVER_TYPE: grpc
-  migration:
+          ENABLE_MAESTRO_TLS: true
+  upgrade:
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout
@@ -97,7 +97,7 @@ jobs:
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
       - name: Test E2E
         run: |
-          make migration-test
+          make upgrade-test
         env:
           container_tool: docker
-          SERVER_REPLICAS: 2
+          ENABLE_ISTIO: true
