@@ -385,7 +385,6 @@ undeploy-agent: agent-project agent-template
 
 .PHONY: template
 template: \
-	secrets-template \
 	db-template \
 	mqtt-template \
 	service-template \
@@ -397,7 +396,6 @@ template: \
 .PHONY: deploy
 deploy: \
 	template \
-	deploy-secrets \
 	deploy-db \
 	deploy-mqtt \
 	deploy-service \
@@ -407,7 +405,6 @@ deploy: \
 .PHONY: undeploy
 undeploy: \
 	template \
-	undeploy-secrets \
 	undeploy-db \
 	undeploy-mqtt \
 	undeploy-service \

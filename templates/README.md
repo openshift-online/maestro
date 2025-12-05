@@ -30,11 +30,6 @@ This template deploys a simple postgresl-9.4 database deployment with a TLS-enab
 
 This template deploys a simple mosquitto-2.0.18 mqtt broker deployment.
 
-## Secrets template
-
-`templates/secrets-template.yml`
-
-This template deploys the `maestro` secret with all of the necessary secret key/value pairs.
 
 ## Agent template
 

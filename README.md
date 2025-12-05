@@ -291,7 +291,7 @@ If you want to use the existing image, you can run `make retrieve-image` to retr
 ```shell
 $ make deploy
 
-$ oc get pod -n maestro-root
+$ oc get pod -n "maestro-$USER"
 NAME                            READY   STATUS      RESTARTS   AGE
 maestro-85c847764-4xdt6         1/1     Running     0          62s
 maestro-db-5d4c4679f5-r92vg     1/1     Running     0          61s
@@ -326,7 +326,7 @@ You should get a response like this:
 ```shell
 $ export consumer_name=cluster1
 $ make deploy-agent
-$ oc get pod -n maestro-agent-root
+$ oc get pod -n "maestro-agent-$USER"
 NAME                             READY   STATUS    RESTARTS   AGE
 maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
 ```

@@ -217,7 +217,7 @@ objects:
           - name: mqtt-certs
             secret:
               secretName: maestro-server-certs
-            optional: true
+              optional: true
           initContainers:
           - name: migration
             image: ${IMAGE_REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}

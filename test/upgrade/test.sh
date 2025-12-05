@@ -18,6 +18,7 @@
 img_registry="quay.io/redhat-user-workloads/maestro-rhtap-tenant"
 last_tag=${last_tag:-"latest"}
 
+#### Initial test env with last stable release
 # 1. deploy the last maestro server and agent
 image_tag=$last_tag external_image_registry=$img_registry internal_image_registry=$img_registry make test-env/deploy-server
 image_tag=$last_tag external_image_registry=$img_registry internal_image_registry=$img_registry make test-env/deploy-agent
