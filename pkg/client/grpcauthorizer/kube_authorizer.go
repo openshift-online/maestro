@@ -53,7 +53,7 @@ func (k *KubeGRPCAuthorizer) AccessReview(ctx context.Context, action, resourceT
 
 	logger.V(4).Info("AccessReview")
 	if user != "" && len(groups) == 0 {
-		return false, fmt.Errorf("both user and groups cannot be specified")
+		return false, fmt.Errorf("groups must be set when user is specified")
 	}
 
 	if action != "pub" && action != "sub" {

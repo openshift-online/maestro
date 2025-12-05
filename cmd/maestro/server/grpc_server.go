@@ -191,7 +191,10 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	}
 
 	logger.Info("receive the event from client", "context", evt.Context)
-	logger.V(4).Info("receive the event from client", "event", evt)
+	if logger.V(4).Enabled() {
+		evtJson, _ := evt.MarshalJSON()
+		logger.V(4).Info("receive the event from client", "event", string(evtJson))
+	}
 
 	// handler resync request
 	if eventType.Action == types.ResyncRequestAction {
@@ -467,7 +470,7 @@ func (svr *GRPCServer) respondResyncStatusRequest(ctx context.Context, evt *ce.E
 		lastHash, ok := findStatusHash(string(obj.GetUID()), statusHashes.Hashes)
 		if !ok {
 			// ignore the resource that is not on the source, but exists on the maestro, wait for the source deleting it
-			logger.Info("The resource is not found from the maestro, ignore", "objectID", obj.GetUID())
+			logger.Info("The resource is not found from the maestro, ignore", "resourceID", obj.GetUID())
 			continue
 		}
 

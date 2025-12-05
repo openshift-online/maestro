@@ -282,7 +282,7 @@ func (s *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool, 
 	if svcErr != nil {
 		// if the resource is not found, it indicates the resource has been handled by other instances.
 		if svcErr.Is404() {
-			logger.V(4).Info("The resource has been deleted, mark the event as reconciled", "source", evt.SourceID)
+			logger.V(4).Info("The resource has been deleted, mark the event as reconciled", "resourceID", evt.SourceID)
 			now := time.Now()
 			evt.ReconciledDate = &now
 			if _, svcErr := s.eventService.Replace(ctx, evt); svcErr != nil {

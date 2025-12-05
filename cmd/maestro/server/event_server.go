@@ -291,7 +291,8 @@ func broadcastStatusEvent(ctx context.Context,
 	}
 
 	// broadcast the resource status to subscribers
-	logger.Info("Broadcast the resource status", "statusEventType", statusEvent.StatusEventType)
+	logger.Info("Broadcast the resource status",
+		"source", resource.Source, "statusEventType", statusEvent.StatusEventType)
 	eventBroadcaster.Broadcast(resource)
 
 	// add the event instance record

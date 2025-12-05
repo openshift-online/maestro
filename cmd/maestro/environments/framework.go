@@ -200,7 +200,7 @@ func (e *Env) LoadClients() error {
 		} else {
 			kubeConfig, err := clientcmd.BuildConfigFromFlags("", e.Config.GRPCServer.GRPCAuthorizerConfig)
 			if err != nil {
-				klog.V(4).Infof("Unable to load kubeconfig from file %s: %v, falling back to in-cluster config", e.Config.GRPCServer.GRPCAuthorizerConfig, err)
+				klog.Warningf("Unable to load kubeconfig from file %s: %v, falling back to in-cluster config", e.Config.GRPCServer.GRPCAuthorizerConfig, err)
 				kubeConfig, err = rest.InClusterConfig()
 				if err != nil {
 					return fmt.Errorf("Unable to retrieve kube client config: %v", err)
