@@ -20,14 +20,13 @@ import (
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
 	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
-	workv1informers "open-cluster-management.io/api/client/work/informers/externalversions/work/v1"
 
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/options"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/agent/codec"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/store"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
+	ceclients "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/clients"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -77,7 +76,7 @@ type Helper struct {
 	Broker            string
 	EventBroadcaster  *event.EventBroadcaster
 	Store             *MemoryStore
-	GRPCSourceClient  *generic.CloudEventSourceClient[*api.Resource]
+	GRPCSourceClient  *ceclients.CloudEventSourceClient[*api.Resource]
 	DBFactory         db.SessionFactory
 	AppConfig         *config.ApplicationConfig
 	APIServer         server.Server
@@ -88,7 +87,6 @@ type Helper struct {
 	EventFilter       controllers.EventFilter
 	ControllerManager *server.ControllersServer
 	WorkAgentHolder   *work.ClientHolder
-	WorkAgentInformer workv1informers.ManifestWorkInformer
 	TimeFunc          TimeFunc
 	JWTPrivateKey     *rsa.PrivateKey
 	JWTCA             *rsa.PublicKey
@@ -305,7 +303,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 		brokerConfig = mqttOptions
 	} else {
 		// initilize the grpc options
-		grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
+		grpcOptions := &grpcoptions.GRPCOptions{Dialer: &grpcoptions.GRPCDialer{}}
 		grpcOptions.Dialer.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BrokerBindPort)
 		brokerConfig = grpcOptions
 	}
@@ -326,23 +324,21 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 		workinformers.WithNamespace(clusterName),
 	)
 	informer := factory.Work().V1().ManifestWorks()
-	watcherStore.SetInformer(informer.Informer())
 
 	go informer.Informer().Run(ctx.Done())
 
 	helper.WorkAgentHolder = clientHolder
-	helper.WorkAgentInformer = informer
 }
 
 func (helper *Helper) StartGRPCResourceSourceClient() {
 	source := "maestro"
-	store := NewStore()
-	grpcOptions := &grpc.GRPCOptions{Dialer: &grpc.GRPCDialer{}}
+	resourceStore := NewStore()
+	grpcOptions := &grpcoptions.GRPCOptions{Dialer: &grpcoptions.GRPCDialer{}}
 	grpcOptions.Dialer.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.ServerBindPort)
-	sourceClient, err := generic.NewCloudEventSourceClient[*api.Resource](
+	sourceClient, err := ceclients.NewCloudEventSourceClient[*api.Resource](
 		helper.Ctx,
-		grpcoptions.NewSourceOptions(grpcOptions, source),
-		store,
+		grpcoptions.NewSourceOptions(grpcOptions, source, workpayload.ManifestBundleEventDataType),
+		resourceStore,
 		resourceStatusHashGetter,
 		cloudevents.NewCodec(source),
 	)
@@ -351,11 +347,11 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 		log.Fatalf("Unable to create grpc cloudevents source client: %s", err.Error())
 	}
 
-	sourceClient.Subscribe(helper.Ctx, func(action types.ResourceAction, resource *api.Resource) error {
-		return store.UpdateStatus(resource)
+	sourceClient.Subscribe(helper.Ctx, func(ctx context.Context, action types.ResourceAction, resource *api.Resource) error {
+		return resourceStore.UpdateStatus(resource)
 	})
 
-	helper.Store = store
+	helper.Store = resourceStore
 	helper.GRPCSourceClient = sourceClient
 }
 

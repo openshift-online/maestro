@@ -15,7 +15,7 @@ import (
 	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"
 	"open-cluster-management.io/ocm/pkg/work/spoke"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
 )
 
 var (
@@ -25,7 +25,7 @@ var (
 
 func init() {
 	// register the cloud events metrics for the agent
-	generic.RegisterClientCloudEventsMetrics(legacyregistry.Registerer())
+	cemetrics.RegisterClientCloudEventsMetrics(legacyregistry.Registerer())
 }
 
 // by default uses 1M as the limit for state feedback
