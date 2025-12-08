@@ -218,7 +218,7 @@ curl http://localhost:8000/api/maestro/v1/resource-bundles
               "spec": {
                 "containers": [
                   {
-                    "image": "nginxinc/nginx-unprivileged",
+                    "image": "quay.io/nginx/nginx-unprivileged:latest",
                     "imagePullPolicy": "IfNotPresent",
                     "name": "nginx"
                   }

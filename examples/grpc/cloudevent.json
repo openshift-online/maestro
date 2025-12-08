@@ -32,7 +32,7 @@
                         "spec": {
                             "containers": [
                                 {
-                                    "image": "nginxinc/nginx-unprivileged",
+                                    "image": "quay.io/nginx/nginx-unprivileged:latest",
                                     "imagePullPolicy": "IfNotPresent",
                                     "name": "nginx"
                                 }
