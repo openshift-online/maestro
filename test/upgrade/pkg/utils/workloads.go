@@ -161,7 +161,7 @@ func NewDeployment(namespace, name string, replicas int32) *appsv1.Deployment {
 					Containers: []corev1.Container{
 						{
 							Name:            "nginx",
-							Image:           "nginxinc/nginx-unprivileged",
+							Image:           "quay.io/nginx/nginx-unprivileged:latest",
 							ImagePullPolicy: "IfNotPresent",
 						},
 					},

@@ -187,7 +187,7 @@ see the below for an example of the resource:
             "spec": {
               "containers": [
                 {
-                  "image": "nginxinc/nginx-unprivileged",
+                  "image": "quay.io/nginx/nginx-unprivileged:latest",
                   "name": "nginx"
                 }
               ]

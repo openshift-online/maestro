@@ -22,7 +22,7 @@
                              "containers": [                               +
                                  {                                         +
                                      "name": "nginx",                      +
-                                     "image": "nginxinc/nginx-unprivileged"+
+                                     "image": "quay.io/nginx/nginx-unprivileged:latest"+
                                  }                                         +
                              ],                                            +
                              "serviceAccount": "default"                   +

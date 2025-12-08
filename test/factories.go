@@ -57,7 +57,7 @@ var manifestJSON = `
 		  "serviceAccount": "%s",
 		  "containers": [
 			{
-			  "image": "nginxinc/nginx-unprivileged",
+			  "image": "quay.io/nginx/nginx-unprivileged:latest",
 			  "name": "nginx"
 			}
 		  ]
