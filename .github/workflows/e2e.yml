@@ -87,6 +87,14 @@ jobs:
   upgrade:
     runs-on: ubuntu-22.04
     steps:
+      - name: Check initial disk usage
+        run: df -h /
+      - name: Free disk space (optional cleanup)
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache
+          docker system prune -af
+          df -h /
       - name: Checkout
         uses: actions/checkout@v4
       - name: Setup Go

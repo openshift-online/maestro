@@ -13,6 +13,8 @@ import (
 	workv1 "open-cluster-management.io/api/work/v1"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	ceclients "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/clients"
+	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -31,21 +33,21 @@ type SourceClient interface {
 
 type SourceClientImpl struct {
 	Codec                  cegeneric.Codec[*api.Resource]
-	CloudEventSourceClient *cegeneric.CloudEventSourceClient[*api.Resource]
+	CloudEventSourceClient *ceclients.CloudEventSourceClient[*api.Resource]
 	ResourceService        services.ResourceService
 }
 
 func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resourceService services.ResourceService) (SourceClient, error) {
 	ctx := context.Background()
 	codec := NewCodec(sourceOptions.SourceID)
-	ceSourceClient, err := cegeneric.NewCloudEventSourceClient[*api.Resource](ctx, sourceOptions,
+	ceSourceClient, err := ceclients.NewCloudEventSourceClient[*api.Resource](ctx, sourceOptions,
 		resourceService, ResourceStatusHashGetter, codec)
 	if err != nil {
 		return nil, err
 	}
 
 	// register resource resync metrics for cloud event source client
-	cegeneric.RegisterSourceCloudEventsMetrics(prometheus.DefaultRegisterer)
+	cemetrics.RegisterSourceCloudEventsMetrics(prometheus.DefaultRegisterer)
 
 	return &SourceClientImpl{
 		Codec:                  codec,

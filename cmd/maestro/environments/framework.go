@@ -19,7 +19,8 @@ import (
 	"k8s.io/klog/v2"
 
 	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/builder"
 )
 
 func init() {
@@ -173,14 +174,14 @@ func (e *Env) LoadClients() error {
 		if !e.Config.MessageBroker.Disable {
 			// For gRPC message broker type, Maestro server does not require the source client to publish resources or subscribe to resource status.
 			if e.Config.MessageBroker.MessageBrokerType != "grpc" {
-				_, config, err := generic.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
+				_, config, err := builder.NewConfigLoader(e.Config.MessageBroker.MessageBrokerType, e.Config.MessageBroker.MessageBrokerConfig).
 					LoadConfig()
 				if err != nil {
 					return fmt.Errorf("Unable to load cloudevent config: %v", err)
 				}
 
-				cloudEventsSourceOptions, err := generic.BuildCloudEventsSourceOptions(config,
-					e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID)
+				cloudEventsSourceOptions, err := builder.BuildCloudEventsSourceOptions(config,
+					e.Config.MessageBroker.ClientID, e.Config.MessageBroker.SourceID, workpayload.ManifestBundleEventDataType)
 				if err != nil {
 					return fmt.Errorf("Unable to build cloudevent source options: %v", err)
 				}

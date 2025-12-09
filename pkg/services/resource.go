@@ -2,9 +2,10 @@ package services
 
 import (
 	"context"
-	"k8s.io/klog/v2"
 	"reflect"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -130,6 +131,8 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 	}
 
 	// Increase the current resource version and update its manifest.
+	// Note: Maestro agent sets work metadata generation from the current resource version,
+	// ignoring the `generation` and `resourceVersion` from the CloudEvents metadata extension.
 	found.Version = found.Version + 1
 	found.Payload = resource.Payload
 
