@@ -108,6 +108,9 @@ readiness_probe_init_delay_seconds ?= 20
 subscription_type ?= shared
 agent_topic ?= "\$$share/statussubscribers/sources/maestro/consumers/+/agentevents"
 
+# default client certificate refresh/reload duration for message broker
+broker_client_cert_refresh_duration ?= 5m
+
 # Prints a list of useful targets.
 help:
 	@echo ""
@@ -329,6 +332,7 @@ cmds:
 		--param="READINESS_PROBE_INIT_DELAY_SECONDS"=$(readiness_probe_init_delay_seconds) \
 		--param="SUBSCRIPTION_TYPE"=$(subscription_type) \
 		--param="AGENT_TOPIC"=$(agent_topic) \
+		--param="BROKER_CLIENT_CERT_REFRESH_DURATION"=$(broker_client_cert_refresh_duration) \
 	> "templates/$*-template.json"
 
 

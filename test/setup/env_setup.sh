@@ -85,6 +85,12 @@ nodes:
     hostPort: 30090
   - containerPort: 30100
     hostPort: 30100
+  kubeadmConfigPatches:
+  - |
+    kind: KubeletConfiguration
+    apiVersion: kubelet.config.k8s.io/v1beta1
+    syncFrequency: "1s"
+    configMapAndSecretChangeDetectionStrategy: "Watch"
 EOF
 fi
 
@@ -135,10 +141,10 @@ if [ "$msg_broker" = "mqtt" ]; then
   if [ ! -d "$mqtt_cert_dir" ]; then
     # create certs
     mkdir -p "$mqtt_cert_dir"
-    step certificate create "maestro-mqtt-ca" ${mqtt_cert_dir}/ca.crt ${mqtt_cert_dir}/ca.key --profile root-ca --no-password --insecure
-    step certificate create "maestro-mqtt-broker" ${mqtt_cert_dir}/server.crt ${mqtt_cert_dir}/server.key -san maestro-mqtt -san maestro-mqtt.maestro -san maestro-mqtt-server -san maestro-mqtt-server.maestro -san maestro-mqtt-agent -san maestro-mqtt-agent.maestro --profile leaf --ca ${mqtt_cert_dir}/ca.crt --ca-key ${mqtt_cert_dir}/ca.key --no-password --insecure
-    step certificate create "maestro-server-client" ${mqtt_cert_dir}/server-client.crt ${mqtt_cert_dir}/server-client.key --profile leaf --ca ${mqtt_cert_dir}/ca.crt --ca-key ${mqtt_cert_dir}/ca.key --no-password --insecure
-    step certificate create "maestro-agent-client" ${mqtt_cert_dir}/agent-client.crt ${mqtt_cert_dir}/agent-client.key --profile leaf --ca ${mqtt_cert_dir}/ca.crt --ca-key ${mqtt_cert_dir}/ca.key --no-password --insecure
+    step certificate create "maestro-mqtt-ca" ${mqtt_cert_dir}/ca.crt ${mqtt_cert_dir}/ca.key --kty RSA --profile root-ca --no-password --insecure
+    step certificate create "maestro-mqtt-broker" ${mqtt_cert_dir}/server.crt ${mqtt_cert_dir}/server.key --kty RSA -san maestro-mqtt -san maestro-mqtt.maestro --profile leaf --ca ${mqtt_cert_dir}/ca.crt --ca-key ${mqtt_cert_dir}/ca.key --no-password --insecure
+    step certificate create "maestro-server-client" ${mqtt_cert_dir}/server-client.crt ${mqtt_cert_dir}/server-client.key --kty RSA --profile leaf --ca ${mqtt_cert_dir}/ca.crt --ca-key ${mqtt_cert_dir}/ca.key --no-password --insecure
+    step certificate create "maestro-agent-client" ${mqtt_cert_dir}/agent-client.crt ${mqtt_cert_dir}/agent-client.key --kty RSA --profile leaf --ca ${mqtt_cert_dir}/ca.crt --ca-key ${mqtt_cert_dir}/ca.key --no-password --insecure
     # create secrets
     kubectl delete secret maestro-mqtt-certs -n "${namespace}" --ignore-not-found
     kubectl delete secret maestro-server-certs -n "${namespace}" --ignore-not-found
@@ -146,6 +152,8 @@ if [ "$msg_broker" = "mqtt" ]; then
     kubectl create secret generic maestro-mqtt-certs -n "${namespace}" --from-file=ca.crt=${mqtt_cert_dir}/ca.crt --from-file=server.crt=${mqtt_cert_dir}/server.crt --from-file=server.key=${mqtt_cert_dir}/server.key
     kubectl create secret generic maestro-server-certs -n "${namespace}" --from-file=ca.crt=${mqtt_cert_dir}/ca.crt --from-file=client.crt=${mqtt_cert_dir}/server-client.crt --from-file=client.key=${mqtt_cert_dir}/server-client.key
     kubectl create secret generic maestro-agent-certs -n "${agent_namespace}" --from-file=ca.crt=${mqtt_cert_dir}/ca.crt --from-file=client.crt=${mqtt_cert_dir}/agent-client.crt --from-file=client.key=${mqtt_cert_dir}/agent-client.key
+    # create a separate secret for MQTT CA keys used in certificate rotation tests
+    kubectl create secret generic maestro-mqtt-ca -n "${agent_namespace}" --from-file=ca.crt=${mqtt_cert_dir}/ca.crt --from-file=ca.key=${mqtt_cert_dir}/ca.key
   fi
 
   export mqtt_user=""
@@ -163,8 +171,8 @@ if [ "$msg_broker" = "grpc" ]; then
   if [ ! -d "$grpc_broker_cert_dir" ]; then
     # create certs
     mkdir -p "$grpc_broker_cert_dir"
-    step certificate create "maestro-grpc-broker-ca" ${grpc_broker_cert_dir}/ca.crt ${grpc_broker_cert_dir}/ca.key --profile root-ca --no-password --insecure
-    step certificate create "maestro-grpc-broker-server" ${grpc_broker_cert_dir}/server.crt ${grpc_broker_cert_dir}/server.key -san maestro-grpc-broker -san maestro-grpc-broker.maestro -san maestro-grpc-broker.maestro.svc -san localhost -san 127.0.0.1 --profile leaf --ca ${grpc_broker_cert_dir}/ca.crt --ca-key ${grpc_broker_cert_dir}/ca.key --no-password --insecure
+    step certificate create "maestro-grpc-broker-ca" ${grpc_broker_cert_dir}/ca.crt ${grpc_broker_cert_dir}/ca.key --kty RSA --profile root-ca --no-password --insecure
+    step certificate create "maestro-grpc-broker-server" ${grpc_broker_cert_dir}/server.crt ${grpc_broker_cert_dir}/server.key --kty RSA -san maestro-grpc-broker -san maestro-grpc-broker.maestro -san maestro-grpc-broker.maestro.svc -san localhost -san 127.0.0.1 --profile leaf --ca ${grpc_broker_cert_dir}/ca.crt --ca-key ${grpc_broker_cert_dir}/ca.key --no-password --insecure
     cat << EOF > ${grpc_broker_cert_dir}/cert.tpl
 {
     "subject":{"organization":"open-cluster-management","commonName":"grpc-client"},
@@ -172,12 +180,13 @@ if [ "$msg_broker" = "grpc" ]; then
     "extKeyUsage": ["serverAuth","clientAuth"]
 }
 EOF
-    step certificate create "maestro-grpc-broker-client" ${grpc_broker_cert_dir}/client.crt ${grpc_broker_cert_dir}/client.key --template ${grpc_broker_cert_dir}/cert.tpl --ca ${grpc_broker_cert_dir}/ca.crt --ca-key ${grpc_broker_cert_dir}/ca.key --no-password --insecure
+    step certificate create "maestro-grpc-broker-client" ${grpc_broker_cert_dir}/client.crt ${grpc_broker_cert_dir}/client.key --kty RSA --template ${grpc_broker_cert_dir}/cert.tpl --ca ${grpc_broker_cert_dir}/ca.crt --ca-key ${grpc_broker_cert_dir}/ca.key --no-password --insecure
     # create secrets
     kubectl delete secret maestro-grpc-broker-cert -n "$namespace" --ignore-not-found
     kubectl delete secret maestro-grpc-broker-cert -n "$agent_namespace" --ignore-not-found
-    kubectl create secret generic maestro-grpc-broker-cert -n "$namespace" --from-file=ca.crt=${grpc_broker_cert_dir}/ca.crt --from-file=server.crt=${grpc_broker_cert_dir}/server.crt --from-file=server.key=${grpc_broker_cert_dir}/server.key --from-file=client.crt=${grpc_broker_cert_dir}/client.crt --from-file=client.key=${grpc_broker_cert_dir}/client.key
-    kubectl create secret generic maestro-grpc-broker-cert -n "$agent_namespace" --from-file=ca.crt=${grpc_broker_cert_dir}/ca.crt --from-file=server.crt=${grpc_broker_cert_dir}/server.crt --from-file=server.key=${grpc_broker_cert_dir}/server.key --from-file=client.crt=${grpc_broker_cert_dir}/client.crt --from-file=client.key=${grpc_broker_cert_dir}/client.key
+    kubectl create secret generic maestro-grpc-broker-cert -n "$namespace" --from-file=ca.crt=${grpc_broker_cert_dir}/ca.crt --from-file=server.crt=${grpc_broker_cert_dir}/server.crt --from-file=server.key=${grpc_broker_cert_dir}/server.key
+    kubectl create secret generic maestro-grpc-broker-cert -n "$agent_namespace" --from-file=ca.crt=${grpc_broker_cert_dir}/ca.crt --from-file=client.crt=${grpc_broker_cert_dir}/client.crt --from-file=client.key=${grpc_broker_cert_dir}/client.key
+    kubectl create secret generic maestro-grpc-broker-ca -n "$agent_namespace" --from-file=ca.crt=${grpc_broker_cert_dir}/ca.crt --from-file=ca.key=${grpc_broker_cert_dir}/ca.key
   fi
 fi
 
