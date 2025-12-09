@@ -63,7 +63,7 @@ mqtt_client_cert ?= ""
 mqtt_client_key ?= ""
 
 # Log verbosity level
-klog_v:=2
+klog_v:=5
 
 # consumer name from the database. it is used by the maestro agent to identify itself
 consumer_name ?= cluster1
