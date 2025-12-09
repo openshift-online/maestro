@@ -47,9 +47,12 @@ kubectl --kubeconfig=$server_kubeconfig create namespace clusters-service || tru
 # deploy the mock work-server
 envsubst '${image} ${consumer_name} ${service_account_name}' < ${PWD}/test/upgrade/script/resources/deployment.yaml | kubectl --kubeconfig=$server_kubeconfig apply -f -
 
-sleep 10 # wait for deploy is created
-
-kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait deploy/workserver --for condition=Available=True --timeout=300s
+sleep 30 # wait for deploy is created
+if ! kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait deploy/workserver --for condition=Available=True --timeout=300s; then
+    echo "ERROR: workserver deployment failed to become available, describing pod..."
+    kubectl --kubeconfig=$server_kubeconfig -n clusters-service describe pod -l app=workserver
+    exit 1
+fi
 
 # cleanup the test jobs
 kubectl --kubeconfig=$server_kubeconfig -n clusters-service delete jobs --all --ignore-not-found
