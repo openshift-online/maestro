@@ -72,34 +72,6 @@ objects:
     status:
       loadBalancer: {}
 
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: ${MQTT_BROKER_NAME}-server
-    spec:
-      ports:
-      - name: mosquitto
-        port: 1883
-        protocol: TCP
-        targetPort: 1883
-      selector:
-        name: ${MQTT_BROKER_NAME}
-      type: ClusterIP
-
-  - apiVersion: v1
-    kind: Service
-    metadata:
-      name: ${MQTT_BROKER_NAME}-agent
-    spec:
-      ports:
-      - name: mosquitto
-        port: 1883
-        protocol: TCP
-        targetPort: 1883
-      selector:
-        name: ${MQTT_BROKER_NAME}
-      type: ClusterIP
-
   - kind: Deployment
     apiVersion: apps/v1
     metadata:

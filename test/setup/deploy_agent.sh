@@ -41,26 +41,16 @@ if [ ! -f "${PWD}/test/_output/.consumer_name" ]; then
 fi
 consumer_name=$(cat ${PWD}/test/_output/.consumer_name)
 export consumer_name
+export mqtt_user=""
+export mqtt_password_file="/dev/null"
+export mqtt_root_cert="/secrets/mqtt-certs/ca.crt"
+export mqtt_client_cert="/secrets/mqtt-certs/client.crt"
+export mqtt_client_key="/secrets/mqtt-certs/client.key"
+# crank the client certificate refresh interval for cert rotation test
+export broker_client_cert_refresh_duration=5s
 
 # Deploy maestro agent into maestro-agent namespace
 make agent-tls-template
 kubectl apply -n ${agent_namespace} --filename="templates/agent-tls-template.json" | egrep --color=auto 'configured|$$'
-
-# update the maestro-agent-mqtt secret
-cat << EOF | kubectl -n ${agent_namespace} apply -f -
-apiVersion: v1
-kind: Secret
-metadata:
-  name: maestro-agent-mqtt
-stringData:
-  config.yaml: |
-    brokerHost: maestro-mqtt-agent.${namespace}:1883
-    caFile: /secrets/mqtt-certs/ca.crt
-    clientCertFile: /secrets/mqtt-certs/client.crt
-    clientKeyFile: /secrets/mqtt-certs/client.key
-    topics:
-      sourceEvents: sources/maestro/consumers/${consumer_name}/sourceevents
-      agentEvents: sources/maestro/consumers/${consumer_name}/agentevents
-EOF
 
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s

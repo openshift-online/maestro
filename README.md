@@ -354,8 +354,6 @@ maestro-grpc          NodePort    10.96.114.161   <none>        8090:30090/TCP  
 maestro-healthcheck   ClusterIP   10.96.67.145    <none>        8083/TCP         7m42s
 maestro-metrics       ClusterIP   10.96.201.253   <none>        8080/TCP         7m42s
 maestro-mqtt          ClusterIP   10.96.241.85    <none>        1883/TCP         7m59s
-maestro-mqtt-agent    ClusterIP   10.96.215.21    <none>        1883/TCP         7m59s
-maestro-mqtt-server   ClusterIP   10.96.72.129    <none>        1883/TCP         7m59s
 $ kubectl get pods -n maestro
 NAME                             READY   STATUS    RESTARTS   AGE
 maestro-85c847764-4xdt6          1/1     Running   0          5m
