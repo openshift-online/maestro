@@ -94,7 +94,8 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 	s.sourceClient.Subscribe(ctx, func(ctx context.Context, action types.ResourceAction, resource *api.Resource) error {
 		logger := klog.FromContext(ctx).WithValues("resourceID", resource.ID, "action", action)
 		logger.Info("received action for resource")
-		ctx = klog.NewContext(ctx, logger)
+		// create a new ctx to avoid mutating the ctx in line-94
+		ctxWithLogger := klog.NewContext(ctx, logger)
 
 		switch action {
 		case types.StatusModified:
@@ -105,7 +106,7 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 			}
 
 			// handle the resource status update according status update type
-			if err := handleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
+			if err := handleStatusUpdate(ctxWithLogger, resource, s.resourceService, s.statusEventService); err != nil {
 				return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 			}
 		default:
