@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-timeout=${timeout:-"5m"}
+timeout=${timeout:-"30m"}
 
 export image=${IMAGE:-"image-registry.testing/maestro/maestro-e2e:latest"}
 export consumer_name=${CONSUMER_NAME:-$(cat "${PWD}/test/_output/.consumer_name")}

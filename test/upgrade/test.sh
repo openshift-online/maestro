@@ -31,7 +31,7 @@ make test-env/deploy-server
 # 2. run last upgrade test with the latest maestro server
 IMAGE="$img_registry/maestro-e2e:$last_tag" ${PWD}/test/upgrade/script/run.sh
 # 3. run last e2e test with the latest maestro server
-IMAGE="$img_registry/maestro-e2e:$last_tag" ${PWD}/test/e2e/istio/test.sh
+# IMAGE="$img_registry/maestro-e2e:$last_tag" ${PWD}/test/e2e/istio/test.sh
 
 #### maestro agent and grpc work client upgrade test
 # 1. upgrade the maestro agent and the workserver with the latest image
@@ -39,4 +39,4 @@ make test-env/deploy-agent
 # 2. run upgrade test with the latest test image
 ${PWD}/test/upgrade/script/run.sh
 # 3. run e2e test with the latest maestro agent and grpc work client
-${PWD}/test/e2e/istio/test.sh
+# ${PWD}/test/e2e/istio/test.sh

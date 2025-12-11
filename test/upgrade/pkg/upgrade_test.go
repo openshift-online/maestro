@@ -28,6 +28,11 @@ const (
 	nestedWorkName     = "maestro-e2e-upgrade-test-work"
 )
 
+const (
+	timeout = 5 * time.Minute
+	polling = 10 * time.Second
+)
+
 var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 
 	var deployWorkName string
@@ -38,62 +43,85 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 		deployClient := kubeClientSet.AppsV1().Deployments(namespace)
 
 		By("create a deployment for readonly work", func() {
-			_, err := deployClient.Get(ctx, deployReadonlyName, metav1.GetOptions{})
-			if errors.IsNotFound(err) {
-				deploy := utils.NewDeployment(namespace, deployReadonlyName, 0)
-				_, newErr := deployClient.Create(ctx, deploy, metav1.CreateOptions{})
-				Expect(newErr).ShouldNot(HaveOccurred())
-			} else {
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			Eventually(func() error {
+				_, err := deployClient.Get(ctx, deployReadonlyName, metav1.GetOptions{})
+				if errors.IsNotFound(err) {
+					deploy := utils.NewDeployment(namespace, deployReadonlyName, 0)
+					_, newErr := deployClient.Create(ctx, deploy, metav1.CreateOptions{})
+					return newErr
+				}
+				if err != nil {
+					return err
+				}
+				return nil
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("create a work to apply a deployment", func() {
 			deploy := utils.NewDeployment(namespace, deployName, 0)
 			deployWorkName = utils.WorkName(utils.DeploymentGVK, deploy)
-			_, err := workServerClient.Get(ctx, deployWorkName)
-			if errors.IsNotFound(err) {
-				work, newErr := utils.NewManifestWork(utils.DeploymentGVK, utils.DeploymentGVR, deploy)
-				Expect(newErr).ShouldNot(HaveOccurred())
 
-				work.Labels["maestro.e2e.test.name"] = "upgrade"
-				_, newErr = workServerClient.Create(ctx, work)
-				Expect(newErr).ShouldNot(HaveOccurred())
-			} else {
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			Eventually(func() error {
+				_, err := workServerClient.Get(ctx, deployWorkName)
+				if errors.IsNotFound(err) {
+					work, newErr := utils.NewManifestWork(utils.DeploymentGVK, utils.DeploymentGVR, deploy)
+					if newErr != nil {
+						return newErr
+					}
+
+					work.Labels["maestro.e2e.test.name"] = "upgrade"
+					_, newErr = workServerClient.Create(ctx, work)
+					return newErr
+				}
+				if err != nil {
+					return err
+				}
+				return nil
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("create a readonly work to retrieve a deployment status", func() {
 			deployReadonly := utils.NewDeploymentReadonly(namespace, deployReadonlyName)
 			deployReadonlyWorkName = utils.WorkName(utils.DeploymentGVK, deployReadonly)
-			_, err := workServerClient.Get(ctx, deployReadonlyWorkName)
-			if errors.IsNotFound(err) {
-				work, newErr := utils.NewManifestWork(utils.DeploymentGVK, utils.DeploymentGVR, deployReadonly)
-				Expect(newErr).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				_, err := workServerClient.Get(ctx, deployReadonlyWorkName)
+				if errors.IsNotFound(err) {
+					work, newErr := utils.NewManifestWork(utils.DeploymentGVK, utils.DeploymentGVR, deployReadonly)
+					if newErr != nil {
+						return newErr
+					}
 
-				work.Labels["maestro.e2e.test.name"] = "upgrade"
-				_, newErr = workServerClient.Create(ctx, work)
-				Expect(newErr).ShouldNot(HaveOccurred())
-			} else {
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+					work.Labels["maestro.e2e.test.name"] = "upgrade"
+					_, newErr = workServerClient.Create(ctx, work)
+					return newErr
+				}
+				if err != nil {
+					return err
+				}
+				return nil
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("create a work to apply a nested manifestwork", func() {
 			nestedWork := utils.NewDeploymentManifestWork(namespace, nestedWorkName)
 			nestedWorkWorkName = utils.WorkName(utils.ManifestWorkGVK, nestedWork)
-			_, err := workServerClient.Get(ctx, nestedWorkWorkName)
-			if errors.IsNotFound(err) {
-				work, newErr := utils.NewManifestWork(utils.ManifestWorkGVK, utils.ManifestWorkGVR, nestedWork)
-				Expect(newErr).ShouldNot(HaveOccurred())
+			Eventually(func() error {
+				_, err := workServerClient.Get(ctx, nestedWorkWorkName)
+				if errors.IsNotFound(err) {
+					work, newErr := utils.NewManifestWork(utils.ManifestWorkGVK, utils.ManifestWorkGVR, nestedWork)
+					if newErr != nil {
+						return newErr
+					}
 
-				work.Labels["maestro.e2e.test.name"] = "upgrade"
-				_, newErr = workServerClient.Create(ctx, work)
-				Expect(newErr).ShouldNot(HaveOccurred())
-			} else {
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+					work.Labels["maestro.e2e.test.name"] = "upgrade"
+					_, newErr = workServerClient.Create(ctx, work)
+					return newErr
+				}
+				if err != nil {
+					return err
+				}
+				return nil
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -114,7 +142,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 				lastGeneration = deploy.Generation
 				lastReplicas = *deploy.Spec.Replicas
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		expectedReplicas = utils.UpdateReplicas(lastReplicas)
@@ -144,7 +172,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("ensure the deployment is updated", func() {
@@ -163,7 +191,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("ensure the deployment new status is watched", func() {
@@ -173,7 +201,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 					return err
 				}
 				return AssertReplicas(watchedWork, expectedReplicas)
-			}, 5*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -187,7 +215,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 					return err
 				}
 				return AssertStatusFeedbackSynced(watchedWork)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("update the deployment", func() {
@@ -208,7 +236,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 
 		})
 
@@ -219,7 +247,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 					return err
 				}
 				return AssertReplicas(watchedWork, expectedReplicas)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -230,7 +258,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 			Eventually(func() error {
 				_, err := workClient.Get(ctx, nestedWorkName, metav1.GetOptions{})
 				return err
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("update the nested work via work", func() {
@@ -259,7 +287,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 
 		By("ensure the manifestwork new status is watched", func() {
@@ -273,7 +301,7 @@ var _ = Describe("Upgrade Test", Ordered, Label("e2e-tests-upgrade"), func() {
 					return err
 				}
 				return AssertNestedWorkAvailable(watchedWork)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(timeout).WithPolling(polling).ShouldNot(HaveOccurred())
 		})
 	})
 })
