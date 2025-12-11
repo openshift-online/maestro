@@ -47,6 +47,10 @@ paths:
       - $ref: '#/components/parameters/search'
       - $ref: '#/components/parameters/orderBy'
       - $ref: '#/components/parameters/fields'
+      - in: header
+        name: X-Operation-ID
+        schema:
+          type: string
   /api/maestro/v1/resource-bundles/{id}:
     get:
       summary: Get a resource bundle by id
@@ -85,6 +89,10 @@ paths:
                 $ref: '#/components/schemas/Error'
       parameters:
       - $ref: '#/components/parameters/id'
+      - in: header
+        name: X-Operation-ID
+        schema:
+          type: string
     delete:
       summary: Delete a resource bundle
       security:

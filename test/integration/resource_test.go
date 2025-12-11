@@ -41,11 +41,11 @@ func TestResourceBundleGet(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// 401 using no JWT token
-	_, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(context.Background(), "foo").Execute()
+	_, _, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(context.Background(), "foo").Execute()
 	Expect(err).To(HaveOccurred(), "Expected 401 but got nil error")
 
 	// GET responses per openapi spec: 200 and 404,
-	_, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, "foo").Execute()
+	_, resp, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, "foo").Execute()
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
@@ -55,7 +55,7 @@ func TestResourceBundleGet(t *testing.T) {
 	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
 	Expect(err).NotTo(HaveOccurred())
 
-	res, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resource.ID).Execute()
+	res, resp, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resource.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
@@ -92,7 +92,7 @@ func TestResourcePaging(t *testing.T) {
 	_, err = h.CreateResourceList(consumer.Name, 20)
 	Expect(err).NotTo(HaveOccurred())
 
-	list, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Execute()
+	list, _, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
 	Expect(list.Kind).To(Equal("ResourceBundleList"))
 	Expect(len(list.Items)).To(Equal(20))
@@ -100,7 +100,7 @@ func TestResourcePaging(t *testing.T) {
 	Expect(list.Total).To(Equal(int32(20)))
 	Expect(list.Page).To(Equal(int32(1)))
 
-	list, _, err = client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Page(2).Size(5).Execute()
+	list, _, err = client.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).Page(2).Size(5).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
 	Expect(list.Kind).To(Equal("ResourceBundleList"))
 	Expect(len(list.Items)).To(Equal(5))
@@ -121,7 +121,7 @@ func TestResourceListSearch(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 
 	search := fmt.Sprintf("name = '%s' and consumer_name = '%s'", resources[0].Name, consumer.Name)
-	list, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	list, _, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
 	Expect(list.Kind).To(Equal("ResourceBundleList"))
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
 	Expect(len(list.Items)).To(Equal(1))
@@ -130,7 +130,7 @@ func TestResourceListSearch(t *testing.T) {
 	Expect(*list.Items[0].Name).To(Equal(resources[0].Name))
 
 	search = fmt.Sprintf("consumer_name = '%s'", consumer.Name)
-	list, _, err = client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+	list, _, err = client.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
 	Expect(list.Kind).To(Equal("ResourceBundleList"))
 	Expect(err).NotTo(HaveOccurred(), "Error getting resource list: %v", err)
 	Expect(len(list.Items)).To(Equal(20))
@@ -259,11 +259,11 @@ func TestResourceFromGRPC(t *testing.T) {
 	// for real case, the controller should have a mapping between resource (replicated) in maestro and resource (root) in kubernetes
 	// so call subscribe method can return the resource
 	// for testing, just list the resource via restful api.
-	resources, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Execute()
+	resources, _, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
 	Expect(resources.Items).NotTo(BeEmpty(), "Expected returned resource list is not empty")
 
-	res, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, *resources.Items[0].Id).Execute()
+	res, resp, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, *resources.Items[0].Id).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	Expect(*res.Id).To(Equal(resource.ID))
@@ -363,7 +363,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	}, newResource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
-	res, resp, err = client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, newResource.ID).Execute()
+	res, resp, err = client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, newResource.ID).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	Expect(*res.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
@@ -424,7 +424,7 @@ func TestResourceFromGRPC(t *testing.T) {
 	Expect(updateWorkStatus(ctx, agentWorkClient, work, deletingWorkStatus)).NotTo(HaveOccurred())
 
 	Eventually(func() error {
-		res, _, err = client.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, newResource.ID).Execute()
+		res, _, err = client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, newResource.ID).Execute()
 		if res != nil {
 			return fmt.Errorf("resource %s is not deleted", newResource.ID)
 		}

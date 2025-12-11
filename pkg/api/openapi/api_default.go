@@ -19,12 +19,12 @@ import (
 	"strings"
 )
 
-// DefaultApiService DefaultApi service
-type DefaultApiService service
+// DefaultAPIService DefaultAPI service
+type DefaultAPIService service
 
 type ApiApiMaestroV1ConsumersGetRequest struct {
 	ctx        context.Context
-	ApiService *DefaultApiService
+	ApiService *DefaultAPIService
 	page       *int32
 	size       *int32
 	search     *string
@@ -72,7 +72,7 @@ ApiMaestroV1ConsumersGet Returns a list of consumers
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@return ApiApiMaestroV1ConsumersGetRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ConsumersGet(ctx context.Context) ApiApiMaestroV1ConsumersGetRequest {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersGet(ctx context.Context) ApiApiMaestroV1ConsumersGetRequest {
 	return ApiApiMaestroV1ConsumersGetRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -82,7 +82,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersGet(ctx context.Context) ApiApi
 // Execute executes the request
 //
 //	@return ConsumerList
-func (a *DefaultApiService) ApiMaestroV1ConsumersGetExecute(r ApiApiMaestroV1ConsumersGetRequest) (*ConsumerList, *http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersGetExecute(r ApiApiMaestroV1ConsumersGetRequest) (*ConsumerList, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
@@ -90,7 +90,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersGetExecute(r ApiApiMaestroV1Con
 		localVarReturnValue *ConsumerList
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ConsumersGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ConsumersGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -102,19 +102,27 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersGetExecute(r ApiApiMaestroV1Con
 	localVarFormParams := url.Values{}
 
 	if r.page != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "page", r.page, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "page", r.page, "form", "")
+	} else {
+		var defaultValue int32 = 1
+		parameterAddToHeaderOrQuery(localVarQueryParams, "page", defaultValue, "form", "")
+		r.page = &defaultValue
 	}
 	if r.size != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "size", r.size, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "size", r.size, "form", "")
+	} else {
+		var defaultValue int32 = 100
+		parameterAddToHeaderOrQuery(localVarQueryParams, "size", defaultValue, "form", "")
+		r.size = &defaultValue
 	}
 	if r.search != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "search", r.search, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "search", r.search, "form", "")
 	}
 	if r.orderBy != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "orderBy", r.orderBy, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "orderBy", r.orderBy, "form", "")
 	}
 	if r.fields != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "fields", r.fields, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "fields", r.fields, "form", "")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -204,7 +212,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersGetExecute(r ApiApiMaestroV1Con
 
 type ApiApiMaestroV1ConsumersIdDeleteRequest struct {
 	ctx        context.Context
-	ApiService *DefaultApiService
+	ApiService *DefaultAPIService
 	id         string
 }
 
@@ -219,7 +227,7 @@ ApiMaestroV1ConsumersIdDelete Delete a consumer
 	@param id The id of record
 	@return ApiApiMaestroV1ConsumersIdDeleteRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ConsumersIdDelete(ctx context.Context, id string) ApiApiMaestroV1ConsumersIdDeleteRequest {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersIdDelete(ctx context.Context, id string) ApiApiMaestroV1ConsumersIdDeleteRequest {
 	return ApiApiMaestroV1ConsumersIdDeleteRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -228,14 +236,14 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdDelete(ctx context.Context, i
 }
 
 // Execute executes the request
-func (a *DefaultApiService) ApiMaestroV1ConsumersIdDeleteExecute(r ApiApiMaestroV1ConsumersIdDeleteRequest) (*http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersIdDeleteExecute(r ApiApiMaestroV1ConsumersIdDeleteRequest) (*http.Response, error) {
 	var (
 		localVarHTTPMethod = http.MethodDelete
 		localVarPostBody   interface{}
 		formFiles          []formFile
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ConsumersIdDelete")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ConsumersIdDelete")
 	if err != nil {
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -348,7 +356,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdDeleteExecute(r ApiApiMaestro
 
 type ApiApiMaestroV1ConsumersIdGetRequest struct {
 	ctx        context.Context
-	ApiService *DefaultApiService
+	ApiService *DefaultAPIService
 	id         string
 }
 
@@ -363,7 +371,7 @@ ApiMaestroV1ConsumersIdGet Get a consumer by id
 	@param id The id of record
 	@return ApiApiMaestroV1ConsumersIdGetRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ConsumersIdGet(ctx context.Context, id string) ApiApiMaestroV1ConsumersIdGetRequest {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersIdGet(ctx context.Context, id string) ApiApiMaestroV1ConsumersIdGetRequest {
 	return ApiApiMaestroV1ConsumersIdGetRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -374,7 +382,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdGet(ctx context.Context, id s
 // Execute executes the request
 //
 //	@return Consumer
-func (a *DefaultApiService) ApiMaestroV1ConsumersIdGetExecute(r ApiApiMaestroV1ConsumersIdGetRequest) (*Consumer, *http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersIdGetExecute(r ApiApiMaestroV1ConsumersIdGetRequest) (*Consumer, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
@@ -382,7 +390,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdGetExecute(r ApiApiMaestroV1C
 		localVarReturnValue *Consumer
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ConsumersIdGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ConsumersIdGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -493,7 +501,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdGetExecute(r ApiApiMaestroV1C
 
 type ApiApiMaestroV1ConsumersIdPatchRequest struct {
 	ctx                  context.Context
-	ApiService           *DefaultApiService
+	ApiService           *DefaultAPIService
 	id                   string
 	consumerPatchRequest *ConsumerPatchRequest
 }
@@ -515,7 +523,7 @@ ApiMaestroV1ConsumersIdPatch Update an consumer
 	@param id The id of record
 	@return ApiApiMaestroV1ConsumersIdPatchRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ConsumersIdPatch(ctx context.Context, id string) ApiApiMaestroV1ConsumersIdPatchRequest {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersIdPatch(ctx context.Context, id string) ApiApiMaestroV1ConsumersIdPatchRequest {
 	return ApiApiMaestroV1ConsumersIdPatchRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -526,7 +534,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdPatch(ctx context.Context, id
 // Execute executes the request
 //
 //	@return Consumer
-func (a *DefaultApiService) ApiMaestroV1ConsumersIdPatchExecute(r ApiApiMaestroV1ConsumersIdPatchRequest) (*Consumer, *http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersIdPatchExecute(r ApiApiMaestroV1ConsumersIdPatchRequest) (*Consumer, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPatch
 		localVarPostBody    interface{}
@@ -534,7 +542,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdPatchExecute(r ApiApiMaestroV
 		localVarReturnValue *Consumer
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ConsumersIdPatch")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ConsumersIdPatch")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -672,7 +680,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersIdPatchExecute(r ApiApiMaestroV
 
 type ApiApiMaestroV1ConsumersPostRequest struct {
 	ctx        context.Context
-	ApiService *DefaultApiService
+	ApiService *DefaultAPIService
 	consumer   *Consumer
 }
 
@@ -692,7 +700,7 @@ ApiMaestroV1ConsumersPost Create a new consumer
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@return ApiApiMaestroV1ConsumersPostRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ConsumersPost(ctx context.Context) ApiApiMaestroV1ConsumersPostRequest {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersPost(ctx context.Context) ApiApiMaestroV1ConsumersPostRequest {
 	return ApiApiMaestroV1ConsumersPostRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -702,7 +710,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersPost(ctx context.Context) ApiAp
 // Execute executes the request
 //
 //	@return Consumer
-func (a *DefaultApiService) ApiMaestroV1ConsumersPostExecute(r ApiApiMaestroV1ConsumersPostRequest) (*Consumer, *http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ConsumersPostExecute(r ApiApiMaestroV1ConsumersPostRequest) (*Consumer, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodPost
 		localVarPostBody    interface{}
@@ -710,7 +718,7 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersPostExecute(r ApiApiMaestroV1Co
 		localVarReturnValue *Consumer
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ConsumersPost")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ConsumersPost")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -835,13 +843,14 @@ func (a *DefaultApiService) ApiMaestroV1ConsumersPostExecute(r ApiApiMaestroV1Co
 }
 
 type ApiApiMaestroV1ResourceBundlesGetRequest struct {
-	ctx        context.Context
-	ApiService *DefaultApiService
-	page       *int32
-	size       *int32
-	search     *string
-	orderBy    *string
-	fields     *string
+	ctx          context.Context
+	ApiService   *DefaultAPIService
+	page         *int32
+	size         *int32
+	search       *string
+	orderBy      *string
+	fields       *string
+	xOperationID *string
 }
 
 // Page number of record list when record list exceeds specified page size
@@ -874,6 +883,11 @@ func (r ApiApiMaestroV1ResourceBundlesGetRequest) Fields(fields string) ApiApiMa
 	return r
 }
 
+func (r ApiApiMaestroV1ResourceBundlesGetRequest) XOperationID(xOperationID string) ApiApiMaestroV1ResourceBundlesGetRequest {
+	r.xOperationID = &xOperationID
+	return r
+}
+
 func (r ApiApiMaestroV1ResourceBundlesGetRequest) Execute() (*ResourceBundleList, *http.Response, error) {
 	return r.ApiService.ApiMaestroV1ResourceBundlesGetExecute(r)
 }
@@ -884,7 +898,7 @@ ApiMaestroV1ResourceBundlesGet Returns a list of resource bundles
 	@param ctx context.Context - for authentication, logging, cancellation, deadlines, tracing, etc. Passed from http.Request or context.Background().
 	@return ApiApiMaestroV1ResourceBundlesGetRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ResourceBundlesGet(ctx context.Context) ApiApiMaestroV1ResourceBundlesGetRequest {
+func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesGet(ctx context.Context) ApiApiMaestroV1ResourceBundlesGetRequest {
 	return ApiApiMaestroV1ResourceBundlesGetRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -894,7 +908,7 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesGet(ctx context.Context) 
 // Execute executes the request
 //
 //	@return ResourceBundleList
-func (a *DefaultApiService) ApiMaestroV1ResourceBundlesGetExecute(r ApiApiMaestroV1ResourceBundlesGetRequest) (*ResourceBundleList, *http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesGetExecute(r ApiApiMaestroV1ResourceBundlesGetRequest) (*ResourceBundleList, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
@@ -902,7 +916,7 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesGetExecute(r ApiApiMaestr
 		localVarReturnValue *ResourceBundleList
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ResourceBundlesGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ResourceBundlesGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -914,19 +928,27 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesGetExecute(r ApiApiMaestr
 	localVarFormParams := url.Values{}
 
 	if r.page != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "page", r.page, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "page", r.page, "form", "")
+	} else {
+		var defaultValue int32 = 1
+		parameterAddToHeaderOrQuery(localVarQueryParams, "page", defaultValue, "form", "")
+		r.page = &defaultValue
 	}
 	if r.size != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "size", r.size, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "size", r.size, "form", "")
+	} else {
+		var defaultValue int32 = 100
+		parameterAddToHeaderOrQuery(localVarQueryParams, "size", defaultValue, "form", "")
+		r.size = &defaultValue
 	}
 	if r.search != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "search", r.search, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "search", r.search, "form", "")
 	}
 	if r.orderBy != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "orderBy", r.orderBy, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "orderBy", r.orderBy, "form", "")
 	}
 	if r.fields != nil {
-		parameterAddToHeaderOrQuery(localVarQueryParams, "fields", r.fields, "")
+		parameterAddToHeaderOrQuery(localVarQueryParams, "fields", r.fields, "form", "")
 	}
 	// to determine the Content-Type header
 	localVarHTTPContentTypes := []string{}
@@ -944,6 +966,9 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesGetExecute(r ApiApiMaestr
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xOperationID != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Operation-ID", r.xOperationID, "simple", "")
 	}
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {
@@ -1016,7 +1041,7 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesGetExecute(r ApiApiMaestr
 
 type ApiApiMaestroV1ResourceBundlesIdDeleteRequest struct {
 	ctx        context.Context
-	ApiService *DefaultApiService
+	ApiService *DefaultAPIService
 	id         string
 }
 
@@ -1031,7 +1056,7 @@ ApiMaestroV1ResourceBundlesIdDelete Delete a resource bundle
 	@param id The id of record
 	@return ApiApiMaestroV1ResourceBundlesIdDeleteRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdDelete(ctx context.Context, id string) ApiApiMaestroV1ResourceBundlesIdDeleteRequest {
+func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesIdDelete(ctx context.Context, id string) ApiApiMaestroV1ResourceBundlesIdDeleteRequest {
 	return ApiApiMaestroV1ResourceBundlesIdDeleteRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -1040,14 +1065,14 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdDelete(ctx context.Cont
 }
 
 // Execute executes the request
-func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdDeleteExecute(r ApiApiMaestroV1ResourceBundlesIdDeleteRequest) (*http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesIdDeleteExecute(r ApiApiMaestroV1ResourceBundlesIdDeleteRequest) (*http.Response, error) {
 	var (
 		localVarHTTPMethod = http.MethodDelete
 		localVarPostBody   interface{}
 		formFiles          []formFile
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ResourceBundlesIdDelete")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ResourceBundlesIdDelete")
 	if err != nil {
 		return nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -1159,9 +1184,15 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdDeleteExecute(r ApiApiM
 }
 
 type ApiApiMaestroV1ResourceBundlesIdGetRequest struct {
-	ctx        context.Context
-	ApiService *DefaultApiService
-	id         string
+	ctx          context.Context
+	ApiService   *DefaultAPIService
+	id           string
+	xOperationID *string
+}
+
+func (r ApiApiMaestroV1ResourceBundlesIdGetRequest) XOperationID(xOperationID string) ApiApiMaestroV1ResourceBundlesIdGetRequest {
+	r.xOperationID = &xOperationID
+	return r
 }
 
 func (r ApiApiMaestroV1ResourceBundlesIdGetRequest) Execute() (*ResourceBundle, *http.Response, error) {
@@ -1175,7 +1206,7 @@ ApiMaestroV1ResourceBundlesIdGet Get a resource bundle by id
 	@param id The id of record
 	@return ApiApiMaestroV1ResourceBundlesIdGetRequest
 */
-func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdGet(ctx context.Context, id string) ApiApiMaestroV1ResourceBundlesIdGetRequest {
+func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesIdGet(ctx context.Context, id string) ApiApiMaestroV1ResourceBundlesIdGetRequest {
 	return ApiApiMaestroV1ResourceBundlesIdGetRequest{
 		ApiService: a,
 		ctx:        ctx,
@@ -1186,7 +1217,7 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdGet(ctx context.Context
 // Execute executes the request
 //
 //	@return ResourceBundle
-func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdGetExecute(r ApiApiMaestroV1ResourceBundlesIdGetRequest) (*ResourceBundle, *http.Response, error) {
+func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesIdGetExecute(r ApiApiMaestroV1ResourceBundlesIdGetRequest) (*ResourceBundle, *http.Response, error) {
 	var (
 		localVarHTTPMethod  = http.MethodGet
 		localVarPostBody    interface{}
@@ -1194,7 +1225,7 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdGetExecute(r ApiApiMaes
 		localVarReturnValue *ResourceBundle
 	)
 
-	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultApiService.ApiMaestroV1ResourceBundlesIdGet")
+	localBasePath, err := a.client.cfg.ServerURLWithContext(r.ctx, "DefaultAPIService.ApiMaestroV1ResourceBundlesIdGet")
 	if err != nil {
 		return localVarReturnValue, nil, &GenericOpenAPIError{error: err.Error()}
 	}
@@ -1222,6 +1253,9 @@ func (a *DefaultApiService) ApiMaestroV1ResourceBundlesIdGetExecute(r ApiApiMaes
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xOperationID != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Operation-ID", r.xOperationID, "simple", "")
 	}
 	req, err := a.client.prepareRequest(r.ctx, localVarPath, localVarHTTPMethod, localVarPostBody, localVarHeaderParams, localVarQueryParams, localVarFormParams, formFiles)
 	if err != nil {

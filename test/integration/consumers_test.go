@@ -24,18 +24,18 @@ func TestConsumerGet(t *testing.T) {
 	ctx := h.NewAuthenticatedContext(account)
 
 	// 401 using no JWT token
-	_, _, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(context.Background(), "foo").Execute()
+	_, _, err := client.DefaultAPI.ApiMaestroV1ConsumersIdGet(context.Background(), "foo").Execute()
 	Expect(err).To(HaveOccurred(), "Expected 401 but got nil error")
 
 	// GET responses per openapi spec: 200 and 404,
-	_, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, "foo").Execute()
+	_, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, "foo").Execute()
 	Expect(err).To(HaveOccurred(), "Expected 404")
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 	consumer, err := h.CreateConsumerWithLabels("cluster-"+rand.String(5), map[string]string{"foo": "bar"})
 	Expect(err).NotTo(HaveOccurred())
 
-	found, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, consumer.ID).Execute()
+	found, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, consumer.ID).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
@@ -63,7 +63,7 @@ func TestConsumerPost(t *testing.T) {
 	}
 
 	// 201 Created
-	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
+	consumer, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 	Expect(*consumer.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
@@ -82,14 +82,14 @@ func TestConsumerPost(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(restyResp.StatusCode()).To(Equal(http.StatusBadRequest))
 
-	_, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+	_, resp, err = client.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 
 	// POST a consumer without name
 
 	// 201 Created
-	consumer, resp, err = client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(openapi.Consumer{}).Execute()
+	consumer, resp, err = client.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).Consumer(openapi.Consumer{}).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 	Expect(*consumer.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
@@ -121,15 +121,15 @@ func TestConsumerPatch(t *testing.T) {
 
 	// add labels
 	labels := map[string]string{"foo": "bar"}
-	patched, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &labels}).Execute()
+	patched, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &labels}).Execute()
 	assert(patched, resp, err, openapi.PtrString("brontosaurus"), &labels)
 
 	// no-op patch
-	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
+	patched, resp, err = client.DefaultAPI.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{}).Execute()
 	assert(patched, resp, err, openapi.PtrString("brontosaurus"), &labels)
 
 	// delete labels
-	patched, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &map[string]string{}}).Execute()
+	patched, resp, err = client.DefaultAPI.ApiMaestroV1ConsumersIdPatch(ctx, consumer.ID).ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: &map[string]string{}}).Execute()
 	assert(patched, resp, err, openapi.PtrString("brontosaurus"), nil)
 
 	// 500 server error. posting junk json is one way to trigger 500.
@@ -154,25 +154,25 @@ func TestConsumerDelete(t *testing.T) {
 	}
 
 	// 201 Created
-	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
+	consumer, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error posting object:  %v", err)
 	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 	Expect(*consumer.Id).NotTo(BeEmpty(), "Expected ID assigned on creation")
 
 	// 200 Got
-	got, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+	got, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusOK))
 	Expect(*got.Id).To(Equal(*consumer.Id))
 	Expect(*got.Name).To(Equal(*consumer.Name))
 
 	// 204 Deleted
-	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
+	resp, err = client.DefaultAPI.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
 	Expect(err).NotTo(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
 	// 404 Not Found
-	_, resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
+	_, resp, err = client.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumer.Id).Execute()
 	Expect(err.Error()).To(ContainSubstring("Not Found"))
 	Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 }
@@ -186,7 +186,7 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	c := openapi.Consumer{
 		Name: openapi.PtrString("jamie"),
 	}
-	consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
+	consumer, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).Consumer(c).Execute()
 	Expect(err).To(Succeed())
 	Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 	Expect(*consumer.Id).NotTo(BeEmpty())
@@ -198,7 +198,7 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	Expect(res.ID).ShouldNot(BeEmpty())
 
 	// 403 forbid deletion
-	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
+	resp, err = client.DefaultAPI.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
 
@@ -207,7 +207,7 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 
 	// still forbid deletion for the deleting resource
-	resp, err = client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
+	resp, err = client.DefaultAPI.ApiMaestroV1ConsumersIdDelete(ctx, *consumer.Id).Execute()
 	Expect(err).To(HaveOccurred())
 	Expect(resp.StatusCode).To(Equal(http.StatusForbidden))
 }
@@ -222,7 +222,7 @@ func TestConsumerDeleting(t *testing.T) {
 	consumerIdToName := map[string]string{}
 	for i := 0; i < consumerNum; i++ {
 		consumerName := "tom" + fmt.Sprint(i)
-		consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(openapi.Consumer{
+		consumer, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).Consumer(openapi.Consumer{
 			Name: openapi.PtrString(consumerName),
 		}).Execute()
 		Expect(err).NotTo(HaveOccurred())
@@ -262,7 +262,7 @@ func TestConsumerDeleting(t *testing.T) {
 		wg.Add(1)
 		go func(name, id string) {
 			defer wg.Done()
-			resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, id).Execute()
+			resp, err := client.DefaultAPI.ApiMaestroV1ConsumersIdDelete(ctx, id).Execute()
 			consumerChan <- &Result{
 				consumerName: name,
 				consumerId:   id,
@@ -285,7 +285,7 @@ func TestConsumerDeleting(t *testing.T) {
 		consumerErr := result.err
 
 		search := fmt.Sprintf("consumer_name = '%s'", consumerName)
-		resourceList, resp, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
+		resourceList, resp, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).Search(search).Execute()
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 		Expect(err).To(Succeed())
 
@@ -313,7 +313,7 @@ func TestConsumerDeleting(t *testing.T) {
 		resourceConsumerName := result.consumerName
 
 		// get the consumer
-		consumer, resp, err := client.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, resourceConsumerId).Execute()
+		consumer, resp, err := client.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, resourceConsumerId).Execute()
 
 		if resourceErr != nil {
 			fmt.Printf("failed to create resource on consumer(%s): %v\n", resourceConsumerName, result.err)
@@ -339,7 +339,7 @@ func TestConsumerPaging(t *testing.T) {
 	_, err := h.CreateConsumerList(20)
 	Expect(err).NotTo(HaveOccurred())
 
-	list, _, err := client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Execute()
+	list, _, err := client.DefaultAPI.ApiMaestroV1ConsumersGet(ctx).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
 	Expect(list.Kind).To(Equal("ConsumerList"))
 	Expect(len(list.Items)).To(Equal(20))
@@ -347,7 +347,7 @@ func TestConsumerPaging(t *testing.T) {
 	Expect(list.Total).To(Equal(int32(20)))
 	Expect(list.Page).To(Equal(int32(1)))
 
-	list, _, err = client.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Page(2).Size(5).Execute()
+	list, _, err = client.DefaultAPI.ApiMaestroV1ConsumersGet(ctx).Page(2).Size(5).Execute()
 	Expect(err).NotTo(HaveOccurred(), "Error getting consumer list: %v", err)
 	Expect(list.Kind).To(Equal("ConsumerList"))
 	Expect(len(list.Items)).To(Equal(5))

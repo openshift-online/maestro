@@ -82,7 +82,7 @@ func NewMaestroAPIClient(maestroServerAddress string) *openapi.APIClient {
 }
 
 func CreateConsumer(ctx context.Context, client *openapi.APIClient, consumerName string) error {
-	_, _, err := client.DefaultApi.ApiMaestroV1ConsumersPost(ctx).
+	_, _, err := client.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).
 		Consumer(openapi.Consumer{Name: openapi.PtrString(consumerName)}).
 		Execute()
 	return err
