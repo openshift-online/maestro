@@ -30,6 +30,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
+	"github.com/openshift-online/maestro/pkg/util"
 )
 
 // GRPCServer includes a gRPC server and a resource service
@@ -190,7 +191,7 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	logger.Info("receive the event from client", "context", evt.Context)
+	logger.Info("receive the event from client", "context", util.FormatEventContext(evt.Context))
 	if logger.V(4).Enabled() {
 		evtJson, _ := evt.MarshalJSON()
 		logger.V(4).Info("receive the event from client", "event", string(evtJson))
@@ -310,8 +311,11 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to encode cloudevent: %v", err)
 		}
 
-		logger.Info("send the event to status subscribers", "context", evt.Context)
-		logger.V(4).Info("send the event to status subscribers", "event", evt)
+		logger.Info("send the event to status subscribers", "context", util.FormatEventContext(evt.Context))
+		if logger.V(4).Enabled() {
+			evtJson, _ := evt.MarshalJSON()
+			logger.V(4).Info("send the event to status subscribers", "event", string(evtJson))
+		}
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}

@@ -10,6 +10,7 @@ import (
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/util"
 	"github.com/prometheus/client_golang/prometheus"
 
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
@@ -199,8 +200,11 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return nil, false, errors.GeneralError("Unable to convert resource status to cloudevent: %s", err)
 	}
 
-	logger.Info("Updating resource status")
-	logger.V(4).Info("Updating resource status", "event", resourceStatusEvent)
+	logger.Info("Updating resource status", "context", util.FormatEventContext(resourceStatusEvent.Context))
+	if logger.V(4).Enabled() {
+		evtJson, _ := resourceStatusEvent.MarshalJSON()
+		logger.V(4).Info("Updating resource status", "event", string(evtJson))
+	}
 
 	sequenceID, err := cloudeventstypes.ToString(resourceStatusEvent.Context.GetExtensions()[cetypes.ExtensionStatusUpdateSequenceID])
 	if err != nil {
