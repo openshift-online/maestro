@@ -264,14 +264,18 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 
 			By("check the resource deletion via source workclient")
 			Eventually(func() error {
-				mwGRPCClient := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName)
-				workList, err := mwGRPCClient.List(ctx, metav1.ListOptions{})
-				if err != nil {
-					return fmt.Errorf("failed to list manifestwork: %v", err)
+				if err := AssertWorkNotFound(workNameA); err != nil {
+					return err
 				}
-				if len(workList.Items) != 0 {
-					return fmt.Errorf("expected no resources returned by maestro api")
+
+				if err := AssertWorkNotFound(workNameB); err != nil {
+					return err
 				}
+
+				if err := AssertWorkNotFound(workNameC); err != nil {
+					return err
+				}
+
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
