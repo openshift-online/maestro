@@ -23,6 +23,7 @@ import (
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
@@ -172,6 +173,9 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to convert protobuf to cloudevent: %v", err)
 	}
 
+	logger = sdkgologging.SetLogTracingByCloudEvent(logger, evt)
+	ctx = klog.NewContext(ctx, logger)
+
 	if !svr.disableAuthorizer {
 		// check if the event is from the authorized source
 		user := ctx.Value(contextUserKey).(string)
@@ -315,11 +319,12 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to encode cloudevent: %v", err)
 		}
 
-		if logger.V(4).Enabled() {
+		broadcastLogger := sdkgologging.SetLogTracingByCloudEvent(logger, evt)
+		if broadcastLogger.V(4).Enabled() {
 			evtJson, _ := evt.MarshalJSON()
-			logger.V(4).Info("send the event to status subscribers", "event", string(evtJson))
+			broadcastLogger.V(4).Info("send the event to status subscribers", "event", string(evtJson))
 		} else {
-			logger.Info("send the event to status subscribers",
+			broadcastLogger.Info("send the event to status subscribers",
 				"eventID", evt.ID(),
 				"eventType", evt.Type(),
 				"eventSource", evt.Source(),

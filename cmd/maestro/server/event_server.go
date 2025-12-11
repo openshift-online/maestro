@@ -16,6 +16,7 @@ import (
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
 )
 
 // EventServer handles resource-related events:
@@ -91,11 +92,10 @@ func (s *MessageQueueEventServer) Start(ctx context.Context) {
 // startSubscription initiates the subscription to resource status update messages.
 // It runs asynchronously in the background until the provided context is canceled.
 func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
-	s.sourceClient.Subscribe(ctx, func(ctx context.Context, action types.ResourceAction, resource *api.Resource) error {
-		logger := klog.FromContext(ctx).WithValues("resourceID", resource.ID, "action", action)
+	s.sourceClient.Subscribe(ctx, func(subCtx context.Context, action types.ResourceAction, resource *api.Resource) error {
+		logger := klog.FromContext(subCtx).WithValues("resourceID", resource.ID, "action", action)
 		logger.Info("received action for resource")
-		// create a new ctx to avoid mutating the ctx in line-94
-		ctxWithLogger := klog.NewContext(ctx, logger)
+		subCtx = klog.NewContext(subCtx, logger)
 
 		switch action {
 		case types.StatusModified:
@@ -106,7 +106,7 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 			}
 
 			// handle the resource status update according status update type
-			if err := handleStatusUpdate(ctxWithLogger, resource, s.resourceService, s.statusEventService); err != nil {
+			if err := handleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
 				return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 			}
 		default:
@@ -187,6 +187,10 @@ func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	if err != nil {
 		return fmt.Errorf("failed to convert resource status to cloudevent: %v", err)
 	}
+
+	// add trace id into logger
+	logger = sdkgologging.SetLogTracingByCloudEvent(logger, statusEvent)
+	ctx = klog.NewContext(ctx, logger)
 
 	// convert the resource spec to cloudevent
 	specEvent, err := api.JSONMAPToCloudEvent(found.Payload)
