@@ -190,10 +190,15 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 		return nil, fmt.Errorf("failed to parse cloud event type %s, %v", evt.Type(), err)
 	}
 
-	logger.Info("receive the event from client", "context", evt.Context)
 	if logger.V(4).Enabled() {
 		evtJson, _ := evt.MarshalJSON()
 		logger.V(4).Info("receive the event from client", "event", string(evtJson))
+	} else {
+		logger.Info("receive the event from client",
+			"eventID", evt.ID(),
+			"eventType", evt.Type(),
+			"eventSource", evt.Source(),
+			"extensions", evt.Extensions())
 	}
 
 	// handler resync request
@@ -310,8 +315,16 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 			return fmt.Errorf("failed to encode cloudevent: %v", err)
 		}
 
-		logger.Info("send the event to status subscribers", "context", evt.Context)
-		logger.V(4).Info("send the event to status subscribers", "event", evt)
+		if logger.V(4).Enabled() {
+			evtJson, _ := evt.MarshalJSON()
+			logger.V(4).Info("send the event to status subscribers", "event", string(evtJson))
+		} else {
+			logger.Info("send the event to status subscribers",
+				"eventID", evt.ID(),
+				"eventType", evt.Type(),
+				"eventSource", evt.Source(),
+				"extensions", evt.Extensions())
+		}
 
 		// WARNING: don't use "pbEvt, err := pb.ToProto(evt)" to convert cloudevent to protobuf
 		pbEvt := &pbv1.CloudEvent{}
