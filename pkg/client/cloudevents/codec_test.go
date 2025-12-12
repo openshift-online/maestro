@@ -392,8 +392,12 @@ func TestResetPayloadMetadataNameWithResID(t *testing.T) {
 				if !ok {
 					t.Fatal("expected metadata to be map[string]interface{}")
 				}
-				if metaMap["name"] != resourceID {
-					t.Errorf("expected metadata name to be %s but got: %s", resourceID, metaMap["name"])
+				gotName, ok := metaMap["name"].(string)
+				if !ok {
+					t.Fatalf("expected metadata name to be string but got: %T", metaMap["name"])
+				}
+				if gotName != resourceID {
+					t.Errorf("expected metadata name to be %q but got: %q", resourceID, gotName)
 				}
 			},
 		},
