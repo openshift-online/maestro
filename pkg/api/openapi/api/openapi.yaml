@@ -93,30 +93,37 @@ paths:
         schema:
           type: string
         style: form
+      - explode: false
+        in: header
+        name: X-Operation-ID
+        required: false
+        schema:
+          type: string
+        style: simple
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourceBundleList'
+                $ref: "#/components/schemas/ResourceBundleList"
           description: A JSON array of resource bundle objects
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unexpected error occurred
       security:
       - Bearer: []
@@ -139,31 +146,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Validation errors occurred
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: No resource bundle with specified id exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unexpected error deleting resource bundle
       security:
       - Bearer: []
@@ -178,36 +185,43 @@ paths:
         schema:
           type: string
         style: simple
+      - explode: false
+        in: header
+        name: X-Operation-ID
+        required: false
+        schema:
+          type: string
+        style: simple
       responses:
         "200":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ResourceBundle'
+                $ref: "#/components/schemas/ResourceBundle"
           description: Resource bundle found by id
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: No resource bundle with specified id exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unexpected error occurred
       security:
       - Bearer: []
@@ -299,25 +313,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ConsumerList'
+                $ref: "#/components/schemas/ConsumerList"
           description: A JSON array of consumer objects
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unexpected error occurred
       security:
       - Bearer: []
@@ -327,7 +341,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Consumer'
+              $ref: "#/components/schemas/Consumer"
         description: Consumer data
         required: true
       responses:
@@ -335,37 +349,37 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Consumer'
+                $ref: "#/components/schemas/Consumer"
           description: Created
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Validation errors occurred
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Consumer already exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: An unexpected error occurred creating the consumer
       security:
       - Bearer: []
@@ -388,31 +402,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Validation errors occurred
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: No consumer with specified id exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unexpected error deleting consumer
       security:
       - Bearer: []
@@ -432,31 +446,31 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Consumer'
+                $ref: "#/components/schemas/Consumer"
           description: Consumer found by id
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: No consumer with specified id exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unexpected error occurred
       security:
       - Bearer: []
@@ -475,7 +489,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ConsumerPatchRequest'
+              $ref: "#/components/schemas/ConsumerPatchRequest"
         description: Updated consumer data
         required: true
       responses:
@@ -483,43 +497,43 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Consumer'
+                $ref: "#/components/schemas/Consumer"
           description: Consumer updated successfully
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Validation errors occurred
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Auth token is invalid
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unauthorized to perform operation
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: No consumer with specified id exists
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Consumer already exists
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: "#/components/schemas/Error"
           description: Unexpected error updating consumer
       security:
       - Bearer: []
@@ -647,28 +661,192 @@ components:
       type: object
     Error:
       allOf:
-      - $ref: '#/components/schemas/ObjectReference'
-      - $ref: '#/components/schemas/Error_allOf'
+      - $ref: "#/components/schemas/ObjectReference"
+      - properties:
+          code:
+            type: string
+          reason:
+            type: string
+          operation_id:
+            type: string
+        type: object
+      example:
+        reason: reason
+        code: code
+        kind: kind
+        operation_id: operation_id
+        id: id
+        href: href
     ErrorList:
       allOf:
-      - $ref: '#/components/schemas/List'
-      - $ref: '#/components/schemas/ErrorList_allOf'
+      - $ref: "#/components/schemas/List"
+      - properties:
+          items:
+            items:
+              $ref: "#/components/schemas/Error"
+            type: array
+        type: object
     ResourceBundle:
       allOf:
-      - $ref: '#/components/schemas/ObjectReference'
-      - $ref: '#/components/schemas/ResourceBundle_allOf'
+      - $ref: "#/components/schemas/ObjectReference"
+      - properties:
+          name:
+            type: string
+          consumer_name:
+            type: string
+          version:
+            type: integer
+          created_at:
+            format: date-time
+            type: string
+          updated_at:
+            format: date-time
+            type: string
+          deleted_at:
+            format: date-time
+            type: string
+          metadata:
+            $ref: "#/components/schemas/ResourceBundle_allOf_metadata"
+          manifests:
+            items:
+              type: object
+            type: array
+          delete_option:
+            $ref: "#/components/schemas/ResourceBundle_allOf_metadata"
+          manifest_configs:
+            items:
+              type: object
+            type: array
+          status:
+            $ref: "#/components/schemas/ResourceBundle_allOf_metadata"
+        type: object
+      example:
+        metadata: null
+        delete_option: null
+        kind: kind
+        created_at: 2000-01-23T04:56:07.000+00:00
+        version: 5
+        deleted_at: 2000-01-23T04:56:07.000+00:00
+        manifest_configs:
+        - "{}"
+        - "{}"
+        consumer_name: consumer_name
+        updated_at: 2000-01-23T04:56:07.000+00:00
+        name: name
+        manifests:
+        - "{}"
+        - "{}"
+        id: id
+        href: href
+        status: null
     ResourceBundleList:
       allOf:
-      - $ref: '#/components/schemas/List'
-      - $ref: '#/components/schemas/ResourceBundleList_allOf'
+      - $ref: "#/components/schemas/List"
+      - properties:
+          items:
+            items:
+              $ref: "#/components/schemas/ResourceBundle"
+            type: array
+        type: object
+      example:
+        total: 1
+        size: 6
+        kind: kind
+        page: 0
+        items:
+        - metadata: null
+          delete_option: null
+          kind: kind
+          created_at: 2000-01-23T04:56:07.000+00:00
+          version: 5
+          deleted_at: 2000-01-23T04:56:07.000+00:00
+          manifest_configs:
+          - "{}"
+          - "{}"
+          consumer_name: consumer_name
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          name: name
+          manifests:
+          - "{}"
+          - "{}"
+          id: id
+          href: href
+          status: null
+        - metadata: null
+          delete_option: null
+          kind: kind
+          created_at: 2000-01-23T04:56:07.000+00:00
+          version: 5
+          deleted_at: 2000-01-23T04:56:07.000+00:00
+          manifest_configs:
+          - "{}"
+          - "{}"
+          consumer_name: consumer_name
+          updated_at: 2000-01-23T04:56:07.000+00:00
+          name: name
+          manifests:
+          - "{}"
+          - "{}"
+          id: id
+          href: href
+          status: null
     Consumer:
       allOf:
-      - $ref: '#/components/schemas/ObjectReference'
-      - $ref: '#/components/schemas/Consumer_allOf'
+      - $ref: "#/components/schemas/ObjectReference"
+      - properties:
+          name:
+            type: string
+          labels:
+            additionalProperties:
+              type: string
+            type: object
+          created_at:
+            format: date-time
+            type: string
+          updated_at:
+            format: date-time
+            type: string
+        type: object
+      example:
+        updated_at: 2000-01-23T04:56:07.000+00:00
+        kind: kind
+        name: name
+        created_at: 2000-01-23T04:56:07.000+00:00
+        id: id
+        href: href
+        labels:
+          key: labels
     ConsumerList:
       allOf:
-      - $ref: '#/components/schemas/List'
-      - $ref: '#/components/schemas/ConsumerList_allOf'
+      - $ref: "#/components/schemas/List"
+      - properties:
+          items:
+            items:
+              $ref: "#/components/schemas/Consumer"
+            type: array
+        type: object
+      example:
+        total: 1
+        size: 6
+        kind: kind
+        page: 0
+        items:
+        - updated_at: 2000-01-23T04:56:07.000+00:00
+          kind: kind
+          name: name
+          created_at: 2000-01-23T04:56:07.000+00:00
+          id: id
+          href: href
+          labels:
+            key: labels
+        - updated_at: 2000-01-23T04:56:07.000+00:00
+          kind: kind
+          name: name
+          created_at: 2000-01-23T04:56:07.000+00:00
+          id: id
+          href: href
+          labels:
+            key: labels
     ConsumerPatchRequest:
       example:
         labels:
@@ -679,89 +857,8 @@ components:
             type: string
           type: object
       type: object
-    Error_allOf:
-      properties:
-        code:
-          type: string
-        reason:
-          type: string
-        operation_id:
-          type: string
+    ResourceBundle_allOf_metadata:
       type: object
-      example: null
-    ErrorList_allOf:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/Error'
-          type: array
-      type: object
-      example: null
-    ResourceBundle_allOf:
-      properties:
-        name:
-          type: string
-        consumer_name:
-          type: string
-        version:
-          type: integer
-        created_at:
-          format: date-time
-          type: string
-        updated_at:
-          format: date-time
-          type: string
-        deleted_at:
-          format: date-time
-          type: string
-        metadata:
-          type: object
-        manifests:
-          items:
-            type: object
-          type: array
-        delete_option:
-          type: object
-        manifest_configs:
-          items:
-            type: object
-          type: array
-        status:
-          type: object
-      type: object
-      example: null
-    ResourceBundleList_allOf:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/ResourceBundle'
-          type: array
-      type: object
-      example: null
-    Consumer_allOf:
-      properties:
-        name:
-          type: string
-        labels:
-          additionalProperties:
-            type: string
-          type: object
-        created_at:
-          format: date-time
-          type: string
-        updated_at:
-          format: date-time
-          type: string
-      type: object
-      example: null
-    ConsumerList_allOf:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/Consumer'
-          type: array
-      type: object
-      example: null
   securitySchemes:
     Bearer:
       bearerFormat: JWT

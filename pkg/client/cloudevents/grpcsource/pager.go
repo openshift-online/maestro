@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -25,6 +26,8 @@ func PageList(ctx context.Context, logger logging.Logger, client *openapi.APICli
 		return nil, "", err
 	}
 
+	operationID := maestrologger.GetOperationID(ctx)
+
 	limit := opts.Limit
 	if limit < 0 {
 		return nil, "", fmt.Errorf("limit cannot be less than 0")
@@ -36,11 +39,16 @@ func PageList(ctx context.Context, logger logging.Logger, client *openapi.APICli
 	offset := (page - 1) * pageSize
 	for {
 		logger.Debug(ctx, "list works with search=%s, page=%d, size=%d", search, page, pageSize)
-		rbs, _, err := client.DefaultApi.ApiMaestroV1ResourceBundlesGet(ctx).
+		req := client.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).
 			Search(search).
 			Page(page).
-			Size(pageSize).
-			Execute()
+			Size(pageSize)
+
+		if len(operationID) > 0 {
+			req = req.XOperationID(operationID)
+		}
+
+		rbs, _, err := req.Execute()
 		if err != nil {
 			return nil, "", err
 		}

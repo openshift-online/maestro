@@ -3,6 +3,7 @@ package grpcsource
 import (
 	"context"
 	"fmt"
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 	"net/http"
 	"strings"
 	"sync"
@@ -134,7 +135,13 @@ func (m *RESTFulAPIWatcherStore) HandleReceivedResource(ctx context.Context, act
 // Get a work from maestro server with its namespace and name
 func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
 	id := utils.UID(m.sourceID, common.ManifestWorkGR.String(), namespace, name)
-	rb, resp, err := m.apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(m.ctx, id).Execute()
+
+	req := m.apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(m.ctx, id)
+	if operationID := maestrologger.GetOperationID(m.ctx); operationID != "" {
+		req = req.XOperationID(operationID)
+	}
+
+	rb, resp, err := req.Execute()
 	if err != nil {
 		if resp != nil && resp.StatusCode == http.StatusNotFound {
 			return nil, false, nil

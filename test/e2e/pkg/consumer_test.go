@@ -18,25 +18,25 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 
 		BeforeAll(func() {
 			// create a consumer
-			created, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerA).Execute()
+			created, resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerA).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*created.Id).NotTo(BeEmpty())
 			consumerA = *created
 
-			got, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
+			got, resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
 
 			// create a consumer
-			created, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerB).Execute()
+			created, resp, err = apiClient.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).Consumer(consumerB).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			Expect(*created.Id).NotTo(BeEmpty())
 			consumerB = *created
 
-			got, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
+			got, resp, err = apiClient.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())
@@ -44,26 +44,26 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 
 		AfterAll(func() {
 			// delete the consumer
-			resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerA.Id).Execute()
+			resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersIdDelete(ctx, *consumerA.Id).Execute()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
+			_, resp, err = apiClient.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
 			Expect(err.Error()).To(ContainSubstring("Not Found"))
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 
 			// delete the consumer
-			resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
+			resp, err = apiClient.DefaultAPI.ApiMaestroV1ConsumersIdDelete(ctx, *consumerB.Id).Execute()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusNoContent))
 
-			_, resp, err = apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
+			_, resp, err = apiClient.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumerB.Id).Execute()
 			Expect(err.Error()).To(ContainSubstring("Not Found"))
 			Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
 		})
 
 		It("list consumers", func() {
-			consumerList, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersGet(ctx).Execute()
+			consumerList, resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersGet(ctx).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(consumerList).NotTo(BeNil())
@@ -84,14 +84,14 @@ var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {
 
 		It("patch consumer", func() {
 			labels := &map[string]string{"hello": "world"}
-			patched, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdPatch(ctx, *consumerA.Id).
+			patched, resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersIdPatch(ctx, *consumerA.Id).
 				ConsumerPatchRequest(openapi.ConsumerPatchRequest{Labels: labels}).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			_, ok := patched.GetLabelsOk()
 			Expect(ok).To(BeTrue())
 
-			got, resp, err := apiClient.DefaultApi.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
+			got, resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersIdGet(ctx, *consumerA.Id).Execute()
 			Expect(err).To(Succeed())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(got).NotTo(BeNil())

@@ -2,19 +2,15 @@ FROM openapitools/openapi-generator-cli:v7.17.0
 
 RUN apt-get update
 RUN apt-get install -y make sudo git
-
-# Add sources to get golang 1.21 and skip time related release not valid until failures
-RUN echo "deb http://deb.debian.org/debian bookworm-backports main contrib non-free\ndeb-src http://deb.debian.org/debian bookworm-backports main contrib non-free" >> /etc/apt/sources.list
-RUN echo "Acquire::Check-Valid-Until \"false\";\nAcquire::Check-Date \"false\";" | cat > /etc/apt/apt.conf.d/10no--check-valid-until
-RUN apt-get update
-RUN apt-get install -y golang-1.21
+RUN wget https://go.dev/dl/go1.25.5.linux-amd64.tar.gz
+RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.25.5.linux-amd64.tar.gz
 
 RUN mkdir -p /local
 COPY . /local
 
-ENV PATH="/uhc/bin:/usr/lib/go-1.21/bin/:${PATH}"
+ENV PATH="/uhc/bin:/usr/local/go/bin:${PATH}"
 ENV GOPATH="/uhc"
-ENV GOBIN /usr/lib/go-1.21/bin/
+ENV GOBIN /usr/local/go/bin/
 ENV CGO_ENABLED=0
 
 # these git and go flags to avoid self signed certificate errors

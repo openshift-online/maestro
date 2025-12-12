@@ -11,7 +11,9 @@ API version: 0.0.1
 package openapi
 
 import (
+	"bytes"
 	"encoding/json"
+	"fmt"
 )
 
 // checks if the List type satisfies the MappedNullable interface at compile time
@@ -24,6 +26,8 @@ type List struct {
 	Size  int32  `json:"size"`
 	Total int32  `json:"total"`
 }
+
+type _List List
 
 // NewList instantiates a new List object
 // This constructor will assign default values to properties that have it defined,
@@ -157,6 +161,46 @@ func (o List) ToMap() (map[string]interface{}, error) {
 	toSerialize["size"] = o.Size
 	toSerialize["total"] = o.Total
 	return toSerialize, nil
+}
+
+func (o *List) UnmarshalJSON(data []byte) (err error) {
+	// This validates that all required properties are included in the JSON object
+	// by unmarshalling the object into a generic map with string keys and checking
+	// that every required field exists as a key in the generic map.
+	requiredProperties := []string{
+		"kind",
+		"page",
+		"size",
+		"total",
+	}
+
+	allProperties := make(map[string]interface{})
+
+	err = json.Unmarshal(data, &allProperties)
+
+	if err != nil {
+		return err
+	}
+
+	for _, requiredProperty := range requiredProperties {
+		if _, exists := allProperties[requiredProperty]; !exists {
+			return fmt.Errorf("no value given for required property %v", requiredProperty)
+		}
+	}
+
+	varList := _List{}
+
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	err = decoder.Decode(&varList)
+
+	if err != nil {
+		return err
+	}
+
+	*o = List(varList)
+
+	return err
 }
 
 type NullableList struct {

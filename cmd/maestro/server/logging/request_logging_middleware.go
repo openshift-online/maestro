@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/gorilla/mux"
 	"net/http"
+	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
 	"strings"
 	"time"
 
@@ -27,7 +28,7 @@ func RegisterLoggerMiddleware(ctx context.Context, router *mux.Router) {
 				// TODO set opid of logger from req
 				// Get operation ID from request header if existed
 				opID := r.Header.Get(string(maestrologger.OpIDHeader))
-				logger := klog.FromContext(ctx).WithValues("opid", opID)
+				logger := klog.FromContext(ctx).WithValues(sdkgologging.ContextTracingOPIDKey, opID)
 				loggingWriter := NewLoggingWriter(logger, w, r, NewJSONLogFormatter())
 
 				reqCtx := r.Context()

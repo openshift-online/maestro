@@ -44,7 +44,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			resourceID = string(createdWork.UID)
-			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
+			gotResource, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(*gotResource.Version).To(Equal(int32(1)))
@@ -95,7 +95,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				return nil
 			}, 10*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
+			gotResource, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(*gotResource.Version).To(Equal(int32(2)))
@@ -118,7 +118,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
-				_, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
+				_, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 				if err == nil {
 					return fmt.Errorf("expected resource to be deleted, but got %d", resp.StatusCode)
 				}
@@ -145,7 +145,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
 			// the resource id should not change
-			gotResource, resp, err := apiClient.DefaultApi.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
+			gotResource, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusOK))
 			Expect(*gotResource.Version).To(Equal(int32(1)))
