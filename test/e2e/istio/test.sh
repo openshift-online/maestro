@@ -81,11 +81,11 @@ if kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait --for=condit
   succeeded=$(kubectl --kubeconfig=$server_kubeconfig -n clusters-service get job maestro-e2e-tests -o jsonpath='{.status.succeeded}')
   if [ "$succeeded" = "1" ]; then
     echo "Job completed successfully"
-    kubectl --kubeconfig=$server_kubeconfig -n clusters-service logs -l app=maestro-e2e
+    kubectl --kubeconfig=$server_kubeconfig -n clusters-service logs jobs/maestro-e2e-tests
     exit 0
   fi
 fi
 
 echo "Job clusters-service/maestro-e2e-tests failed"
-kubectl --kubeconfig=$server_kubeconfig -n clusters-service logs -l app=maestro-e2e
+kubectl --kubeconfig=$server_kubeconfig -n clusters-service logs jobs/maestro-e2e-tests
 exit 1
