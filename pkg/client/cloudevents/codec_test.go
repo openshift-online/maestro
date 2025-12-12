@@ -1,6 +1,7 @@
 package cloudevents
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -134,8 +135,10 @@ func TestEncode(t *testing.T) {
 					t.Errorf("expected resourceVersion 2 but got: %v (type: %T)", ext[cetypes.ExtensionResourceVersion], ext[cetypes.ExtensionResourceVersion])
 				}
 				// Verify that metadata name was reset to resource ID
-				if meta, ok := ext[cetypes.ExtensionWorkMeta]; ok {
-					t.Logf("Work metadata extension found: %v", meta)
+				if meta, ok := ext[cetypes.ExtensionWorkMeta].(string); ok {
+					if !strings.Contains(meta, resourceID) {
+						t.Errorf("expected metadata name %s, but got: %v", resourceID, meta)
+					}
 				}
 			},
 		},
