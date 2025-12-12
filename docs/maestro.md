@@ -35,12 +35,6 @@ The Maestro Server includes various components to fulfill its functions, as illu
 
 ![maestro-mqtt-pub-dataflow](./images/maestro-mqtt-pub-dataflow.png)
 
-1. The Consumer (e.g. ClustersService) use Maestro GRPCSourceClient create a ManifestWork
-2. The GRPCSourceClient publish the ManifestWork using CloudEvents
-3. The Maestro server 
-4. The Maestro server 
-5. The Maestro agent
-
 ### Maestro Subscribe Resource Status with MQTT
 
 ![maestro-mqtt-sub-dataflow](./images/maestro-mqtt-sub-dataflow.png)
