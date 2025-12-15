@@ -14,12 +14,12 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	k8srand "k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/client-go/kubernetes"
 	workv1 "open-cluster-management.io/api/work/v1"
 )
 
@@ -57,57 +57,22 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			} else if !errors.IsNotFound(err) {
 				Expect(err).ShouldNot(HaveOccurred())
 			}
-		})
 
-		AfterAll(func() {
-			By("restoring original MQTT certificate")
-			if len(originalMQTTCerts) > 0 {
-				secret, err := agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Get(ctx, "maestro-agent-certs", metav1.GetOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-				secret.Data = originalMQTTCerts
-				_, err = agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Update(ctx, secret, metav1.UpdateOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-			}
+			By("rotating certificate with 30 seconds expiration")
+			rotated, err := rotateCertificates(ctx, 30*time.Second)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(rotated).To(BeTrue(), "no CA secrets found; certificate rotation did not run")
 
-			By("restoring original gRPC broker certificate")
-			if len(originalGRPCBrokerCerts) > 0 {
-				secret, err := agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Get(ctx, "maestro-grpc-broker-cert", metav1.GetOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-				secret.Data = originalGRPCBrokerCerts
-				_, err = agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Update(ctx, secret, metav1.UpdateOptions{})
-				Expect(err).ShouldNot(HaveOccurred())
-			}
-
-			// wait for certificate reload and agent reconnection
-			time.Sleep(30 * time.Second)
-
-			// clean up the test resource
-			By(fmt.Sprintf("cleaning up test work %s", workName))
-			_ = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-			Eventually(func() error {
-				return AssertWorkNotFound(workName)
-			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
-
-			// ensure the deployment is deleted from agent
-			Eventually(func() error {
-				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
-				if err != nil {
-					if errors.IsNotFound(err) {
-						return nil
-					}
-					return err
-				}
-				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
-		})
-
-		It("should verify agent works with current certificates", func() {
-			By("creating a test work with deployment (1 replica) to verify agent connectivity")
-			work := helper.NewManifestWork(workName, deployName, "default", 1)
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			By("restarting maestro-agent to quickly pick up new certificate")
+			err = restartDeployment(ctx, agentTestOpts.kubeClientSet, "maestro-agent", agentTestOpts.agentNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("verifying the deployment is applied on the agent cluster")
+			By("creating a test work with deployment (1 replica)")
+			work := helper.NewManifestWork(workName, deployName, "default", 1)
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("verifying the deployment is created on the agent cluster")
 			Eventually(func() error {
 				deployment, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
@@ -135,28 +100,64 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("should rotate client certificate with short expiration for maestro agent", func() {
-			rotated, err := rotateCertificates(ctx, 60*time.Second)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(rotated).To(BeTrue(), "no CA secrets found; certificate rotation did not run")
+		AfterAll(func() {
+			By("restoring original MQTT certificate")
+			if len(originalMQTTCerts) > 0 {
+				secret, err := agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Get(ctx, "maestro-agent-certs", metav1.GetOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				secret.Data = originalMQTTCerts
+				_, err = agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Update(ctx, secret, metav1.UpdateOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+			}
 
-			By("waiting for certificate refresh...")
-			time.Sleep(10 * time.Second)
+			By("restoring original gRPC broker certificate")
+			if len(originalGRPCBrokerCerts) > 0 {
+				secret, err := agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Get(ctx, "maestro-grpc-broker-cert", metav1.GetOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				secret.Data = originalGRPCBrokerCerts
+				_, err = agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Update(ctx, secret, metav1.UpdateOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("restarting maestro-agent to quickly pick up restored certificate")
+			err := restartDeployment(ctx, agentTestOpts.kubeClientSet, "maestro-agent", agentTestOpts.agentNamespace)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By(fmt.Sprintf("deleting test work %s", workName))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("ensuring the work is deleted")
+			Eventually(func() error {
+				return AssertWorkNotFound(workName)
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+
+			By("ensuring the deployment is deleted from agent cluster")
+			Eventually(func() error {
+				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
+				if err != nil {
+					if errors.IsNotFound(err) {
+						return nil
+					}
+					return err
+				}
+				return fmt.Errorf("deployment %s still exists", deployName)
+			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("should verify agent can process updates with new certificate", func() {
-			By("checking agent pod is still running")
-			pods, err := agentTestOpts.kubeClientSet.CoreV1().Pods(agentTestOpts.agentNamespace).List(ctx, metav1.ListOptions{
-				LabelSelector: "app=maestro-agent",
-			})
+		It("should update work when certificate expires and succeed after rotation", func() {
+			By("waiting for the certificate to expire (30 seconds)")
+			time.Sleep(30 * time.Second)
+
+			By("rotating certificate with long expiration (1 hour)")
+			rotated, err := rotateCertificates(ctx, 1*time.Hour)
 			Expect(err).ShouldNot(HaveOccurred())
-			Expect(len(pods.Items)).Should(BeNumerically(">", 0))
+			Expect(rotated).To(BeTrue(), "certificate rotation did not run")
 
-			// check pod is in Running state
-			pod := pods.Items[0]
-			Expect(pod.Status.Phase).Should(Equal(corev1.PodRunning))
+			By("waiting 10 seconds for certificate reload")
+			time.Sleep(10 * time.Second)
 
-			By("updating the deployment to 2 replicas to trigger agent communication")
+			By("updating the work to change replicas to 2")
 			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -168,13 +169,16 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("verifying the deployment is updated to 2 replicas before agent certificate expiration...")
+			By("eventually verifying the deployment replicas is updated to 2 (certificate refreshed)")
 			Eventually(func() error {
 				deployment, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
 				if err != nil {
 					return err
 				}
-				if deployment.Spec.Replicas != nil && *deployment.Spec.Replicas != 2 {
+				if deployment.Spec.Replicas == nil {
+					return fmt.Errorf("deployment replicas is nil")
+				}
+				if *deployment.Spec.Replicas != 2 {
 					return fmt.Errorf("expected 2 replicas, got %d", *deployment.Spec.Replicas)
 				}
 				return nil
@@ -351,4 +355,56 @@ func signClientCertificate(caCert *x509.Certificate, caKey *rsa.PrivateKey, dura
 	keyPEM = pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(clientKey)})
 
 	return certPEM, keyPEM, nil
+}
+
+// restartDeployment restarts a deployment by adding the "kubectl.kubernetes.io/restartedAt" annotation
+func restartDeployment(ctx context.Context, kubeClient kubernetes.Interface, deploymentName, namespace string) error {
+	// Get the deployment
+	deployment, err := kubeClient.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to get deployment %s/%s: %w", namespace, deploymentName, err)
+	}
+
+	// Add restart annotation to trigger rollout restart
+	if deployment.Spec.Template.Annotations == nil {
+		deployment.Spec.Template.Annotations = make(map[string]string)
+	}
+	deployment.Spec.Template.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+	// Update the deployment
+	_, err = kubeClient.AppsV1().Deployments(namespace).Update(ctx, deployment, metav1.UpdateOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to update deployment %s/%s: %w", namespace, deploymentName, err)
+	}
+
+	// Wait for the rollout to complete
+	Eventually(func() error {
+		deploy, err := kubeClient.AppsV1().Deployments(namespace).Get(ctx, deploymentName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		if deploy.Spec.Replicas == nil {
+			return fmt.Errorf("deployment %s/%s has nil .spec.replicas", namespace, deploymentName)
+		}
+		desired := *deploy.Spec.Replicas
+
+		// Check if the deployment is ready
+		if deploy.Status.UpdatedReplicas != desired {
+			return fmt.Errorf("waiting for rollout: updated replicas %d/%d", deploy.Status.UpdatedReplicas, desired)
+		}
+		if deploy.Status.ReadyReplicas != desired {
+			return fmt.Errorf("waiting for rollout: ready replicas %d/%d", deploy.Status.ReadyReplicas, desired)
+		}
+		if deploy.Status.AvailableReplicas != desired {
+			return fmt.Errorf("waiting for rollout: available replicas %d/%d", deploy.Status.AvailableReplicas, desired)
+		}
+
+		return nil
+	}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+
+	// Give the deployment a moment to establish connections
+	time.Sleep(5 * time.Second)
+
+	return nil
 }
