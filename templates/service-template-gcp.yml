@@ -16,9 +16,11 @@ parameters:
 
 - name: PROJECT_ID
   description: Google project ID for PubSub and CloudSQL Service
+  required: true
 
 - name: REGION
-  description: Google region for  CloudSQL Service
+  description: Google region for CloudSQL Service
+  required: true
 
 - name: ENVIRONMENT
   displayName: Environment
@@ -62,11 +64,6 @@ parameters:
   description: Number of replicas of the service to run.
   value: "3"
 
-- name: ENABLE_JWT
-  displayName: Enable JWT
-  description: Enable JWT authentication validation
-  value: "false"
-
 - name: ENABLE_HTTPS
   displayName: Enable HTTPS
   description: Enable HTTPS rather than HTTP
@@ -102,11 +99,6 @@ parameters:
   description: Server's public hostname
   value: ""
 
-- name: ENABLE_AUTHZ
-  displayName: Enable Authz
-  description: Enable Authorization on endpoints, should only be disabled for debug
-  value: "true"
-
 - name: DB_MAX_OPEN_CONNS
   displayName: Maximum Open Database Connections
   description: Maximum number of open database connections per pod
@@ -126,11 +118,6 @@ parameters:
   displayName: Enable Metrics HTTPS
   description: Enable HTTPS for metrics server
   value: "false"
-
-- name: ENABLE_OCM_MOCK
-  displayName: Enable OCM Mock
-  description: Enable mock uhc client
-  value: "true"
 
 - name: HTTP_READ_TIMEOUT
   displayName: HTTP Read Timeout
@@ -245,10 +232,9 @@ objects:
             # - --db-rootcert=/secrets/db/db.ca_cert
             - --db-sslmode=${DB_SSLMODE}
             - --db-max-open-connections=${DB_MAX_OPEN_CONNS}
+            - --metrics-server-bindport=${METRICS_SERVER_BINDPORT}
             - --message-broker-config-file=/secrets/pubsub/config.yaml
             - --message-broker-type=pubsub
-            - --enable-ocm-mock=${ENABLE_OCM_MOCK}
-            - --enable-jwt=${ENABLE_JWT}
             - --enable-https=${ENABLE_HTTPS}
             - --enable-grpc-server=${ENABLE_GRPC_SERVER}
             - --disable-grpc-tls=true
@@ -257,10 +243,8 @@ objects:
             - --grpc-server-bindport=${GRPC_SERVER_BINDPORT}
             - --health-check-server-bindport=${HEALTH_CHECK_SERVER_BINDPORT}
             - --enable-health-check-https=${ENABLE_HTTPS}
-            - --enable-authz=${ENABLE_AUTHZ}
             - --enable-db-debug=${ENABLE_DB_DEBUG}
             - --enable-metrics-https=${ENABLE_METRICS_HTTPS}
-            - --enable-sentry=false
             - --http-read-timeout=${HTTP_READ_TIMEOUT}
             - --http-write-timeout=${HTTP_WRITE_TIMEOUT}
             - --label-metrics-inclusion-duration=${LABEL_METRICS_INCLUSION_DURATION}
@@ -276,14 +260,14 @@ objects:
             livenessProbe:
               httpGet:
                 path: /api/maestro
-                port: 8000
+                port: ${{HTTP_SERVER_BINDPORT}}
                 scheme: HTTP
               initialDelaySeconds: 15
               periodSeconds: 5
             readinessProbe:
               httpGet:
                 path: /healthcheck
-                port: 8083
+                port: ${{HEALTH_CHECK_SERVER_BINDPORT}}
                 scheme: HTTP
                 httpHeaders:
                 - name: User-Agent
