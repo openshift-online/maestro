@@ -63,11 +63,15 @@ parameters:
 - name: MQTT_ROOT_CERT
   description: Root Certificate for the mqtt broker.
 
-- name: MQTT_CLENT_CERT
+- name: MQTT_CLIENT_CERT
   description: Client certificate to access the mqtt broker.
 
-- name: MQTT_CLENT_KEY
+- name: MQTT_CLIENT_KEY
   description: Client private key to access the mqtt broker.
+
+- name: BROKER_CLIENT_CERT_REFRESH_DURATION
+  description: client certificate refresh duration for message broker
+  value: "5m"
 
 objects:
 - apiVersion: apiextensions.k8s.io/v1
@@ -303,6 +307,8 @@ objects:
           env:
             - name: "MAESTRO_ENV"
               value: "${ENVIRONMENT}"
+            - name: CERT_CALLBACK_REFRESH_DURATION
+              value: "${BROKER_CLIENT_CERT_REFRESH_DURATION}"
           command:
             - /usr/local/bin/maestro
             - agent
@@ -337,8 +343,8 @@ objects:
       username: ${MQTT_USER}
       password: ${MQTT_PASSWORD}
       caFile: ${MQTT_ROOT_CERT}
-      clientCertFile: ${MQTT_CLENT_CERT}
-      clientKeyFile: ${MQTT_CLENT_KEY}
+      clientCertFile: ${MQTT_CLIENT_CERT}
+      clientKeyFile: ${MQTT_CLIENT_KEY}
       topics:
         sourceEvents: sources/maestro/consumers/${CONSUMER_NAME}/sourceevents
         agentEvents: sources/maestro/consumers/${CONSUMER_NAME}/agentevents

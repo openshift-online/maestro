@@ -56,8 +56,8 @@ if [ "$tls_enable" = "true" ]; then
   if [ ! -d "$grpc_cert_dir" ]; then
     # create certs
     mkdir -p "$grpc_cert_dir"
-    step certificate create "maestro-grpc-ca" ${grpc_cert_dir}/ca.crt ${grpc_cert_dir}/ca.key --profile root-ca --no-password --insecure
-    step certificate create "maestro-grpc-server" ${grpc_cert_dir}/server.crt ${grpc_cert_dir}/server.key -san maestro-grpc -san maestro-grpc.maestro -san localhost -san 127.0.0.1 --profile leaf --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
+    step certificate create "maestro-grpc-ca" ${grpc_cert_dir}/ca.crt ${grpc_cert_dir}/ca.key --kty RSA --profile root-ca --no-password --insecure
+    step certificate create "maestro-grpc-server" ${grpc_cert_dir}/server.crt ${grpc_cert_dir}/server.key --kty RSA -san maestro-grpc -san maestro-grpc.maestro -san localhost -san 127.0.0.1 --profile leaf --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
     cat << EOF > ${grpc_cert_dir}/cert.tpl
 {
     "subject":{"organization":"open-cluster-management","commonName":"grpc-client"},
@@ -65,7 +65,7 @@ if [ "$tls_enable" = "true" ]; then
     "extKeyUsage": ["serverAuth","clientAuth"]
 }
 EOF
-    step certificate create "maestro-grpc-client" ${grpc_cert_dir}/client.crt ${grpc_cert_dir}/client.key --template ${grpc_cert_dir}/cert.tpl --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
+    step certificate create "maestro-grpc-client" ${grpc_cert_dir}/client.crt ${grpc_cert_dir}/client.key --kty RSA --template ${grpc_cert_dir}/cert.tpl --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
     # create secrets
     kubectl delete secret maestro-grpc-cert -n "$namespace" --ignore-not-found
     kubectl create secret generic maestro-grpc-cert -n "$namespace" --from-file=ca.crt=${grpc_cert_dir}/ca.crt --from-file=server.crt=${grpc_cert_dir}/server.crt --from-file=server.key=${grpc_cert_dir}/server.key --from-file=client.crt=${grpc_cert_dir}/client.crt --from-file=client.key=${grpc_cert_dir}/client.key
