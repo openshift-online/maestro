@@ -1,0 +1,151 @@
+{
+    "metadata": {
+      "name": "e44ec579-9646-549a-b679-db8d19d6da37",
+      "namespace": "7ff1a8f4-8811-49b4-8c19-9271bc51975e",
+      "uid": "55c61e54-a3f6-563d-9fec-b1fe297bdfdb",
+      "resourceVersion": "1",
+      "generation": 1,
+      "creationTimestamp": "2025-12-16T06:00:17Z",
+      "labels": {
+        "maestro.resource.type": "2d18a7dc-c731-5753-8aa9-6b2f22e3b12b"
+      }
+    },
+    "spec": {
+      "workload": {
+        "manifests": [
+          {
+            "apiVersion": "apps/v1",
+            "kind": "Deployment",
+            "metadata": {
+              "name": "maestro-e2e-upgrade-test",
+              "namespace": "default"
+            },
+            "spec": {
+              "replicas": 0,
+              "selector": {
+                "matchLabels": {
+                  "app": "nginx"
+                }
+              },
+              "strategy": {},
+              "template": {
+                "metadata": {
+                  "labels": {
+                    "app": "nginx"
+                  }
+                },
+                "spec": {
+                  "containers": [
+                    {
+                      "image": "quay.io/nginx/nginx-unprivileged:latest",
+                      "imagePullPolicy": "IfNotPresent",
+                      "name": "nginx",
+                      "resources": {}
+                    }
+                  ]
+                }
+              }
+            },
+            "status": {}
+          }
+        ]
+      },
+      "manifestConfigs": [
+        {
+          "resourceIdentifier": {
+            "group": "apps",
+            "resource": "deployments",
+            "name": "maestro-e2e-upgrade-test",
+            "namespace": "default"
+          },
+          "feedbackRules": [
+            {
+              "type": "JSONPaths",
+              "jsonPaths": [
+                {
+                  "name": "status",
+                  "path": ".status"
+                }
+              ]
+            }
+          ],
+          "updateStrategy": {
+            "type": "ServerSideApply",
+            "serverSideApply": {
+              "force": true,
+              "fieldManager": "maestro-agent"
+            }
+          }
+        }
+      ]
+    },
+    "status": {
+      "conditions": [
+        {
+          "type": "Applied",
+          "status": "True",
+          "observedGeneration": 1,
+          "lastTransitionTime": "2025-12-16T06:00:17Z",
+          "reason": "AppliedManifestWorkComplete",
+          "message": "Apply manifest work complete"
+        },
+        {
+          "type": "Available",
+          "status": "True",
+          "observedGeneration": 1,
+          "lastTransitionTime": "2025-12-16T06:00:17Z",
+          "reason": "ResourcesAvailable",
+          "message": "All resources are available"
+        }
+      ],
+      "resourceStatus": {
+        "manifests": [
+          {
+            "resourceMeta": {
+              "ordinal": 0,
+              "group": "apps",
+              "version": "v1",
+              "kind": "Deployment",
+              "resource": "deployments",
+              "name": "maestro-e2e-upgrade-test",
+              "namespace": "default"
+            },
+            "statusFeedback": {
+              "values": [
+                {
+                  "name": "status",
+                  "fieldValue": {
+                    "type": "JsonRaw",
+                    "jsonRaw": "{\"conditions\":[{\"lastTransitionTime\":\"2025-12-16T06:00:17Z\",\"lastUpdateTime\":\"2025-12-16T06:00:17Z\",\"message\":\"Deployment has minimum availability.\",\"reason\":\"MinimumReplicasAvailable\",\"status\":\"True\",\"type\":\"Available\"},{\"lastTransitionTime\":\"2025-12-16T06:00:17Z\",\"lastUpdateTime\":\"2025-12-16T06:00:17Z\",\"message\":\"ReplicaSet \\\"maestro-e2e-upgrade-test-68bd67c4c7\\\" has successfully progressed.\",\"reason\":\"NewReplicaSetAvailable\",\"status\":\"True\",\"type\":\"Progressing\"}],\"observedGeneration\":1}"
+                  }
+                }
+              ]
+            },
+            "conditions": [
+              {
+                "type": "Applied",
+                "status": "True",
+                "lastTransitionTime": "2025-12-16T06:00:17Z",
+                "reason": "AppliedManifestComplete",
+                "message": "Apply manifest complete"
+              },
+              {
+                "type": "Available",
+                "status": "True",
+                "lastTransitionTime": "2025-12-16T06:00:17Z",
+                "reason": "ResourceAvailable",
+                "message": "Resource is available"
+              },
+              {
+                "type": "StatusFeedbackSynced",
+                "status": "True",
+                "lastTransitionTime": "2025-12-16T06:00:17Z",
+                "reason": "StatusFeedbackSynced",
+                "message": ""
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }

@@ -1,0 +1,81 @@
+{
+    "specversion": "1.0",
+    "id": "1aaad717-7daa-4d33-b087-8e258dab9c5f",
+    "source": "mw-client-example",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request",
+    "datacontenttype": "application/json",
+    "time": "2025-12-13T13:32:30.308693Z",
+    "data": {
+        "manifests": [
+            {
+                "kind": "Deployment",
+                "apiVersion": "apps/v1",
+                "metadata": {
+                    "name": "maestro-e2e-upgrade-test",
+                    "namespace": "default"
+                },
+                "spec": {
+                    "replicas": 0,
+                    "selector": {
+                        "matchLabels": {
+                            "app": "nginx"
+                        }
+                    },
+                    "template": {
+                        "metadata": {
+                            "labels": {
+                                "app": "nginx"
+                            }
+                        },
+                        "spec": {
+                            "containers": [
+                                {
+                                    "name": "nginx",
+                                    "image": "quay.io/nginx/nginx-unprivileged:latest",
+                                    "resources": {},
+                                    "imagePullPolicy": "IfNotPresent"
+                                }
+                            ]
+                        }
+                    },
+                    "strategy": {}
+                },
+                "status": {}
+            }
+        ],
+        "manifestConfigs": [
+            {
+                "resourceIdentifier": {
+                    "group": "apps",
+                    "resource": "deployments",
+                    "name": "maestro-e2e-upgrade-test",
+                    "namespace": "default"
+                },
+                "feedbackRules": [
+                    {
+                        "type": "JSONPaths",
+                        "jsonPaths": [
+                            {
+                                "name": "status",
+                                "path": ".status"
+                            }
+                        ]
+                    }
+                ],
+                "updateStrategy": {
+                    "type": "ServerSideApply",
+                    "serverSideApply": {
+                        "force": true,
+                        "fieldManager": "maestro-agent"
+                    }
+                }
+            }
+        ]
+    },
+    "clustername": "7ff1a8f4-8811-49b4-8c19-9271bc51975e",
+    "logtracing": "{}",
+    "metadata": "{\"name\":\"e44ec579-9646-549a-b679-db8d19d6da37\",\"namespace\":\"7ff1a8f4-8811-49b4-8c19-9271bc51975e\",\"uid\":\"55c61e54-a3f6-563d-9fec-b1fe297bdfdb\",\"resourceVersion\":\"0\",\"labels\":{\"maestro.resource.type\":\"2d18a7dc-c731-5753-8aa9-6b2f22e3b12b\"}}",
+    "originalsource": "",
+    "resourceid": "55c61e54-a3f6-563d-9fec-b1fe297bdfdb",
+    "resourceversion": 0
+}

@@ -1,0 +1,35 @@
+{
+    "apiVersion": "work.open-cluster-management.io/v1",
+    "kind": "AppliedManifestWork",
+    "metadata": {
+        "creationTimestamp": "2025-12-16T06:00:17Z",
+        "finalizers": [
+            "cluster.open-cluster-management.io/applied-manifest-work-cleanup"
+        ],
+        "generation": 1,
+        "labels": {
+            "cloudevents.open-cluster-management.io/originalsource": "maestro",
+            "maestro.resource.type": "2d18a7dc-c731-5753-8aa9-6b2f22e3b12b"
+        },
+        "name": "f1d8a1049b93dffc1929d57a719c3a09a4dcbfe0cd6e42840325be3b2dde73c8-e44ec579-9646-549a-b679-db8d19d6da37",
+        "resourceVersion": "1552",
+        "uid": "432b3ff3-702e-4363-89e6-ad399c75608c"
+    },
+    "spec": {
+        "agentID": "f1d8a1049b93dffc1929d57a719c3a09a4dcbfe0cd6e42840325be3b2dde73c8",
+        "hubHash": "f1d8a1049b93dffc1929d57a719c3a09a4dcbfe0cd6e42840325be3b2dde73c8",
+        "manifestWorkName": "e44ec579-9646-549a-b679-db8d19d6da37"
+    },
+    "status": {
+        "appliedResources": [
+            {
+                "group": "apps",
+                "name": "maestro-e2e-upgrade-test",
+                "namespace": "default",
+                "resource": "deployments",
+                "uid": "60c0cf67-9e02-449c-b4b7-1e9de58871e0",
+                "version": "v1"
+            }
+        ]
+    }
+}
