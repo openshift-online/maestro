@@ -1,6 +1,6 @@
 module github.com/openshift-online/maestro
 
-go 1.24.4
+go 1.25.0
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0
@@ -55,9 +55,9 @@ require (
 	k8s.io/component-base v0.34.2
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
-	open-cluster-management.io/api v1.1.1-0.20251124092621-2337d27c3b7f
+	open-cluster-management.io/api v1.1.1-0.20251215032811-ee922fbb996c
 	open-cluster-management.io/ocm v1.1.1-0.20251211014758-deb61b0a60d5
-	open-cluster-management.io/sdk-go v1.1.1-0.20251209031938-62521c9935ac
+	open-cluster-management.io/sdk-go v1.1.1-0.20251218031856-08bb1caedf74
 	sigs.k8s.io/yaml v1.6.0
 )
 

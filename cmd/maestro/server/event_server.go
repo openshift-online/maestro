@@ -92,25 +92,20 @@ func (s *MessageQueueEventServer) Start(ctx context.Context) {
 // startSubscription initiates the subscription to resource status update messages.
 // It runs asynchronously in the background until the provided context is canceled.
 func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
-	s.sourceClient.Subscribe(ctx, func(subCtx context.Context, action types.ResourceAction, resource *api.Resource) error {
-		logger := klog.FromContext(subCtx).WithValues("resourceID", resource.ID, "action", action)
-		logger.Info("received action for resource")
+	s.sourceClient.Subscribe(ctx, func(subCtx context.Context, resource *api.Resource) error {
+		logger := klog.FromContext(subCtx).WithValues("resourceID", resource.ID)
+		logger.Info("received status update for resource")
 		subCtx = klog.NewContext(subCtx, logger)
 
-		switch action {
-		case types.StatusModified:
-			if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
-				// the resource is not owned by the current instance, skip
-				logger.Info("skipping resource status update as it is not owned by the current instance")
-				return nil
-			}
+		if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
+			// the resource is not owned by the current instance, skip
+			logger.Info("skipping resource status update as it is not owned by the current instance")
+			return nil
+		}
 
-			// handle the resource status update according status update type
-			if err := handleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
-				return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
-			}
-		default:
-			return fmt.Errorf("failed to handle resource status update %s: unsupported action %s", resource.ID, action)
+		// handle the resource status update according status update type
+		if err := handleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
+			return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 		}
 
 		return nil

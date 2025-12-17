@@ -3,11 +3,12 @@ package grpcsource
 import (
 	"context"
 	"fmt"
-	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/ocm-sdk-go/logging"
@@ -25,7 +26,6 @@ import (
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/store"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/utils"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
 // RESTFulAPIWatcherStore implements the WorkClientWatcherStore interface, it is
@@ -117,19 +117,14 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 }
 
 // HandleReceivedWork sends the received works to the watch channel
-func (m *RESTFulAPIWatcherStore) HandleReceivedResource(ctx context.Context, action types.ResourceAction, work *workv1.ManifestWork) error {
-	switch action {
-	case types.StatusModified:
-		watchType := watch.Modified
-		if meta.IsStatusConditionTrue(work.Status.Conditions, common.ResourceDeleted) {
-			watchType = watch.Deleted
-		}
-
-		m.sendWatchEvent(watch.Event{Type: watchType, Object: work})
-		return nil
-	default:
-		return fmt.Errorf("unknown resource action %s", action)
+func (m *RESTFulAPIWatcherStore) HandleReceivedResource(ctx context.Context, work *workv1.ManifestWork) error {
+	watchType := watch.Modified
+	if meta.IsStatusConditionTrue(work.Status.Conditions, common.ResourceDeleted) {
+		watchType = watch.Deleted
 	}
+
+	m.sendWatchEvent(watch.Event{Type: watchType, Object: work})
+	return nil
 }
 
 // Get a work from maestro server with its namespace and name
