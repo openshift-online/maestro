@@ -1,0 +1,11 @@
+name: 'Free Disk Space'
+description: 'Cleans up disk space for e2e tests'
+runs:
+  using: 'composite'
+  steps:
+    - name: Free disk space
+      shell: bash
+      run: |
+        sudo rm -rf /usr/local/lib/android
+        sudo rm -rf /opt/hostedtoolcache
+        docker system prune -af

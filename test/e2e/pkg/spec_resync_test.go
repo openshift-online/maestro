@@ -2,7 +2,6 @@ package e2e_test
 
 import (
 	"fmt"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -41,7 +40,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			By("create resource B with source work client")
 			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, workB, metav1.CreateOptions{})
@@ -56,7 +55,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("shut down maestro agent", func() {
@@ -83,7 +82,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("maestro-agent pods still running")
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("patch the resource A with source work client", func() {
@@ -110,7 +109,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 1, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalConsistentlyTimeout, consistentlyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("delete the resource B with source work client", func() {
@@ -127,7 +126,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					}
 				}
 				return nil
-			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalConsistentlyTimeout, consistentlyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("create resource C with source work client", func() {
@@ -142,7 +141,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("nginx C deployment %s is created", deployC)
 				}
 				return nil
-			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalConsistentlyTimeout, consistentlyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("restart maestro agent", func() {
@@ -173,7 +172,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					}
 				}
 				return nil
-			}, 5*time.Minute, 30*time.Second).ShouldNot(HaveOccurred())
+			}, longLongEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the nginx A deployment is updated", func() {
@@ -186,7 +185,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 2, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
+			}, longLongEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the nginx B deployment is deleted", func() {
@@ -199,7 +198,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return err
 				}
 				return fmt.Errorf("nginx B deployment %s still exists", deployB)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the nginx C deployment is created", func() {
@@ -212,7 +211,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("unexpected replicas for nginx C deployment %s, expected 1, got %d", deployC, *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		AfterAll(func() {
@@ -238,7 +237,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return err
 				}
 				return fmt.Errorf("nginx A deployment %s still exists", deployA)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployB, metav1.GetOptions{})
@@ -249,7 +248,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return err
 				}
 				return fmt.Errorf("nginx B deployment %s still exists", deployB)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployC, metav1.GetOptions{})
@@ -260,7 +259,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return err
 				}
 				return fmt.Errorf("nginx C deployment %s still exists", deployC)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			By("check the resource deletion via source workclient")
 			Eventually(func() error {
@@ -277,7 +276,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 	})
 })

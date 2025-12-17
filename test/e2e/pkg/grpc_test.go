@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/cloudevents/sdk-go/v2/binding"
 	cetypes "github.com/cloudevents/sdk-go/v2/types"
@@ -80,7 +79,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
@@ -91,7 +90,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			_, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).To(HaveOccurred(), "Expected 404 error")
@@ -104,7 +103,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		It("should subscribe to the resource status with grpc client", func() {
 			Eventually(func() error {
 				return assertResourceStatus(subscribedResourceStatus, resourceID, 1)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("get the deployment from cluster", func() {
@@ -117,7 +116,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("get the resource via maestro api", func() {
@@ -141,7 +140,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 		It("should subscribe to the resource status with grpc client", func() {
 			Eventually(func() error {
 				return assertResourceStatus(subscribedResourceStatus, resourceID, 2)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("get the deployment from cluster", func() {
@@ -154,7 +153,7 @@ var _ = Describe("GRPC", Ordered, Label("e2e-tests-grpc"), func() {
 					return fmt.Errorf("unexpected replicas, expected 2, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("get the resource via maestro api", func() {

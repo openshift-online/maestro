@@ -68,7 +68,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				}
 
 				return AssertWorkNotFound(initWorkBName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, longEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			watcherCancel()
 		})
@@ -121,7 +121,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 			Eventually(func() error {
 				return AssertWatchResult(result)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			expectedMetrics := fmt.Sprintf(`
 			# HELP source_client_registered_watchers Number of registered watchers for a source client.
@@ -175,18 +175,18 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 			Eventually(func() error {
 				return AssertWatchResult(allConsumerWatcherResult)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				return AssertWatchResult(consumerWatcherResult)
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Consistently(func() error {
 				if len(otherConsumerWatcherResult.WatchedWorks) != 0 {
 					return fmt.Errorf("unexpected watched works")
 				}
 				return nil
-			}, 10*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalConsistentlyTimeout, consistentlyInterval).ShouldNot(HaveOccurred())
 
 			expectedMetrics := fmt.Sprintf(`
 			# HELP source_client_registered_watchers Number of registered watchers for a source client.
@@ -235,7 +235,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 			Eventually(func() error {
 				return AssertWatchResult(result)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			expectedMetrics := fmt.Sprintf(`
 			# HELP source_client_registered_watchers Number of registered watchers for a source client.
@@ -304,7 +304,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 					return fmt.Errorf("second watcher should have received events")
 				}
 				return nil
-			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			By("verify watchers are independent - first watcher stopped, second continues")
 			Expect(len(firstResult.WatchedWorks)).Should(BeNumerically(">", 0), "first watcher should have processed initial events")
@@ -361,7 +361,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				}
 
 				return fmt.Errorf("no deleted work watched")
-			}, 1*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -437,7 +437,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				}
 
 				return AssertWorkNotFound(testWorkCName)
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			}, longEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("list works with options", func() {

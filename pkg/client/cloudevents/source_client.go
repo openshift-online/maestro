@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -48,6 +49,11 @@ func NewSourceClient(sourceOptions *ceoptions.CloudEventsSourceOptions, resource
 
 	// register resource resync metrics for cloud event source client
 	cemetrics.RegisterSourceCloudEventsMetrics(prometheus.DefaultRegisterer)
+
+	// start resync on start
+	if err := ceSourceClient.Resync(ctx, types.ClusterAll); err != nil {
+		return nil, err
+	}
 
 	return &SourceClientImpl{
 		Codec:                  codec,

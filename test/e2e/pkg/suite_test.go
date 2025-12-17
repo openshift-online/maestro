@@ -6,11 +6,12 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"k8s.io/klog/v2"
 	"net/http"
 	"os"
 	"testing"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -33,6 +34,16 @@ import (
 	"github.com/openshift-online/maestro/test"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
 	"github.com/openshift-online/ocm-sdk-go/logging"
+)
+
+const (
+	normalConsistentlyTimeout = 12  // seconds
+	longConsistentlyTimeout   = 30  // seconds
+	normalEventuallyTimeout   = 60  // seconds
+	longEventuallyTimeout     = 120 // seconds
+	longLongEventuallyTimeout = 300 // seconds
+	consistentlyInterval      = 3   // seconds
+	eventuallyInterval        = 3   // seconds
 )
 
 var serverHealthinessTimeout = 20 * time.Second
@@ -193,7 +204,7 @@ var _ = AfterSuite(func() {
 	// clean up the resources
 	Eventually(func() error {
 		return cleanupResources(ctx)
-	}, 2*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
+	}, longEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 	// close the grpc connection
 	if grpcConn != nil {

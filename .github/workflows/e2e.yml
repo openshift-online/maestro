@@ -27,6 +27,8 @@ jobs:
           df -h /
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -53,6 +55,8 @@ jobs:
           df -h /
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -79,6 +83,8 @@ jobs:
           df -h /
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -102,6 +108,8 @@ jobs:
           df -h /
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -119,16 +127,10 @@ jobs:
   upgrade:
     runs-on: ubuntu-22.04
     steps:
-      - name: Check initial disk usage
-        run: df -h /
-      - name: Free disk space (optional cleanup)
-        run: |
-          sudo rm -rf /usr/local/lib/android
-          sudo rm -rf /opt/hostedtoolcache
-          docker system prune -af
-          df -h /
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Free disk space
+        uses: ./.github/actions/free-disk-space
       - name: Setup Go
         uses: actions/setup-go@v5
         with:

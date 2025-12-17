@@ -53,8 +53,9 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			watchedResult = StartWatch(watcherCtx, watcher)
 
 			By("create a resource with source work client")
-			_, err = watcherClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			createdWork, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+			Expect(createdWork.Name).To(Equal(workName))
 
 			Eventually(func() error {
 				deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
@@ -65,7 +66,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				work, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
@@ -89,14 +90,14 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 
 				return fmt.Errorf("unexpected status, expected error looking up service account default/nginx")
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			}, longEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				if len(watchedResult.WatchedWorks) != 0 {
 					return nil
 				}
 				return fmt.Errorf("no works watched")
-			}, 1*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("shut down maestro server", func() {
@@ -127,7 +128,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 					return fmt.Errorf("maestro server pods still running")
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			// remove the watched works
 			watchedResult.WatchedWorks = []*workv1.ManifestWork{}
@@ -141,9 +142,28 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			// delete the nginx deployment to trigger recreating
-			err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Delete(ctx, deployName, metav1.DeleteOptions{})
+			var gracePeriod int64 = 0
+			// delete the nginx replicaset to trigger recreating
+			err = agentTestOpts.kubeClientSet.AppsV1().ReplicaSets("default").DeleteCollection(
+				ctx,
+				metav1.DeleteOptions{GracePeriodSeconds: &gracePeriod},
+				metav1.ListOptions{LabelSelector: "app=nginx"},
+			)
 			Expect(err).ShouldNot(HaveOccurred())
+
+			// ensure the nginx pod is created
+			Eventually(func() error {
+				podList, err := agentTestOpts.kubeClientSet.CoreV1().Pods("default").List(ctx, metav1.ListOptions{
+					LabelSelector: "app=nginx",
+				})
+				if err != nil {
+					return err
+				}
+				if len(podList.Items) == 0 {
+					return fmt.Errorf("pods not created: expected at least 1, got %d", len(podList.Items))
+				}
+				return nil
+			}, longEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("restart maestro server", func() {
@@ -178,7 +198,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 
 				return nil
-			}, 5*time.Minute, 30*time.Second).ShouldNot(HaveOccurred())
+			}, longLongEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the resource status is resynced", func() {
@@ -188,7 +208,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 					return nil
 				}
 				return fmt.Errorf("no works watched")
-			}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+			}, longLongEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				work, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
@@ -208,13 +228,12 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 							return nil
 						}
 					}
-
 				}
 
 				return fmt.Errorf("unexpected status")
 			},
-				10*time.Minute, // timeout is double work resync interval time (4~6 mins)
-				2*time.Second).ShouldNot(HaveOccurred())
+				20*time.Minute, // timeout is double work resync interval time (4~6 mins)
+				eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 
 		AfterAll(func() {
@@ -252,7 +271,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 						}
 
 						return nil
-					}, 1*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+					}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 				}
 			})
 
@@ -260,7 +279,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			// note: wait some time to ensure source work client is connected to the restarted maestro server
 			Eventually(func() error {
 				return watcherClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
-			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
+			}, longLongEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
@@ -271,14 +290,35 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			}, longEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 
 			By("check the resource deletion via source workclient")
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
+
+			// delete the service account, ignore deleting result
+			_ = agentTestOpts.kubeClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, deployName, metav1.DeleteOptions{})
 
 			watcherCancel()
+
+			By("check the source work client connecting to restarted maestro server by creating and deleting a work")
+			// note: wait some time to ensure source work client is connected to the restarted maestro server
+			testWorkName := fmt.Sprintf("work-%s", rand.String(5))
+			testWork := helper.NewManifestWork(testWorkName, deployName, "default", 1)
+			Eventually(func() error {
+				_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, testWork, metav1.CreateOptions{})
+				return err
+
+			}, longLongEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
+
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("check the resource deletion via source workclient")
+			Eventually(func() error {
+				return AssertWorkNotFound(testWorkName)
+			}, normalEventuallyTimeout, eventuallyInterval).ShouldNot(HaveOccurred())
 		})
 	})
 })
