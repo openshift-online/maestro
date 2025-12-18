@@ -18,6 +18,7 @@ export image=${IMAGE:-"image-registry.testing/maestro/maestro-e2e:latest"}
 export agent_namespace=${AGENT_NAMESPACE:-"maestro-agent"}
 export consumer_name=${CONSUMER_NAME:-$(cat "${PWD}/test/_output/.consumer_name")}
 export service_account_name=${SERVICE_ACCOUNT_NAME:-"default"}
+export ginkgo_label_filter=${GINKGO_LABEL_FILTER:-"!e2e-tests-cert-rotation"}
 
 # these kubeconfigs are used in this script to connect the server and agent clusters
 server_kubeconfig=${SERVER_KUBECONFIG:-"${PWD}/test/_output/.kubeconfig"}
@@ -71,7 +72,7 @@ kubectl --kubeconfig=$server_kubeconfig -n clusters-service create secret generi
     --from-file=agent.kubeconfig=$agent_in_cluster_kubeconfig
 
 # deploy the e2e test job
-envsubst '${image} ${agent_namespace} ${consumer_name} ${service_account_name}' < ${PWD}/test/e2e/istio/job.yaml.template | kubectl --kubeconfig=$server_kubeconfig apply -f -
+envsubst '${image} ${agent_namespace} ${consumer_name} ${service_account_name} ${ginkgo_label_filter}' < ${PWD}/test/e2e/istio/job.yaml.template | kubectl --kubeconfig=$server_kubeconfig apply -f -
 
 sleep 10 # wait for job created
 
