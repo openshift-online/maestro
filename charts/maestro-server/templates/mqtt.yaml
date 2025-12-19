@@ -1,0 +1,85 @@
+{{- if .Values.mqtt.enabled -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.mqtt.service.name }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+  annotations:
+    template.openshift.io/expose-uri: tcp://{.spec.clusterIP}:{.spec.ports[?(.name==\mosquitto\)].port}
+spec:
+  ports:
+  - name: mosquitto
+    protocol: TCP
+    port: {{ .Values.mqtt.service.port }}
+    targetPort: {{ .Values.mqtt.service.port }}
+  selector:
+    name: {{ .Values.mqtt.service.name }}
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.mqtt.service.name }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: {{ .Values.mqtt.service.name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        name: {{ .Values.mqtt.service.name }}
+    spec:
+      serviceAccountName: {{ include "maestro-server.serviceAccountName" . }}
+      containers:
+      - image: {{ .Values.mqtt.image }}
+        imagePullPolicy: IfNotPresent
+        name: mosquitto
+        ports:
+        - containerPort: {{ .Values.mqtt.service.port }}
+          name: mosquitto
+        volumeMounts:
+        - name: mosquitto-persistent-storage
+          mountPath: /mosquitto/data
+        - name: mosquitto-config
+          mountPath: /mosquitto/config/mosquitto.conf
+          subPath: mosquitto.conf
+      volumes:
+      - name: mosquitto-persistent-storage
+        emptyDir: {}
+      - name: mosquitto-config
+        configMap:
+          name: {{ .Values.mqtt.service.name }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.mqtt.service.name }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+data:
+  mosquitto.conf: |
+    listener {{ .Values.mqtt.service.port }} 0.0.0.0
+    allow_anonymous true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.messageBroker.secretName }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+stringData:
+  config.yaml: |
+    brokerHost: {{ .Values.mqtt.host }}:{{ .Values.mqtt.service.port }}
+    username: {{ .Values.mqtt.user }}
+    password: {{ .Values.mqtt.password }}
+    topics:
+      sourceEvents: sources/maestro/consumers/+/sourceevents
+      agentEvents: {{ .Values.mqtt.agentTopic }}
+{{- end }}

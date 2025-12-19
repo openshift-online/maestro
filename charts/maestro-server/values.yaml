@@ -1,0 +1,148 @@
+# Default values for maestro-server
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+environment: production
+
+# Service Account configuration
+serviceAccount:
+  name: maestro
+
+image:
+  registry: quay.io
+  repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicas: 1
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+# Logging configuration
+logging:
+  klogV: "2"
+
+# Database configuration
+database:
+  maxOpenConnections: 50
+  sslMode: verify-full
+  debug: false
+  # Database secret name (must exist before deployment)
+  secretName: maestro-rds
+  # Expected keys in the secret:
+  # - db.host
+  # - db.port
+  # - db.user
+  # - db.password
+  # - db.name
+  # - db.ca_cert (optional, for SSL)
+
+# Message broker configuration
+messageBroker:
+  type: mqtt  # mqtt / grpc / pubsub
+  # Secret name containing broker config
+  secretName: maestro-mqtt
+  # For TLS, also expects maestro-server-certs secret
+
+# Server configuration
+server:
+  https:
+    enabled: false
+  hostname: ""
+  http:
+    bindPort: 8000
+  grpc:
+    enabled: true
+    bindPort: 8090
+  metrics:
+    bindPort: 8080
+    https:
+      enabled: false
+  healthCheck:
+    bindPort: 8083
+  httpReadTimeout: 5s
+  httpWriteTimeout: 30s
+
+# Metrics configuration
+metrics:
+  labelMetricsInclusionDuration: 168h
+
+# Service configuration
+service:
+  # Main API service
+  api:
+    type: ClusterIP
+    port: 8000
+    nodePort: 0
+  # gRPC service
+  grpc:
+    type: ClusterIP
+    port: 8090
+    nodePort: 0
+  # Metrics service
+  metrics:
+    port: 8080
+  # Health check service
+  healthcheck:
+    port: 8083
+
+# Route configuration (OpenShift)
+route:
+  enabled: true
+  host: ""  # If empty, OpenShift will auto-generate
+  tls:
+    enabled: true
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+
+# Probes configuration
+livenessProbe:
+  httpGet:
+    path: /healthcheck
+    port: 8083
+    scheme: HTTP
+  initialDelaySeconds: 25
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /healthcheck
+    port: 8083
+    scheme: HTTP
+  initialDelaySeconds: 20
+  periodSeconds: 5
+
+# PostgreSQL deployment (optional, for development)
+postgresql:
+  enabled: false
+  image: quay.io/maestro/postgres:17.2
+  database:
+    name: maestro
+    user: maestro
+    password: TheBlurstOfTimes
+    host: maestro-db
+  service:
+    name: maestro-db
+    port: 5432
+  persistence:
+    enabled: true
+    size: 512Mi
+  secretName: maestro-db
+
+# MQTT broker deployment (optional, for development)
+mqtt:
+  enabled: false
+  image: quay.io/maestro/eclipse-mosquitto:2.0.18
+  service:
+    name: maestro-mqtt
+    port: 1883
+  host: maestro-mqtt
+  user: maestro
+  password: ""
+  agentTopic: sources/maestro/consumers/+/agentevents

@@ -1,0 +1,146 @@
+{{- if .Values.postgresql.enabled -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.postgresql.service.name }}
+  annotations:
+    template.openshift.io/expose-uri: postgres://{.spec.clusterIP}:{.spec.ports[?(.name==\postgresql\)].port}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+spec:
+  ports:
+    - name: postgresql
+      port: {{ .Values.postgresql.service.port }}
+      protocol: TCP
+      targetPort: {{ .Values.postgresql.service.port }}
+  selector:
+    name: {{ .Values.postgresql.service.name }}
+  type: ClusterIP
+---
+{{- if .Values.postgresql.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.postgresql.service.name }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.postgresql.persistence.size }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.postgresql.service.name }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+  annotations:
+    template.alpha.openshift.io/wait-for-ready: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      name: {{ .Values.postgresql.service.name }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        name: {{ .Values.postgresql.service.name }}
+    spec:
+      containers:
+        - name: postgresql
+          image: {{ .Values.postgresql.image }}
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  key: database-user
+                  name: {{ .Values.postgresql.service.name }}-creds
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  key: database-password
+                  name: {{ .Values.postgresql.service.name }}-creds
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  key: database-name
+                  name: {{ .Values.postgresql.service.name }}-creds
+            - name: PGDATA
+              value: /var/lib/pgsql/data/pgdata
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.postgresql.service.port }}
+            initialDelaySeconds: 120
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - exec /usr/bin/pg_isready -U $POSTGRES_USER -d $POSTGRES_DB -h localhost -p {{ .Values.postgresql.service.port }}
+            initialDelaySeconds: 5
+            timeoutSeconds: 1
+          ports:
+            - containerPort: {{ .Values.postgresql.service.port }}
+              protocol: TCP
+          {{- if .Values.postgresql.persistence.enabled }}
+          volumeMounts:
+            - mountPath: /var/lib/pgsql/data
+              name: {{ .Values.postgresql.service.name }}-data
+          {{- end }}
+      {{- if .Values.postgresql.persistence.enabled }}
+      volumes:
+        - name: {{ .Values.postgresql.service.name }}-data
+          persistentVolumeClaim:
+            claimName: {{ .Values.postgresql.service.name }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.postgresql.service.name }}-creds
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+  annotations:
+    template.openshift.io/expose-database_name: "{.data['database-name']}"
+    template.openshift.io/expose-password: "{.data['database-password']}"
+    template.openshift.io/expose-username: "{.data['database-user']}"
+stringData:
+  database-name: {{ .Values.postgresql.database.name }}
+  database-password: {{ .Values.postgresql.database.password }}
+  database-user: {{ .Values.postgresql.database.user }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.postgresql.secretName }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+stringData:
+  db.host: {{ .Values.postgresql.service.name }}
+  db.port: {{ .Values.postgresql.service.port | quote }}
+  db.name: {{ .Values.postgresql.database.name }}
+  db.user: {{ .Values.postgresql.database.user }}
+  db.password: {{ .Values.postgresql.database.password }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.database.secretName }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+stringData:
+  db.host: {{ .Values.postgresql.database.host }}
+  db.port: {{ .Values.postgresql.service.port | quote }}
+  db.name: {{ .Values.postgresql.database.name }}
+  db.user: {{ .Values.postgresql.database.user }}
+  db.password: {{ .Values.postgresql.database.password }}
+{{- end }}

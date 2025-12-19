@@ -1,0 +1,47 @@
+# Default values for maestro-agent
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+environment: production
+
+# Consumer name - identifies the agent/cluster
+consumerName: cluster1
+
+# Service Account configuration
+serviceAccount:
+  name: maestro-agent-sa
+
+image:
+  registry: quay.io
+  repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Logging configuration
+logging:
+  klogV: "2"
+
+# Message broker configuration
+messageBroker:
+  type: mqtt  # mqtt / grpc / pubsub
+
+  # MQTT configuration
+  mqtt:
+    host: ""
+    port: "1883"
+    user: ""
+    password: ""
+    rootCert: ""
+    clientCert: ""
+    clientKey: ""
+    # Topics will be auto-generated based on consumerName
+
+  # gRPC configuration
+  grpc:
+    url: maestro-grpc-broker.maestro:8091
+
+  # PubSub configuration
+  pubsub:
+    projectID: ""
+    credentialsJSON: ""
+    # Topics will be auto-generated based on consumerName

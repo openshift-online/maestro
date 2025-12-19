@@ -161,8 +161,7 @@ if [ "$msg_broker" = "mqtt" ]; then
   export mqtt_root_cert="/secrets/mqtt-certs/ca.crt"
   export mqtt_client_cert="/secrets/mqtt-certs/client.crt"
   export mqtt_client_key="/secrets/mqtt-certs/client.key"
-  make deploy-mqtt-tls
-  kubectl -n ${namespace} wait deploy/maestro-mqtt --for condition=Available=True --timeout=300s
+  # MQTT broker will be deployed by Helm chart in deploy_server.sh
 fi
 
 if [ "$msg_broker" = "grpc" ]; then
@@ -190,6 +189,4 @@ EOF
   fi
 fi
 
-# Deploy the database (PostgreSQL) required by the Maestro server
-make deploy-db-tls
-kubectl -n ${namespace} wait deploy/maestro-db --for condition=Available=True --timeout=300s
+# Database (PostgreSQL) will be deployed by Helm chart in deploy_server.sh

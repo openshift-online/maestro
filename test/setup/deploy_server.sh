@@ -15,65 +15,190 @@
 # limitations under the License.
 
 tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
+msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
+server_replicas=${SERVER_REPLICAS:-"1"}
+enable_broadcast=${ENABLE_BROADCAST_SUBSCRIPTION:-"false"}
 
 export image_tag=${image_tag:-"latest"}
 export external_image_registry=${external_image_registry:-"image-registry.testing"}
 export internal_image_registry=${internal_image_registry:-"image-registry.testing"}
 
 export namespace="maestro"
-export agent_namespace="maestro-agent"
-
 export KUBECONFIG=${PWD}/test/_output/.kubeconfig
 
-# Deploy maestro into maestro namespace
-export ENABLE_JWT=false
-export ENABLE_OCM_MOCK=true
-export maestro_svc_type="NodePort"
-export maestro_svc_node_port=30080
-export grpc_svc_type="NodePort"
-export grpc_svc_node_port=30090
-export liveness_probe_init_delay_seconds=1
-export readiness_probe_init_delay_seconds=1
-if [ -n "${ENABLE_BROADCAST_SUBSCRIPTION}" ] && [ "${ENABLE_BROADCAST_SUBSCRIPTION}" = "true" ]; then
-  export subscription_type="broadcast"
-  export agent_topic="sources/maestro/consumers/+/agentevents"
+# Build Helm values for maestro-server
+values_file="${PWD}/test/_output/maestro-server-values.yaml"
+
+cat > "$values_file" <<EOF
+environment: development
+
+serviceAccount:
+  name: maestro
+
+image:
+  registry: ${external_image_registry}
+  repository: maestro/maestro
+  tag: ${image_tag}
+  pullPolicy: IfNotPresent
+
+replicas: ${server_replicas}
+
+# Database configuration - use embedded PostgreSQL for testing
+database:
+  maxOpenConnections: 50
+  sslMode: disable
+  debug: true
+  secretName: maestro-rds
+
+# Message broker configuration
+messageBroker:
+  type: ${msg_broker}
+  secretName: maestro-${msg_broker}
+
+# Server configuration
+server:
+  https:
+    enabled: ${tls_enable}
+  hostname: ""
+  http:
+    bindPort: 8000
+  grpc:
+    enabled: true
+    bindPort: 8090
+  metrics:
+    bindPort: 8080
+    https:
+      enabled: false
+  healthCheck:
+    bindPort: 8083
+  httpReadTimeout: 5s
+  httpWriteTimeout: 30s
+
+# Service configuration - NodePort for e2e testing
+service:
+  api:
+    type: NodePort
+    port: 8000
+    nodePort: 30080
+  grpc:
+    type: NodePort
+    port: 8090
+    nodePort: 30090
+  metrics:
+    port: 8080
+  healthcheck:
+    port: 8083
+
+# Disable route for KinD testing
+route:
+  enabled: false
+
+# Probes configuration - shorter delays for testing
+livenessProbe:
+  httpGet:
+    path: /healthcheck
+    port: 8083
+    scheme: HTTP
+  initialDelaySeconds: 1
+  periodSeconds: 10
+
+readinessProbe:
+  httpGet:
+    path: /healthcheck
+    port: 8083
+    scheme: HTTP
+  initialDelaySeconds: 1
+  periodSeconds: 5
+
+# Use embedded PostgreSQL for testing
+postgresql:
+  enabled: true
+  image: quay.io/maestro/postgres:17.2
+  database:
+    name: maestro
+    user: maestro
+    password: maestro
+    host: maestro-db
+  service:
+    name: maestro-db
+    port: 5432
+  persistence:
+    enabled: true
+    size: 512Mi
+  secretName: maestro-rds
+
+# Use embedded MQTT broker for testing (if MQTT mode)
+mqtt:
+  enabled: $( [ "$msg_broker" = "mqtt" ] && echo "true" || echo "false" )
+  image: quay.io/maestro/eclipse-mosquitto:2.0.18
+  service:
+    name: maestro-mqtt
+    port: 1883
+  host: maestro-mqtt
+  user: ""
+  password: ""
+EOF
+
+# Add broadcast subscription config if enabled
+if [ "$enable_broadcast" = "true" ]; then
+  cat >> "$values_file" <<EOF
+  agentTopic: sources/maestro/consumers/+/agentevents
+EOF
 fi
 
-rest_api_schema="http"
-if [ "$tls_enable" = "true" ]; then
-  rest_api_schema="https"
-  # deploy openshift service-ca to generate certs for internal services (metrics/health)
-  kubectl label node maestro-control-plane node-role.kubernetes.io/master= --overwrite
-  kubectl apply -f "${PWD}/test/setup/service-ca-crds"
-  # kubectl create namespace openshift-config-managed || true
-  kubectl apply -f "${PWD}/test/setup/service-ca"
-  sleep 10 # wait for openshift service-ca-operator is created
-  kubectl wait deploy/service-ca-operator -n openshift-service-ca-operator --for condition=Available=True --timeout=300s
-  sleep 10 # wait for openshift service-ca is created
-  kubectl wait deploy/service-ca -n openshift-service-ca --for condition=Available=True --timeout=300s
-  # prepare gRPC service certs if they are not found
-  grpc_cert_dir="${PWD}/test/_output/certs/grpc"
-  if [ ! -d "$grpc_cert_dir" ]; then
-    # create certs
-    mkdir -p "$grpc_cert_dir"
-    step certificate create "maestro-grpc-ca" ${grpc_cert_dir}/ca.crt ${grpc_cert_dir}/ca.key --kty RSA --profile root-ca --no-password --insecure
-    step certificate create "maestro-grpc-server" ${grpc_cert_dir}/server.crt ${grpc_cert_dir}/server.key --kty RSA -san maestro-grpc -san maestro-grpc.maestro -san localhost -san 127.0.0.1 --profile leaf --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
-    cat << EOF > ${grpc_cert_dir}/cert.tpl
-{
-    "subject":{"organization":"open-cluster-management","commonName":"grpc-client"},
-    "keyUsage":["digitalSignature"],
-    "extKeyUsage": ["serverAuth","clientAuth"]
-}
-EOF
-    step certificate create "maestro-grpc-client" ${grpc_cert_dir}/client.crt ${grpc_cert_dir}/client.key --kty RSA --template ${grpc_cert_dir}/cert.tpl --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
-    # create secrets
-    kubectl delete secret maestro-grpc-cert -n "$namespace" --ignore-not-found
-    kubectl create secret generic maestro-grpc-cert -n "$namespace" --from-file=ca.crt=${grpc_cert_dir}/ca.crt --from-file=server.crt=${grpc_cert_dir}/server.crt --from-file=server.key=${grpc_cert_dir}/server.key --from-file=client.crt=${grpc_cert_dir}/client.crt --from-file=client.key=${grpc_cert_dir}/client.key
+# Create database secret (override embedded PostgreSQL secret)
+kubectl delete secret maestro-rds -n "${namespace}" --ignore-not-found
+kubectl create secret generic maestro-rds -n "${namespace}" \
+  --from-literal=db.host=maestro-db \
+  --from-literal=db.port=5432 \
+  --from-literal=db.user=maestro \
+  --from-literal=db.password=maestro \
+  --from-literal=db.name=maestro
+
+# Create MQTT secret if using MQTT broker
+if [ "$msg_broker" = "mqtt" ]; then
+  # MQTT config with or without TLS
+  if [ "$tls_enable" = "true" ]; then
+    mqtt_config=$(cat <<MQTT_EOF
+brokerHost: maestro-mqtt:1883
+caFile: /secrets/mqtt-certs/ca.crt
+clientCertFile: /secrets/mqtt-certs/client.crt
+clientKeyFile: /secrets/mqtt-certs/client.key
+topics:
+  sourceEvents: sources/maestro/consumers/+/sourceevents
+  agentEvents: $( [ "$enable_broadcast" = "true" ] && echo "sources/maestro/consumers/+/agentevents" || echo "sources/maestro/consumers/+/agentevents" )
+MQTT_EOF
+)
+  else
+    mqtt_config=$(cat <<MQTT_EOF
+brokerHost: maestro-mqtt:1883
+topics:
+  sourceEvents: sources/maestro/consumers/+/sourceevents
+  agentEvents: sources/maestro/consumers/+/agentevents
+MQTT_EOF
+)
   fi
-  make deploy-service-tls
-else
-  make deploy-service
+
+  kubectl delete secret maestro-mqtt -n "${namespace}" --ignore-not-found
+  kubectl create secret generic maestro-mqtt -n "${namespace}" \
+    --from-literal=config.yaml="$mqtt_config"
 fi
+
+# Create gRPC secret if using gRPC broker
+if [ "$msg_broker" = "grpc" ]; then
+  grpc_config="url: maestro-grpc-broker.maestro:8091"
+  kubectl delete secret maestro-grpc -n "${namespace}" --ignore-not-found
+  kubectl create secret generic maestro-grpc -n "${namespace}" \
+    --from-literal=config.yaml="$grpc_config"
+fi
+
+# Deploy using Helm
+helm upgrade --install maestro-server \
+  ./charts/maestro-server \
+  --namespace "${namespace}" \
+  --values "$values_file" \
+  --wait \
+  --timeout 5m
 
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=300s
 
@@ -81,5 +206,6 @@ kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeo
 sleep 30 # wait 30 seconds for the service ready
 
 # Expose the RESTAPI and gRPC service hosts
+rest_api_schema=$( [ "$tls_enable" = "true" ] && echo "https" || echo "http" )
 echo "${rest_api_schema}://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
 echo "127.0.0.1:30090" > ${PWD}/test/_output/.external_grpc_endpoint
