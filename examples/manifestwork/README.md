@@ -66,9 +66,9 @@ if err != nil {
 
 1. Run `make test-env` to prepare the environment
 
-2. Run the client-a `go run examples/manifestworkclient/client-a/main.go --consumer-name=$(cat test/e2e/.consumer_name)` to watch the status of works in a terminal
+2. Run the client-a `go run examples/manifestwork/client-a/main.go --consumer-name=$(cat test/e2e/.consumer_name)` to watch the status of works in a terminal
 
-3. Run the client-b `go run examples/manifestworkclient/client-b/main.go --consumer-name=$(cat test/e2e/.consumer_name)` to create/get/update/delete work in other new terminal
+3. Run the client-b `go run examples/manifestwork/client-b/main.go --consumer-name=$(cat test/e2e/.consumer_name)` to create/get/update/delete work in another new terminal
 
 The output of the client-b
 

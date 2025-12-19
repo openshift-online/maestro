@@ -1,0 +1,80 @@
+{
+    "apiVersion": "work.open-cluster-management.io/v1",
+    "kind": "ManifestWork",
+    "metadata": {
+        "name": "e44ec579-9646-549a-b679-db8d19d6da37",
+        "resourceVersion": "0",
+        "labels": {
+            "maestro.resource.type": "2d18a7dc-c731-5753-8aa9-6b2f22e3b12b"
+        }
+    },
+    "spec": {
+        "workload": {
+            "manifests": [
+                {
+                    "kind": "Deployment",
+                    "apiVersion": "apps/v1",
+                    "metadata": {
+                        "name": "maestro-e2e-upgrade-test",
+                        "namespace": "default"
+                    },
+                    "spec": {
+                        "replicas": 0,
+                        "selector": {
+                            "matchLabels": {
+                                "app": "nginx"
+                            }
+                        },
+                        "template": {
+                            "metadata": {
+                                "labels": {
+                                    "app": "nginx"
+                                }
+                            },
+                            "spec": {
+                                "containers": [
+                                    {
+                                        "name": "nginx",
+                                        "image": "quay.io/nginx/nginx-unprivileged:latest",
+                                        "resources": {},
+                                        "imagePullPolicy": "IfNotPresent"
+                                    }
+                                ]
+                            }
+                        },
+                        "strategy": {}
+                    },
+                    "status": {}
+                }
+            ]
+        },
+        "manifestConfigs": [
+            {
+                "resourceIdentifier": {
+                    "group": "apps",
+                    "resource": "deployments",
+                    "name": "maestro-e2e-upgrade-test",
+                    "namespace": "default"
+                },
+                "feedbackRules": [
+                    {
+                        "type": "JSONPaths",
+                        "jsonPaths": [
+                            {
+                                "name": "status",
+                                "path": ".status"
+                            }
+                        ]
+                    }
+                ],
+                "updateStrategy": {
+                    "type": "ServerSideApply",
+                    "serverSideApply": {
+                        "force": true,
+                        "fieldManager": "maestro-agent"
+                    }
+                }
+            }
+        ]
+    }
+}

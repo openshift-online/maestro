@@ -153,7 +153,7 @@ $ curl http://localhost:8000/api/maestro/v1/consumers
 
 #### Create a resource bundle
 
-You can create a resource bundle with manifestwork client based on grpc, check the [document](./examples/manifestworkclient/client/README.md) for more details.
+You can create a resource bundle with the `MaestroGRPCSourceWorkClient`, check the [document](./examples/manifestwork/client/README.md) for more details.
 
 #### List the resource bundle
 
@@ -334,7 +334,7 @@ NAME                             READY   STATUS    RESTARTS   AGE
 maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
 ```
 
-Now you can create a resource bundle with manifestwork client based on grpc, check the [document](./examples/manifestworkclient/client/README.md) for more details.
+Now you can create a resource bundle with the `MaestroGRPCSourceWorkClient`, check the [document](./examples/manifestwork/client/README.md) for more details.
 
 ## Run in KinD Cluster
 

@@ -1,0 +1,150 @@
+{
+    "specversion": "1.0",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.status.update_request",
+    "source": "7ff1a8f4-8811-49b4-8c19-9271bc51975e-work-agent",
+    "id": "8a3993ab-1193-4d40-bc8c-6bc1fc098089",
+    "time": "2025-12-16T06:00:17.923752996Z",
+    "datacontenttype": "application/json",
+    "data": {
+        "manifestBundle": {
+            "manifests": [
+                {
+                    "apiVersion": "apps/v1",
+                    "kind": "Deployment",
+                    "metadata": {
+                        "name": "maestro-e2e-upgrade-test",
+                        "namespace": "default"
+                    },
+                    "spec": {
+                        "replicas": 0,
+                        "selector": {
+                            "matchLabels": {
+                                "app": "nginx"
+                            }
+                        },
+                        "strategy": {},
+                        "template": {
+                            "metadata": {
+                                "labels": {
+                                    "app": "nginx"
+                                }
+                            },
+                            "spec": {
+                                "containers": [
+                                    {
+                                        "image": "quay.io/nginx/nginx-unprivileged:latest",
+                                        "imagePullPolicy": "IfNotPresent",
+                                        "name": "nginx",
+                                        "resources": {}
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                    "status": {}
+                }
+            ],
+            "manifestConfigs": [
+                {
+                    "resourceIdentifier": {
+                        "group": "apps",
+                        "resource": "deployments",
+                        "name": "maestro-e2e-upgrade-test",
+                        "namespace": "default"
+                    },
+                    "feedbackRules": [
+                        {
+                            "type": "JSONPaths",
+                            "jsonPaths": [
+                                {
+                                    "name": "status",
+                                    "path": ".status"
+                                }
+                            ]
+                        }
+                    ],
+                    "updateStrategy": {
+                        "type": "ServerSideApply",
+                        "serverSideApply": {
+                            "force": true,
+                            "fieldManager": "maestro-agent"
+                        }
+                    }
+                }
+            ]
+        },
+        "conditions": [
+            {
+                "type": "Applied",
+                "status": "True",
+                "observedGeneration": 1,
+                "lastTransitionTime": "2025-12-16T06:00:17Z",
+                "reason": "AppliedManifestWorkComplete",
+                "message": "Apply manifest work complete"
+            },
+            {
+                "type": "Available",
+                "status": "True",
+                "observedGeneration": 1,
+                "lastTransitionTime": "2025-12-16T06:00:17Z",
+                "reason": "ResourcesAvailable",
+                "message": "All resources are available"
+            }
+        ],
+        "resourceStatus": [
+            {
+                "resourceMeta": {
+                    "ordinal": 0,
+                    "group": "apps",
+                    "version": "v1",
+                    "kind": "Deployment",
+                    "resource": "deployments",
+                    "name": "maestro-e2e-upgrade-test",
+                    "namespace": "default"
+                },
+                "statusFeedback": {
+                    "values": [
+                        {
+                            "name": "status",
+                            "fieldValue": {
+                                "type": "JsonRaw",
+                                "jsonRaw": "{\"conditions\":[{\"lastTransitionTime\":\"2025-12-16T06:00:17Z\",\"lastUpdateTime\":\"2025-12-16T06:00:17Z\",\"message\":\"Found new replica set \\\"maestro-e2e-upgrade-test-68bd67c4c7\\\"\",\"reason\":\"FoundNewReplicaSet\",\"status\":\"True\",\"type\":\"Progressing\"}]}"
+                            }
+                        }
+                    ]
+                },
+                "conditions": [
+                    {
+                        "type": "Applied",
+                        "status": "True",
+                        "lastTransitionTime": "2025-12-16T06:00:17Z",
+                        "reason": "AppliedManifestComplete",
+                        "message": "Apply manifest complete"
+                    },
+                    {
+                        "type": "Available",
+                        "status": "True",
+                        "lastTransitionTime": "2025-12-16T06:00:17Z",
+                        "reason": "ResourceAvailable",
+                        "message": "Resource is available"
+                    },
+                    {
+                        "type": "StatusFeedbackSynced",
+                        "status": "True",
+                        "lastTransitionTime": "2025-12-16T06:00:17Z",
+                        "reason": "StatusFeedbackSynced",
+                        "message": ""
+                    }
+                ]
+            }
+        ]
+    },
+    "clustername": "7ff1a8f4-8811-49b4-8c19-9271bc51975e",
+    "logtracing": "{}",
+    "metadata": "{\"creationTimestamp\":\"2025-12-16T06:00:17Z\",\"labels\":{\"maestro.resource.type\":\"2d18a7dc-c731-5753-8aa9-6b2f22e3b12b\"},\"name\":\"e44ec579-9646-549a-b679-db8d19d6da37\",\"namespace\":\"7ff1a8f4-8811-49b4-8c19-9271bc51975e\",\"resourceVersion\":\"0\",\"uid\":\"55c61e54-a3f6-563d-9fec-b1fe297bdfdb\"}",
+    "originalsource": "maestro",
+    "resourceid": "55c61e54-a3f6-563d-9fec-b1fe297bdfdb",
+    "resourceversion": 1,
+    "sequenceid": "2000808179729960960",
+    "statushash": "e3b23766bcdd155db51bf1d715bdf5224a06bdf597461b4f80bce8ba220121de"
+}

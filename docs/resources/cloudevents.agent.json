@@ -1,0 +1,51 @@
+{
+    "specversion": "1.0",
+    "id": "8f39de7f-f5c7-4f3f-a48e-e00b5d35a513",
+    "source": "7ff1a8f4-8811-49b4-8c19-9271bc51975e-work-agent",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.status.update_request",
+    "datacontenttype": "application/json",
+    "time": "2025-12-16T06:00:17.921082037Z",
+    "data": {
+        "conditions": [
+            {
+                "type": "Applied",
+                "status": "True",
+                "observedGeneration": 1,
+                "lastTransitionTime": "2025-12-16T06:00:17Z",
+                "reason": "AppliedManifestWorkComplete",
+                "message": "Apply manifest work complete"
+            }
+        ],
+        "resourceStatus": [
+            {
+                "resourceMeta": {
+                    "ordinal": 0,
+                    "group": "apps",
+                    "version": "v1",
+                    "kind": "Deployment",
+                    "resource": "deployments",
+                    "name": "maestro-e2e-upgrade-test",
+                    "namespace": "default"
+                },
+                "statusFeedback": {},
+                "conditions": [
+                    {
+                        "type": "Applied",
+                        "status": "True",
+                        "lastTransitionTime": "2025-12-16T06:00:17Z",
+                        "reason": "AppliedManifestComplete",
+                        "message": "Apply manifest complete"
+                    }
+                ]
+            }
+        ]
+    },
+    "clustername": "7ff1a8f4-8811-49b4-8c19-9271bc51975e",
+    "logtracing": "{}",
+    "metadata": "{\"name\":\"e44ec579-9646-549a-b679-db8d19d6da37\",\"namespace\":\"7ff1a8f4-8811-49b4-8c19-9271bc51975e\",\"uid\":\"55c61e54-a3f6-563d-9fec-b1fe297bdfdb\",\"generation\":1,\"creationTimestamp\":\"2025-12-16T06:00:17Z\",\"labels\":{\"cloudevents.open-cluster-management.io/originalsource\":\"maestro\",\"maestro.resource.type\":\"2d18a7dc-c731-5753-8aa9-6b2f22e3b12b\"},\"annotations\":{\"cloudevents.open-cluster-management.io/datatype\":\"io.open-cluster-management.works.v1alpha1.manifestbundles\"},\"finalizers\":[\"cluster.open-cluster-management.io/manifest-work-cleanup\"]}",
+    "originalsource": "maestro",
+    "resourceid": "55c61e54-a3f6-563d-9fec-b1fe297bdfdb",
+    "resourceversion": 1,
+    "sequenceid": "2000808179721572352",
+    "statushash": "6170884280acbd9d5e69ac59a00ef7cf84d50669621643782e7a3f1ab05836cf"
+}

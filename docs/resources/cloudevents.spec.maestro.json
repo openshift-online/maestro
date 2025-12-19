@@ -1,0 +1,81 @@
+{
+    "specversion": "1.0",
+    "id": "b1a179c5-537e-4f3f-9c0c-6fbb27eb66f9",
+    "source": "maestro",
+    "type": "io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request",
+    "datacontenttype": "application/json",
+    "time": "2025-12-16T06:00:17.771003Z",
+    "data": {
+        "manifestConfigs": [
+            {
+                "feedbackRules": [
+                    {
+                        "jsonPaths": [
+                            {
+                                "name": "status",
+                                "path": ".status"
+                            }
+                        ],
+                        "type": "JSONPaths"
+                    }
+                ],
+                "resourceIdentifier": {
+                    "group": "apps",
+                    "name": "maestro-e2e-upgrade-test",
+                    "namespace": "default",
+                    "resource": "deployments"
+                },
+                "updateStrategy": {
+                    "serverSideApply": {
+                        "fieldManager": "maestro-agent",
+                        "force": true
+                    },
+                    "type": "ServerSideApply"
+                }
+            }
+        ],
+        "manifests": [
+            {
+                "apiVersion": "apps/v1",
+                "kind": "Deployment",
+                "metadata": {
+                    "name": "maestro-e2e-upgrade-test",
+                    "namespace": "default"
+                },
+                "spec": {
+                    "replicas": 0,
+                    "selector": {
+                        "matchLabels": {
+                            "app": "nginx"
+                        }
+                    },
+                    "strategy": {},
+                    "template": {
+                        "metadata": {
+                            "labels": {
+                                "app": "nginx"
+                            }
+                        },
+                        "spec": {
+                            "containers": [
+                                {
+                                    "image": "quay.io/nginx/nginx-unprivileged:latest",
+                                    "imagePullPolicy": "IfNotPresent",
+                                    "name": "nginx",
+                                    "resources": {}
+                                }
+                            ]
+                        }
+                    }
+                },
+                "status": {}
+            }
+        ]
+    },
+    "clustername": "7ff1a8f4-8811-49b4-8c19-9271bc51975e",
+    "logtracing": "{}",
+    "metadata": "{\"creationTimestamp\":\"2025-12-16T06:00:17Z\",\"labels\":{\"maestro.resource.type\":\"2d18a7dc-c731-5753-8aa9-6b2f22e3b12b\"},\"name\":\"e44ec579-9646-549a-b679-db8d19d6da37\",\"namespace\":\"7ff1a8f4-8811-49b4-8c19-9271bc51975e\",\"resourceVersion\":\"0\",\"uid\":\"55c61e54-a3f6-563d-9fec-b1fe297bdfdb\"}",
+    "originalsource": "",
+    "resourceid": "55c61e54-a3f6-563d-9fec-b1fe297bdfdb",
+    "resourceversion": 1
+}
