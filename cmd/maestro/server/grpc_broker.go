@@ -60,7 +60,7 @@ func (s *GRPCBrokerService) Get(ctx context.Context, resourceID string) (*ce.Eve
 
 // List the cloudEvent from the service
 func (s *GRPCBrokerService) List(listOpts types.ListOptions) ([]*ce.Event, error) {
-	resources, err := s.resourceService.List(listOpts)
+	resources, err := s.resourceService.List(context.Background(), listOpts)
 	if err != nil {
 		return nil, err
 	}

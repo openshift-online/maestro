@@ -50,7 +50,6 @@ func NewMaestroGRPCSourceWorkClient(
 				return
 			case <-cloudEventsClient.ReconnectedChan():
 				// reconnect happened, sync the works for current watchers
-				logger.Info(ctx, "client (source=%s) is reconnected, sync the works for current watchers", sourceID)
 				if err := watcherStore.Sync(); err != nil {
 					logger.Error(ctx, "failed to sync the works %v", err)
 				}

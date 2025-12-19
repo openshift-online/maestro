@@ -86,20 +86,20 @@ func TestResourceList(t *testing.T) {
 		gm.Expect(err).To(gm.BeNil())
 	}
 
-	resources, err := resourceService.List(types.ListOptions{
+	resources, err := resourceService.List(context.Background(), types.ListOptions{
 		ClusterName:         Fukuisaurus,
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 	})
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(resources)).To(gm.Equal(2))
 
-	resources, err = resourceService.List(types.ListOptions{
+	resources, err = resourceService.List(context.Background(), types.ListOptions{
 		ClusterName: Seismosaurus,
 	})
 	gm.Expect(err).To(gm.BeNil())
 	gm.Expect(len(resources)).To(gm.Equal(1))
 
-	resources, err = resourceService.List(types.ListOptions{
+	resources, err = resourceService.List(context.Background(), types.ListOptions{
 		ClusterName:         Seismosaurus,
 		CloudEventsDataType: payload.ManifestBundleEventDataType,
 	})
