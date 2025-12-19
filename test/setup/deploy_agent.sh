@@ -14,6 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
+msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
+
 export image_tag=${image_tag:-"latest"}
 export external_image_registry=${external_image_registry:-"image-registry.testing"}
 export internal_image_registry=${internal_image_registry:-"image-registry.testing"}
@@ -40,17 +43,99 @@ if [ ! -f "${PWD}/test/_output/.consumer_name" ]; then
   echo "$consumer_name" > ${PWD}/test/_output/.consumer_name
 fi
 consumer_name=$(cat ${PWD}/test/_output/.consumer_name)
-export consumer_name
-export mqtt_user=""
-export mqtt_password_file="/dev/null"
-export mqtt_root_cert="/secrets/mqtt-certs/ca.crt"
-export mqtt_client_cert="/secrets/mqtt-certs/client.crt"
-export mqtt_client_key="/secrets/mqtt-certs/client.key"
-# crank the client certificate refresh interval for cert rotation test
-export broker_client_cert_refresh_duration=5s
 
-# Deploy maestro agent into maestro-agent namespace
-make agent-tls-template
-kubectl apply -n ${agent_namespace} --filename="templates/agent-tls-template.json" | egrep --color=auto 'configured|$$'
+# Build Helm values for maestro-agent
+values_file="${PWD}/test/_output/maestro-agent-values.yaml"
+
+cat > "$values_file" <<EOF
+environment: development
+
+consumerName: ${consumer_name}
+
+serviceAccount:
+  name: maestro-agent-sa
+
+image:
+  registry: ${external_image_registry}
+  repository: maestro/maestro
+  tag: ${image_tag}
+  pullPolicy: IfNotPresent
+
+# Logging configuration
+logging:
+  klogV: "10"
+
+# Message broker configuration
+messageBroker:
+  type: ${msg_broker}
+EOF
+
+# Configure MQTT settings
+if [ "$msg_broker" = "mqtt" ]; then
+  cat >> "$values_file" <<EOF
+  mqtt:
+    host: maestro-mqtt.${namespace}
+    port: "1883"
+    user: ""
+    password: ""
+EOF
+
+  # Add TLS configuration if enabled
+  if [ "$tls_enable" = "true" ]; then
+    cat >> "$values_file" <<EOF
+    rootCert: /secrets/mqtt-certs/ca.crt
+    clientCert: /secrets/mqtt-certs/client.crt
+    clientKey: /secrets/mqtt-certs/client.key
+EOF
+  fi
+
+  # Create MQTT secret
+  if [ "$tls_enable" = "true" ]; then
+    mqtt_config=$(cat <<MQTT_EOF
+brokerHost: maestro-mqtt.${namespace}:1883
+caFile: /secrets/mqtt-certs/ca.crt
+clientCertFile: /secrets/mqtt-certs/client.crt
+clientKeyFile: /secrets/mqtt-certs/client.key
+topics:
+  sourceEvents: sources/maestro/consumers/${consumer_name}/sourceevents
+  agentEvents: sources/maestro/consumers/${consumer_name}/agentevents
+MQTT_EOF
+)
+  else
+    mqtt_config=$(cat <<MQTT_EOF
+brokerHost: maestro-mqtt.${namespace}:1883
+topics:
+  sourceEvents: sources/maestro/consumers/${consumer_name}/sourceevents
+  agentEvents: sources/maestro/consumers/${consumer_name}/agentevents
+MQTT_EOF
+)
+  fi
+
+  kubectl delete secret maestro-agent-mqtt -n "${agent_namespace}" --ignore-not-found
+  kubectl create secret generic maestro-agent-mqtt -n "${agent_namespace}" \
+    --from-literal=config.yaml="$mqtt_config"
+fi
+
+# Configure gRPC settings
+if [ "$msg_broker" = "grpc" ]; then
+  cat >> "$values_file" <<EOF
+  grpc:
+    url: maestro-grpc-broker.${namespace}:8091
+EOF
+
+  # Create gRPC secret
+  grpc_config="url: maestro-grpc-broker.${namespace}:8091"
+  kubectl delete secret maestro-agent-grpc -n "${agent_namespace}" --ignore-not-found
+  kubectl create secret generic maestro-agent-grpc -n "${agent_namespace}" \
+    --from-literal=config.yaml="$grpc_config"
+fi
+
+# Deploy using Helm
+helm upgrade --install maestro-agent \
+  ./charts/maestro-agent \
+  --namespace "${agent_namespace}" \
+  --values "$values_file" \
+  --wait \
+  --timeout 5m
 
 kubectl wait deploy/maestro-agent -n ${agent_namespace} --for condition=Available=True --timeout=200s

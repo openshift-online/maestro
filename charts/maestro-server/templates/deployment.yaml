@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maestro
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "maestro-server.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicas }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "maestro-server.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "maestro-server.serviceAccountName" . }}
+      volumes:
+      - name: logging-config
+        configMap:
+          name: maestro-logging-config
+          optional: true
+      - name: service
+        secret:
+          secretName: maestro
+          optional: true
+      - name: rds
+        secret:
+          secretName: {{ .Values.database.secretName }}
+      - name: {{ .Values.messageBroker.type }}
+        secret:
+          secretName: {{ .Values.messageBroker.secretName }}
+      - name: mqtt-certs
+        secret:
+          secretName: maestro-server-certs
+          optional: true
+      initContainers:
+      - name: migration
+        image: {{ include "maestro-server.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        volumeMounts:
+        - name: rds
+          mountPath: /secrets/rds
+        command:
+        - /usr/local/bin/maestro
+        - migration
+        - --db-host-file=/secrets/rds/db.host
+        - --db-port-file=/secrets/rds/db.port
+        - --db-user-file=/secrets/rds/db.user
+        - --db-password-file=/secrets/rds/db.password
+        - --db-name-file=/secrets/rds/db.name
+        {{- if eq .Values.database.sslMode "verify-full" }}
+        - --db-rootcert=/secrets/rds/db.ca_cert
+        {{- end }}
+        - --db-sslmode={{ .Values.database.sslMode }}
+        - --alsologtostderr
+        - -v={{ .Values.logging.klogV }}
+      containers:
+      - name: service
+        image: {{ include "maestro-server.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        volumeMounts:
+        - name: logging-config
+          mountPath: /configs/logging
+        - name: rds
+          mountPath: /secrets/rds
+        - name: {{ .Values.messageBroker.type }}
+          mountPath: /secrets/{{ .Values.messageBroker.type }}
+        - name: mqtt-certs
+          mountPath: /secrets/mqtt-certs
+        env:
+          - name: "MAESTRO_ENV"
+            value: {{ .Values.environment | quote }}
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        command:
+        - /usr/local/bin/maestro
+        - server
+        - --client-id=maestro-$(POD_NAME)
+        - --db-host-file=/secrets/rds/db.host
+        - --db-port-file=/secrets/rds/db.port
+        - --db-user-file=/secrets/rds/db.user
+        - --db-password-file=/secrets/rds/db.password
+        - --db-name-file=/secrets/rds/db.name
+        {{- if eq .Values.database.sslMode "verify-full" }}
+        - --db-rootcert=/secrets/rds/db.ca_cert
+        {{- end }}
+        - --db-sslmode={{ .Values.database.sslMode }}
+        - --message-broker-type={{ .Values.messageBroker.type }}
+        - --message-broker-config-file=/secrets/{{ .Values.messageBroker.type }}/config.yaml
+        - --enable-grpc-server={{ .Values.server.grpc.enabled }}
+        - --enable-https={{ .Values.server.https.enabled }}
+        - --server-hostname={{ .Values.server.hostname }}
+        - --http-server-bindport={{ .Values.server.http.bindPort }}
+        - --grpc-server-bindport={{ .Values.server.grpc.bindPort }}
+        - --health-check-server-bindport={{ .Values.server.healthCheck.bindPort }}
+        - --enable-health-check-https={{ .Values.server.https.enabled }}
+        - --db-max-open-connections={{ .Values.database.maxOpenConnections }}
+        - --enable-db-debug={{ .Values.database.debug }}
+        - --enable-metrics-https={{ .Values.server.metrics.https.enabled }}
+        - --http-read-timeout={{ .Values.server.httpReadTimeout }}
+        - --http-write-timeout={{ .Values.server.httpWriteTimeout }}
+        - --label-metrics-inclusion-duration={{ .Values.metrics.labelMetricsInclusionDuration }}
+        - --alsologtostderr
+        - -v={{ .Values.logging.klogV }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          {{- toYaml .Values.livenessProbe | nindent 10 }}
+        readinessProbe:
+          {{- toYaml .Values.readinessProbe | nindent 10 }}

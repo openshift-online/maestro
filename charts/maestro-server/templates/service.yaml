@@ -1,0 +1,74 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+    port: api
+  annotations:
+    description: Exposes and load balances the maestro pods
+spec:
+  selector:
+    {{- include "maestro-server.selectorLabels" . | nindent 4 }}
+  type: {{ .Values.service.api.type }}
+  ports:
+    - {{- if ne (int .Values.service.api.nodePort) 0 }}
+      nodePort: {{ .Values.service.api.nodePort }}
+      {{- end }}
+      port: {{ .Values.service.api.port }}
+      targetPort: {{ .Values.service.api.port }}
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro-metrics
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+    port: metrics
+  annotations:
+    description: Exposes and load balances the maestro pods metrics endpoint
+spec:
+  selector:
+    {{- include "maestro-server.selectorLabels" . | nindent 4 }}
+  ports:
+  - port: {{ .Values.service.metrics.port }}
+    targetPort: {{ .Values.service.metrics.port }}
+    name: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro-grpc
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+    port: grpc
+  annotations:
+    description: Exposes the grpc service
+spec:
+  selector:
+    {{- include "maestro-server.selectorLabels" . | nindent 4 }}
+  type: {{ .Values.service.grpc.type }}
+  ports:
+    - name: grpc
+      {{- if ne (int .Values.service.grpc.nodePort) 0 }}
+      nodePort: {{ .Values.service.grpc.nodePort }}
+      {{- end }}
+      port: {{ .Values.service.grpc.port }}
+      targetPort: {{ .Values.service.grpc.port }}
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro-healthcheck
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+    port: healthcheck
+spec:
+  selector:
+    {{- include "maestro-server.selectorLabels" . | nindent 4 }}
+  ports:
+  - port: {{ .Values.service.healthcheck.port }}
+    targetPort: {{ .Values.service.healthcheck.port }}

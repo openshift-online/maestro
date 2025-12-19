@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maestro-agent
+  labels:
+    {{- include "maestro-agent.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "maestro-agent.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "maestro-agent.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "maestro-agent.serviceAccountName" . }}
+      containers:
+      - name: maestro-agent
+        image: {{ include "maestro-agent.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+          - name: "MAESTRO_ENV"
+            value: {{ .Values.environment | quote }}
+        command:
+          - /usr/local/bin/maestro
+          - agent
+          - --consumer-name={{ .Values.consumerName }}
+          - --workload-source-driver={{ .Values.messageBroker.type }}
+          - --workload-source-config=/secrets/{{ .Values.messageBroker.type }}/config.yaml
+          - --cloudevents-client-id={{ .Values.consumerName }}-work-agent
+          - -v={{ .Values.logging.klogV }}
+        volumeMounts:
+        - name: {{ .Values.messageBroker.type }}
+          mountPath: /secrets/{{ .Values.messageBroker.type }}
+      volumes:
+      - name: {{ .Values.messageBroker.type }}
+        secret:
+          secretName: maestro-agent-{{ .Values.messageBroker.type }}
