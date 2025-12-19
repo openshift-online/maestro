@@ -9,7 +9,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
-	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 // MaxListPageSize is the maximum size of one page, default is 400.
@@ -27,7 +26,7 @@ func PageList(ctx context.Context, logger logging.Logger, client *openapi.APICli
 		return nil, "", err
 	}
 
-	operationID := maestrologger.GetOperationID(ctx)
+	opIDKey, operationID := getOperationID(ctx)
 
 	limit := opts.Limit
 	if limit < 0 {
@@ -46,6 +45,7 @@ func PageList(ctx context.Context, logger logging.Logger, client *openapi.APICli
 			Size(pageSize)
 
 		if len(operationID) > 0 {
+			req = req.XOperationIDKey(opIDKey)
 			req = req.XOperationID(operationID)
 		}
 

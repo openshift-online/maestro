@@ -28,7 +28,7 @@ func (a *AuthMiddleware) AuthenticateAccountJWT(next http.Handler) http.Handler 
 		ctx := r.Context()
 		payload, err := GetAuthPayload(r)
 		if err != nil {
-			handleError(ctx, w, errors.ErrorUnauthorized, fmt.Sprintf("Unable to get payload details from JWT token: %s", err))
+			handleError(ctx, w, r, errors.ErrorUnauthorized, fmt.Sprintf("Unable to get payload details from JWT token: %s", err))
 			return
 		}
 

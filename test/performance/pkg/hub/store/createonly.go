@@ -18,7 +18,7 @@ func NewCreateOnlyWatcherStore() *CreateOnlyWatcherStore {
 	return &CreateOnlyWatcherStore{}
 }
 
-func (s *CreateOnlyWatcherStore) GetWatcher(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (s *CreateOnlyWatcherStore) GetWatcher(ctx context.Context, namespace string, opts metav1.ListOptions) (watch.Interface, error) {
 	return nil, fmt.Errorf("unsupported")
 }
 
@@ -40,15 +40,15 @@ func (s *CreateOnlyWatcherStore) Delete(work runtime.Object) error {
 	return fmt.Errorf("unsupported")
 }
 
-func (s *CreateOnlyWatcherStore) List(namespace string, opts metav1.ListOptions) (*store.ResourceList[*workv1.ManifestWork], error) {
+func (s *CreateOnlyWatcherStore) List(ctx context.Context, namespace string, opts metav1.ListOptions) (*store.ResourceList[*workv1.ManifestWork], error) {
 	return nil, fmt.Errorf("unsupported")
 }
 
-func (s *CreateOnlyWatcherStore) ListAll() ([]*workv1.ManifestWork, error) {
+func (s *CreateOnlyWatcherStore) ListAll(ctx context.Context) ([]*workv1.ManifestWork, error) {
 	return nil, fmt.Errorf("unsupported")
 }
 
-func (s *CreateOnlyWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
+func (s *CreateOnlyWatcherStore) Get(ctx context.Context, namespace, name string) (*workv1.ManifestWork, bool, error) {
 	return nil, false, nil
 }
 

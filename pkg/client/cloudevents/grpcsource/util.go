@@ -1,9 +1,12 @@
 package grpcsource
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 
 	jsonpatch "github.com/evanphx/json-patch"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,11 +16,24 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
 const jsonbPrefix = `payload->'metadata'->'labels'`
+
+var (
+	// contextTracingOPIDKey stores the operation ID key for context tracing.
+	// Use atomic.Value for lock-free reads with proper memory synchronization.
+	contextTracingOPIDKey atomic.Value
+	setContextTracingOnce sync.Once
+)
+
+func init() {
+	// Initialize with the default key
+	contextTracingOPIDKey.Store(sdkgologging.ContextTracingOPIDKey)
+}
 
 // ToManifestWork converts an openapi.ResourceBundle object to workv1.ManifestWork object
 func ToManifestWork(rb *openapi.ResourceBundle) (*workv1.ManifestWork, error) {
@@ -240,6 +256,26 @@ func ToSyncSearch(sourceID string, namespaces []string) string {
 	return fmt.Sprintf("source='%s' and (%s)", sourceID, strings.Join(searchNamespaces, " or "))
 }
 
+// SetContextTracingOPIDKey customizes the key used for the operation ID in context tracing.
+// The default key is sdkgologging.ContextTracingOPIDKey ("op-id").
+// This function MUST be called AT MOST ONCE at application startup, before any
+// concurrent access to the gRPC source client. Subsequent calls will ignore.
+func SetContextTracingOPIDKey(key sdkgologging.ContextTracingKey) {
+	if len(key) == 0 {
+		return
+	}
+
+	setContextTracingOnce.Do(func() {
+		// Store atomically - provides memory barrier for concurrent reads in getOperationID()
+		contextTracingOPIDKey.Store(key)
+		// Also propagate the custom key to sdk-go's default tracing keys.
+		// This is safe only if called once at startup before any concurrent readers
+		// in sdk-go access it.
+		// TODO enhance the sdk-go to provide a thread-safe way to handle this.
+		sdkgologging.DefaultContextTracingKeys = []sdkgologging.ContextTracingKey{key}
+	})
+}
+
 func marshal(obj map[string]any) ([]byte, error) {
 	unstructuredObj := unstructured.Unstructured{Object: obj}
 	data, err := unstructuredObj.MarshalJSON()
@@ -248,4 +284,15 @@ func marshal(obj map[string]any) ([]byte, error) {
 	}
 
 	return data, nil
+}
+
+func getOperationID(ctx context.Context) (string, string) {
+	// Load atomically - provides memory barrier to see the value stored in SetContextTracingOPIDKey
+	key := contextTracingOPIDKey.Load().(sdkgologging.ContextTracingKey)
+
+	if opID, ok := ctx.Value(key).(string); ok {
+		return string(key), opID
+	}
+
+	return "", ""
 }

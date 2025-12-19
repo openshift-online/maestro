@@ -1,6 +1,7 @@
 package test
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -125,7 +126,7 @@ func (s *MemoryStore) ListByNamespace(namespace string) []*api.Resource {
 	return resources
 }
 
-func (s *MemoryStore) List(listOpts types.ListOptions) ([]*api.Resource, error) {
+func (s *MemoryStore) List(_ context.Context, listOpts types.ListOptions) ([]*api.Resource, error) {
 	return s.ListByNamespace(listOpts.ClusterName), nil
 }
 

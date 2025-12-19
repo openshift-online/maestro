@@ -16,10 +16,6 @@ import (
 // nolint
 //
 //go:generate go-bindata -o ../../data/generated/openapi/openapi.go -pkg openapi -prefix ../../openapi/ ../../openapi
-const (
-	logConfigFile = "/configs/logging/config.yaml"
-	varLogLevel   = "log_level"
-)
 
 func main() {
 	// check if the glog flag is already registered to avoid duplicate flag define error

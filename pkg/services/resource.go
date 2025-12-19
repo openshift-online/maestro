@@ -33,7 +33,7 @@ type ResourceService interface {
 
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
-	List(listOpts cetypes.ListOptions) ([]*api.Resource, error)
+	List(ctx context.Context, listOpts cetypes.ListOptions) ([]*api.Resource, error)
 	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
 
@@ -324,8 +324,8 @@ var _ cegeneric.Lister[*api.Resource] = &sqlResourceService{}
 // List implements the cegeneric.Lister interface, enabling the cloudevents source client to list resources for responding spec resync from the agent.
 // For more details, refer to the cegeneric.Lister interface:
 // https://github.com/open-cluster-management-io/sdk-go/blob/d3c47c228d7905ebb20f331f9b72bc5ff6a84789/pkg/cloudevents/generic/interface.go#L36-L39
-func (s *sqlResourceService) List(listOpts cetypes.ListOptions) ([]*api.Resource, error) {
-	resourceList, err := s.resourceDao.FindByConsumerName(context.TODO(), listOpts.ClusterName)
+func (s *sqlResourceService) List(ctx context.Context, listOpts cetypes.ListOptions) ([]*api.Resource, error) {
+	resourceList, err := s.resourceDao.FindByConsumerName(ctx, listOpts.ClusterName)
 	if err != nil {
 		return nil, err
 	}

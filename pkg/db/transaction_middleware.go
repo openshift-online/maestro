@@ -10,7 +10,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/db/db_context"
 	"github.com/openshift-online/maestro/pkg/errors"
-	loggertracing "github.com/openshift-online/maestro/pkg/logger"
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 // TransactionMiddleware creates a new HTTP middleware that begins a database transaction
@@ -24,7 +24,7 @@ func TransactionMiddleware(next http.Handler, connection SessionFactory) http.Ha
 			logger.Error(err, "Could not create transaction")
 			// use default error to avoid exposing internals to users
 			err := errors.GeneralError("")
-			operationID := loggertracing.GetOperationID(ctx)
+			operationID := r.Header.Get(maestrologger.OpIDHeader)
 			writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))
 			return
 		}
