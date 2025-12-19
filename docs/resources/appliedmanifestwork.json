@@ -11,14 +11,14 @@
             "cloudevents.open-cluster-management.io/originalsource": "maestro",
             "maestro.resource.type": "2d18a7dc-c731-5753-8aa9-6b2f22e3b12b"
         },
-        "name": "f1d8a1049b93dffc1929d57a719c3a09a4dcbfe0cd6e42840325be3b2dde73c8-e44ec579-9646-549a-b679-db8d19d6da37",
+        "name": "f1d8a1049b93dffc1929d57a719c3a09a4dcbfe0cd6e42840325be3b2dde73c8-55c61e54-a3f6-563d-9fec-b1fe297bdfdb",
         "resourceVersion": "1552",
         "uid": "432b3ff3-702e-4363-89e6-ad399c75608c"
     },
     "spec": {
         "agentID": "f1d8a1049b93dffc1929d57a719c3a09a4dcbfe0cd6e42840325be3b2dde73c8",
         "hubHash": "f1d8a1049b93dffc1929d57a719c3a09a4dcbfe0cd6e42840325be3b2dde73c8",
-        "manifestWorkName": "e44ec579-9646-549a-b679-db8d19d6da37"
+        "manifestWorkName": "55c61e54-a3f6-563d-9fec-b1fe297bdfdb"
     },
     "status": {
         "appliedResources": [

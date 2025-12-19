@@ -186,6 +186,8 @@ The `grpcClientTokenFile` stores the token for the corresponding service account
 
 4. After persisting the record, the Maestro server publishes a [CloudEvent](./resources/cloudevents.spec.maestro.json) representing the stored Resource to Maestro agent.
 
+    - Maestro server uses the `Resource` record ID as the `ManifestWork` name.
+
 5. The Maestro agent receives this CloudEvent, converts it back into a `ManifestWork`, and applies it to the target Kubernetes cluster. After applied, there is a corresponding [appliedmanifestwork](./resources/appliedmanifestwork.json) created on the agent side.
 
 ### Maestro Subscribe Resource Status with MQTT
