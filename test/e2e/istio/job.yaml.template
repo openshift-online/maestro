@@ -36,6 +36,9 @@ spec:
           args:
             - |-
               /e2e/e2e.test \
+                --ginkgo.v \
+                --ginkgo.fail-fast \
+                --ginkgo.label-filter=${ginkgo_label_filter} \
                 -api-server=http://maestro.maestro:8000 \
                 -grpc-server=maestro-grpc.maestro:8090 \
                 -server-kubeconfig=/e2e/kubeconfig/server.kubeconfig \
