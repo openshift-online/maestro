@@ -5,7 +5,6 @@ import (
 	"crypto/rsa"
 	"encoding/json"
 	"fmt"
-	"k8s.io/klog/v2"
 	"log"
 	"os"
 	"path/filepath"
@@ -13,6 +12,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/controllers"
@@ -29,7 +30,6 @@ import (
 	ceclients "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/clients"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 
 	"github.com/bxcodec/faker/v3"
 	"github.com/golang-jwt/jwt/v4"
@@ -347,7 +347,7 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 		log.Fatalf("Unable to create grpc cloudevents source client: %s", err.Error())
 	}
 
-	sourceClient.Subscribe(helper.Ctx, func(ctx context.Context, action types.ResourceAction, resource *api.Resource) error {
+	sourceClient.Subscribe(helper.Ctx, func(ctx context.Context, resource *api.Resource) error {
 		return resourceStore.UpdateStatus(resource)
 	})
 

@@ -29,15 +29,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/services"
 )
 
-type resourceHandler func(res *api.Resource) error
-
-// subscriber defines a subscriber that can receive and handle resource spec.
-type subscriber struct {
-	clusterName string
-	handler     resourceHandler
-	errChan     chan<- error
-}
-
 var _ EventServer = &GRPCBroker{}
 
 type GRPCBrokerService struct {
