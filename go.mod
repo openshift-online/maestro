@@ -56,7 +56,7 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	open-cluster-management.io/api v1.1.1-0.20251215032811-ee922fbb996c
-	open-cluster-management.io/ocm v1.1.1-0.20251211014758-deb61b0a60d5
+	open-cluster-management.io/ocm v1.1.1
 	open-cluster-management.io/sdk-go v1.1.1-0.20251218031856-08bb1caedf74
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -142,6 +142,7 @@ require (
 	github.com/prometheus/common v0.67.4 // indirect
 	github.com/prometheus/otlptranslator v1.0.0 // indirect
 	github.com/prometheus/procfs v0.19.2 // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/skratchdot/open-golang v0.0.0-20200116055534-eef842397966 // indirect
 	github.com/stoewer/go-strcase v1.3.1 // indirect
