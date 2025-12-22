@@ -122,8 +122,15 @@ kubectl create namespace ${namespace} || true
 kubectl create namespace ${agent_namespace} || true
 kubectl create namespace clusters-service || true
 
-# Prepare the ServiceAccount
-kubectl -n ${namespace} create serviceaccount maestro || true
+# Create HTTPS certificates for maestro server
+https_cert_dir="${PWD}/test/_output/certs/https"
+if [ ! -d "$https_cert_dir" ]; then
+  mkdir -p "$https_cert_dir"
+  step certificate create "maestro-https-ca" ${https_cert_dir}/ca.crt ${https_cert_dir}/ca.key --kty RSA --profile root-ca --no-password --insecure
+  step certificate create "maestro-server" ${https_cert_dir}/tls.crt ${https_cert_dir}/tls.key --kty RSA -san maestro -san maestro.${namespace} -san maestro.${namespace}.svc -san localhost -san 127.0.0.1 --profile leaf --ca ${https_cert_dir}/ca.crt --ca-key ${https_cert_dir}/ca.key --no-password --insecure
+  kubectl delete secret maestro-https-certs -n "${namespace}" --ignore-not-found
+  kubectl create secret tls maestro-https-certs -n "${namespace}" --cert=${https_cert_dir}/tls.crt --key=${https_cert_dir}/tls.key
+fi
 
 # Apply ManifestWork CRD
 kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml

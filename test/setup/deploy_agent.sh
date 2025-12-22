@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
+mqtt_tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
 msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
 
 export image_tag=${image_tag:-"latest"}
@@ -81,39 +81,13 @@ if [ "$msg_broker" = "mqtt" ]; then
 EOF
 
   # Add TLS configuration if enabled
-  if [ "$tls_enable" = "true" ]; then
+  if [ "$mqtt_tls_enable" = "true" ]; then
     cat >> "$values_file" <<EOF
     rootCert: /secrets/mqtt-certs/ca.crt
     clientCert: /secrets/mqtt-certs/client.crt
     clientKey: /secrets/mqtt-certs/client.key
 EOF
   fi
-
-  # Create MQTT secret
-  if [ "$tls_enable" = "true" ]; then
-    mqtt_config=$(cat <<MQTT_EOF
-brokerHost: maestro-mqtt.${namespace}:1883
-caFile: /secrets/mqtt-certs/ca.crt
-clientCertFile: /secrets/mqtt-certs/client.crt
-clientKeyFile: /secrets/mqtt-certs/client.key
-topics:
-  sourceEvents: sources/maestro/consumers/${consumer_name}/sourceevents
-  agentEvents: sources/maestro/consumers/${consumer_name}/agentevents
-MQTT_EOF
-)
-  else
-    mqtt_config=$(cat <<MQTT_EOF
-brokerHost: maestro-mqtt.${namespace}:1883
-topics:
-  sourceEvents: sources/maestro/consumers/${consumer_name}/sourceevents
-  agentEvents: sources/maestro/consumers/${consumer_name}/agentevents
-MQTT_EOF
-)
-  fi
-
-  kubectl delete secret maestro-agent-mqtt -n "${agent_namespace}" --ignore-not-found
-  kubectl create secret generic maestro-agent-mqtt -n "${agent_namespace}" \
-    --from-literal=config.yaml="$mqtt_config"
 fi
 
 # Configure gRPC settings
@@ -122,12 +96,6 @@ if [ "$msg_broker" = "grpc" ]; then
   grpc:
     url: maestro-grpc-broker.${namespace}:8091
 EOF
-
-  # Create gRPC secret
-  grpc_config="url: maestro-grpc-broker.${namespace}:8091"
-  kubectl delete secret maestro-agent-grpc -n "${agent_namespace}" --ignore-not-found
-  kubectl create secret generic maestro-agent-grpc -n "${agent_namespace}" \
-    --from-literal=config.yaml="$grpc_config"
 fi
 
 # Deploy using Helm

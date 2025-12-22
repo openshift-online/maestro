@@ -121,19 +121,6 @@ stringData:
 apiVersion: v1
 kind: Secret
 metadata:
-  name: {{ .Values.postgresql.secretName }}
-  labels:
-    {{- include "maestro-server.labels" . | nindent 4 }}
-stringData:
-  db.host: {{ .Values.postgresql.service.name }}
-  db.port: {{ .Values.postgresql.service.port | quote }}
-  db.name: {{ .Values.postgresql.database.name }}
-  db.user: {{ .Values.postgresql.database.user }}
-  db.password: {{ .Values.postgresql.database.password }}
----
-apiVersion: v1
-kind: Secret
-metadata:
   name: {{ .Values.database.secretName }}
   labels:
     {{- include "maestro-server.labels" . | nindent 4 }}
