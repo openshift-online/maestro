@@ -1,0 +1,46 @@
+{{- if and (eq .Values.messageBroker.type "pubsub") .Values.pubsub.enabled -}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.messageBroker.secretName }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+stringData:
+  config.yaml: |
+    {{- if .Values.pubsub.projectID }}
+    projectID: {{ .Values.pubsub.projectID }}
+    {{- end }}
+    {{- if .Values.pubsub.credentialsJSON }}
+    credentialsFile: {{ .Values.pubsub.credentialsFile }}
+    {{- end }}
+    {{- if .Values.pubsub.topics }}
+    topics:
+      {{- if .Values.pubsub.topics.sourceEvents }}
+      sourceEvents: {{ .Values.pubsub.topics.sourceEvents }}
+      {{- end }}
+      {{- if .Values.pubsub.topics.sourceBroadcast }}
+      sourceBroadcast: {{ .Values.pubsub.topics.sourceBroadcast }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.pubsub.subscriptions }}
+    subscriptions:
+      {{- if .Values.pubsub.subscriptions.agentEvents }}
+      agentEvents: {{ .Values.pubsub.subscriptions.agentEvents }}
+      {{- end }}
+      {{- if .Values.pubsub.subscriptions.agentBroadcast }}
+      agentBroadcast: {{ .Values.pubsub.subscriptions.agentBroadcast }}
+      {{- end }}
+    {{- end }}
+---
+{{- if .Values.pubsub.credentialsJSON }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: maestro-pubsub-creds
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+stringData:
+  credentials.json: {{ .Values.pubsub.credentialsJSON | quote }}
+{{- end }}
+{{- end }}

@@ -1,4 +1,4 @@
-{{- if eq .Values.messageBroker.type "mqtt" -}}
+{{- if and (eq .Values.messageBroker.type "mqtt") .Values.mqtt.enabled -}}
 ---
 apiVersion: v1
 kind: Service
