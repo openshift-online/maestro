@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
+mqtt_tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
 msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
 server_replicas=${SERVER_REPLICAS:-"1"}
 enable_broadcast=${ENABLE_BROADCAST_SUBSCRIPTION:-"false"}
@@ -58,7 +58,7 @@ messageBroker:
 # Server configuration
 server:
   https:
-    enabled: ${tls_enable}
+    enabled: true
   hostname: ""
   http:
     bindPort: 8000
@@ -93,23 +93,6 @@ service:
 route:
   enabled: false
 
-# Probes configuration - shorter delays for testing
-livenessProbe:
-  httpGet:
-    path: /healthcheck
-    port: 8083
-    scheme: HTTP
-  initialDelaySeconds: 1
-  periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /healthcheck
-    port: 8083
-    scheme: HTTP
-  initialDelaySeconds: 1
-  periodSeconds: 5
-
 # Use embedded PostgreSQL for testing
 postgresql:
   enabled: true
@@ -137,6 +120,11 @@ mqtt:
   host: maestro-mqtt
   user: ""
   password: ""
+  tls:
+    enabled: ${mqtt_tls_enable}
+    caFile: /secrets/mqtt-certs/ca.crt
+    clientCertFile: /secrets/mqtt-certs/client.crt
+    clientKeyFile: /secrets/mqtt-certs/client.key
 EOF
 
 # Add broadcast subscription config if enabled
@@ -144,52 +132,6 @@ if [ "$enable_broadcast" = "true" ]; then
   cat >> "$values_file" <<EOF
   agentTopic: sources/maestro/consumers/+/agentevents
 EOF
-fi
-
-# Create database secret (override embedded PostgreSQL secret)
-kubectl delete secret maestro-rds -n "${namespace}" --ignore-not-found
-kubectl create secret generic maestro-rds -n "${namespace}" \
-  --from-literal=db.host=maestro-db \
-  --from-literal=db.port=5432 \
-  --from-literal=db.user=maestro \
-  --from-literal=db.password=maestro \
-  --from-literal=db.name=maestro
-
-# Create MQTT secret if using MQTT broker
-if [ "$msg_broker" = "mqtt" ]; then
-  # MQTT config with or without TLS
-  if [ "$tls_enable" = "true" ]; then
-    mqtt_config=$(cat <<MQTT_EOF
-brokerHost: maestro-mqtt:1883
-caFile: /secrets/mqtt-certs/ca.crt
-clientCertFile: /secrets/mqtt-certs/client.crt
-clientKeyFile: /secrets/mqtt-certs/client.key
-topics:
-  sourceEvents: sources/maestro/consumers/+/sourceevents
-  agentEvents: $( [ "$enable_broadcast" = "true" ] && echo "sources/maestro/consumers/+/agentevents" || echo "sources/maestro/consumers/+/agentevents" )
-MQTT_EOF
-)
-  else
-    mqtt_config=$(cat <<MQTT_EOF
-brokerHost: maestro-mqtt:1883
-topics:
-  sourceEvents: sources/maestro/consumers/+/sourceevents
-  agentEvents: sources/maestro/consumers/+/agentevents
-MQTT_EOF
-)
-  fi
-
-  kubectl delete secret maestro-mqtt -n "${namespace}" --ignore-not-found
-  kubectl create secret generic maestro-mqtt -n "${namespace}" \
-    --from-literal=config.yaml="$mqtt_config"
-fi
-
-# Create gRPC secret if using gRPC broker
-if [ "$msg_broker" = "grpc" ]; then
-  grpc_config="url: maestro-grpc-broker.maestro:8091"
-  kubectl delete secret maestro-grpc -n "${namespace}" --ignore-not-found
-  kubectl create secret generic maestro-grpc -n "${namespace}" \
-    --from-literal=config.yaml="$grpc_config"
 fi
 
 # Deploy using Helm
@@ -206,6 +148,6 @@ kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeo
 sleep 30 # wait 30 seconds for the service ready
 
 # Expose the RESTAPI and gRPC service hosts
-rest_api_schema=$( [ "$tls_enable" = "true" ] && echo "https" || echo "http" )
-echo "${rest_api_schema}://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
+# HTTPS is always enabled for the REST API server in tests
+echo "https://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
 echo "127.0.0.1:30090" > ${PWD}/test/_output/.external_grpc_endpoint

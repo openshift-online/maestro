@@ -39,6 +39,11 @@ spec:
         secret:
           secretName: maestro-server-certs
           optional: true
+      {{- if .Values.server.https.enabled }}
+      - name: https-certs
+        secret:
+          secretName: maestro-https-certs
+      {{- end }}
       initContainers:
       - name: migration
         image: {{ include "maestro-server.image" . }}
@@ -73,6 +78,11 @@ spec:
           mountPath: /secrets/{{ .Values.messageBroker.type }}
         - name: mqtt-certs
           mountPath: /secrets/mqtt-certs
+        {{- if .Values.server.https.enabled }}
+        - name: https-certs
+          mountPath: /secrets/https-certs
+          readOnly: true
+        {{- end }}
         env:
           - name: "MAESTRO_ENV"
             value: {{ .Values.environment | quote }}
@@ -97,6 +107,10 @@ spec:
         - --message-broker-config-file=/secrets/{{ .Values.messageBroker.type }}/config.yaml
         - --enable-grpc-server={{ .Values.server.grpc.enabled }}
         - --enable-https={{ .Values.server.https.enabled }}
+        {{- if .Values.server.https.enabled }}
+        - --https-cert-file=/secrets/https-certs/tls.crt
+        - --https-key-file=/secrets/https-certs/tls.key
+        {{- end }}
         - --server-hostname={{ .Values.server.hostname }}
         - --http-server-bindport={{ .Values.server.http.bindPort }}
         - --grpc-server-bindport={{ .Values.server.grpc.bindPort }}
@@ -113,6 +127,16 @@ spec:
         resources:
           {{- toYaml .Values.resources | nindent 10 }}
         livenessProbe:
-          {{- toYaml .Values.livenessProbe | nindent 10 }}
+          httpGet:
+            path: /healthcheck
+            port: 8083
+            scheme: {{ if .Values.server.https.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          initialDelaySeconds: 25
+          periodSeconds: 10
         readinessProbe:
-          {{- toYaml .Values.readinessProbe | nindent 10 }}
+          httpGet:
+            path: /healthcheck
+            port: 8083
+            scheme: {{ if .Values.server.https.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          initialDelaySeconds: 20
+          periodSeconds: 5

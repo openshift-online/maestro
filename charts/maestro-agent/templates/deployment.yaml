@@ -33,7 +33,17 @@ spec:
         volumeMounts:
         - name: {{ .Values.messageBroker.type }}
           mountPath: /secrets/{{ .Values.messageBroker.type }}
+        {{- if and (eq .Values.messageBroker.type "mqtt") .Values.messageBroker.mqtt.rootCert }}
+        - name: mqtt-certs
+          mountPath: /secrets/mqtt-certs
+          readOnly: true
+        {{- end }}
       volumes:
       - name: {{ .Values.messageBroker.type }}
         secret:
           secretName: maestro-agent-{{ .Values.messageBroker.type }}
+      {{- if and (eq .Values.messageBroker.type "mqtt") .Values.messageBroker.mqtt.rootCert }}
+      - name: mqtt-certs
+        secret:
+          secretName: maestro-agent-certs
+      {{- end }}

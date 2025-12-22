@@ -101,23 +101,6 @@ route:
     termination: edge
     insecureEdgeTerminationPolicy: Redirect
 
-# Probes configuration
-livenessProbe:
-  httpGet:
-    path: /healthcheck
-    port: 8083
-    scheme: HTTP
-  initialDelaySeconds: 25
-  periodSeconds: 10
-
-readinessProbe:
-  httpGet:
-    path: /healthcheck
-    port: 8083
-    scheme: HTTP
-  initialDelaySeconds: 20
-  periodSeconds: 5
-
 # PostgreSQL deployment (optional, for development)
 postgresql:
   enabled: false
@@ -146,3 +129,12 @@ mqtt:
   user: maestro
   password: ""
   agentTopic: sources/maestro/consumers/+/agentevents
+  # TLS configuration
+  tls:
+    enabled: false
+    # Path to CA certificate file (inside the maestro-server-certs secret)
+    caFile: /secrets/mqtt-certs/ca.crt
+    # Path to client certificate file (inside the maestro-server-certs secret)
+    clientCertFile: /secrets/mqtt-certs/client.crt
+    # Path to client key file (inside the maestro-server-certs secret)
+    clientKeyFile: /secrets/mqtt-certs/client.key
