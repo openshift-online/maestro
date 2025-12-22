@@ -170,14 +170,14 @@ spec:
         livenessProbe:
           httpGet:
             path: /healthcheck
-            port: 8083
+            port: {{ .Values.server.healthCheck.bindPort }}
             scheme: {{ if .Values.server.https.enabled }}HTTPS{{ else }}HTTP{{ end }}
           initialDelaySeconds: 25
           periodSeconds: 10
         readinessProbe:
           httpGet:
             path: /healthcheck
-            port: 8083
+            port: {{ .Values.server.healthCheck.bindPort }}
             scheme: {{ if .Values.server.https.enabled }}HTTPS{{ else }}HTTP{{ end }}
           initialDelaySeconds: 20
           periodSeconds: 5
