@@ -39,6 +39,10 @@ messageBroker:
   # gRPC configuration
   grpc:
     url: maestro-grpc-broker.maestro:8091
+    tls:
+      caCert: ""
+      clientCert: ""
+      clientKey: ""
 
   # PubSub configuration
   pubsub:

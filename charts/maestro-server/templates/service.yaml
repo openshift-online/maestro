@@ -72,3 +72,24 @@ spec:
   ports:
   - port: {{ .Values.service.healthcheck.port }}
     targetPort: {{ .Values.service.healthcheck.port }}
+{{- if eq .Values.messageBroker.type "grpc" }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: maestro-grpc-broker
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+    port: grpc-broker
+  annotations:
+    description: Exposes the grpc broker service
+spec:
+  selector:
+    {{- include "maestro-server.selectorLabels" . | nindent 4 }}
+  type: ClusterIP
+  ports:
+    - name: grpc-broker
+      port: 8091
+      targetPort: 8091
+      protocol: TCP
+{{- end }}

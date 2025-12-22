@@ -14,7 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mqtt_tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
+tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
 msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
 
 export image_tag=${image_tag:-"latest"}
@@ -81,7 +81,7 @@ if [ "$msg_broker" = "mqtt" ]; then
 EOF
 
   # Add TLS configuration if enabled
-  if [ "$mqtt_tls_enable" = "true" ]; then
+  if [ "$tls_enable" = "true" ]; then
     cat >> "$values_file" <<EOF
     rootCert: /secrets/mqtt-certs/ca.crt
     clientCert: /secrets/mqtt-certs/client.crt
@@ -96,6 +96,16 @@ if [ "$msg_broker" = "grpc" ]; then
   grpc:
     url: maestro-grpc-broker.${namespace}:8091
 EOF
+
+  # Add TLS configuration if enabled
+  if [ "$tls_enable" = "true" ]; then
+    cat >> "$values_file" <<EOF
+    tls:
+      caCert: /secrets/grpc-broker-cert/ca.crt
+      clientCert: /secrets/grpc-broker-cert/client.crt
+      clientKey: /secrets/grpc-broker-cert/client.key
+EOF
+  fi
 fi
 
 # Deploy using Helm

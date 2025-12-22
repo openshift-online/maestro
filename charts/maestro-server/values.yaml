@@ -120,7 +120,6 @@ postgresql:
 
 # MQTT broker deployment (optional, for development)
 mqtt:
-  enabled: false
   image: quay.io/maestro/eclipse-mosquitto:2.0.18
   service:
     name: maestro-mqtt
@@ -138,3 +137,12 @@ mqtt:
     clientCertFile: /secrets/mqtt-certs/client.crt
     # Path to client key file (inside the maestro-server-certs secret)
     clientKeyFile: /secrets/mqtt-certs/client.key
+
+# gRPC broker configuration
+grpc:
+  url: maestro-grpc-broker.maestro:8091
+  tls:
+    enabled: false
+    certFile: /secrets/grpc-broker-cert/server.crt
+    keyFile: /secrets/grpc-broker-cert/server.key
+    clientCAFile: /secrets/grpc-broker-cert/ca.crt
