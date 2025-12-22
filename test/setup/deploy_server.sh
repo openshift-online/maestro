@@ -113,6 +113,7 @@ postgresql:
 
 # Use embedded MQTT broker for testing (if MQTT mode)
 mqtt:
+  enabled: $( [ "$msg_broker" = "mqtt" ] && echo "true" || echo "false" )
   image: quay.io/maestro/eclipse-mosquitto:2.0.18
   service:
     name: maestro-mqtt
@@ -140,6 +141,7 @@ if [ "$msg_broker" = "grpc" ]; then
 
 # gRPC broker configuration
 grpc:
+  enabled: true
   url: maestro-grpc-broker.${namespace}:8091
   tls:
     enabled: ${tls_enable}
