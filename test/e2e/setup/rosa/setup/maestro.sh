@@ -148,8 +148,8 @@ echo "AWS RDS PostgreSQL: ${db_host}:5432 (${db_id})"
 # Deploy Maestro server
 oc create namespace maestro || true
 
-oc -n maestro delete secrets mqtt-creds --ignore-not-found
-oc -n maestro create secret generic mqtt-creds \
+oc -n maestro delete secrets maestro-server-certs --ignore-not-found
+oc -n maestro create secret generic maestro-server-certs \
     --from-file=ca.crt="${certs_dir}/iot-ca.pem" \
     --from-file=client.crt="${source_cert_dir}/maestro.crt" \
     --from-file=client.key="${source_cert_dir}/maestro.private.key"
@@ -163,12 +163,58 @@ oc -n maestro create secret generic maestro-db \
     --from-literal=db.password="${db_pw}" \
     --from-file=db.ca_cert="${certs_dir}/db-ca.pem"
 
-oc process --filename="https://raw.githubusercontent.com/openshift-online/maestro/refs/heads/main/templates/service-template-rosa.yml" \
-    --local="true" \
-    --param="IMAGE_REGISTRY=${IMAGE_REGISTRY}" \
-    --param="IMAGE_REPOSITORY=${IMAGE_REPOSITORY}" \
-    --param="IMAGE_TAG=${IMAGE_TAG}" \
-    --param="MQTT_HOST=${mqtt_host}" > ${output_dir}/maestro-rosa.json
+# Create Helm values file for maestro-server
+cat > ${output_dir}/maestro-server-values.yaml <<EOF
+image:
+  registry: ${IMAGE_REGISTRY%/*}
+  repository: ${IMAGE_REGISTRY#*/}/${IMAGE_REPOSITORY}
+  tag: ${IMAGE_TAG}
 
-oc -n maestro apply -f ${output_dir}/maestro-rosa.json
+replicas: 3
+
+environment: production
+
+database:
+  secretName: maestro-db
+  sslMode: verify-full
+  maxOpenConnections: 50
+
+messageBroker:
+  type: mqtt
+
+mqtt:
+  enabled: false
+  host: ${mqtt_host}
+  tls:
+    enabled: true
+    caFile: /secrets/mqtt-creds/ca.crt
+    clientCertFile: /secrets/mqtt-creds/client.crt
+    clientKeyFile: /secrets/mqtt-creds/client.key
+
+server:
+  https:
+    enabled: false
+  grpc:
+    enabled: true
+  hostname: ""
+
+service:
+  api:
+    type: ClusterIP
+
+route:
+  enabled: true
+  tls:
+    enabled: true
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+EOF
+
+# Deploy Maestro server using Helm
+PROJECT_DIR="$(cd ${ROSA_DIR}/../.. && pwd -P)"
+helm upgrade --install maestro-server \
+    ${PROJECT_DIR}/charts/maestro-server \
+    --namespace maestro \
+    --create-namespace \
+    --values ${output_dir}/maestro-server-values.yaml
 oc -n maestro wait deploy/maestro --for condition=Available=True --timeout=300s

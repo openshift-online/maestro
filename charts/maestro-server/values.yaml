@@ -7,6 +7,7 @@ environment: production
 # Service Account configuration
 serviceAccount:
   name: maestro
+  annotations: {}
 
 image:
   registry: quay.io
@@ -42,6 +43,12 @@ database:
   # - db.password
   # - db.name
   # - db.ca_cert (optional, for SSL)
+  # Cloud SQL Proxy configuration (for GCP)
+  cloudSqlProxy:
+    enabled: false
+    image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.14.1
+    # GCP Cloud SQL instance connection name (e.g., "project:region:instance")
+    instanceConnectionName: ""
 
 # Message broker configuration
 messageBroker:
@@ -120,6 +127,7 @@ postgresql:
 
 # MQTT broker deployment (optional, for development)
 mqtt:
+  enabled: false
   image: quay.io/maestro/eclipse-mosquitto:2.0.18
   service:
     name: maestro-mqtt
@@ -140,9 +148,26 @@ mqtt:
 
 # gRPC broker configuration
 grpc:
+  enabled: false
   url: maestro-grpc-broker.maestro:8091
   tls:
     enabled: false
     certFile: /secrets/grpc-broker-cert/server.crt
     keyFile: /secrets/grpc-broker-cert/server.key
     clientCAFile: /secrets/grpc-broker-cert/ca.crt
+
+# Google Cloud Pub/Sub configuration
+pubsub:
+  enabled: false
+  projectID: ""
+  credentialsJSON: ""
+  # Service account credentials file path (will be mounted from secret)
+  credentialsFile: /secrets/pubsub/credentials.json
+  # Topics configuration (use full GCP resource names)
+  topics:
+    sourceEvents: ""  # e.g., projects/my-project/topics/sourceevents
+    sourceBroadcast: ""  # e.g., projects/my-project/topics/sourcebroadcast
+  # Subscriptions configuration (use full GCP resource names)
+  subscriptions:
+    agentEvents: ""  # e.g., projects/my-project/subscriptions/agentevents-maestro
+    agentBroadcast: ""  # e.g., projects/my-project/subscriptions/agentbroadcast-maestro

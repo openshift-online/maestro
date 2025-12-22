@@ -10,6 +10,7 @@ consumerName: cluster1
 # Service Account configuration
 serviceAccount:
   name: maestro-agent-sa
+  annotations: {}
 
 image:
   registry: quay.io
@@ -44,8 +45,18 @@ messageBroker:
       clientCert: ""
       clientKey: ""
 
-  # PubSub configuration
+  # Google Cloud Pub/Sub configuration
   pubsub:
     projectID: ""
     credentialsJSON: ""
-    # Topics will be auto-generated based on consumerName
+    credentialsFile: /secrets/pubsub/credentials.json
+    # Topics configuration (use full GCP resource names)
+    # Agent publishes to these topics
+    topics:
+      agentEvents: ""  # e.g., projects/my-project/topics/agentevents
+      agentBroadcast: ""  # e.g., projects/my-project/topics/agentbroadcast
+    # Subscriptions configuration (use full GCP resource names)
+    # Agent subscribes to these subscriptions
+    subscriptions:
+      sourceEvents: ""  # e.g., projects/my-project/subscriptions/sourceevents-cluster1
+      sourceBroadcast: ""  # e.g., projects/my-project/subscriptions/sourcebroadcast-cluster1

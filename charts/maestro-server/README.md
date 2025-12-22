@@ -112,8 +112,20 @@ The following table lists the configurable parameters and their default values.
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `messageBroker.type` | Message broker type (mqtt/grpc) | `mqtt` |
+| `messageBroker.type` | Message broker type (mqtt/grpc/pubsub) | `mqtt` |
 | `messageBroker.secretName` | Secret name containing broker config | `maestro-mqtt` |
+
+### Google Cloud Pub/Sub Parameters
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `pubsub.projectID` | Google Cloud Project ID | `""` |
+| `pubsub.credentialsJSON` | Service account credentials JSON | `""` |
+| `pubsub.credentialsFile` | Path to credentials file | `/secrets/pubsub/credentials.json` |
+| `pubsub.topics.sourceEvents` | Source events topic (full GCP resource name) | `""` |
+| `pubsub.topics.sourceBroadcast` | Source broadcast topic (full GCP resource name) | `""` |
+| `pubsub.subscriptions.agentEvents` | Agent events subscription (full GCP resource name) | `""` |
+| `pubsub.subscriptions.agentBroadcast` | Agent broadcast subscription (full GCP resource name) | `""` |
 
 ### Server Configuration
 
@@ -189,6 +201,33 @@ helm install maestro-server ./charts/maestro-server \
   --set postgresql.enabled=true \
   --set mqtt.enabled=true \
   --set database.sslMode=disable
+```
+
+### Production Deployment with Google Cloud Pub/Sub
+
+```bash
+# Create a service account in Google Cloud Console with Pub/Sub permissions
+# Download the service account JSON key file
+# Create topics and subscriptions in Google Cloud Pub/Sub
+
+helm install maestro-server ./charts/maestro-server \
+  --namespace maestro \
+  --create-namespace \
+  --set messageBroker.type=pubsub \
+  --set pubsub.projectID=your-gcp-project-id \
+  --set pubsub.topics.sourceEvents=projects/your-gcp-project-id/topics/sourceevents \
+  --set pubsub.topics.sourceBroadcast=projects/your-gcp-project-id/topics/sourcebroadcast \
+  --set pubsub.subscriptions.agentEvents=projects/your-gcp-project-id/subscriptions/agentevents-maestro \
+  --set pubsub.subscriptions.agentBroadcast=projects/your-gcp-project-id/subscriptions/agentbroadcast-maestro \
+  --set-file pubsub.credentialsJSON=./path/to/service-account-key.json \
+  --set replicas=3
+```
+
+**Note:** For GKE deployments, you can use Workload Identity instead of credentials file. Annotate the service account:
+```yaml
+serviceAccount:
+  annotations:
+    iam.gke.io/gcp-service-account: maestro@your-gcp-project-id.iam.gserviceaccount.com
 ```
 
 ## Upgrading

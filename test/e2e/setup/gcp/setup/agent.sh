@@ -60,14 +60,38 @@ echo "Maestro agent GSA and KSA are bind"
 echo "Deploying maestro agent..."
 oc create namespace maestro-agent || true
 
-oc process --filename="${PROJECT_DIR}/templates/agent-template-gcp.yml" \
-    --local="true" \
-    --param="PROJECT_ID=${project_id}" \
-    --param="AGENT_NAMESPACE=maestro-agent" \
-    --param="CONSUMER_NAME=${consumer_id}" \
-    --param="IMAGE_REGISTRY=${IMAGE_REGISTRY}" \
-    --param="IMAGE_REPOSITORY=${IMAGE_REPOSITORY}" \
-    --param="IMAGE_TAG=${IMAGE_TAG}" > ${output_dir}/maestro-${consumer_id}-gcp.json
+# Create Helm values file for maestro-agent
+cat > ${output_dir}/maestro-agent-values.yaml <<EOF
+consumerName: ${consumer_id}
 
-oc apply -f "${output_dir}/maestro-${consumer_id}-gcp.json" || { echo "Manifest application failed"; exit 1; }
+environment: production
+
+serviceAccount:
+  name: maestro-agent-sa
+  annotations:
+    iam.gke.io/gcp-service-account: maestro-agent-${consumer_id}@${project_id}.iam.gserviceaccount.com
+
+image:
+  registry: ${IMAGE_REGISTRY%/*}
+  repository: ${IMAGE_REGISTRY#*/}/${IMAGE_REPOSITORY}
+  tag: ${IMAGE_TAG}
+
+messageBroker:
+  type: pubsub
+  pubsub:
+    projectID: ${project_id}
+    topics:
+      agentEvents: projects/${project_id}/topics/agentevents
+      agentBroadcast: projects/${project_id}/topics/agentbroadcast
+    subscriptions:
+      sourceEvents: projects/${project_id}/subscriptions/sourceevents-${consumer_id}
+      sourceBroadcast: projects/${project_id}/subscriptions/sourcebroadcast-${consumer_id}
+EOF
+
+# Deploy Maestro agent using Helm
+helm upgrade --install maestro-agent \
+    ${PROJECT_DIR}/charts/maestro-agent \
+    --namespace maestro-agent \
+    --create-namespace \
+    --values ${output_dir}/maestro-agent-values.yaml || { echo "Helm deployment failed"; exit 1; }
 oc -n maestro-agent wait deploy/maestro-agent --for condition=Available=True --timeout=300s || { echo "Deployment failed to become ready"; exit 1; }
