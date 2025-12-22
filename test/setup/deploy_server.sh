@@ -14,10 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-mqtt_tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
+tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
 msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
 server_replicas=${SERVER_REPLICAS:-"1"}
 enable_broadcast=${ENABLE_BROADCAST_SUBSCRIPTION:-"false"}
+enable_istio=${ENABLE_ISTIO:-"false"}
 
 export image_tag=${image_tag:-"latest"}
 export external_image_registry=${external_image_registry:-"image-registry.testing"}
@@ -58,7 +59,7 @@ messageBroker:
 # Server configuration
 server:
   https:
-    enabled: true
+    enabled: $( [ "$enable_istio" = "true" ] && echo "false" || echo "true" )
   hostname: ""
   http:
     bindPort: 8000
@@ -112,7 +113,6 @@ postgresql:
 
 # Use embedded MQTT broker for testing (if MQTT mode)
 mqtt:
-  enabled: $( [ "$msg_broker" = "mqtt" ] && echo "true" || echo "false" )
   image: quay.io/maestro/eclipse-mosquitto:2.0.18
   service:
     name: maestro-mqtt
@@ -121,7 +121,7 @@ mqtt:
   user: ""
   password: ""
   tls:
-    enabled: ${mqtt_tls_enable}
+    enabled: ${tls_enable}
     caFile: /secrets/mqtt-certs/ca.crt
     clientCertFile: /secrets/mqtt-certs/client.crt
     clientKeyFile: /secrets/mqtt-certs/client.key
@@ -131,6 +131,21 @@ EOF
 if [ "$enable_broadcast" = "true" ]; then
   cat >> "$values_file" <<EOF
   agentTopic: sources/maestro/consumers/+/agentevents
+EOF
+fi
+
+# Configure gRPC broker if using gRPC
+if [ "$msg_broker" = "grpc" ]; then
+  cat >> "$values_file" <<EOF
+
+# gRPC broker configuration
+grpc:
+  url: maestro-grpc-broker.${namespace}:8091
+  tls:
+    enabled: ${tls_enable}
+    certFile: /secrets/grpc-broker-cert/server.crt
+    keyFile: /secrets/grpc-broker-cert/server.key
+    clientCAFile: /secrets/grpc-broker-cert/ca.crt
 EOF
 fi
 
@@ -148,6 +163,10 @@ kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeo
 sleep 30 # wait 30 seconds for the service ready
 
 # Expose the RESTAPI and gRPC service hosts
-# HTTPS is always enabled for the REST API server in tests
-echo "https://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
+# HTTPS is enabled unless Istio is enabled (Istio handles mTLS)
+if [ "$enable_istio" = "true" ]; then
+  echo "http://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
+else
+  echo "https://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
+fi
 echo "127.0.0.1:30090" > ${PWD}/test/_output/.external_grpc_endpoint

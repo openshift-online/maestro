@@ -38,6 +38,11 @@ spec:
           mountPath: /secrets/mqtt-certs
           readOnly: true
         {{- end }}
+        {{- if and (eq .Values.messageBroker.type "grpc") .Values.messageBroker.grpc.tls.caCert }}
+        - name: grpc-broker-cert
+          mountPath: /secrets/grpc-broker-cert
+          readOnly: true
+        {{- end }}
       volumes:
       - name: {{ .Values.messageBroker.type }}
         secret:
@@ -46,4 +51,9 @@ spec:
       - name: mqtt-certs
         secret:
           secretName: maestro-agent-certs
+      {{- end }}
+      {{- if and (eq .Values.messageBroker.type "grpc") .Values.messageBroker.grpc.tls.caCert }}
+      - name: grpc-broker-cert
+        secret:
+          secretName: maestro-grpc-broker-cert
       {{- end }}

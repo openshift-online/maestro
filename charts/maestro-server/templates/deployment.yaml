@@ -35,10 +35,18 @@ spec:
       - name: {{ .Values.messageBroker.type }}
         secret:
           secretName: {{ .Values.messageBroker.secretName }}
+      {{- if eq .Values.messageBroker.type "mqtt" }}
       - name: mqtt-certs
         secret:
           secretName: maestro-server-certs
           optional: true
+      {{- end }}
+      {{- if eq .Values.messageBroker.type "grpc" }}
+      - name: grpc-broker-cert
+        secret:
+          secretName: maestro-grpc-broker-cert
+          optional: true
+      {{- end }}
       {{- if .Values.server.https.enabled }}
       - name: https-certs
         secret:
@@ -76,8 +84,14 @@ spec:
           mountPath: /secrets/rds
         - name: {{ .Values.messageBroker.type }}
           mountPath: /secrets/{{ .Values.messageBroker.type }}
+        {{- if eq .Values.messageBroker.type "mqtt" }}
         - name: mqtt-certs
           mountPath: /secrets/mqtt-certs
+        {{- end }}
+        {{- if eq .Values.messageBroker.type "grpc" }}
+        - name: grpc-broker-cert
+          mountPath: /secrets/grpc-broker-cert
+        {{- end }}
         {{- if .Values.server.https.enabled }}
         - name: https-certs
           mountPath: /secrets/https-certs
@@ -110,6 +124,11 @@ spec:
         {{- if .Values.server.https.enabled }}
         - --https-cert-file=/secrets/https-certs/tls.crt
         - --https-key-file=/secrets/https-certs/tls.key
+        {{- end }}
+        {{- if and (eq .Values.messageBroker.type "grpc") .Values.grpc.tls.enabled }}
+        - --grpc-broker-tls-cert-file={{ .Values.grpc.tls.certFile }}
+        - --grpc-broker-tls-key-file={{ .Values.grpc.tls.keyFile }}
+        - --grpc-broker-client-ca-file={{ .Values.grpc.tls.clientCAFile }}
         {{- end }}
         - --server-hostname={{ .Values.server.hostname }}
         - --http-server-bindport={{ .Values.server.http.bindPort }}
