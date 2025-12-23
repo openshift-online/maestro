@@ -67,6 +67,11 @@ server:
   grpc:
     enabled: true
     bindPort: 8090
+    tls:
+      enabled: false
+      certFile: /secrets/maestro-grpc-cert/server.crt
+      keyFile: /secrets/maestro-grpc-cert/server.key
+      clientCAFile: /secrets/maestro-grpc-cert/ca.crt
   metrics:
     bindPort: 8080
     https:

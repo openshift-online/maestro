@@ -36,6 +36,10 @@ environment: development
 serviceAccount:
   name: maestro
 
+# Logging configuration
+logging:
+  klogV: "10"
+
 image:
   registry: ${external_image_registry}
   repository: maestro/maestro
@@ -82,6 +86,11 @@ service:
     port: 8000
     nodePort: 30080
   grpc:
+    tls:
+      enabled: ${tls_enable}
+      certFile: /secrets/maestro-grpc-cert/server.crt
+      keyFile: /secrets/maestro-grpc-cert/server.key
+      clientCAFile: /secrets/maestro-grpc-cert/ca.crt
     type: NodePort
     port: 8090
     nodePort: 30090

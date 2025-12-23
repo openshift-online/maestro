@@ -58,6 +58,12 @@ spec:
         secret:
           secretName: maestro-https-certs
       {{- end }}
+      {{- if .Values.server.grpc.tls.enabled }}
+      - name: maestro-grpc-cert
+        secret:
+          secretName: maestro-grpc-cert
+          optional: true
+      {{- end }}
       initContainers:
       {{- if .Values.database.cloudSqlProxy.enabled }}
       - name: cloud-sql-proxy
@@ -119,6 +125,11 @@ spec:
           mountPath: /secrets/https-certs
           readOnly: true
         {{- end }}
+        {{- if .Values.server.grpc.tls.enabled }}
+        - name: maestro-grpc-cert
+          mountPath: /secrets/maestro-grpc-cert
+          readOnly: true
+        {{- end }}
         env:
           - name: "MAESTRO_ENV"
             value: {{ .Values.environment | quote }}
@@ -146,6 +157,11 @@ spec:
         {{- if .Values.server.https.enabled }}
         - --https-cert-file=/secrets/https-certs/tls.crt
         - --https-key-file=/secrets/https-certs/tls.key
+        {{- end }}
+        {{- if .Values.server.grpc.tls.enabled }}
+        - --grpc-server-tls-cert-file={{ .Values.server.grpc.tls.certFile }}
+        - --grpc-server-tls-key-file={{ .Values.server.grpc.tls.keyFile }}
+        - --grpc-server-client-ca-file={{ .Values.server.grpc.tls.clientCAFile }}
         {{- end }}
         {{- if and (eq .Values.messageBroker.type "grpc") .Values.grpc.tls.enabled }}
         - --grpc-broker-tls-cert-file={{ .Values.grpc.tls.certFile }}
