@@ -286,15 +286,12 @@ $ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontr
 
 If you want to push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman. Then run `make push` to push the image to the registry.
 
-If you want to use the existing image, set the image environment variables.
+If you want to use the default image, you can skip the `make push` step.
 
 ```shell
-$ export internal_image_registry=quay.io/redhat-user-workloads/maestro-rhtap-tenant
-$ export image_repository=maestro/maestro
-$ export image_tag=latest
 $ make deploy
 
-$ oc get pod -n "maestro-$USER"
+$ oc get pod -n maestro
 NAME                            READY   STATUS      RESTARTS   AGE
 maestro-85c847764-4xdt6         1/1     Running     0          62s
 maestro-db-5d4c4679f5-r92vg     1/1     Running     0          61s
@@ -306,7 +303,7 @@ maestro-mqtt-6cb7bdf46c-kcczm   1/1     Running     0          63s
 ```shell
 $ curl -k -X POST -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
-    https://maestro.${external_apps_domain}/api/maestro/v1/consumers \
+    https://maestro-maestro.${external_apps_domain}/api/maestro/v1/consumers \
     -d '{
     "name": "cluster1"
   }'
@@ -328,8 +325,9 @@ You should get a response like this:
 
 ```shell
 $ export consumer_name=cluster1
+$ export install_crds=false
 $ make deploy-agent
-$ oc get pod -n "maestro-agent-$USER"
+$ oc get pod -n maestro-agent
 NAME                             READY   STATUS    RESTARTS   AGE
 maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
 ```

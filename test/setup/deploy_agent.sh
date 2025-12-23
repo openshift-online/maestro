@@ -50,6 +50,8 @@ values_file="${PWD}/test/_output/maestro-agent-values.yaml"
 cat > "$values_file" <<EOF
 environment: development
 
+clientCertRefreshDuration: 5s
+
 consumerName: ${consumer_name}
 
 serviceAccount:

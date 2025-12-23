@@ -20,11 +20,9 @@ version:=$(shell date +%s)
 # Tag for the image:
 image_tag ?= $(version)
 
-# The namespace and the environment are calculated from the name of the user to
-# avoid clashes in shared infrastructure:
-environment:=${USER}
-namespace ?= maestro-${USER}
-agent_namespace ?= maestro-agent-${USER}
+# The namespace where maestro server and agent will be deployed.
+namespace ?= maestro
+agent_namespace ?= maestro-agent
 
 # a tool for managing containers and images, etc. You can set it as docker
 container_tool ?= podman
@@ -53,7 +51,6 @@ db_port=5432
 db_user:=maestro
 db_password:=foobar-bizz-buzz
 db_password_file=${PWD}/secrets/db.password
-db_sslmode:=disable
 db_image?=quay.io/maestro/postgres:17.2
 
 # Message broker connection details
@@ -62,58 +59,14 @@ mqtt_port ?= 1883
 mqtt_user ?= maestro
 mqtt_password_file ?= ${PWD}/secrets/mqtt.password
 mqtt_config_file ?= ${PWD}/secrets/mqtt.config
-mqtt_root_cert ?= ""
-mqtt_client_cert ?= ""
-mqtt_client_key ?= ""
 
 # Log verbosity level
 klog_v:=2
-
-# consumer name from the database. it is used by the maestro agent to identify itself
-consumer_name ?= cluster1
-
-# Client id and secret are used to interact with other UHC services
-CLIENT_ID ?= maestro
-CLIENT_SECRET ?= maestro
-
-# Enable gRPC server and disable gRPC broker by default
-ENABLE_GRPC_SERVER ?= true
-ENABLE_GRPC_BROKER ?= false
-
-# Enable TLS
-ENABLE_TLS ?= false
-
-# message driver type, mqtt or grpc, default is mqtt.
-MESSAGE_DRIVER_TYPE ?= mqtt
-
-# default replicas for maestro server
-SERVER_REPLICAS ?= 1
-
-# Enable set images
-POSTGRES_IMAGE ?= quay.io/maestro/postgres:17.2
-MQTT_IMAGE ?= quay.io/maestro/eclipse-mosquitto:2.0.18
 
 # Test output files
 unit_test_json_output ?= ${PWD}/unit-test-results.json
 mqtt_integration_test_json_output ?= ${PWD}/mqtt-integration-test-results.json
 grpc_integration_test_json_output ?= ${PWD}/grpc-integration-test-results.json
-
-# maestro services config
-maestro_svc_type ?= ClusterIP
-maestro_svc_node_port ?= 0
-grpc_svc_type ?= ClusterIP
-grpc_svc_node_port ?= 0
-
-# maestro deployment config
-liveness_probe_init_delay_seconds ?= 15
-readiness_probe_init_delay_seconds ?= 20
-
-# subscription config
-subscription_type ?= shared
-agent_topic ?= "\$$share/statussubscribers/sources/maestro/consumers/+/agentevents"
-
-# default client certificate refresh/reload duration for message broker
-broker_client_cert_refresh_duration ?= 5m
 
 # Prints a list of useful targets.
 help:
@@ -132,19 +85,17 @@ help:
 	@echo "make image                build docker image"
 	@echo "make push                 push docker image"
 	@echo "make deploy               deploy maestro server via Helm"
-	@echo "make deploy-dev           deploy maestro server with embedded database and MQTT"
-	@echo "make deploy-agent         deploy maestro agent via Helm (requires CONSUMER_NAME)"
+	@echo "make deploy-agent         deploy maestro agent via Helm (requires consumer_name)"
 	@echo "make undeploy             undeploy maestro server"
 	@echo "make undeploy-agent       undeploy maestro agent"
 	@echo "make lint-charts          lint Helm charts"
-	@echo "make project              create and use an Example project"
 	@echo "make clean                delete temporary generated files"
 	@echo "$(fake)"
 .PHONY: help
 
 # Encourage consistent tool versions
 OPENAPI_GENERATOR_VERSION:=5.4.0
-GO_VERSION:=go1.24.
+GO_VERSION:=go1.25.
 
 ### Constants:
 version:=$(shell date +%s)
@@ -305,19 +256,6 @@ cmds:
 			|| exit 1; \
 	done
 
-
-# Template generation has been replaced with Helm charts.
-# See charts/maestro-server and charts/maestro-agent for Helm-based deployments.
-
-
-.PHONY: project
-project:
-	$(oc) new-project "$(namespace)" || $(oc) project "$(namespace)" || true
-
-.PHONY: agent-project
-agent-project:
-	$(oc) new-project "$(agent_namespace)" || $(oc) project "$(agent_namespace)" || true
-
 .PHONY: image
 image: cmds
 	$(container_tool) build -t "$(external_image_registry)/$(image_repository):$(image_tag)" .
@@ -327,7 +265,7 @@ e2e-image:
 	$(container_tool) build -f Dockerfile.e2e -t "$(external_image_registry)/$(image_repository)-e2e:$(image_tag)" .
 
 .PHONY: push
-push: image project
+push: image
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
 # Deploy Maestro server using Helm charts
@@ -336,17 +274,9 @@ deploy:
 	helm upgrade --install maestro-server \
 		./charts/maestro-server \
 		--namespace $(namespace) \
-		--create-namespace
-
-# Deploy Maestro server in development mode with embedded database and MQTT
-.PHONY: deploy-dev
-deploy-dev:
-	helm upgrade --install maestro-server \
-		./charts/maestro-server \
-		--namespace $(namespace) \
 		--create-namespace \
-		--set postgresql.enabled=true \
-		--set mqtt.enabled=true
+		--set mqtt.enabled=true \
+		--set postgresql.enabled=true
 
 # Undeploy Maestro server using Helm charts
 .PHONY: undeploy
@@ -354,17 +284,19 @@ undeploy:
 	helm uninstall maestro-server --namespace $(namespace) || true
 
 # Deploy Maestro agent using Helm charts
+# Optional: Set install_crds=true to install CRDs (default: false to skip if already exists)
 .PHONY: deploy-agent
 deploy-agent:
-	@if [ -z "$(CONSUMER_NAME)" ]; then \
-		echo "Error: CONSUMER_NAME must be set"; \
+	@if [ -z "$(consumer_name)" ]; then \
+		echo "Error: consumer_name must be set"; \
 		exit 1; \
 	fi
 	helm upgrade --install maestro-agent \
 		./charts/maestro-agent \
 		--namespace $(agent_namespace) \
 		--create-namespace \
-		--set consumerName=$(CONSUMER_NAME)
+		--set consumerName=$(consumer_name) \
+		--set installCRDs=$(if $(install_crds),$(install_crds),false)
 
 # Undeploy Maestro agent using Helm charts
 .PHONY: undeploy-agent
