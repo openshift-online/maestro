@@ -198,6 +198,11 @@ objects:
         metadata:
           labels:
             app: maestro
+          annotations:
+            proxy.istio.io/config: |
+              {
+                "holdApplicationUntilProxyStarts": true
+              }
         spec:
           serviceAccountName: maestro
           volumes:
