@@ -70,6 +70,11 @@ server:
   grpc:
     enabled: true
     bindPort: 8090
+    tls:
+      enabled: ${tls_enable}
+      certFile: /secrets/maestro-grpc-cert/server.crt
+      keyFile: /secrets/maestro-grpc-cert/server.key
+      clientCAFile: /secrets/maestro-grpc-cert/ca.crt
   metrics:
     bindPort: 8080
     https:
@@ -86,11 +91,6 @@ service:
     port: 8000
     nodePort: 30080
   grpc:
-    tls:
-      enabled: ${tls_enable}
-      certFile: /secrets/maestro-grpc-cert/server.crt
-      keyFile: /secrets/maestro-grpc-cert/server.key
-      clientCAFile: /secrets/maestro-grpc-cert/ca.crt
     type: NodePort
     port: 8090
     nodePort: 30090
@@ -172,6 +172,11 @@ kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeo
 
 # TODO use maestro service health check to ensure the service ready
 sleep 30 # wait 30 seconds for the service ready
+
+if [ "$tls_enable" = "true" ]; then
+  # deploy grpc-client-token for testing
+  kubectl apply -f "${PWD}/test/setup/grpc-client" -n ${namespace}
+fi
 
 # Expose the RESTAPI and gRPC service hosts
 # HTTPS is enabled unless Istio is enabled (Istio handles mTLS)
