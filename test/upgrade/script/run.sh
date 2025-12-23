@@ -19,6 +19,7 @@ timeout=${timeout:-"5m"}
 export image=${IMAGE:-"image-registry.testing/maestro/maestro-e2e:latest"}
 export consumer_name=${CONSUMER_NAME:-$(cat "${PWD}/test/_output/.consumer_name")}
 export service_account_name=${SERVICE_ACCOUNT_NAME:-"default"}
+export enable_authorization_policy=${ENABLE_AUTHORIZATION_POLICY:-"false"}
 
 export server_kubeconfig=${SERVER_KUBECONFIG:-"${PWD}/test/_output/.kubeconfig"}
 export agent_in_cluster_kubeconfig=${AGENT_IN_CLUSTER_KUBECONFIG:-"${PWD}/test/_output/.in-cluster.kubeconfig"}
@@ -54,6 +55,11 @@ if ! kubectl --kubeconfig=$server_kubeconfig -n clusters-service wait deploy/wor
     exit 1
 fi
 
+if [ "$enable_authorization_policy" == "true" ]; then
+  if [ "$(kubectl --kubeconfig=$server_kubeconfig get AuthorizationPolicy -n clusters-service allow-upgrade --no-headers --ignore-not-found | wc -l | sed 's/\ //g')" -eq 0 ]; then
+    kubectl --kubeconfig=$server_kubeconfig apply -f ${PWD}/test/upgrade/script/resources/authorizationpolicy.yaml
+  fi
+fi
 # cleanup the test jobs
 kubectl --kubeconfig=$server_kubeconfig -n clusters-service delete jobs --all --ignore-not-found
 
