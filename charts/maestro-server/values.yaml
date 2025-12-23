@@ -32,7 +32,7 @@ logging:
 # Database configuration
 database:
   maxOpenConnections: 50
-  sslMode: verify-full
+  sslMode: disable
   debug: false
   # Database secret name (must exist before deployment)
   secretName: maestro-rds
@@ -115,7 +115,7 @@ postgresql:
   database:
     name: maestro
     user: maestro
-    password: TheBlurstOfTimes
+    password: maestro
     host: maestro-db
   service:
     name: maestro-db

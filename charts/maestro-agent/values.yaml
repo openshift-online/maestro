@@ -4,8 +4,15 @@
 
 environment: production
 
+# CRD installation control
+# Set to false if CRDs are already installed
+installCRDs: true
+
 # Consumer name - identifies the agent/cluster
 consumerName: cluster1
+
+# default client certificate refresh/reload duration for message broker
+clientCertRefreshDuration: 5m
 
 # Service Account configuration
 serviceAccount:
@@ -28,9 +35,9 @@ messageBroker:
 
   # MQTT configuration
   mqtt:
-    host: ""
     port: "1883"
-    user: ""
+    host: maestro-mqtt.maestro
+    user: maestro
     password: ""
     rootCert: ""
     clientCert: ""

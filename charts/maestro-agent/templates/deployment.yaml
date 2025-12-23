@@ -22,6 +22,8 @@ spec:
         env:
           - name: "MAESTRO_ENV"
             value: {{ .Values.environment | quote }}
+          - name: CERT_CALLBACK_REFRESH_DURATION
+            value: {{ .Values.clientCertRefreshDuration | quote}}
         command:
           - /usr/local/bin/maestro
           - agent
