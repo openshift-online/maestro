@@ -1,5 +1,4 @@
 {{- if and (eq .Values.messageBroker.type "grpc") .Values.grpc.enabled -}}
-
 ---
 apiVersion: v1
 kind: Secret
