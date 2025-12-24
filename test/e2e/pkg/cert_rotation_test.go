@@ -68,7 +68,7 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("creating a test work with deployment (1 replica)")
-			work := helper.NewManifestWork(workName, deployName, "default", 1)
+			work := helper.NewManifestWorkWithFeedbackReplicas(workName, deployName, "default", 1)
 			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -96,7 +96,8 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 				if !meta.IsStatusConditionTrue(work.Status.Conditions, "Available") {
 					return fmt.Errorf("work not available yet")
 				}
-				return nil
+
+				return AssertWorkReplicas(workName, 1)
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
@@ -145,9 +146,41 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 		})
 
-		It("should update work when certificate expires and succeed after rotation", func() {
+		It("should fail to update work when certificate expires and succeed after rotation", func() {
 			By("waiting for the certificate to expire (30 seconds)")
 			time.Sleep(30 * time.Second)
+
+			_, err := serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Get(ctx, "maestro-mqtt", metav1.GetOptions{})
+			if err != nil {
+				By("restarting maestro-server to let maestro-agent detect the expired certificate")
+				err := restartDeployment(ctx, serverTestOpts.kubeClientSet, "maestro", serverTestOpts.serverNamespace)
+				Expect(err).ShouldNot(HaveOccurred())
+			} else {
+				By("restarting maestro-mqtt to let maestro-agent detect the expired certificate")
+				err := restartDeployment(ctx, serverTestOpts.kubeClientSet, "maestro-mqtt", serverTestOpts.serverNamespace)
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			By("eventually update the work to change replicas to 2")
+			Eventually(func() error {
+				work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+				if err != nil {
+					return err
+				}
+				newWork := work.DeepCopy()
+				newWork.Spec.Workload.Manifests = []workv1.Manifest{helper.NewManifest(deployName, "default", 2)}
+				patchData, err := grpcsource.ToWorkPatch(work, newWork)
+				if err != nil {
+					return err
+				}
+				_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+				return err
+			}, 30*time.Second, 1*time.Second).ShouldNot(HaveOccurred())
+
+			By("consistently verifying the work feedback replicas is NOT updated to 2 (certificate expired)")
+			Consistently(func() error {
+				return AssertWorkReplicas(workName, 1)
+			}, 30*time.Second, 3*time.Second).ShouldNot(HaveOccurred())
 
 			By("rotating certificate with long expiration (1 hour)")
 			rotated, err := rotateCertificates(ctx, 1*time.Hour)
@@ -156,18 +189,6 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 
 			By("waiting 10 seconds for certificate reload")
 			time.Sleep(10 * time.Second)
-
-			By("updating the work to change replicas to 2")
-			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			newWork := work.DeepCopy()
-			newWork.Spec.Workload.Manifests = []workv1.Manifest{helper.NewManifest(deployName, "default", 2)}
-			patchData, err := grpcsource.ToWorkPatch(work, newWork)
-			Expect(err).ShouldNot(HaveOccurred())
-
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
 
 			By("eventually verifying the deployment replicas is updated to 2 (certificate refreshed)")
 			Eventually(func() error {
@@ -182,7 +203,12 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 					return fmt.Errorf("expected 2 replicas, got %d", *deployment.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}, 1*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+
+			By("eventually verifying the work feedback replicas is updated to 2 (certificate refreshed)")
+			Eventually(func() error {
+				return AssertWorkReplicas(workName, 2)
+			}, 1*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 })
@@ -407,4 +433,28 @@ func restartDeployment(ctx context.Context, kubeClient kubernetes.Interface, dep
 	time.Sleep(5 * time.Second)
 
 	return nil
+}
+
+func AssertWorkReplicas(name string, replicas int64) error {
+	work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		return err
+	}
+
+	manifests := work.Status.ResourceStatus.Manifests
+	if len(manifests) > 0 && len(manifests[0].StatusFeedbacks.Values) != 0 {
+		feedback := manifests[0].StatusFeedbacks.Values
+		if feedback[0].Name == "replicas" {
+			feedbackInt := feedback[0].Value.Integer
+			if feedbackInt == nil {
+				return fmt.Errorf("manifestwork %s feedback 'replicas' has nil Integer value", name)
+			}
+			if *feedbackInt == replicas {
+				return nil
+			}
+			return fmt.Errorf("manifestwork %s: expected replicas %d, got %d", name, replicas, *feedbackInt)
+		}
+	}
+
+	return fmt.Errorf("manifestwork %s: 'replicas' feedback not found or empty", name)
 }

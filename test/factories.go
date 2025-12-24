@@ -271,7 +271,47 @@ func (helper *Helper) NewManifestWork(workName, deployName, serviceAccount strin
 			},
 		},
 	}
+}
 
+// NewManifestWorkWithFeedbackReplicas creates a manifestwork with the given manifestwork name, deploy name
+// and replicas. It generates a deployment for nginx using the manifestJSON template, assigning random manifestwork
+// name and deploy name to avoid conflicts. It tracks replica feedback of the deployment.
+func (helper *Helper) NewManifestWorkWithFeedbackReplicas(workName, deployName, serviceAccount string, replicas int) *workv1.ManifestWork {
+	manifest := helper.NewManifest(deployName, serviceAccount, replicas)
+	return &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: workName,
+		},
+		Spec: workv1.ManifestWorkSpec{
+			Workload: workv1.ManifestsTemplate{
+				Manifests: []workv1.Manifest{manifest},
+			},
+			ManifestConfigs: []workv1.ManifestConfigOption{
+				{
+					ResourceIdentifier: workv1.ResourceIdentifier{
+						Group:     "apps",
+						Resource:  "deployments",
+						Name:      deployName,
+						Namespace: "default",
+					},
+					FeedbackRules: []workv1.FeedbackRule{
+						{
+							Type: workv1.JSONPathsType,
+							JsonPaths: []workv1.JsonPath{
+								{
+									Name: "replicas",
+									Path: ".status.replicas",
+								},
+							},
+						},
+					},
+					UpdateStrategy: &workv1.UpdateStrategy{
+						Type: workv1.UpdateStrategyTypeServerSideApply,
+					},
+				},
+			},
+		},
+	}
 }
 
 func (helper *Helper) CreateConsumer(name string) (*api.Consumer, error) {
