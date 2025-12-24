@@ -1,0 +1,19 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-upgrade
+  namespace: clusters-service
+spec:
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/clusters-service/sa/clusters-service
+    to:
+    - operation:
+        ports:
+        - "8080"
+  selector:
+    matchLabels:
+      app: workserver

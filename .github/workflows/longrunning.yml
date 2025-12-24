@@ -2,7 +2,7 @@ name: Maestro Long Running Test
 
 on:
   schedule:
-  - cron: '0 2 * * *'  # run every day
+  - cron: '0 2 * * 1-5'  # run every work day
 
   # Allow manual triggering of the workflow
   workflow_dispatch:
@@ -113,64 +113,102 @@ jobs:
           generate_in_cluster_kube $(pwd)/svc-cluster.kubeconfig svc
           generate_in_cluster_kube $(pwd)/mgmt-cluster.kubeconfig mgmt
 
-      - name: start the e2e test
+      - name: start pre-upgrade
+        id: pre_upgrade
         run: |
-          consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
-
-          AGENT_NAMESPACE=maestro \
-            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
-            CONSUMER_NAME=$consumer_name \
-            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
-            AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
-            SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
-            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
-            SERVICE_ACCOUNT_NAME=clusters-service \
-            bash -x test/e2e/istio/test.sh
-          if [ $? != 0 ]; then
-            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
+          pod_template_hash=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" get rs -l app=maestro -n maestro -o jsonpath='{range .items[?(@.spec.replicas>0)]}{.metadata.name}{"\n"}{end}' | awk -F '-' '{print $2}')
+          if [ -z "$pod_template_hash" ]; then
+            echo "Error: No active replicaset found"
             exit 1
           fi
+          pod_name=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" get pods -n maestro -l pod-template-hash=$pod_template_hash -o jsonpath='{.items[0].metadata.name}')
+          if [ -z "$pod_name" ]; then
+            echo "Error: No pod found for replicaset hash $pod_template_hash"
+            exit 1
+          fi
+          commit_sha=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" logs -n maestro $pod_name | grep -i "Git Commit" | grep -oE '[a-f0-9]{40}')
+          if [ -z "$commit_sha" ]; then
+            echo "Error: Could not extract commit SHA from pod logs"
+            exit 1
+          fi
+          consumer_name=$(kubectl --kubeconfig "$(pwd)/mgmt-cluster.kubeconfig" get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
+          if [ -z "$consumer_name" ]; then
+            echo "Error: Could not extract consumer name from agent deployment"
+            exit 1
+          fi
+
+          echo "image_sha=$commit_sha" >> $GITHUB_OUTPUT
+          echo "consumer_name=$consumer_name" >> $GITHUB_OUTPUT
+
+          IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$commit_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
+            ENABLE_AUTHORIZATION_POLICY=true \
+            bash -x test/upgrade/script/run.sh || exit 1
 
       - name: start to upgrade server
         run: |
           KUBECONFIG=$(pwd)/svc-cluster.kubeconfig make e2e/rollout
-          consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+          consumer_name="${{ steps.pre_upgrade.outputs.consumer_name }}"
+          commit_sha="${{ steps.pre_upgrade.outputs.image_sha }}"
 
           AGENT_NAMESPACE=maestro \
-            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$commit_sha \
             CONSUMER_NAME=$consumer_name \
             SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
             SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
             AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
             SERVICE_ACCOUNT_NAME=clusters-service \
-            bash -x test/e2e/istio/test.sh
-          if [ $? != 0 ]; then
-            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
-            exit 1
-          fi
+            bash -x test/e2e/istio/test.sh || exit 1
+
+          IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$commit_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
+            ENABLE_AUTHORIZATION_POLICY=true \
+            bash -x test/upgrade/script/run.sh || exit 1
 
       - name: start to upgrade agent
         run: |
           KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig make e2e/rollout
-          consumer_name=$(kubectl --kubeconfig $(pwd)/mgmt-cluster.kubeconfig get deployment maestro-agent -n maestro -o yaml | grep -E "^\s+- --consumer-name=" | sed 's/.*--consumer-name=//'| head -1)
-          maestro_e2e_image_sha=$(curl -s -X GET https://quay.io/api/v1/repository/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e | jq -s -c 'sort_by(.tags[].last_modified) | .[].tags[] | select(.name | test("sha256-|on-pr-|maestro-e2e-on-pull-request")| not) | .name' | head -n 1 | sed 's/\"//g')
+          consumer_name="${{ steps.pre_upgrade.outputs.consumer_name }}"
+          pod_template_hash=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" get rs -l app=maestro -n maestro -o jsonpath='{range .items[?(@.spec.replicas>0)]}{.metadata.name}{"\n"}{end}' | awk -F '-' '{print $2}')
+          if [ -z "$pod_template_hash" ]; then
+            echo "Error: No active replicaset found"
+            exit 1
+          fi
+          pod_name=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" get pods -n maestro -l pod-template-hash=$pod_template_hash -o jsonpath='{.items[0].metadata.name}')
+          if [ -z "$pod_name" ]; then
+            echo "Error: No pod found for replicaset hash $pod_template_hash"
+            exit 1
+          fi
+          commit_sha=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" logs -n maestro $pod_name | grep -i "Git Commit" | grep -oE '[a-f0-9]{40}')
+          if [ -z "$commit_sha" ]; then
+            echo "Error: Could not extract commit SHA from pod logs"
+            exit 1
+          fi
 
           AGENT_NAMESPACE=maestro \
-            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$maestro_e2e_image_sha \
+            IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$commit_sha \
             CONSUMER_NAME=$consumer_name \
             SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
             AGENT_KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig \
             SERVER_IN_CLUSTER_KUBECONFIG=$(pwd)/svc-incluster.kubeconfig \
             AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
             SERVICE_ACCOUNT_NAME=clusters-service \
-            bash -x test/e2e/istio/test.sh
-          if [ $? != 0 ]; then
-            kubectl --kubeconfig=$(pwd)/svc-cluster.kubeconfig logs -n clusters-service -l app=maestro-e2e --tail=-1
-            exit 1
-          fi
+            bash -x test/e2e/istio/test.sh || exit 1
+
+          IMAGE=quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro-e2e:$commit_sha \
+            CONSUMER_NAME=$consumer_name \
+            SERVER_KUBECONFIG=$(pwd)/svc-cluster.kubeconfig \
+            AGENT_IN_CLUSTER_KUBECONFIG=$(pwd)/mgmt-incluster.kubeconfig \
+            SERVICE_ACCOUNT_NAME=clusters-service \
+            ENABLE_AUTHORIZATION_POLICY=true \
+            bash -x test/upgrade/script/run.sh || exit 1
 
       - name: Post a message in a channel
         uses: slackapi/slack-github-action@v2.1.1
