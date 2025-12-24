@@ -58,6 +58,7 @@ var manifestJSON = `
 		  "containers": [
 			{
 			  "image": "quay.io/nginx/nginx-unprivileged:latest",
+			  "imagePullPolicy": "IfNotPresent",
 			  "name": "nginx"
 			}
 		  ]
