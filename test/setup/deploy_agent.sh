@@ -46,8 +46,36 @@ export mqtt_password_file="/dev/null"
 export mqtt_root_cert="/secrets/mqtt-certs/ca.crt"
 export mqtt_client_cert="/secrets/mqtt-certs/client.crt"
 export mqtt_client_key="/secrets/mqtt-certs/client.key"
+export pubsub_host="maestro-pubsub.${namespace}"
+export pubsub_port="8085"
+export pubsub_project_id="maestro-test"
 # crank the client certificate refresh interval for cert rotation test
 export broker_client_cert_refresh_duration=5s
+
+# Initialize Pub/Sub agent subscriptions if using pubsub broker
+msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
+if [ "$msg_broker" = "pubsub" ]; then
+  echo "Initializing Pub/Sub agent subscriptions for consumer: ${consumer_name}..."
+
+  # Create agent-specific subscriptions using the template
+  oc process \
+    --filename="${PWD}/templates/pubsub-agent-init-job-template.yml" \
+    --local="true" \
+    --param="NAMESPACE=${agent_namespace}" \
+    --param="PUBSUB_HOST=maestro-pubsub.${namespace}" \
+    --param="PUBSUB_PORT=8085" \
+    --param="PUBSUB_PROJECT_ID=maestro-test" \
+    --param="CONSUMER_NAME=${consumer_name}" \
+  | kubectl apply -f -
+
+  # Wait for initialization job to complete
+  kubectl -n ${agent_namespace} wait --for=condition=complete --timeout=120s job/pubsub-agent-init-${consumer_name}
+
+  # Clean up the initialization job
+  kubectl -n ${agent_namespace} delete job pubsub-agent-init-${consumer_name} --ignore-not-found
+
+  echo "Pub/Sub agent subscriptions initialized successfully"
+fi
 
 # Deploy maestro agent into maestro-agent namespace
 make agent-tls-template

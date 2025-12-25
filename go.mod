@@ -205,3 +205,5 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v6 v6.3.0 // indirect
 )
+
+replace open-cluster-management.io/sdk-go => github.com/morvencao/ocm-sdk-go v0.0.0-20251225091636-0a4a95a2cd88

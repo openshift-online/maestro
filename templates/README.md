@@ -30,6 +30,29 @@ This template deploys a simple postgresl-9.4 database deployment with a TLS-enab
 
 This template deploys a simple mosquitto-2.0.18 mqtt broker deployment.
 
+## Pub/Sub Emulator template
+
+`templates/pubsub-template.yml`
+
+This template deploys a Google Cloud Pub/Sub emulator for local development and e2e testing. The emulator runs in a container and provides a compatible Pub/Sub API endpoint without requiring actual GCP credentials.
+
+`templates/pubsub-init-job-template.yml`
+
+This template creates a Kubernetes Job that initializes the Pub/Sub emulator with the required topics and subscriptions for the Maestro server. It uses the Python Pub/Sub client library to create:
+- Topics: `sourceevents`, `sourcebroadcast`, `agentevents`, `agentbroadcast`
+- Subscriptions:
+  - `agentevents-maestro` - filtered by `ce-originalsource="maestro"`
+  - `agentbroadcast-maestro` - receives all broadcast messages
+
+`templates/pubsub-agent-init-job-template.yml`
+
+This template creates a Kubernetes Job that initializes agent-specific Pub/Sub subscriptions. It must be run before deploying each agent and creates:
+- Subscription: `sourceevents-{consumer_name}` - filtered by `ce-clustername` attribute
+- Subscription: `sourcebroadcast-{consumer_name}` - receives all broadcast messages
+
+For production GCP deployments, use the GCP-specific templates:
+- `templates/service-template-gcp.yml` - Maestro server with Pub/Sub integration
+- `templates/agent-template-gcp.yml` - Maestro agent with Pub/Sub integration
 
 ## Agent template
 

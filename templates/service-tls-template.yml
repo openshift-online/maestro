@@ -274,7 +274,7 @@ objects:
               secretName: maestro-rds
           - name: ${MESSAGE_DRIVER_TYPE}
             secret:
-              secretName: maestro-mqtt
+              secretName: maestro-${MESSAGE_DRIVER_TYPE}
               optional: true
           - name: authentication
             configMap:

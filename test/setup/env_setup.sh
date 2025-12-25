@@ -190,6 +190,37 @@ EOF
   fi
 fi
 
+if [ "$msg_broker" = "pubsub" ]; then
+  # Deploy the Pub/Sub emulator
+  export pubsub_project_id="maestro-test"
+  export pubsub_host="maestro-pubsub.${namespace}"
+  export pubsub_port="8085"
+
+  # Deploy the Pub/Sub emulator
+  make deploy-pubsub
+  kubectl -n ${namespace} wait deploy/maestro-pubsub --for condition=Available=True --timeout=300s
+
+  # Initialize topics and subscriptions in the emulator
+  # Wait a bit for the emulator to be fully ready
+  sleep 5
+
+  # Create a job to initialize Pub/Sub topics and subscriptions using the template
+  oc process \
+    --filename="${PWD}/templates/pubsub-init-job-template.yml" \
+    --local="true" \
+    --param="NAMESPACE=${namespace}" \
+    --param="PUBSUB_HOST=maestro-pubsub" \
+    --param="PUBSUB_PORT=${pubsub_port}" \
+    --param="PUBSUB_PROJECT_ID=${pubsub_project_id}" \
+  | kubectl apply -f -
+
+  # Wait for initialization job to complete
+  kubectl -n ${namespace} wait --for=condition=complete --timeout=120s job/pubsub-init
+
+  # Clean up the initialization job
+  kubectl -n ${namespace} delete job pubsub-init --ignore-not-found
+fi
+
 # Deploy the database (PostgreSQL) required by the Maestro server
 make deploy-db-tls
 kubectl -n ${namespace} wait deploy/maestro-db --for condition=Available=True --timeout=300s
