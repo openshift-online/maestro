@@ -1,0 +1,116 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  annotations:
+    description: Google Cloud Pub/Sub emulator for use with Maestro
+    iconClass: icon-google
+    openshift.io/display-name: Google Cloud Pub/Sub Emulator
+    tags: pubsub,google,emulator
+  name: maestro-pubsub
+parameters:
+  - name: PUBSUB_EMULATOR_NAME
+    description: The name of the OpenShift Service exposed for the Pub/Sub emulator.
+    displayName: Pub/Sub Emulator Service Name
+    required: true
+    value: maestro-pubsub
+
+  - name: PUBSUB_IMAGE
+    description: Google Cloud Pub/Sub emulator image.
+    displayName: Pub/Sub Emulator Image
+    required: true
+    value: "gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators"
+
+  - name: PUBSUB_HOST
+    description: Hostname for the Pub/Sub emulator.
+    required: true
+
+  - name: PUBSUB_PORT
+    description: Port for the Pub/Sub emulator.
+    required: true
+    value: "8085"
+
+  - name: PUBSUB_PROJECT_ID
+    description: Google Cloud project ID for the emulator.
+    required: true
+    value: "maestro-test"
+
+objects:
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      annotations:
+        template.openshift.io/expose-uri: tcp://{.spec.clusterIP}:{.spec.ports[?(.name==\pubsub\)].port}
+      name: ${PUBSUB_EMULATOR_NAME}
+    spec:
+      ports:
+      - name: pubsub
+        nodePort: 0
+        protocol: TCP
+        port: 8085
+        targetPort: 8085
+      selector:
+        name: ${PUBSUB_EMULATOR_NAME}
+      sessionAffinity: None
+      type: ClusterIP
+    status:
+      loadBalancer: {}
+
+  - kind: Deployment
+    apiVersion: apps/v1
+    metadata:
+      name: ${PUBSUB_EMULATOR_NAME}
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          name: ${PUBSUB_EMULATOR_NAME}
+      strategy:
+        type: Recreate
+      template:
+        metadata:
+          labels:
+            name: ${PUBSUB_EMULATOR_NAME}
+        spec:
+          serviceAccountName: maestro
+          containers:
+          - image: ${PUBSUB_IMAGE}
+            imagePullPolicy: IfNotPresent
+            name: pubsub-emulator
+            command:
+            - gcloud
+            - beta
+            - emulators
+            - pubsub
+            - start
+            - --host-port=0.0.0.0:8085
+            - --project=${PUBSUB_PROJECT_ID}
+            ports:
+            - containerPort: 8085
+              name: pubsub
+            env:
+            - name: PUBSUB_PROJECT_ID
+              value: ${PUBSUB_PROJECT_ID}
+            volumeMounts:
+            - name: pubsub-persistent-storage
+              mountPath: /data
+          volumes:
+          - name: pubsub-persistent-storage
+            emptyDir: {}
+    status: {}
+
+  - apiVersion: v1
+    kind: Secret
+    metadata:
+      name: maestro-pubsub
+    stringData:
+      config.yaml: |
+        projectID: ${PUBSUB_PROJECT_ID}
+        endpoint: ${PUBSUB_HOST}:${PUBSUB_PORT}
+        disableTLS: true
+        topics:
+          sourceEvents: projects/${PUBSUB_PROJECT_ID}/topics/sourceevents
+          sourceBroadcast: projects/${PUBSUB_PROJECT_ID}/topics/sourcebroadcast
+        subscriptions:
+          agentEvents: projects/${PUBSUB_PROJECT_ID}/subscriptions/agentevents-maestro
+          agentBroadcast: projects/${PUBSUB_PROJECT_ID}/subscriptions/agentbroadcast-maestro

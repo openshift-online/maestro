@@ -19,6 +19,7 @@
 kind_version=0.12.0
 step_version=0.26.2
 istio_version=1.25.5
+oc_version="4.20.0"
 
 enable_istio=${ENABLE_ISTIO:-"false"}
 msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
@@ -49,6 +50,15 @@ if ! command -v step >/dev/null 2>&1; then
     chmod +x ./step_${step_version}/bin/step
     sudo mv ./step_${step_version}/bin/step /usr/local/bin/step
     rm -rf ./step_${step_version}_amd64.tar.gz ./step_${step_version}
+fi
+
+if ! command -v oc >/dev/null 2>&1; then
+    echo "This script will install oc (OpenShift CLI) on your machine."
+    curl -Lo ./openshift-client-linux.tar.gz "https://mirror.openshift.com/pub/openshift-v4/clients/ocp/${oc_version}/openshift-client-linux.tar.gz"
+    tar -xzvf openshift-client-linux.tar.gz
+    chmod +x ./oc
+    sudo mv ./oc /usr/local/bin/oc
+    rm -f ./openshift-client-linux.tar.gz ./kubectl ./README.md
 fi
 
 if [ "$enable_istio" = "true" ] && ! command -v istioctl >/dev/null 2>&1; then
@@ -188,6 +198,45 @@ EOF
     kubectl create secret generic maestro-grpc-broker-cert -n "$agent_namespace" --from-file=ca.crt=${grpc_broker_cert_dir}/ca.crt --from-file=client.crt=${grpc_broker_cert_dir}/client.crt --from-file=client.key=${grpc_broker_cert_dir}/client.key
     kubectl create secret generic maestro-grpc-broker-ca -n "$agent_namespace" --from-file=ca.crt=${grpc_broker_cert_dir}/ca.crt --from-file=ca.key=${grpc_broker_cert_dir}/ca.key
   fi
+fi
+
+if [ "$msg_broker" = "pubsub" ]; then
+  # Deploy the Pub/Sub emulator
+  export pubsub_project_id="maestro-test"
+  export pubsub_host="maestro-pubsub.${namespace}"
+  export pubsub_port="8085"
+
+  # Deploy the Pub/Sub emulator
+  make deploy-pubsub
+  kubectl -n ${namespace} wait deploy/maestro-pubsub --for condition=Available=True --timeout=300s
+
+  # Initialize topics and subscriptions in the emulator
+  # Wait a bit for the emulator to be fully ready
+  sleep 5
+
+  # Create a job to initialize Pub/Sub topics and subscriptions using the template
+  oc process \
+    --filename="${PWD}/templates/pubsub-init-job-template.yml" \
+    --local="true" \
+    --param="NAMESPACE=${namespace}" \
+    --param="PUBSUB_HOST=maestro-pubsub" \
+    --param="PUBSUB_PORT=${pubsub_port}" \
+    --param="PUBSUB_PROJECT_ID=${pubsub_project_id}" \
+  | kubectl apply -f -
+
+  # Wait for initialization job to complete
+  kubectl -n ${namespace} wait --for=condition=complete --timeout=120s job/pubsub-init
+
+  # Check if job succeeded
+  if ! kubectl -n ${namespace} get job pubsub-init -o jsonpath='{.status.succeeded}' | grep -q "1"; then
+    echo "ERROR: Pub/Sub initialization job failed" >&2
+    kubectl -n ${namespace} logs job/pubsub-init
+    kubectl -n ${namespace} delete job pubsub-init --ignore-not-found
+    exit 1
+  fi
+
+  # Clean up the initialization job
+  kubectl -n ${namespace} delete job pubsub-init --ignore-not-found
 fi
 
 # Deploy the database (PostgreSQL) required by the Maestro server
