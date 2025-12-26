@@ -29,6 +29,7 @@ import (
 	ceclients "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/clients"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/v2/pubsub"
 
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
 	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
@@ -46,7 +47,6 @@ import (
 )
 
 const (
-	apiPort    = ":8777"
 	jwtKeyFile = "test/support/jwt_private_key.pem"
 	jwtCAFile  = "test/support/jwt_ca.pem"
 	jwkKID     = "uhctestkey"
@@ -68,25 +68,26 @@ type Helper struct {
 	Ctx               context.Context
 	ContextCancelFunc context.CancelFunc
 
-	Broker            string
-	EventBroadcaster  *event.EventBroadcaster
-	Store             *MemoryStore
-	GRPCSourceClient  *ceclients.CloudEventSourceClient[*api.Resource]
-	DBFactory         db.SessionFactory
-	AppConfig         *config.ApplicationConfig
-	APIServer         server.Server
-	MetricsServer     server.Server
-	HealthCheckServer *server.HealthCheckServer
-	StatusDispatcher  dispatcher.Dispatcher
-	EventServer       server.EventServer
-	EventFilter       controllers.EventFilter
-	ControllerManager *server.ControllersServer
-	WorkAgentHolder   *work.ClientHolder
-	TimeFunc          TimeFunc
-	JWTPrivateKey     *rsa.PrivateKey
-	JWTCA             *rsa.PublicKey
-	T                 *testing.T
-	teardowns         []func() error
+	Broker                  string
+	EventBroadcaster        *event.EventBroadcaster
+	Store                   *MemoryStore
+	GRPCSourceClient        *ceclients.CloudEventSourceClient[*api.Resource]
+	DBFactory               db.SessionFactory
+	AppConfig               *config.ApplicationConfig
+	APIServer               server.Server
+	MetricsServer           server.Server
+	HealthCheckServer       *server.HealthCheckServer
+	StatusDispatcher        dispatcher.Dispatcher
+	EventServer             server.EventServer
+	EventFilter             controllers.EventFilter
+	ControllerManager       *server.ControllersServer
+	WorkAgentHolder         *work.ClientHolder
+	TimeFunc                TimeFunc
+	JWTPrivateKey           *rsa.PrivateKey
+	JWTCA                   *rsa.PublicKey
+	T                       *testing.T
+	teardowns               []func() error
+	consumerPubSubConfigMap map[string]string // Maps consumer name to PubSub config file path
 }
 
 func NewHelper(t *testing.T) *Helper {
@@ -108,10 +109,14 @@ func NewHelper(t *testing.T) *Helper {
 		}
 		pflag.Parse()
 
-		// Set the message broker type if it is set in the environment
-		broker := os.Getenv("BROKER")
-		if broker != "" {
-			env.Config.MessageBroker.MessageBrokerType = broker
+		// Set the message broker type and config if they are set in the environment
+		msgBrokerType := os.Getenv("MESSAGE_BROKER_TYPE")
+		if msgBrokerType != "" {
+			env.Config.MessageBroker.MessageBrokerType = msgBrokerType
+		}
+		msgBrokerConfig := os.Getenv("MESSAGE_BROKER_CONFIG")
+		if msgBrokerConfig != "" {
+			env.Config.MessageBroker.MessageBrokerConfig = msgBrokerConfig
 		}
 
 		err = env.Initialize()
@@ -121,14 +126,15 @@ func NewHelper(t *testing.T) *Helper {
 
 		ctx, cancel := context.WithCancel(context.Background())
 		helper = &Helper{
-			Ctx:               ctx,
-			ContextCancelFunc: cancel,
-			Broker:            env.Config.MessageBroker.MessageBrokerType,
-			EventBroadcaster:  event.NewEventBroadcaster(),
-			AppConfig:         env.Config,
-			DBFactory:         env.Database.SessionFactory,
-			JWTPrivateKey:     jwtKey,
-			JWTCA:             jwtCA,
+			Ctx:                     ctx,
+			ContextCancelFunc:       cancel,
+			Broker:                  env.Config.MessageBroker.MessageBrokerType,
+			EventBroadcaster:        event.NewEventBroadcaster(),
+			AppConfig:               env.Config,
+			DBFactory:               env.Database.SessionFactory,
+			JWTPrivateKey:           jwtKey,
+			JWTCA:                   jwtCA,
+			consumerPubSubConfigMap: make(map[string]string),
 		}
 
 		// Set the healthcheck interval to 1 second for testing
@@ -137,7 +143,8 @@ func NewHelper(t *testing.T) *Helper {
 		// Disable TLS for testing
 		helper.Env().Config.GRPCServer.DisableTLS = true
 
-		if helper.Broker != "grpc" {
+		switch helper.Broker {
+		case "mqtt":
 			helper.StatusDispatcher = dispatcher.NewHashDispatcher(
 				helper.Env().Config.MessageBroker.ClientID,
 				helper.Env().Database.SessionFactory,
@@ -147,7 +154,14 @@ func NewHelper(t *testing.T) *Helper {
 			)
 			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
 			helper.EventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory))
-		} else {
+		case "pubsub":
+			helper.StatusDispatcher = dispatcher.NewNoopDispatcher(
+				helper.Env().Database.SessionFactory,
+				helper.Env().Clients.CloudEventsSource,
+			)
+			helper.EventServer = server.NewMessageQueueEventServer(helper.EventBroadcaster, helper.StatusDispatcher)
+			helper.EventFilter = controllers.NewLockBasedEventFilter(db.NewAdvisoryLockFactory(helper.Env().Database.SessionFactory))
+		default:
 			helper.EventServer = server.NewGRPCBroker(ctx, helper.EventBroadcaster)
 			helper.EventFilter = controllers.NewPredicatedEventFilter(helper.EventServer.PredicateEvent)
 		}
@@ -159,6 +173,7 @@ func NewHelper(t *testing.T) *Helper {
 			helper.stopAPIServer,
 			helper.stopMetricsServer,
 			jwkMockTeardown,
+			helper.cleanupTempFiles,
 		}
 
 		if err := helper.MigrateDB(); err != nil {
@@ -177,6 +192,12 @@ func NewHelper(t *testing.T) *Helper {
 
 func (helper *Helper) Env() *environments.Env {
 	return environments.Environment()
+}
+
+// getConsumerPubSubConfig returns the PubSub config file path for a given consumer
+func (helper *Helper) getConsumerPubSubConfig(consumerName string) (string, bool) {
+	path, exists := helper.consumerPubSubConfigMap[consumerName]
+	return path, exists
 }
 
 func (helper *Helper) Teardown() {
@@ -289,14 +310,26 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 
 func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 	var brokerConfig any
-	if helper.Broker != "grpc" {
+	switch helper.Broker {
+	case "mqtt":
 		// initilize the mqtt options
 		mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
 		if err != nil {
 			log.Fatalf("Unable to build MQTT options: %s", err.Error())
 		}
 		brokerConfig = mqttOptions
-	} else {
+	case "pubsub":
+		configPath, exists := helper.getConsumerPubSubConfig(clusterName)
+		if !exists {
+			log.Fatalf("Unable to find pubsub config for consumer %s", clusterName)
+		}
+		// initilize the pubsub options
+		pubsubOptions, err := pubsub.BuildPubSubOptionsFromFlags(configPath)
+		if err != nil {
+			log.Fatalf("Unable to build pubsub options: %s", err.Error())
+		}
+		brokerConfig = pubsubOptions
+	default:
 		// initilize the grpc options
 		grpcOptions := &grpcoptions.GRPCOptions{Dialer: &grpcoptions.GRPCDialer{}}
 		grpcOptions.Dialer.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BrokerBindPort)
@@ -330,7 +363,7 @@ func (helper *Helper) StartGRPCResourceSourceClient() {
 	resourceStore := NewStore()
 	grpcOptions := &grpcoptions.GRPCOptions{Dialer: &grpcoptions.GRPCDialer{}}
 	grpcOptions.Dialer.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.ServerBindPort)
-	sourceClient, err := ceclients.NewCloudEventSourceClient[*api.Resource](
+	sourceClient, err := ceclients.NewCloudEventSourceClient(
 		helper.Ctx,
 		grpcoptions.NewSourceOptions(grpcOptions, source, workpayload.ManifestBundleEventDataType),
 		resourceStore,
@@ -384,6 +417,15 @@ func (helper *Helper) Reset() {
 	}
 	helper.AppConfig = env.Config
 	helper.RestartServer()
+}
+
+func (helper *Helper) cleanupTempFiles() error {
+	for _, pubsubConfigFile := range helper.consumerPubSubConfigMap {
+		if err := os.Remove(pubsubConfigFile); err != nil && !os.IsNotExist(err) {
+			helper.T.Errorf("unable to remove temp pubsub config file %s: %s", pubsubConfigFile, err)
+		}
+	}
+	return nil
 }
 
 // NewID creates a new unique ID used internally to CS
@@ -628,7 +670,7 @@ func parseJWTKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
 func getProjectRootDir() string {
 	curr, err := os.Getwd()
 	if err != nil {
-		log.Fatal(fmt.Sprintf("Unable to get working directory: %v", err.Error()))
+		log.Fatalf("Unable to get working directory: %v", err.Error())
 		return ""
 	}
 	root := curr
@@ -636,7 +678,7 @@ func getProjectRootDir() string {
 		anchor := filepath.Join(curr, ".git")
 		_, err = os.Stat(anchor)
 		if err != nil && !os.IsNotExist(err) {
-			log.Fatal(fmt.Sprintf("Unable to check if directory '%s' exists", anchor))
+			log.Fatalf("Unable to check if directory '%s' exists", anchor)
 			break
 		}
 		if err == nil {
