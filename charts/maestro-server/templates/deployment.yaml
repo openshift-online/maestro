@@ -18,6 +18,10 @@ spec:
     metadata:
       labels:
         {{- include "maestro-server.selectorLabels" . | nindent 8 }}
+      {{- with .Values.server.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "maestro-server.serviceAccountName" . }}
       volumes:
@@ -47,12 +51,6 @@ spec:
           secretName: maestro-grpc-broker-cert
           optional: true
       {{- end }}
-      {{- if eq .Values.messageBroker.type "pubsub" }}
-      - name: pubsub-creds
-        secret:
-          secretName: maestro-pubsub-creds
-          optional: true
-      {{- end }}
       {{- if .Values.server.https.enabled }}
       - name: https-certs
         secret:
@@ -74,8 +72,6 @@ spec:
         - "--structured-logs"
         - "--port=5432"
         - {{ .Values.database.cloudSqlProxy.instanceConnectionName | quote }}
-        securityContext:
-          runAsNonRoot: true
       {{- end }}
       - name: migration
         image: {{ include "maestro-server.image" . }}
@@ -115,10 +111,6 @@ spec:
         {{- if eq .Values.messageBroker.type "grpc" }}
         - name: grpc-broker-cert
           mountPath: /secrets/grpc-broker-cert
-        {{- end }}
-        {{- if eq .Values.messageBroker.type "pubsub" }}
-        - name: pubsub-creds
-          mountPath: /secrets/pubsub
         {{- end }}
         {{- if .Values.server.https.enabled }}
         - name: https-certs
@@ -163,10 +155,10 @@ spec:
         - --grpc-tls-key-file={{ .Values.server.grpc.tls.keyFile }}
         - --grpc-client-ca-file={{ .Values.server.grpc.tls.clientCAFile }}
         {{- end }}
-        {{- if and (eq .Values.messageBroker.type "grpc") .Values.grpc.tls.enabled }}
-        - --grpc-broker-tls-cert-file={{ .Values.grpc.tls.certFile }}
-        - --grpc-broker-tls-key-file={{ .Values.grpc.tls.keyFile }}
-        - --grpc-broker-client-ca-file={{ .Values.grpc.tls.clientCAFile }}
+        {{- if and (eq .Values.messageBroker.type "grpc") .Values.messageBroker.grpc.tls.enabled }}
+        - --grpc-broker-tls-cert-file={{ .Values.messageBroker.grpc.tls.certFile }}
+        - --grpc-broker-tls-key-file={{ .Values.messageBroker.grpc.tls.keyFile }}
+        - --grpc-broker-client-ca-file={{ .Values.messageBroker.grpc.tls.clientCAFile }}
         {{- end }}
         - --server-hostname={{ .Values.server.hostname }}
         - --http-server-bindport={{ .Values.server.http.bindPort }}

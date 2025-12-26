@@ -39,13 +39,6 @@ gcloud container clusters get-credentials ${cluster_id} --region ${region} --pro
     exit 1
   }
 
-# IMAGE_REGISTRY=${IMAGE_REGISTRY:-"quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro"}
-# IMAGE_REPOSITORY=${IMAGE_REPOSITORY:-"maestro"}
-# IMAGE_TAG=${IMAGE_TAG:-"1de63c6075f2c95c9661d790d164019f60d789f3"}
-IMAGE_REGISTRY=${IMAGE_REGISTRY:-"quay.io/morvencao"}
-IMAGE_REPOSITORY=${IMAGE_REPOSITORY:-"maestro"}
-IMAGE_TAG=${IMAGE_TAG:-"dev"}
-
 # db password
 db_pw=$(LC_CTYPE=C tr -dc 'a-zA-Z0-9' < /dev/urandom | head -c 16)
 
@@ -118,10 +111,6 @@ oc -n maestro create secret generic maestro-db \
 
 # Create Helm values file for maestro-server
 cat > ${output_dir}/maestro-server-values.yaml <<EOF
-image:
-  registry: ${IMAGE_REGISTRY%/*}
-  repository: ${IMAGE_REGISTRY#*/}/${IMAGE_REPOSITORY}
-  tag: ${IMAGE_TAG}
 
 replicas: 3
 
@@ -142,15 +131,15 @@ database:
 
 messageBroker:
   type: pubsub
-
-pubsub:
-  projectID: ${project_id}
-  topics:
-    sourceEvents: projects/${project_id}/topics/sourceevents
-    sourceBroadcast: projects/${project_id}/topics/sourcebroadcast
-  subscriptions:
-    agentEvents: projects/${project_id}/subscriptions/agentevents-maestro
-    agentBroadcast: projects/${project_id}/subscriptions/agentbroadcast-maestro
+  secretName: maestro-pubsub
+  pubsub:
+    projectID: ${project_id}
+    topics:
+      sourceEvents: projects/${project_id}/topics/sourceevents
+      sourceBroadcast: projects/${project_id}/topics/sourcebroadcast
+    subscriptions:
+      agentEvents: projects/${project_id}/subscriptions/agentevents-maestro
+      agentBroadcast: projects/${project_id}/subscriptions/agentbroadcast-maestro
 
 server:
   https:
@@ -164,11 +153,7 @@ service:
     type: ClusterIP
 
 route:
-  enabled: true
-  tls:
-    enabled: true
-    termination: edge
-    insecureEdgeTerminationPolicy: Redirect
+  enabled: false
 EOF
 
 # Deploy Maestro server using Helm

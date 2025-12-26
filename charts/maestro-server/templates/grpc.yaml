@@ -1,4 +1,4 @@
-{{- if and (eq .Values.messageBroker.type "grpc") .Values.grpc.enabled -}}
+{{- if eq .Values.messageBroker.type "grpc" -}}
 ---
 apiVersion: v1
 kind: Secret
@@ -8,5 +8,5 @@ metadata:
     {{- include "maestro-server.labels" . | nindent 4 }}
 stringData:
   config.yaml: |
-    url: {{ .Values.grpc.url }}
+    url: {{ .Values.messageBroker.grpc.url }}
 {{- end }}

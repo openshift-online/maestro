@@ -1,90 +1,4 @@
-{{- if and (eq .Values.messageBroker.type "mqtt") .Values.mqtt.enabled -}}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ .Values.mqtt.service.name }}
-  labels:
-    {{- include "maestro-server.labels" . | nindent 4 }}
-  annotations:
-    template.openshift.io/expose-uri: tcp://{.spec.clusterIP}:{.spec.ports[?(.name==\mosquitto\)].port}
-spec:
-  ports:
-  - name: mosquitto
-    protocol: TCP
-    port: {{ .Values.mqtt.service.port }}
-    targetPort: {{ .Values.mqtt.service.port }}
-  selector:
-    name: {{ .Values.mqtt.service.name }}
-  type: ClusterIP
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: {{ .Values.mqtt.service.name }}
-  labels:
-    {{- include "maestro-server.labels" . | nindent 4 }}
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      name: {{ .Values.mqtt.service.name }}
-  strategy:
-    type: Recreate
-  template:
-    metadata:
-      labels:
-        name: {{ .Values.mqtt.service.name }}
-    spec:
-      serviceAccountName: {{ include "maestro-server.serviceAccountName" . }}
-      containers:
-      - image: {{ .Values.mqtt.image }}
-        imagePullPolicy: IfNotPresent
-        name: mosquitto
-        ports:
-        - containerPort: {{ .Values.mqtt.service.port }}
-          name: mosquitto
-        volumeMounts:
-        - name: mosquitto-persistent-storage
-          mountPath: /mosquitto/data
-        - name: mosquitto-config
-          mountPath: /mosquitto/config/mosquitto.conf
-          subPath: mosquitto.conf
-        {{- if .Values.mqtt.tls.enabled }}
-        - name: mosquitto-certs
-          mountPath: /mosquitto/certs
-          readOnly: true
-        {{- end }}
-      volumes:
-      - name: mosquitto-persistent-storage
-        emptyDir: {}
-      - name: mosquitto-config
-        configMap:
-          name: {{ .Values.mqtt.service.name }}
-      {{- if .Values.mqtt.tls.enabled }}
-      - name: mosquitto-certs
-        secret:
-          secretName: maestro-mqtt-certs
-      {{- end }}
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ .Values.mqtt.service.name }}
-  labels:
-    {{- include "maestro-server.labels" . | nindent 4 }}
-data:
-  mosquitto.conf: |
-    listener {{ .Values.mqtt.service.port }} 0.0.0.0
-    {{- if .Values.mqtt.tls.enabled }}
-    cafile /mosquitto/certs/ca.crt
-    certfile /mosquitto/certs/server.crt
-    keyfile /mosquitto/certs/server.key
-    require_certificate true
-    use_identity_as_username true
-    {{- else }}
-    allow_anonymous true
-    {{- end }}
+{{- if and (eq .Values.messageBroker.type "mqtt") .Values.messageBroker.secretName }}
 ---
 apiVersion: v1
 kind: Secret
@@ -94,19 +8,25 @@ metadata:
     {{- include "maestro-server.labels" . | nindent 4 }}
 stringData:
   config.yaml: |
-    brokerHost: {{ .Values.mqtt.host }}:{{ .Values.mqtt.service.port }}
-    {{- if .Values.mqtt.user }}
-    username: {{ .Values.mqtt.user }}
+    brokerHost: {{ .Values.messageBroker.mqtt.host }}:{{ .Values.messageBroker.mqtt.port }}
+    {{- if .Values.messageBroker.mqtt.user }}
+    username: {{ .Values.messageBroker.mqtt.user }}
     {{- end }}
-    {{- if .Values.mqtt.password }}
-    password: {{ .Values.mqtt.password }}
+    {{- if .Values.messageBroker.mqtt.password }}
+    password: {{ .Values.messageBroker.mqtt.password }}
     {{- end }}
-    {{- if .Values.mqtt.tls.enabled }}
-    caFile: {{ .Values.mqtt.tls.caFile }}
-    clientCertFile: {{ .Values.mqtt.tls.clientCertFile }}
-    clientKeyFile: {{ .Values.mqtt.tls.clientKeyFile }}
+    {{- if .Values.messageBroker.mqtt.tls.enabled }}
+    caFile: {{ .Values.messageBroker.mqtt.tls.caFile }}
+    clientCertFile: {{ .Values.messageBroker.mqtt.tls.clientCertFile }}
+    clientKeyFile: {{ .Values.messageBroker.mqtt.tls.clientKeyFile }}
     {{- end }}
+    {{- if .Values.messageBroker.mqtt.topics }}
     topics:
-      sourceEvents: sources/maestro/consumers/+/sourceevents
-      agentEvents: {{ .Values.mqtt.agentTopic }}
+      {{- if .Values.messageBroker.mqtt.topics.sourceEvents }}
+      sourceEvents: {{ .Values.messageBroker.mqtt.topics.sourceEvents }}
+      {{- end }}
+      {{- if .Values.messageBroker.mqtt.topics.agentEvents }}
+      agentEvents: {{ .Values.messageBroker.mqtt.topics.agentEvents }}
+      {{- end }}
+    {{- end }}
 {{- end }}

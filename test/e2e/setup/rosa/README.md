@@ -5,13 +5,15 @@ This demonstrates how to deploy the Maestro in ROSA env.
 ### Prerequisites
 
 - Install the CLIs: `oc`, `rosa`, `aws` and `jq`
-- Ensue your `aws` CLI is logined with your AWS account and your AWS account should have the permissions to operate AWS IoT and AWS RDS  PostgreSQL in your provided region
+- Ensue your `aws` CLI is logged in with your AWS account and your AWS account should have the permissions to operate AWS IoT and AWS RDS PostgreSQL in your provided region
 - Prepare two ROSA clusters, one is used as Service Cluster and the other is used as Management Cluster, e.g.
 
 ```sh
 rosa create cluster --cluster-name=service --region=us-west-2 --sts --mode=auto
 rosa create cluster --cluster-name=management --region=us-west-2 --sts --mode=auto
 ```
+You may need to run `rosa create account-roles --mode auto` to create account roles firstly.
+You may create cluster-admin and get login command via `rosa create admin --cluster=<cluster-name>`. It will output login credentials and an oc login command.
 
 ### Setup Maestro server in your Service Cluster
 

@@ -30,6 +30,17 @@ export KUBECONFIG=${PWD}/test/_output/.kubeconfig
 # Build Helm values for maestro-server
 values_file="${PWD}/test/_output/maestro-server-values.yaml"
 
+# Set Istio annotations if enabled
+if [ "$enable_istio" = "true" ]; then
+  istio_annotations='  annotations:
+    proxy.istio.io/config: |
+      {
+        "holdApplicationUntilProxyStarts": true
+      }'
+else
+  istio_annotations=''
+fi
+
 cat > "$values_file" <<EOF
 environment: development
 
@@ -59,9 +70,25 @@ database:
 messageBroker:
   type: ${msg_broker}
   secretName: maestro-${msg_broker}
+  mqtt:
+    port: 1883
+    host: maestro-mqtt
+    tls:
+      enabled: ${tls_enable}
+      caFile: /secrets/mqtt-certs/ca.crt
+      clientCertFile: /secrets/mqtt-certs/client.crt
+      clientKeyFile: /secrets/mqtt-certs/client.key
+  grpc:
+    url: maestro-grpc-broker.${namespace}:8091
+    tls:
+      enabled: ${tls_enable}
+      certFile: /secrets/grpc-broker-cert/server.crt
+      keyFile: /secrets/grpc-broker-cert/server.key
+      clientCAFile: /secrets/grpc-broker-cert/ca.crt
 
 # Server configuration
 server:
+${istio_annotations}
   https:
     enabled: $( [ "$enable_istio" = "true" ] && echo "false" || echo "true" )
   hostname: ""
@@ -121,44 +148,18 @@ postgresql:
   secretName: maestro-rds
 
 # Use embedded MQTT broker for testing (if MQTT mode)
-mqtt:
+mosquitto:
   enabled: $( [ "$msg_broker" = "mqtt" ] && echo "true" || echo "false" )
   image: quay.io/maestro/eclipse-mosquitto:2.0.18
   service:
     name: maestro-mqtt
     port: 1883
-  host: maestro-mqtt
-  user: ""
-  password: ""
   tls:
     enabled: ${tls_enable}
     caFile: /secrets/mqtt-certs/ca.crt
     clientCertFile: /secrets/mqtt-certs/client.crt
     clientKeyFile: /secrets/mqtt-certs/client.key
 EOF
-
-# Add broadcast subscription config if enabled
-if [ "$enable_broadcast" = "true" ]; then
-  cat >> "$values_file" <<EOF
-  agentTopic: sources/maestro/consumers/+/agentevents
-EOF
-fi
-
-# Configure gRPC broker if using gRPC
-if [ "$msg_broker" = "grpc" ]; then
-  cat >> "$values_file" <<EOF
-
-# gRPC broker configuration
-grpc:
-  enabled: true
-  url: maestro-grpc-broker.${namespace}:8091
-  tls:
-    enabled: ${tls_enable}
-    certFile: /secrets/grpc-broker-cert/server.crt
-    keyFile: /secrets/grpc-broker-cert/server.key
-    clientCAFile: /secrets/grpc-broker-cert/ca.crt
-EOF
-fi
 
 # Deploy using Helm
 helm upgrade --install maestro-server \
