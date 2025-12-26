@@ -20,8 +20,8 @@ import (
 
 func TestStatusDispatcher(t *testing.T) {
 	broker := os.Getenv("BROKER")
-	if broker == "grpc" {
-		t.Skip("StatusDispatcher is not supported with gRPC broker")
+	if broker != "mqtt" {
+		t.Skip("StatusDispatcher is only supported with MQTT broker.")
 	}
 
 	h, _ := test.RegisterIntegration(t)
