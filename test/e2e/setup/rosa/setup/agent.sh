@@ -22,10 +22,6 @@ fi
 
 echo "Setup Maestro agent in ${region} (consumer_id=${consumer_id})"
 
-IMAGE_REGISTRY=${IMAGE_REGISTRY:="quay.io/redhat-user-workloads/maestro-rhtap-tenant/maestro"}
-IMAGE_REPOSITORY="maestro"
-IMAGE_TAG=${IMAGE_TAG:-"1de63c6075f2c95c9661d790d164019f60d789f3"}
-
 output_dir=${ROOT_DIR}/_output
 certs_dir=${output_dir}/aws-certs
 consumer_cert_dir=${certs_dir}/iot/consumers
@@ -45,7 +41,7 @@ consumer_cert_arn=$(aws iot create-keys-and-certificate \
     --set-as-active \
     --certificate-pem-outfile "${consumer_cert_dir}/${consumer_id}.crt" \
     --public-key-outfile "${consumer_cert_dir}/${consumer_id}.public.key" \
-    --private-key-outfile "${consumer_cert_dir}/${consumer_id}.private.key" | jq -r '.certificateArn')
+    --private-key-outfile "${consumer_cert_dir}/${consumer_id}.private.key" --output json | jq -r '.certificateArn')
 echo "Maestro agent AWS IoT client certs are generated ($consumer_cert_arn)"
 
 # Attach policies for AWS IoT clients
@@ -56,12 +52,12 @@ cat $PWD/aws-iot-policies/consumer.template.json | sed "s/{region}/${region}/g" 
 policy_name=$(aws iot create-policy \
     --region ${region} \
     --policy-name maestro-${consumer_id} \
-    --policy-document "file://${policies_dir}/${consumer_id}.json" | jq -r '.policyName')
+    --policy-document "file://${policies_dir}/${consumer_id}.json" --output json | jq -r '.policyName')
 aws iot attach-policy --region ${region} --policy-name maestro-${consumer_id} --target ${consumer_cert_arn}
 echo "Maestro agent AWS IoT policy $policy_name is generated"
 
 # Get AWS IoT broker endpoint
-mqtt_host=$(aws iot describe-endpoint --region ${region} --endpoint-type iot:Data-ATS | jq -r '.endpointAddress')
+mqtt_host=$(aws iot describe-endpoint --region ${region} --endpoint-type iot:Data-ATS --output json | jq -r '.endpointAddress')
 echo "AWS IoT broke: ${mqtt_host}:8883"
 
 sleep 30
@@ -78,17 +74,15 @@ oc -n maestro-agent create secret generic maestro-agent-certs \
 cat > ${output_dir}/maestro-agent-values.yaml <<EOF
 consumerName: ${consumer_id}
 
-environment: production
+cloudeventsClientId: ${consumer_id}
 
-image:
-  registry: ${IMAGE_REGISTRY%/*}
-  repository: ${IMAGE_REGISTRY#*/}/${IMAGE_REPOSITORY}
-  tag: ${IMAGE_TAG}
+environment: production
 
 messageBroker:
   type: mqtt
   mqtt:
     host: ${mqtt_host}
+    user: ""
     port: "8883"
     rootCert: /secrets/mqtt-certs/ca.crt
     clientCert: /secrets/mqtt-certs/client.crt
@@ -96,7 +90,7 @@ messageBroker:
 EOF
 
 # Deploy Maestro agent using Helm
-PROJECT_DIR="$(cd ${ROOT_DIR}/../.. && pwd -P)"
+PROJECT_DIR="$(cd ${ROOT_DIR}/../../../.. && pwd -P)"
 helm upgrade --install maestro-agent \
     ${PROJECT_DIR}/charts/maestro-agent \
     --namespace maestro-agent \

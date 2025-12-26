@@ -55,10 +55,49 @@ messageBroker:
   type: mqtt  # mqtt / grpc / pubsub
   # Secret name containing broker config
   secretName: maestro-mqtt
-  # For TLS, also expects maestro-server-certs secret
+  
+  # MQTT configuration
+  mqtt:
+    host: maestro-mqtt
+    port: 1883
+    topics:
+      sourceEvents: sources/maestro/consumers/+/sourceevents
+      agentEvents: sources/maestro/consumers/+/agentevents
+    # TLS configuration
+    tls:
+      enabled: false
+      # Path to CA certificate file (inside the maestro-server-certs secret)
+      caFile: /secrets/mqtt-certs/ca.crt
+      # Path to client certificate file (inside the maestro-server-certs secret)
+      clientCertFile: /secrets/mqtt-certs/client.crt
+      # Path to client key file (inside the maestro-server-certs secret)
+      clientKeyFile: /secrets/mqtt-certs/client.key
+
+  # gRPC broker configuration
+  grpc:
+    url: maestro-grpc-broker.maestro:8091
+    tls:
+      enabled: false
+      certFile: /secrets/grpc-broker-cert/server.crt
+      keyFile: /secrets/grpc-broker-cert/server.key
+      clientCAFile: /secrets/grpc-broker-cert/ca.crt
+
+  # Google Cloud Pub/Sub configuration
+  pubsub:
+    projectID: ""
+    # Topics configuration (use full GCP resource names)
+    topics:
+      sourceEvents: ""  # e.g., projects/my-project/topics/sourceevents
+      sourceBroadcast: ""  # e.g., projects/my-project/topics/sourcebroadcast
+    # Subscriptions configuration (use full GCP resource names)
+    subscriptions:
+      agentEvents: ""  # e.g., projects/my-project/subscriptions/agentevents-maestro
+      agentBroadcast: ""  # e.g., projects/my-project/subscriptions/agentbroadcast-maestro
+
 
 # Server configuration
 server:
+  annotations: {}
   https:
     enabled: false
   hostname: ""
@@ -131,17 +170,13 @@ postgresql:
   secretName: maestro-db
 
 # MQTT broker deployment (optional, for development)
-mqtt:
+mosquitto:
   enabled: false
   image: quay.io/maestro/eclipse-mosquitto:2.0.18
   service:
     name: maestro-mqtt
     port: 1883
-  host: maestro-mqtt
-  user: maestro
-  password: ""
-  agentTopic: sources/maestro/consumers/+/agentevents
-  # TLS configuration
+    # TLS configuration
   tls:
     enabled: false
     # Path to CA certificate file (inside the maestro-server-certs secret)
@@ -150,29 +185,3 @@ mqtt:
     clientCertFile: /secrets/mqtt-certs/client.crt
     # Path to client key file (inside the maestro-server-certs secret)
     clientKeyFile: /secrets/mqtt-certs/client.key
-
-# gRPC broker configuration
-grpc:
-  enabled: false
-  url: maestro-grpc-broker.maestro:8091
-  tls:
-    enabled: false
-    certFile: /secrets/grpc-broker-cert/server.crt
-    keyFile: /secrets/grpc-broker-cert/server.key
-    clientCAFile: /secrets/grpc-broker-cert/ca.crt
-
-# Google Cloud Pub/Sub configuration
-pubsub:
-  enabled: false
-  projectID: ""
-  credentialsJSON: ""
-  # Service account credentials file path (will be mounted from secret)
-  credentialsFile: /secrets/pubsub/credentials.json
-  # Topics configuration (use full GCP resource names)
-  topics:
-    sourceEvents: ""  # e.g., projects/my-project/topics/sourceevents
-    sourceBroadcast: ""  # e.g., projects/my-project/topics/sourcebroadcast
-  # Subscriptions configuration (use full GCP resource names)
-  subscriptions:
-    agentEvents: ""  # e.g., projects/my-project/subscriptions/agentevents-maestro
-    agentBroadcast: ""  # e.g., projects/my-project/subscriptions/agentbroadcast-maestro

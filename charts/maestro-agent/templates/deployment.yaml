@@ -30,7 +30,7 @@ spec:
           - --consumer-name={{ .Values.consumerName }}
           - --workload-source-driver={{ .Values.messageBroker.type }}
           - --workload-source-config=/secrets/{{ .Values.messageBroker.type }}/config.yaml
-          - --cloudevents-client-id={{ .Values.consumerName }}-work-agent
+          - --cloudevents-client-id={{ .Values.cloudeventsClientId }}
           - -v={{ .Values.logging.klogV }}
         volumeMounts:
         - name: {{ .Values.messageBroker.type }}

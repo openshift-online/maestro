@@ -11,6 +11,9 @@ installCRDs: true
 # Consumer name - identifies the agent/cluster
 consumerName: cluster1
 
+# cloudevents client Id. in rosa, only consumer name is used to create certs
+cloudeventsClientId: cluster1-work-agent
+
 # default client certificate refresh/reload duration for message broker
 clientCertRefreshDuration: 5m
 

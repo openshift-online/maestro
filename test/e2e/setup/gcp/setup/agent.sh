@@ -71,11 +71,6 @@ serviceAccount:
   annotations:
     iam.gke.io/gcp-service-account: maestro-agent-${consumer_id}@${project_id}.iam.gserviceaccount.com
 
-image:
-  registry: ${IMAGE_REGISTRY%/*}
-  repository: ${IMAGE_REGISTRY#*/}/${IMAGE_REPOSITORY}
-  tag: ${IMAGE_TAG}
-
 messageBroker:
   type: pubsub
   pubsub:

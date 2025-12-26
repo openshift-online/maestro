@@ -1,4 +1,4 @@
-{{- if and (eq .Values.messageBroker.type "pubsub") .Values.pubsub.enabled -}}
+{{- if eq .Values.messageBroker.type "pubsub" -}}
 ---
 apiVersion: v1
 kind: Secret
@@ -8,39 +8,25 @@ metadata:
     {{- include "maestro-server.labels" . | nindent 4 }}
 stringData:
   config.yaml: |
-    {{- if .Values.pubsub.projectID }}
-    projectID: {{ .Values.pubsub.projectID }}
+    {{- if .Values.messageBroker.pubsub.projectID }}
+    projectID: {{ .Values.messageBroker.pubsub.projectID }}
     {{- end }}
-    {{- if .Values.pubsub.credentialsJSON }}
-    credentialsFile: {{ .Values.pubsub.credentialsFile }}
-    {{- end }}
-    {{- if .Values.pubsub.topics }}
+    {{- if .Values.messageBroker.pubsub.topics }}
     topics:
-      {{- if .Values.pubsub.topics.sourceEvents }}
-      sourceEvents: {{ .Values.pubsub.topics.sourceEvents }}
+      {{- if .Values.messageBroker.pubsub.topics.sourceEvents }}
+      sourceEvents: {{ .Values.messageBroker.pubsub.topics.sourceEvents }}
       {{- end }}
-      {{- if .Values.pubsub.topics.sourceBroadcast }}
-      sourceBroadcast: {{ .Values.pubsub.topics.sourceBroadcast }}
+      {{- if .Values.messageBroker.pubsub.topics.sourceBroadcast }}
+      sourceBroadcast: {{ .Values.messageBroker.pubsub.topics.sourceBroadcast }}
       {{- end }}
     {{- end }}
-    {{- if .Values.pubsub.subscriptions }}
+    {{- if .Values.messageBroker.pubsub.subscriptions }}
     subscriptions:
-      {{- if .Values.pubsub.subscriptions.agentEvents }}
-      agentEvents: {{ .Values.pubsub.subscriptions.agentEvents }}
+      {{- if .Values.messageBroker.pubsub.subscriptions.agentEvents }}
+      agentEvents: {{ .Values.messageBroker.pubsub.subscriptions.agentEvents }}
       {{- end }}
-      {{- if .Values.pubsub.subscriptions.agentBroadcast }}
-      agentBroadcast: {{ .Values.pubsub.subscriptions.agentBroadcast }}
+      {{- if .Values.messageBroker.pubsub.subscriptions.agentBroadcast }}
+      agentBroadcast: {{ .Values.messageBroker.pubsub.subscriptions.agentBroadcast }}
       {{- end }}
     {{- end }}
----
-{{- if .Values.pubsub.credentialsJSON }}
-apiVersion: v1
-kind: Secret
-metadata:
-  name: maestro-pubsub-creds
-  labels:
-    {{- include "maestro-server.labels" . | nindent 4 }}
-stringData:
-  credentials.json: {{ .Values.pubsub.credentialsJSON | quote }}
-{{- end }}
 {{- end }}
