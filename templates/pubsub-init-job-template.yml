@@ -1,0 +1,110 @@
+---
+apiVersion: template.openshift.io/v1
+kind: Template
+metadata:
+  annotations:
+    description: Job to initialize Pub/Sub emulator topics and subscriptions
+    tags: pubsub,google,emulator,init
+  name: maestro-pubsub-init
+parameters:
+  - name: NAMESPACE
+    description: The namespace where the job will run
+    required: true
+    value: maestro
+
+  - name: PUBSUB_HOST
+    description: Hostname for the Pub/Sub emulator service
+    required: true
+    value: maestro-pubsub
+
+  - name: PUBSUB_PORT
+    description: Port for the Pub/Sub emulator
+    required: true
+    value: "8085"
+
+  - name: PUBSUB_PROJECT_ID
+    description: Google Cloud project ID for the emulator
+    required: true
+    value: maestro-test
+
+objects:
+  - apiVersion: batch/v1
+    kind: Job
+    metadata:
+      name: pubsub-init
+      namespace: ${NAMESPACE}
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: init
+            image: registry.access.redhat.com/ubi9/python-311
+            imagePullPolicy: IfNotPresent
+            env:
+            - name: PUBSUB_EMULATOR_HOST
+              value: "${PUBSUB_HOST}:${PUBSUB_PORT}"
+            - name: PUBSUB_PROJECT_ID
+              value: "${PUBSUB_PROJECT_ID}"
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Installing google-cloud-pubsub..."
+              pip install --quiet google-cloud-pubsub==2.34.0
+
+              echo "Initializing Pub/Sub topics and subscriptions..."
+              python3 <<'PYTHON'
+              import os
+              from google.cloud import pubsub_v1
+              from google.api_core import exceptions
+
+              project_id = os.environ['PUBSUB_PROJECT_ID']
+
+              # Create publisher and subscriber clients
+              publisher = pubsub_v1.PublisherClient()
+              subscriber = pubsub_v1.SubscriberClient()
+
+              # Topics to create
+              topics = ['sourceevents', 'sourcebroadcast', 'agentevents', 'agentbroadcast']
+
+              # Create topics
+              for topic_name in topics:
+                  topic_path = publisher.topic_path(project_id, topic_name)
+                  try:
+                      publisher.create_topic(request={"name": topic_path})
+                      print(f"Created topic: {topic_path}")
+                  except exceptions.AlreadyExists:
+                      print(f"Topic already exists: {topic_path}")
+                  except Exception as e:
+                      print(f"Error creating topic {topic_path}: {e}")
+
+              # Subscriptions to create (name:topic:filter)
+              subscriptions = [
+                  ('agentevents-maestro', 'agentevents', 'attributes.ce-originalsource="maestro"'),
+                  ('agentbroadcast-maestro', 'agentbroadcast', '')
+              ]
+
+              # Create subscriptions
+              for sub_name, topic_name, filter_expr in subscriptions:
+                  subscription_path = subscriber.subscription_path(project_id, sub_name)
+                  topic_path = publisher.topic_path(project_id, topic_name)
+                  try:
+                      if filter_expr:
+                          subscriber.create_subscription(
+                              request={"name": subscription_path, "topic": topic_path, "filter": filter_expr}
+                          )
+                          print(f"Created subscription: {subscription_path} with filter: {filter_expr}")
+                      else:
+                          subscriber.create_subscription(
+                              request={"name": subscription_path, "topic": topic_path}
+                          )
+                          print(f"Created subscription: {subscription_path}")
+                  except exceptions.AlreadyExists:
+                      print(f"Subscription already exists: {subscription_path}")
+                  except Exception as e:
+                      print(f"Error creating subscription {subscription_path}: {e}")
+
+              print("Pub/Sub initialization complete!")
+              PYTHON
