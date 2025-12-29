@@ -5,17 +5,15 @@ import (
 	"reflect"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
-	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/prometheus/client_golang/prometheus"
-
+	"k8s.io/klog/v2"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 

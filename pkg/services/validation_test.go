@@ -6,8 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openshift-online/maestro/pkg/api"
 	"gorm.io/datatypes"
+
+	"github.com/openshift-online/maestro/pkg/api"
 )
 
 func TestValidateConsumer(t *testing.T) {

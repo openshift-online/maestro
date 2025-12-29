@@ -3,9 +3,8 @@ package migrations
 import (
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/go-gormigrate/gormigrate/v2"
+	"gorm.io/gorm"
 )
 
 func addLastHeartBeatAndReadyColumnInServerInstancesTable() *gormigrate.Migration {

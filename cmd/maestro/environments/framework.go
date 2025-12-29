@@ -7,20 +7,20 @@ import (
 	"strings"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/openshift-online/maestro/pkg/client/cloudevents"
-	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
-	"github.com/openshift-online/maestro/pkg/client/ocm"
-	"github.com/openshift-online/maestro/pkg/config"
-	"github.com/openshift-online/maestro/pkg/errors"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
-
-	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/builder"
+
+	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
+	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
+	"github.com/openshift-online/maestro/pkg/client/ocm"
+	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/errors"
 )
 
 func init() {

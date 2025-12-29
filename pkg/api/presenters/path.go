@@ -3,9 +3,8 @@ package presenters
 import (
 	"fmt"
 
-	"github.com/openshift-online/maestro/pkg/api/openapi"
-
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 

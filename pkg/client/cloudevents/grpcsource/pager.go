@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/openshift-online/maestro/pkg/api/openapi"
-	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 // MaxListPageSize is the maximum size of one page, default is 400.

@@ -13,7 +13,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -21,6 +20,8 @@ import (
 	k8srand "k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	workv1 "open-cluster-management.io/api/work/v1"
+
+	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 )
 
 var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation"), func() {

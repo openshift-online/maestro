@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"k8s.io/klog/v2"
 	"net/http"
 	"os"
 	"os/signal"
@@ -16,20 +15,20 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/openshift-online/ocm-sdk-go/logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/klog/v2"
+	workv1 "open-cluster-management.io/api/work/v1"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/test/mocks/workserver/requests"
 	"github.com/openshift-online/maestro/test/mocks/workserver/watcher"
-	"github.com/openshift-online/ocm-sdk-go/logging"
-
-	workv1 "open-cluster-management.io/api/work/v1"
 )
 
 var serverHealthinessTimeout = 20 * time.Second

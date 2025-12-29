@@ -9,10 +9,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/openshift-online/maestro/test/mocks/workserver/requests"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	workv1 "open-cluster-management.io/api/work/v1"
+
+	"github.com/openshift-online/maestro/test/mocks/workserver/requests"
 )
 
 // WorkServerClient is a client for interacting with the workserver

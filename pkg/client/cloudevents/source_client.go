@@ -5,11 +5,9 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"k8s.io/klog/v2"
 
-	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/services"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/klog/v2"
 	workv1 "open-cluster-management.io/api/work/v1"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
@@ -18,6 +16,9 @@ import (
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+
+	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/services"
 )
 
 // SourceClient is an interface for publishing resource events to consumers

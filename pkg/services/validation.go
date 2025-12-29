@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openshift-online/maestro/pkg/api"
 	"gorm.io/datatypes"
-
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	v1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
+
+	"github.com/openshift-online/maestro/pkg/api"
 )
 
 func ValidateResourceName(resource *api.Resource) error {

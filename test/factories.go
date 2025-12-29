@@ -12,8 +12,6 @@ import (
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/google/uuid"
-	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/db"
 	"golang.org/x/oauth2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -26,10 +24,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
-
 	workv1 "open-cluster-management.io/api/work/v1"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+
+	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/db"
 )
 
 var manifestJSON = `

@@ -6,9 +6,8 @@ package migrations
 // is done here, even though the same type is defined in pkg/api
 
 import (
-	"gorm.io/gorm"
-
 	"github.com/go-gormigrate/gormigrate/v2"
+	"gorm.io/gorm"
 )
 
 func addDinosaurs() *gormigrate.Migration {
