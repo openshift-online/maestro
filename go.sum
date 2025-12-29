@@ -400,8 +400,8 @@ github.com/onsi/ginkgo/v2 v2.27.3 h1:ICsZJ8JoYafeXFFlFAG75a7CxMsJHwgKwtO+82SE9L8
 github.com/onsi/ginkgo/v2 v2.27.3/go.mod h1:ArE1D/XhNXBXCBkKOLkbsb2c81dQHCRcF5zwn/ykDRo=
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
-github.com/onsi/gomega v1.38.2 h1:eZCjf2xjZAqe+LeWvKb5weQ+NcPwX84kqJ0cZNxok2A=
-github.com/onsi/gomega v1.38.2/go.mod h1:W2MJcYxRGV63b418Ai34Ud0hEdTVXq9NW9+Sx6uXf3k=
+github.com/onsi/gomega v1.38.3 h1:eTX+W6dobAYfFeGC2PV6RwXRu/MyT+cQguijutvkpSM=
+github.com/onsi/gomega v1.38.3/go.mod h1:ZCU1pkQcXDO5Sl9/VVEGlDyp+zm0m1cmeG5TOzLgdh4=
 github.com/openshift-online/ocm-api-model/clientapi v0.0.439 h1:j4dEvXitd3sPvG6c8+zmgDU20fSf2vhDqB3lB6dbbmY=
 github.com/openshift-online/ocm-api-model/clientapi v0.0.439/go.mod h1:fZwy5HY2URG9nrExvQeXrDU/08TGqZ16f8oymVEN5lo=
 github.com/openshift-online/ocm-api-model/model v0.0.439 h1:8XUlc0QQbtpXup9yh4QARIlzohlQojsK0/OE0VBvH6A=
@@ -833,8 +833,6 @@ open-cluster-management.io/api v1.1.1-0.20251215032811-ee922fbb996c h1:LWZ+5dwVS
 open-cluster-management.io/api v1.1.1-0.20251215032811-ee922fbb996c/go.mod h1:Hk/3c114t6Ba5qhpqw+RoA93yEbE2CosG+JzzBZ6aCo=
 open-cluster-management.io/ocm v1.1.1-0.20251211014758-deb61b0a60d5 h1:02XVQtUt8v/fw6n3Rbf7Tu4FHJVVW2MiQLSpThWLwro=
 open-cluster-management.io/ocm v1.1.1-0.20251211014758-deb61b0a60d5/go.mod h1:kaFjiXsxtUUwWChYIy/ojANeMMrDW1KUrliuKA55z/Q=
-open-cluster-management.io/sdk-go v1.1.1-0.20251209031938-62521c9935ac h1:Wt7rzenZqrtyYI58+lpe9tmf9e5Ft8Wwd0MyDwuJ4ck=
-open-cluster-management.io/sdk-go v1.1.1-0.20251209031938-62521c9935ac/go.mod h1:0EZ9M7AtD0b+x9lUo5pYlyFF2aKOk1y88looeOVybwU=
 open-cluster-management.io/sdk-go v1.1.1-0.20251218031856-08bb1caedf74 h1:Sf+w+8ZzJgUQez/ADk2FLhoVDl1hD4rJqLQfvCFuM1o=
 open-cluster-management.io/sdk-go v1.1.1-0.20251218031856-08bb1caedf74/go.mod h1:3xQf3gISaZ3377vFnwjH3QH8EF2UNaf8D9igLPUBChk=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 h1:jpcvIRr3GLoUoEKRkHKSmGjxb6lWwrBlJsXc+eUYQHM=
