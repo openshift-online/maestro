@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/openshift-online/maestro/pkg/api/openapi"
-	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource/mock"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource/mock"
 )
 
 func TestPageList(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
@@ -13,6 +12,8 @@ import (
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
 )
 
 // Context key type defined to avoid collisions in other pkgs using context

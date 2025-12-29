@@ -3,9 +3,8 @@ package services
 import (
 	"context"
 
-	"github.com/openshift-online/maestro/pkg/dao"
-
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 

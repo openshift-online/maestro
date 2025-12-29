@@ -7,8 +7,9 @@ import (
 	"os"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/openshift-online/maestro/pkg/errors"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift-online/maestro/pkg/errors"
 )
 
 // SendNotFound sends a 404 response with some details about the non existing resource.

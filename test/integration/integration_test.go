@@ -2,10 +2,11 @@ package integration
 
 import (
 	"flag"
-	"k8s.io/klog/v2"
 	"os"
 	"runtime"
 	"testing"
+
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/test"
 )

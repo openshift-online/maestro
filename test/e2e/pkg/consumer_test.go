@@ -7,8 +7,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"k8s.io/apimachinery/pkg/util/rand"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
 var _ = Describe("Consumers", Ordered, Label("e2e-tests-consumers"), func() {

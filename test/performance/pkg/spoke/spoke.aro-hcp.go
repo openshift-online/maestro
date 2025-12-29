@@ -6,10 +6,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/spf13/pflag"
-
 	"github.com/openshift/library-go/pkg/controller/controllercmd"
-
+	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,7 +17,6 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/klog/v2"
-
 	ocmfeature "open-cluster-management.io/api/feature"
 	commonoptions "open-cluster-management.io/ocm/pkg/common/options"
 	"open-cluster-management.io/ocm/pkg/features"

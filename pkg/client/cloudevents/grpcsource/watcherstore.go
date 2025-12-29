@@ -8,11 +8,7 @@ import (
 	"sync"
 	"time"
 
-	maestrologger "github.com/openshift-online/maestro/pkg/logger"
-
-	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/ocm-sdk-go/logging"
-
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -20,12 +16,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/tools/cache"
-
 	workv1 "open-cluster-management.io/api/work/v1"
-
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/store"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/utils"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 // RESTFulAPIWatcherStore implements the WorkClientWatcherStore interface, it is

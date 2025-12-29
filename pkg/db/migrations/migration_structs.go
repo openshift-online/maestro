@@ -4,9 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/go-gormigrate/gormigrate/v2"
+	"gorm.io/gorm"
 )
 
 // gormigrate is a wrapper for gorm's migration functions that adds schema versioning and rollback capabilities.

@@ -3,8 +3,9 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"k8s.io/klog/v2"
 	"strings"
+
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"

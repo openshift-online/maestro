@@ -4,17 +4,18 @@ import (
 	"context"
 	e "errors"
 	"fmt"
-	"github.com/openshift-online/maestro/cmd/maestro/server/logging"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/db"
 	"gorm.io/gorm"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift-online/maestro/cmd/maestro/server/logging"
+	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
 )
 
 type HealthCheckServer struct {

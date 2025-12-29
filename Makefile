@@ -6,6 +6,10 @@ CGO_ENABLED := 1
 # Enable users to override the golang used to accomodate custom installations
 GO ?= go
 
+# Set GOPATH from go env if not already set
+GOPATH ?= $(shell $(GO) env GOPATH)
+export GOPATH
+
 # Allow overriding `oc` command.
 # Used by pr_check.py to ssh deploy inside private Hive cluster via bastion host.
 oc:=oc
@@ -156,15 +160,29 @@ ifndef TEST_SUMMARY_FORMAT
 	TEST_SUMMARY_FORMAT=short-verbose
 endif
 
-# Checks if a GOPATH is set, or emits an error message
+# Ensures GOPATH is set (now auto-configured at top of Makefile)
 check-gopath:
-ifndef GOPATH
-	$(error GOPATH is not set)
-endif
+	@echo "GOPATH is set to: $(GOPATH)"
 .PHONY: check-gopath
 
+install-golang-gci:
+	go install github.com/daixiang0/gci@v0.13.7
+
+fmt-imports: install-golang-gci
+	gci write --skip-generated -s standard -s default -s "prefix(github.com/openshift-online/maestro)" -s localmodule cmd pkg test
+
+verify-fmt-imports: install-golang-gci
+	@output=$$(gci diff --skip-generated -s standard -s default -s "prefix(github.com/openshift-online/maestro)" -s localmodule cmd pkg test); \
+	if [ -n "$$output" ]; then \
+	    echo "Go import diff output is not empty: $$output"; \
+	    echo "Please run 'make fmt-imports' to format the golang files imports automatically."; \
+	    exit 1; \
+	else \
+	    echo "Go import diff output is empty"; \
+	fi
+
 # Verifies that source passes standard checks.
-verify: check-gopath
+verify: check-gopath verify-fmt-imports
 	${GO} vet \
 		./cmd/... \
 		./pkg/...

@@ -8,10 +8,8 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	"github.com/prometheus/client_golang/prometheus"
-
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -22,10 +20,10 @@ import (
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/component-base/metrics/testutil"
-
 	workv1 "open-cluster-management.io/api/work/v1"
-
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
+
+	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 )
 
 var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-client"), func() {

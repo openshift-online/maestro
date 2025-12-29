@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"k8s.io/klog/v2"
+
 	"github.com/openshift-online/maestro/pkg/errors"
 	logtracing "github.com/openshift-online/maestro/pkg/logger"
-	"k8s.io/klog/v2"
 )
 
 func handleError(ctx context.Context, w http.ResponseWriter, code errors.ServiceErrorCode, reason string) {

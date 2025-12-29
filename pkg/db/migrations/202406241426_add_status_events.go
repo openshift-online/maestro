@@ -3,10 +3,9 @@ package migrations
 import (
 	"time"
 
+	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
-
-	"github.com/go-gormigrate/gormigrate/v2"
 )
 
 func addStatusEvents() *gormigrate.Migration {

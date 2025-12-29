@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
-	"k8s.io/klog/v2"
 	"net/http"
 	"os"
 	"testing"
@@ -14,25 +13,25 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/openshift-online/ocm-sdk-go/logging"
+	"google.golang.org/grpc"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/cert"
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
-
-	"google.golang.org/grpc"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/test"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
-	"github.com/openshift-online/ocm-sdk-go/logging"
 )
 
 var serverHealthinessTimeout = 20 * time.Second
