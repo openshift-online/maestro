@@ -47,6 +47,7 @@
 secrets/db.password
 secrets/mqtt.password
 secrets/mqtt.config
+secrets/pubsub.config
 hack/mosquitto-passwd.txt
 
 # Ignore image environment file
