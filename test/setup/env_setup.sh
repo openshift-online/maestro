@@ -22,6 +22,7 @@ istio_version=1.25.5
 
 enable_istio=${ENABLE_ISTIO:-"false"}
 msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
+tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
 
 export image_tag="latest"
 export external_image_registry="image-registry.testing"
@@ -122,8 +123,15 @@ kubectl create namespace ${namespace} || true
 kubectl create namespace ${agent_namespace} || true
 kubectl create namespace clusters-service || true
 
-# Prepare the ServiceAccount
-kubectl -n ${namespace} create serviceaccount maestro || true
+# Create HTTPS certificates for maestro server
+https_cert_dir="${PWD}/test/_output/certs/https"
+if [ ! -d "$https_cert_dir" ]; then
+  mkdir -p "$https_cert_dir"
+  step certificate create "maestro-https-ca" ${https_cert_dir}/ca.crt ${https_cert_dir}/ca.key --kty RSA --profile root-ca --no-password --insecure
+  step certificate create "maestro-server" ${https_cert_dir}/tls.crt ${https_cert_dir}/tls.key --kty RSA -san maestro -san maestro.${namespace} -san maestro.${namespace}.svc -san localhost -san 127.0.0.1 --profile leaf --ca ${https_cert_dir}/ca.crt --ca-key ${https_cert_dir}/ca.key --no-password --insecure
+  kubectl delete secret maestro-https-certs -n "${namespace}" --ignore-not-found
+  kubectl create secret tls maestro-https-certs -n "${namespace}" --cert=${https_cert_dir}/tls.crt --key=${https_cert_dir}/tls.key
+fi
 
 # Apply ManifestWork CRD
 kubectl apply -f https://raw.githubusercontent.com/open-cluster-management-io/api/release-0.14/work/v1/0000_00_work.open-cluster-management.io_manifestworks.crd.yaml
@@ -161,8 +169,7 @@ if [ "$msg_broker" = "mqtt" ]; then
   export mqtt_root_cert="/secrets/mqtt-certs/ca.crt"
   export mqtt_client_cert="/secrets/mqtt-certs/client.crt"
   export mqtt_client_key="/secrets/mqtt-certs/client.key"
-  make deploy-mqtt-tls
-  kubectl -n ${namespace} wait deploy/maestro-mqtt --for condition=Available=True --timeout=300s
+  # MQTT broker will be deployed by Helm chart in deploy_server.sh
 fi
 
 if [ "$msg_broker" = "grpc" ]; then
@@ -190,6 +197,33 @@ EOF
   fi
 fi
 
-# Deploy the database (PostgreSQL) required by the Maestro server
-make deploy-db-tls
-kubectl -n ${namespace} wait deploy/maestro-db --for condition=Available=True --timeout=300s
+if [ "$tls_enable" = "true" ]; then
+  # deploy openshift service-ca to generate certs for internal services (metrics/health)
+  kubectl label node maestro-control-plane node-role.kubernetes.io/master= --overwrite
+  kubectl apply -f "${PWD}/test/setup/service-ca-crds"
+  # kubectl create namespace openshift-config-managed || true
+  kubectl apply -f "${PWD}/test/setup/service-ca"
+  sleep 10 # wait for openshift service-ca-operator is created
+  kubectl wait deploy/service-ca-operator -n openshift-service-ca-operator --for condition=Available=True --timeout=300s
+  sleep 10 # wait for openshift service-ca is created
+  kubectl wait deploy/service-ca -n openshift-service-ca --for condition=Available=True --timeout=300s
+  # prepare gRPC service certs if they are not found
+  grpc_cert_dir="${PWD}/test/_output/certs/grpc"
+  if [ ! -d "$grpc_cert_dir" ]; then
+    # create certs
+    mkdir -p "$grpc_cert_dir"
+    step certificate create "maestro-grpc-ca" ${grpc_cert_dir}/ca.crt ${grpc_cert_dir}/ca.key --kty RSA --profile root-ca --no-password --insecure
+    step certificate create "maestro-grpc-server" ${grpc_cert_dir}/server.crt ${grpc_cert_dir}/server.key --kty RSA -san maestro-grpc -san maestro-grpc.maestro -san localhost -san 127.0.0.1 --profile leaf --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
+    cat << EOF > ${grpc_cert_dir}/cert.tpl
+{
+    "subject":{"organization":"open-cluster-management","commonName":"grpc-client"},
+    "keyUsage":["digitalSignature"],
+    "extKeyUsage": ["serverAuth","clientAuth"]
+}
+EOF
+    step certificate create "maestro-grpc-client" ${grpc_cert_dir}/client.crt ${grpc_cert_dir}/client.key --kty RSA --template ${grpc_cert_dir}/cert.tpl --ca ${grpc_cert_dir}/ca.crt --ca-key ${grpc_cert_dir}/ca.key --no-password --insecure
+    # create secrets
+    kubectl delete secret maestro-grpc-cert -n "$namespace" --ignore-not-found
+    kubectl create secret generic maestro-grpc-cert -n "$namespace" --from-file=ca.crt=${grpc_cert_dir}/ca.crt --from-file=server.crt=${grpc_cert_dir}/server.crt --from-file=server.key=${grpc_cert_dir}/server.key --from-file=client.crt=${grpc_cert_dir}/client.crt --from-file=client.key=${grpc_cert_dir}/client.key
+  fi
+fi
