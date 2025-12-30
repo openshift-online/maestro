@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	jsonpatch "github.com/evanphx/json-patch"
-	"github.com/openshift-online/maestro/pkg/api/openapi"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
@@ -14,6 +13,8 @@ import (
 	"k8s.io/apimachinery/pkg/selection"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
 const jsonbPrefix = `payload->'metadata'->'labels'`

@@ -13,15 +13,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bxcodec/faker/v3"
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
+	amv1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
+	"github.com/segmentio/ksuid"
+	"github.com/spf13/pflag"
 	"k8s.io/klog/v2"
-
-	"github.com/openshift-online/maestro/pkg/client/cloudevents"
-	"github.com/openshift-online/maestro/pkg/controllers"
-	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/dispatcher"
-	"github.com/openshift-online/maestro/pkg/event"
 	workinformers "open-cluster-management.io/api/client/work/informers/externalversions"
-
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/options"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/agent/codec"
@@ -31,22 +30,18 @@ import (
 	grpcoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/mqtt"
 
-	"github.com/bxcodec/faker/v3"
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/uuid"
-	"github.com/segmentio/ksuid"
-	"github.com/spf13/pflag"
-
-	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
-
-	amv1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
-
 	"github.com/openshift-online/maestro/cmd/maestro/environments"
+	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/controllers"
+	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/dispatcher"
+	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/test/mocks/jwk"
 )
 

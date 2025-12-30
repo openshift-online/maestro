@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/services"
-
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+
+	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/services"
 )
 
 /*

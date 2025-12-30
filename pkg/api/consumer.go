@@ -1,8 +1,9 @@
 package api
 
 import (
-	"github.com/openshift-online/maestro/pkg/db"
 	"gorm.io/gorm"
+
+	"github.com/openshift-online/maestro/pkg/db"
 )
 
 type Consumer struct {

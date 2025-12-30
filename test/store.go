@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/openshift-online/maestro/pkg/api"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+
+	"github.com/openshift-online/maestro/pkg/api"
 )
 
 type MemoryStore struct {

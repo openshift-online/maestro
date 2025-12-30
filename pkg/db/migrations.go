@@ -2,11 +2,12 @@ package db
 
 import (
 	"context"
-	"k8s.io/klog/v2"
 
 	"github.com/go-gormigrate/gormigrate/v2"
-	"github.com/openshift-online/maestro/pkg/db/migrations"
 	"gorm.io/gorm"
+	"k8s.io/klog/v2"
+
+	"github.com/openshift-online/maestro/pkg/db/migrations"
 )
 
 // gormigrate is a wrapper for gorm's migration functions that adds schema versioning and rollback capabilities.

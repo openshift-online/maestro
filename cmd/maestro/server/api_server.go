@@ -7,9 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
-	"k8s.io/klog/v2"
-
 	sentryhttp "github.com/getsentry/sentry-go/http"
 	"github.com/ghodss/yaml"
 	_ "github.com/golang-jwt/jwt/v4"
@@ -17,6 +14,8 @@ import (
 	gorillahandlers "github.com/gorilla/handlers"
 	sdk "github.com/openshift-online/ocm-sdk-go"
 	"github.com/openshift-online/ocm-sdk-go/authentication"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/common"
 	"github.com/openshift-online/maestro/cmd/maestro/environments"

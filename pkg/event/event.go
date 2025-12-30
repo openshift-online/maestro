@@ -2,10 +2,11 @@ package event
 
 import (
 	"context"
-	"k8s.io/klog/v2"
 	"sync"
 
 	"github.com/google/uuid"
+	"k8s.io/klog/v2"
+
 	"github.com/openshift-online/maestro/pkg/api"
 )
 

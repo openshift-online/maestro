@@ -9,13 +9,13 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
+
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/testutil"
-
-	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
 )
 
 func TestStatusDispatcher(t *testing.T) {

@@ -4,16 +4,16 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	"k8s.io/client-go/rest"
-
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	sourceclient "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/client"
 	sourcecodec "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"
 	ceclients "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/clients"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
 func NewMaestroGRPCSourceWorkClient(

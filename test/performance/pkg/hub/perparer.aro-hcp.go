@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/spf13/pflag"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/options"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/source/codec"

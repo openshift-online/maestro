@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc"
 
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/test/performance/pkg/util"
-	"github.com/openshift-online/ocm-sdk-go/logging"
 )
 
 const sourceID = "maestro-performance-test"

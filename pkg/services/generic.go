@@ -4,7 +4,6 @@ import (
 	"context"
 	e "errors"
 	"fmt"
-	"k8s.io/klog/v2"
 	"reflect"
 	"strings"
 
@@ -14,6 +13,7 @@ import (
 	"github.com/yaacov/tree-search-language/pkg/walkers/ident"
 	sqlFilter "github.com/yaacov/tree-search-language/pkg/walkers/sql"
 	"gorm.io/gorm"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"

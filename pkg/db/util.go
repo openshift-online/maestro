@@ -9,11 +9,11 @@ import (
 type StringMap map[string]string
 
 func (m *StringMap) Scan(value interface{}) error {
-    return json.Unmarshal(value.([]byte), m)
+	return json.Unmarshal(value.([]byte), m)
 }
 
 func (m StringMap) Value() (driver.Value, error) {
-    return json.Marshal(m)
+	return json.Marshal(m)
 }
 
 func (m *StringMap) ToMap() *map[string]string {

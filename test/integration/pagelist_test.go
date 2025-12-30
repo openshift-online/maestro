@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"testing"
 
-	. "github.com/onsi/gomega"
-
 	"github.com/google/uuid"
-	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
-	"github.com/openshift-online/maestro/test"
+	. "github.com/onsi/gomega"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/rand"
+
+	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	"github.com/openshift-online/maestro/test"
 )
 
 func TestListSyncWorks(t *testing.T) {
