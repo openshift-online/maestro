@@ -6,9 +6,10 @@ import (
 	"strings"
 
 	"github.com/jinzhu/inflection"
-	"github.com/openshift-online/maestro/pkg/errors"
 	"github.com/yaacov/tree-search-language/pkg/tsl"
 	"gorm.io/gorm"
+
+	"github.com/openshift-online/maestro/pkg/errors"
 )
 
 // Check if a field name starts with properties.

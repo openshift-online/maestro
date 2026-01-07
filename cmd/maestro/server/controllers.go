@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	
+
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"

@@ -2,12 +2,13 @@ package migrate
 
 import (
 	"context"
-	"github.com/openshift-online/maestro/pkg/db/db_session"
+
 	"github.com/spf13/cobra"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/db/db_session"
 )
 
 var dbConfig = config.NewDatabaseConfig()

@@ -2,14 +2,15 @@ package logging
 
 import (
 	"context"
-	"github.com/gorilla/mux"
 	"net/http"
-	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
 	"strings"
 	"time"
 
-	maestrologger "github.com/openshift-online/maestro/pkg/logger"
+	"github.com/gorilla/mux"
 	"k8s.io/klog/v2"
+	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
+
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 func RegisterLoggerMiddleware(ctx context.Context, router *mux.Router) {

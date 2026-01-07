@@ -5,11 +5,10 @@ import (
 	"net/http"
 	"strings"
 
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/trace"
-
 	"github.com/getsentry/sentry-go"
 	"github.com/segmentio/ksuid"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type OperationIDKey string

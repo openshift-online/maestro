@@ -9,9 +9,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/yaml"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
 const clusterNamePrefix = "maestro-cluster"

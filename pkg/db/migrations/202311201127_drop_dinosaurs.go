@@ -1,9 +1,8 @@
 package migrations
 
 import (
-	"gorm.io/gorm"
-
 	"github.com/go-gormigrate/gormigrate/v2"
+	"gorm.io/gorm"
 )
 
 func dropDinosaurs() *gormigrate.Migration {

@@ -3,20 +3,21 @@ package dispatcher
 import (
 	"context"
 	"fmt"
-	"k8s.io/klog/v2"
 	"sync"
 	"time"
 
 	"github.com/buraksezer/consistent"
 	"github.com/cespare/xxhash"
 	mapset "github.com/deckarep/golang-set/v2"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
+
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
-	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/client-go/util/workqueue"
 )
 
 var _ Dispatcher = &HashDispatcher{}

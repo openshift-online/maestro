@@ -3,14 +3,14 @@ package db
 import (
 	"encoding/json"
 	"fmt"
-	loggertracing "github.com/openshift-online/maestro/pkg/logger"
-	"k8s.io/klog/v2"
 	"net/http"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/openshift-online/maestro/pkg/db/db_context"
+	"k8s.io/klog/v2"
 
+	"github.com/openshift-online/maestro/pkg/db/db_context"
 	"github.com/openshift-online/maestro/pkg/errors"
+	loggertracing "github.com/openshift-online/maestro/pkg/logger"
 )
 
 // TransactionMiddleware creates a new HTTP middleware that begins a database transaction

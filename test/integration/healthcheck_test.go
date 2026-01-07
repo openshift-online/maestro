@@ -7,6 +7,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/test"

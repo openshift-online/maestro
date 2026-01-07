@@ -9,14 +9,15 @@ import (
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+	"gorm.io/gorm"
+	"k8s.io/apimachinery/pkg/util/rand"
+
 	"github.com/openshift-online/maestro/cmd/maestro/server"
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/controllers"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/test"
-	"gorm.io/gorm"
-	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 func TestControllerRacing(t *testing.T) {

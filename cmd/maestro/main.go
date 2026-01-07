@@ -5,11 +5,12 @@ import (
 	"log"
 	"os"
 
+	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
+
 	"github.com/openshift-online/maestro/cmd/maestro/agent"
 	"github.com/openshift-online/maestro/cmd/maestro/migrate"
 	"github.com/openshift-online/maestro/cmd/maestro/servecmd"
-	"github.com/spf13/cobra"
-	"k8s.io/klog/v2"
 )
 
 // nolint

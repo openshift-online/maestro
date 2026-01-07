@@ -1,8 +1,9 @@
 package logging
 
 import (
-	"k8s.io/klog/v2"
 	"net/http"
+
+	"k8s.io/klog/v2"
 )
 
 type LogFormatter interface {

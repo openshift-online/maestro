@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	errors "github.com/zgalor/weberr"
 	"go.opentelemetry.io/contrib/exporters/autoexport"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -14,7 +15,6 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/constants"
-	errors "github.com/zgalor/weberr"
 )
 
 // Without a specific configuration, a noop tracer is used by default.

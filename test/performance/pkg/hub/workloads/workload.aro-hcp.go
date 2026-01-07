@@ -4,12 +4,13 @@ import (
 	"embed"
 	"fmt"
 
-	"github.com/openshift-online/maestro/test/performance/pkg/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	workv1 "open-cluster-management.io/api/work/v1"
+
+	"github.com/openshift-online/maestro/test/performance/pkg/util"
 )
 
 //go:embed manifests

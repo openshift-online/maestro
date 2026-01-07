@@ -4,14 +4,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-
 	workv1 "open-cluster-management.io/api/work/v1"
+
+	"github.com/openshift-online/maestro/pkg/api/openapi"
 )
 
 func TestToManifestWork(t *testing.T) {

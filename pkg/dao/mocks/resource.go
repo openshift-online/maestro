@@ -3,11 +3,10 @@ package mocks
 import (
 	"context"
 
-	"github.com/openshift-online/maestro/pkg/dao"
-
 	"gorm.io/gorm"
 
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 

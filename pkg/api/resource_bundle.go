@@ -7,7 +7,6 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	cloudeventstypes "github.com/cloudevents/sdk-go/v2/types"
 	"gorm.io/datatypes"
-
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )

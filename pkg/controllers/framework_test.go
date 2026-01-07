@@ -8,12 +8,13 @@ import (
 
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
+	"gorm.io/gorm"
+
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/dao/mocks"
 	dbmocks "github.com/openshift-online/maestro/pkg/db/mocks"
 	"github.com/openshift-online/maestro/pkg/services"
-	"gorm.io/gorm"
 )
 
 func newExampleControllerConfig(ctrl *exampleController) *ControllerConfig {

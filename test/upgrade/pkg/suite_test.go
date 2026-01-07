@@ -3,16 +3,14 @@ package upgrade_test
 import (
 	"context"
 	"flag"
-	"k8s.io/klog/v2"
 	"os"
 	"testing"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-
+	"k8s.io/klog/v2"
 	workclientset "open-cluster-management.io/api/client/work/clientset/versioned"
 
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"

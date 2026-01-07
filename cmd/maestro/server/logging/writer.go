@@ -1,8 +1,9 @@
 package logging
 
 import (
-	"k8s.io/klog/v2"
 	"net/http"
+
+	"k8s.io/klog/v2"
 )
 
 func NewLoggingWriter(logger klog.Logger, w http.ResponseWriter, r *http.Request, f LogFormatter) *loggingWriter {

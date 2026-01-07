@@ -4,6 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/klog/v2"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
+	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
+	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
+
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -11,12 +18,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
-	"k8s.io/apimachinery/pkg/api/meta"
-	"k8s.io/klog/v2"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
-	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
-	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
 )
 
 // EventServer handles resource-related events:
