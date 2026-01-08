@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/klog/v2"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/ocm-sdk-go/logging"

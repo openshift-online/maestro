@@ -116,8 +116,7 @@ $ make run
 
 # OR run with Pub/Sub emulator
 # First, ensure the Pub/Sub emulator is running and configured
-$ ./maestro migration
-$ ./maestro server --message-broker-type=pubsub --message-broker-config-file=./secrets/pubsub.config
+$ MESSAGE_DRIVER_TYPE=pubsub make run
 ```
 
 #### List the consumers
