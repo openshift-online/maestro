@@ -249,7 +249,11 @@ generate:
 
 run: install
 	maestro migration
-	maestro server
+	@if [ "$(MESSAGE_DRIVER_TYPE)" = "grpc" ]; then \
+		maestro server --message-broker-type=$(MESSAGE_DRIVER_TYPE); \
+	else \
+		maestro server --message-broker-type=$(MESSAGE_DRIVER_TYPE) --message-broker-config-file=./secrets/$(MESSAGE_DRIVER_TYPE).config; \
+	fi
 .PHONY: run
 
 # Run Swagger and host the api docs
@@ -364,8 +368,12 @@ pubsub/teardown:
 	$(container_tool) rm pubsub-maestro
 
 .PHONY: pubsub/init
-pubsub/init:
+pubsub/init: pubsub/setup
 	@echo "Initializing Pub/Sub emulator topics and subscriptions..."
+	@echo "Waiting for emulator to be ready..."
+	@for i in {1..30}; do \
+		curl -s http://localhost:$(pubsub_port) >/dev/null 2>&1 && break || sleep 1; \
+	done
 	@PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) PUBSUB_PROJECT_ID=$(pubsub_project_id) python3 hack/init-pubsub-emulator.py
 
 crc/login:
