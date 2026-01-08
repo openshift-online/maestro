@@ -149,7 +149,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			Expect(err).ShouldNot(HaveOccurred())
 			allConsumerWatcherResult := StartWatch(watcherCtx, allConsumerWatcher)
 
-			By("start watching works from consumer" + agentTestOpts.consumerName)
+			By("start watching works from consumer " + agentTestOpts.consumerName)
 			consumerWatcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			consumerWatcherResult := StartWatch(watcherCtx, consumerWatcher)
@@ -377,7 +377,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			prodWorkName = "work-production" + rand.String(5)
+			prodWorkName = "work-production-" + rand.String(5)
 			work = NewManifestWorkWithLabels(prodWorkName, map[string]string{"app": "test", "env": "production"})
 			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
