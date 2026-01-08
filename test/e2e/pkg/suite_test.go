@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	"k8s.io/klog/v2"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/ocm-sdk-go/logging"
@@ -138,7 +140,7 @@ var _ = BeforeSuite(func() {
 		},
 		ServerHealthinessTimeout: &serverHealthinessTimeout,
 	}
-	sourceID = "sourceclient-test" + rand.String(5)
+	sourceID = "sourceclient-test-" + rand.String(5)
 	grpcCertSrt, err := serverTestOpts.kubeClientSet.CoreV1().Secrets(serverTestOpts.serverNamespace).Get(ctx, "maestro-grpc-cert", metav1.GetOptions{})
 	if !errors.IsNotFound(err) {
 		// retrieve the grpc cert from the maestro server and write to the grpc cert dir

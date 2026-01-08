@@ -28,7 +28,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.3
 	github.com/onsi/gomega v1.38.3
 	github.com/openshift-online/ocm-common v0.0.34
-	github.com/openshift-online/ocm-sdk-go v0.1.485
+	github.com/openshift-online/ocm-sdk-go v0.1.486
 	github.com/openshift/library-go v0.0.0-20251120164824-14a789e09884
 	github.com/prometheus/client_golang v1.23.2
 	github.com/segmentio/ksuid v1.0.4
@@ -130,8 +130,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
-	github.com/openshift-online/ocm-api-model/clientapi v0.0.439 // indirect
-	github.com/openshift-online/ocm-api-model/model v0.0.439 // indirect
+	github.com/openshift-online/ocm-api-model/clientapi v0.0.440 // indirect
+	github.com/openshift-online/ocm-api-model/model v0.0.440 // indirect
 	github.com/openshift/api v0.0.0-20251125174858-5cf710f68a92 // indirect
 	github.com/openshift/client-go v0.0.0-20251125141819-b6281947c285 // indirect
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c // indirect
