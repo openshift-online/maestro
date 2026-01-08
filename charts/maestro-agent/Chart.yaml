@@ -1,0 +1,16 @@
+apiVersion: v2
+name: maestro-agent
+description: Helm chart for Maestro Agent - Receives and applies Kubernetes resources to target clusters
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - maestro
+  - cloudevents
+  - kubernetes
+  - agent
+maintainers:
+  - name: Maestro Team
+    url: https://github.com/openshift-online/maestro
+sources:
+  - https://github.com/openshift-online/maestro
