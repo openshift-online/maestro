@@ -66,6 +66,12 @@ mqtt_root_cert ?= ""
 mqtt_client_cert ?= ""
 mqtt_client_key ?= ""
 
+# Pub/Sub emulator configuration
+pubsub_host ?= maestro-pubsub.$(namespace)
+pubsub_port ?= 8085
+pubsub_project_id ?= maestro-test
+pubsub_config_file ?= ${PWD}/secrets/pubsub.config
+
 # Log verbosity level
 klog_v:=2
 
@@ -83,7 +89,7 @@ ENABLE_GRPC_BROKER ?= false
 # Enable TLS
 ENABLE_TLS ?= false
 
-# message driver type, mqtt or grpc, default is mqtt.
+# message driver type, mqtt, grpc or pubsub, default is mqtt.
 MESSAGE_DRIVER_TYPE ?= mqtt
 
 # default replicas for maestro server
@@ -134,6 +140,13 @@ help:
 	@echo "make deploy               deploy via templates to local openshift instance"
 	@echo "make undeploy             undeploy from local openshift instance"
 	@echo "make project              create and use an Example project"
+	@echo "make db/setup             setup local PostgreSQL database"
+	@echo "make db/teardown          teardown local PostgreSQL database"
+	@echo "make mqtt/setup           setup local MQTT broker"
+	@echo "make mqtt/teardown        teardown local MQTT broker"
+	@echo "make pubsub/setup         setup local Pub/Sub emulator"
+	@echo "make pubsub/init          initialize Pub/Sub topics and subscriptions"
+	@echo "make pubsub/teardown      teardown local Pub/Sub emulator"
 	@echo "make clean                delete temporary generated files"
 	@echo "$(fake)"
 .PHONY: help
@@ -333,6 +346,9 @@ cmds:
 		--param="MQTT_CLIENT_CERT=$(mqtt_client_cert)" \
 		--param="MQTT_CLIENT_KEY=$(mqtt_client_key)" \
 		--param="MQTT_IMAGE=$(MQTT_IMAGE)" \
+		--param="PUBSUB_HOST=$(pubsub_host)" \
+		--param="PUBSUB_PORT=$(pubsub_port)" \
+		--param="PUBSUB_PROJECT_ID=$(pubsub_project_id)" \
 		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
 		--param="IMAGE_REPOSITORY=$(image_repository)" \
 		--param="IMAGE_TAG=$(image_tag)" \
@@ -444,6 +460,22 @@ mqtt/setup: mqtt/prepare
 mqtt/teardown:
 	$(container_tool) stop mqtt-maestro
 	$(container_tool) rm mqtt-maestro
+
+.PHONY: pubsub/setup
+pubsub/setup:
+	@mkdir -p ${PWD}/secrets
+	@echo '{"projectID":"$(pubsub_project_id)","endpoint":"localhost:$(pubsub_port)","disableTLS":true,"topics":{"sourceEvents":"projects/$(pubsub_project_id)/topics/sourceevents","sourceBroadcast":"projects/$(pubsub_project_id)/topics/sourcebroadcast"},"subscriptions":{"agentEvents":"projects/$(pubsub_project_id)/subscriptions/agentevents-maestro","agentBroadcast":"projects/$(pubsub_project_id)/subscriptions/agentbroadcast-maestro"}}' > $(pubsub_config_file)
+	$(container_tool) run --name pubsub-maestro -p $(pubsub_port):8085 -e PUBSUB_PROJECT_ID=$(pubsub_project_id) -d gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=$(pubsub_project_id)
+
+.PHONY: pubsub/teardown
+pubsub/teardown:
+	$(container_tool) stop pubsub-maestro
+	$(container_tool) rm pubsub-maestro
+
+.PHONY: pubsub/init
+pubsub/init:
+	@echo "Initializing Pub/Sub emulator topics and subscriptions..."
+	@PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) PUBSUB_PROJECT_ID=$(pubsub_project_id) python3 hack/init-pubsub-emulator.py
 
 crc/login:
 	@echo "Logging into CRC"

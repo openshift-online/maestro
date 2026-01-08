@@ -69,6 +69,21 @@ parameters:
 - name: MQTT_CLIENT_KEY
   description: Client private key to access the mqtt broker.
 
+- name: PUBSUB_HOST
+  description: Hostname for the Pub/Sub emulator service
+  required: true
+  value: maestro-pubsub.maestro
+
+- name: PUBSUB_PORT
+  description: Port for the Pub/Sub emulator
+  required: true
+  value: "8085"
+
+- name: PUBSUB_PROJECT_ID
+  description: Google Cloud project ID for the emulator
+  required: true
+  value: maestro-test
+
 - name: BROKER_CLIENT_CERT_REFRESH_DURATION
   description: client certificate refresh duration for message broker
   value: "5m"
@@ -348,6 +363,22 @@ objects:
       topics:
         sourceEvents: sources/maestro/consumers/${CONSUMER_NAME}/sourceevents
         agentEvents: sources/maestro/consumers/${CONSUMER_NAME}/agentevents
+
+- apiVersion: v1
+  kind: Secret
+  metadata:
+    name: maestro-agent-pubsub
+  stringData:
+    config.yaml: |
+      projectID: ${PUBSUB_PROJECT_ID}
+      endpoint: ${PUBSUB_HOST}:${PUBSUB_PORT}
+      disableTLS: true
+      topics:
+        agentEvents: projects/${PUBSUB_PROJECT_ID}/topics/agentevents
+        agentBroadcast: projects/${PUBSUB_PROJECT_ID}/topics/agentbroadcast
+      subscriptions:
+        sourceEvents: projects/${PUBSUB_PROJECT_ID}/subscriptions/sourceevents-${CONSUMER_NAME}
+        sourceBroadcast: projects/${PUBSUB_PROJECT_ID}/subscriptions/sourcebroadcast-${CONSUMER_NAME}
 
 - kind: ServiceAccount
   apiVersion: v1
