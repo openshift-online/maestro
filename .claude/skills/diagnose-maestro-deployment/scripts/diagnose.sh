@@ -144,6 +144,23 @@ fi
 
 echo ""
 
+# Step 3: Analyze deployment logs if provided
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+LOG_ANALYSIS_DIR="$TEMP_DIR/log-analysis"
+
+if [ -n "$DEPLOYMENT_OUTPUT" ] && [ -f "$DEPLOYMENT_OUTPUT" ]; then
+    echo "Step 3: Analyzing deployment logs..."
+    echo ""
+
+    # Source the log analysis module
+    source "$SCRIPT_DIR/analyze-logs.sh"
+
+    # Run log analysis
+    analyze_deployment_logs "$DEPLOYMENT_OUTPUT" "$LOG_ANALYSIS_DIR"
+
+    echo ""
+fi
+
 # Initialize report
 REPORT_FILE="$TEMP_DIR/diagnosis-report.txt"
 
@@ -159,8 +176,8 @@ Clusters Analyzed:
 
 EOF
 
-# Analyze Management Cluster
-echo "Step 3: Analyzing Management Cluster..."
+# Step 4: Analyze Management Cluster (dynamically based on log analysis)
+echo "Step 4: Analyzing Management Cluster..."
 echo ""
 
 if [ -n "$MGMT_KUBECONFIG" ]; then
@@ -168,77 +185,95 @@ if [ -n "$MGMT_KUBECONFIG" ]; then
     echo "==========================" >> "$REPORT_FILE"
     echo "" >> "$REPORT_FILE"
 
-    # Get Helm releases
+    # Get all Helm releases for reference
     echo "Helm Releases:" >> "$REPORT_FILE"
     helm --kubeconfig "$MGMT_KUBECONFIG" list -A -o json | \
         jq -r '.[] | "\(.name) (\(.namespace)): \(.status) - Chart: \(.chart)"' >> "$REPORT_FILE" 2>/dev/null || \
         echo "Failed to retrieve Helm releases" >> "$REPORT_FILE"
     echo "" >> "$REPORT_FILE"
 
-    # Find failed releases
-    FAILED_RELEASES=$(helm --kubeconfig "$MGMT_KUBECONFIG" list -A -o json | jq -r '.[] | select(.status == "failed") | .name + ":" + .namespace' 2>/dev/null || echo "")
+    # Determine what to check based on log analysis
+    FAILED_RELEASES=""
+    NAMESPACES_TO_CHECK=""
+
+    if [ -f "$LOG_ANALYSIS_DIR/failed_helm_releases.txt" ]; then
+        # Use log analysis results to identify failed releases
+        FAILED_RELEASES=$(cat "$LOG_ANALYSIS_DIR/failed_helm_releases.txt" | tr '\n' ' ')
+        echo "Failed releases identified from logs: $FAILED_RELEASES"
+    fi
+
+    # If no log analysis or empty results, fallback to checking cluster state
+    if [ -z "$FAILED_RELEASES" ]; then
+        FAILED_RELEASES=$(helm --kubeconfig "$MGMT_KUBECONFIG" list -A -o json | \
+            jq -r '.[] | select(.status == "failed") | .name + ":" + .namespace' 2>/dev/null || echo "")
+    fi
 
     if [ -n "$FAILED_RELEASES" ]; then
-        echo "Failed Helm Releases Detected:" >> "$REPORT_FILE"
-        echo "$FAILED_RELEASES" >> "$REPORT_FILE"
+        echo "Investigating Failed Components:" >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
 
-        echo "Found failed Helm releases:"
-        echo "$FAILED_RELEASES"
-        echo ""
-
-        # Analyze each failed release
-        while IFS=: read -r release namespace; do
-            echo "Analyzing failed release: $release in namespace $namespace"
-
-            echo "Details for $release (namespace: $namespace):" >> "$REPORT_FILE"
-            echo "---" >> "$REPORT_FILE"
-
-            # Get pods in namespace
-            echo "Pods in $namespace:" >> "$REPORT_FILE"
-            kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n "$namespace" -o wide 2>/dev/null >> "$REPORT_FILE" || \
-                echo "Failed to get pods" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-
-            # Check for specific known issues
-            if [ "$release" = "hypershift" ]; then
-                # Check ClusterSizingConfiguration
-                if kubectl --kubeconfig "$MGMT_KUBECONFIG" get ClusterSizingConfiguration cluster &>/dev/null; then
-                    echo "ClusterSizingConfiguration detected:" >> "$REPORT_FILE"
-                    kubectl --kubeconfig "$MGMT_KUBECONFIG" get ClusterSizingConfiguration cluster -o yaml >> "$REPORT_FILE" 2>/dev/null
-                    echo "" >> "$REPORT_FILE"
-
-                    # Check managed fields
-                    MANAGERS=$(kubectl --kubeconfig "$MGMT_KUBECONFIG" get ClusterSizingConfiguration cluster -o jsonpath='{.metadata.managedFields[*].manager}' 2>/dev/null | tr ' ' '\n' | sort -u)
-                    echo "Resource managed by: $MANAGERS" >> "$REPORT_FILE"
-                    echo "" >> "$REPORT_FILE"
+        # Process each failed release
+        for release_info in $FAILED_RELEASES; do
+            if [[ "$release_info" == *":"* ]]; then
+                release=$(echo "$release_info" | cut -d: -f1)
+                namespace=$(echo "$release_info" | cut -d: -f2)
+            else
+                release="$release_info"
+                # Try to find namespace from Helm
+                namespace=$(helm --kubeconfig "$MGMT_KUBECONFIG" list -A -o json 2>/dev/null | \
+                    jq -r ".[] | select(.name == \"$release\") | .namespace" | head -1)
+                if [ -z "$namespace" ]; then
+                    namespace="unknown"
                 fi
             fi
 
-        done <<< "$FAILED_RELEASES"
+            echo "Analyzing: $release in namespace $namespace"
+            echo "[$release] (namespace: $namespace)" >> "$REPORT_FILE"
+            echo "---" >> "$REPORT_FILE"
+
+            if [ "$namespace" != "unknown" ]; then
+                # Get pod status
+                echo "Pods:" >> "$REPORT_FILE"
+                kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n "$namespace" -o wide 2>/dev/null >> "$REPORT_FILE" || \
+                    echo "  No pods found or error retrieving pods" >> "$REPORT_FILE"
+                echo "" >> "$REPORT_FILE"
+
+                # Check for resource conflicts if indicated in log analysis
+                if [ -f "$LOG_ANALYSIS_DIR/resource_conflicts.txt" ]; then
+                    while IFS=: read -r conflict_type resource_name resource_type manager fields; do
+                        if [ "$conflict_type" = "CONFLICT" ]; then
+                            echo "Resource Conflict Detected:" >> "$REPORT_FILE"
+                            echo "  Resource: $resource_name (type: $resource_type)" >> "$REPORT_FILE"
+                            echo "  Managed by: $manager" >> "$REPORT_FILE"
+                            if [ -n "$fields" ]; then
+                                echo "  Conflicting fields:" >> "$REPORT_FILE"
+                                echo "$fields" | tr '|' '\n' | sed 's/^/    - /' >> "$REPORT_FILE"
+                            fi
+                            echo "" >> "$REPORT_FILE"
+
+                            # Try to get the actual resource
+                            if kubectl --kubeconfig "$MGMT_KUBECONFIG" get "$resource_type" "$resource_name" &>/dev/null; then
+                                echo "Resource details:" >> "$REPORT_FILE"
+                                kubectl --kubeconfig "$MGMT_KUBECONFIG" get "$resource_type" "$resource_name" -o yaml >> "$REPORT_FILE" 2>/dev/null
+                                echo "" >> "$REPORT_FILE"
+                            fi
+                        fi
+                    done < "$LOG_ANALYSIS_DIR/resource_conflicts.txt"
+                fi
+            fi
+            echo "" >> "$REPORT_FILE"
+        done
     else
-        echo "No failed Helm releases found" >> "$REPORT_FILE"
+        echo "No failed Helm releases detected" >> "$REPORT_FILE"
         echo "✓ No failed Helm releases in management cluster"
     fi
-    echo "" >> "$REPORT_FILE"
-
-    # Check critical namespaces
-    echo "Critical Namespace Status:" >> "$REPORT_FILE"
-    for ns in maestro hypershift multicluster-engine; do
-        if kubectl --kubeconfig "$MGMT_KUBECONFIG" get namespace "$ns" &>/dev/null; then
-            echo "" >> "$REPORT_FILE"
-            echo "Namespace: $ns" >> "$REPORT_FILE"
-            kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n "$ns" -o wide 2>/dev/null >> "$REPORT_FILE" || \
-                echo "No pods or error retrieving pods" >> "$REPORT_FILE"
-        fi
-    done
     echo "" >> "$REPORT_FILE"
 fi
 
 echo ""
 
-# Analyze Service Cluster
-echo "Step 4: Analyzing Service Cluster..."
+# Step 5: Analyze Service Cluster
+echo "Step 5: Analyzing Service Cluster..."
 echo ""
 
 if [ -n "$SVC_KUBECONFIG" ]; then
@@ -266,66 +301,26 @@ fi
 
 echo ""
 
-# Parse deployment output for errors if provided
-ERROR_DETAILS=""
-CONFLICT_FIELDS=""
-
-if [ -n "$DEPLOYMENT_OUTPUT" ] && [ -f "$DEPLOYMENT_OUTPUT" ]; then
-    echo "Step 5: Analyzing deployment output for errors..."
-    echo ""
-
-    # Extract specific error details
-    # Look for field conflicts
-    if grep -q "Apply failed with.*conflicts" "$DEPLOYMENT_OUTPUT"; then
-        # Use Python to properly extract field paths from the JSON-escaped error message
-        CONFLICT_FIELDS=$(python3 -c "
-import re
-
-# Read entire output file
-with open('$DEPLOYMENT_OUTPUT', 'r') as f:
-    content = f.read()
-
-# Find the line with conflict details
-for line in content.split('\\n'):
-    if 'Apply failed with' in line and 'conflicts' in line:
-        # Extract field paths for size configurations
-        # Format: name=\\\\\"large\\\\\"].criteria.from
-        size_matches = re.findall(r'name=\\\\\\\\\"([^\\\\\\\\]+)\\\\\\\\\"]\.criteria\.(from|to)', line)
-        for name, attr in size_matches:
-            print(f'  • .spec.sizes[name=\"{name}\"].criteria.{attr}')
-
-        # Extract transitionDelay fields
-        if 'transitionDelay.decrease' in line:
-            print('  • .spec.transitionDelay.decrease')
-        if 'transitionDelay.increase' in line:
-            print('  • .spec.transitionDelay.increase')
-        break
-" 2>/dev/null || echo "  • Unable to extract field details")
-    fi
-
-    # Extract the main error message
-    ERROR_DETAILS=$(grep -o '"err": "errors occurred during execution:.*' "$DEPLOYMENT_OUTPUT" | head -1 | sed 's/"err": "//' | sed 's/"$//' || echo "")
-
-    echo "Deployment Output Analysis" >> "$REPORT_FILE"
-    echo "==========================" >> "$REPORT_FILE"
+# Step 6: Include Log Analysis Results in Report
+if [ -d "$LOG_ANALYSIS_DIR" ]; then
+    echo "Deployment Log Analysis" >> "$REPORT_FILE"
+    echo "======================" >> "$REPORT_FILE"
     echo "" >> "$REPORT_FILE"
 
-    if [ -n "$ERROR_DETAILS" ]; then
-        echo "Primary Error from Deployment Logs:" >> "$REPORT_FILE"
-        echo "$ERROR_DETAILS" | fold -w 100 -s >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
+    # Include error patterns
+    if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/error_patterns.txt" ]; then
+        echo "Identified Error Patterns:" >> "$REPORT_FILE"
+        while IFS=':::' read -r pattern context; do
+            echo "  • Pattern: $pattern" >> "$REPORT_FILE"
+            echo "    Context: $(echo "$context" | head -c 200)..." >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+        done < "$LOG_ANALYSIS_DIR/error_patterns.txt"
     fi
 
-    if [ -n "$CONFLICT_FIELDS" ]; then
-        echo "Conflicting Fields Detected:" >> "$REPORT_FILE"
-        echo "$CONFLICT_FIELDS" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-    fi
-
-    # Extract error messages
-    if grep -i "error\|failed\|ERROR\|FAILED" "$DEPLOYMENT_OUTPUT" | grep -v "^#" | tail -20 > "$TEMP_DIR/errors.txt"; then
-        echo "Recent Errors/Failures (Last 20):" >> "$REPORT_FILE"
-        cat "$TEMP_DIR/errors.txt" >> "$REPORT_FILE"
+    # Include deployment timeline
+    if [ -f "$LOG_ANALYSIS_DIR/timeline.txt" ] && [ -s "$LOG_ANALYSIS_DIR/timeline.txt" ]; then
+        echo "Deployment Timeline (last 20 events):" >> "$REPORT_FILE"
+        tail -20 "$LOG_ANALYSIS_DIR/timeline.txt" >> "$REPORT_FILE"
         echo "" >> "$REPORT_FILE"
     fi
 fi
