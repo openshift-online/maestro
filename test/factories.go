@@ -8,13 +8,18 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strings"
 	"time"
 
+	pubsubv2 "cloud.google.com/go/pubsub/v2"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/google/uuid"
 	"golang.org/x/oauth2"
+	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/credentials/oauth"
 	"gorm.io/datatypes"
 	rbacv1 "k8s.io/api/rbac/v1"
@@ -287,6 +292,20 @@ func (helper *Helper) CreateConsumerWithLabels(name string, labels map[string]st
 		return nil, err
 	}
 
+	// If using PubSub message broker, create the corresponding subscriptions and config file
+	if helper.Broker == "pubsub" {
+		configPath, err := helper.createPubSubSubscriptions(name)
+		if err != nil {
+			// Log the error but don't fail consumer creation
+			// The subscriptions can be created manually if needed
+			helper.T.Logf("Warning: failed to create PubSub subscriptions for consumer %s: %v\n", name, err)
+		} else {
+			// Store the config file path in the map
+			helper.consumerPubSubConfigMap[name] = configPath
+			helper.T.Logf("Created PubSub agent config for consumer %s at: %s\n", name, configPath)
+		}
+	}
+
 	return consumer, nil
 }
 
@@ -471,4 +490,135 @@ func (helper *Helper) CreateGRPCConn(serverAddr, serverCAFile, token string) (*g
 
 		return grpc.Dial(serverAddr, grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), grpc.WithPerRPCCredentials(perRPCCred))
 	}
+}
+
+// pubSubConfig represents the structure of the PubSub configuration file
+type pubSubConfig struct {
+	ProjectID string `json:"projectID"`
+	Endpoint  string `json:"endpoint"`
+	Insecure  bool   `json:"insecure"`
+}
+
+// parsePubSubConfig reads and parses the PubSub configuration file
+func parsePubSubConfig(configFile string) (*pubSubConfig, error) {
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read pubsub config file: %w", err)
+	}
+
+	var config pubSubConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse pubsub config: %w", err)
+	}
+
+	return &config, nil
+}
+
+// createPubSubSubscriptions creates PubSub subscriptions for a consumer using v2 API
+// and returns the path to the generated agent config file
+func (helper *Helper) createPubSubSubscriptions(consumerName string) (string, error) {
+	// Parse the config file
+	config, err := parsePubSubConfig(helper.Env().Config.MessageBroker.MessageBrokerConfig)
+	if err != nil {
+		return "", err
+	}
+
+	ctx := context.Background()
+
+	// Create gRPC connection
+	var opts []option.ClientOption
+	opts = append(opts, option.WithEndpoint(config.Endpoint))
+	if config.Insecure {
+		opts = append(opts, option.WithoutAuthentication(), option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())))
+	}
+
+	// Create PubSub client using v2 API
+	client, err := pubsubv2.NewClient(ctx, config.ProjectID, opts...)
+	if err != nil {
+		return "", fmt.Errorf("failed to create pubsub client: %w", err)
+	}
+	defer client.Close()
+
+	// Define topic paths
+	sourceEventsTopic := fmt.Sprintf("projects/%s/topics/sourceevents", config.ProjectID)
+	sourceBroadcastTopic := fmt.Sprintf("projects/%s/topics/sourcebroadcast", config.ProjectID)
+
+	// Create subscriptions for the consumer
+	subscriptions := []struct {
+		name   string
+		topic  string
+		filter string
+	}{
+		{
+			name:   fmt.Sprintf("projects/%s/subscriptions/sourceevents-%s", config.ProjectID, consumerName),
+			topic:  sourceEventsTopic,
+			filter: fmt.Sprintf(`attributes."ce-clustername"="%s"`, consumerName),
+		},
+		{
+			name:   fmt.Sprintf("projects/%s/subscriptions/sourcebroadcast-%s", config.ProjectID, consumerName),
+			topic:  sourceBroadcastTopic,
+			filter: "",
+		},
+	}
+
+	for _, sub := range subscriptions {
+		// Check if subscription already exists
+		_, err := client.SubscriptionAdminClient.GetSubscription(ctx, &pubsubpb.GetSubscriptionRequest{
+			Subscription: sub.name,
+		})
+		if err == nil {
+			// Subscription already exists, skip
+			continue
+		}
+
+		// Create the subscription
+		subConfig := &pubsubpb.Subscription{
+			Name:  sub.name,
+			Topic: sub.topic,
+		}
+		if sub.filter != "" {
+			subConfig.Filter = sub.filter
+		}
+
+		_, err = client.SubscriptionAdminClient.CreateSubscription(ctx, subConfig)
+		if err != nil {
+			// Ignore already exists errors
+			if !strings.Contains(err.Error(), "already exists") {
+				return "", fmt.Errorf("failed to create subscription %s: %w", sub.name, err)
+			}
+		}
+	}
+
+	// Create agent config file
+	agentConfig := map[string]interface{}{
+		"projectID": config.ProjectID,
+		"endpoint":  config.Endpoint,
+		"insecure":  config.Insecure,
+		"topics": map[string]string{
+			"agentEvents":    fmt.Sprintf("projects/%s/topics/agentevents", config.ProjectID),
+			"agentBroadcast": fmt.Sprintf("projects/%s/topics/agentbroadcast", config.ProjectID),
+		},
+		"subscriptions": map[string]string{
+			"sourceEvents":    fmt.Sprintf("projects/%s/subscriptions/sourceevents-%s", config.ProjectID, consumerName),
+			"sourceBroadcast": fmt.Sprintf("projects/%s/subscriptions/sourcebroadcast-%s", config.ProjectID, consumerName),
+		},
+	}
+
+	agentConfigJSON, err := json.Marshal(agentConfig)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal agent config: %w", err)
+	}
+
+	// Create temporary file for agent config
+	tmpFile, err := os.CreateTemp("", fmt.Sprintf("pubsub-agent-%s-*.json", consumerName))
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp config file: %w", err)
+	}
+	defer tmpFile.Close()
+
+	if _, err := tmpFile.Write(agentConfigJSON); err != nil {
+		return "", fmt.Errorf("failed to write agent config: %w", err)
+	}
+
+	return tmpFile.Name(), nil
 }

@@ -66,6 +66,12 @@ mqtt_root_cert ?= ""
 mqtt_client_cert ?= ""
 mqtt_client_key ?= ""
 
+# Pub/Sub emulator configuration
+pubsub_host ?= maestro-pubsub.$(namespace)
+pubsub_port ?= 8085
+pubsub_project_id ?= maestro-test
+pubsub_config_file ?= ${PWD}/secrets/pubsub.config
+
 # Log verbosity level
 klog_v:=2
 
@@ -83,7 +89,7 @@ ENABLE_GRPC_BROKER ?= false
 # Enable TLS
 ENABLE_TLS ?= false
 
-# message driver type, mqtt or grpc, default is mqtt.
+# message driver type, mqtt, grpc or pubsub, default is mqtt.
 MESSAGE_DRIVER_TYPE ?= mqtt
 
 # default replicas for maestro server
@@ -96,6 +102,7 @@ MQTT_IMAGE ?= quay.io/maestro/eclipse-mosquitto:2.0.18
 # Test output files
 unit_test_json_output ?= ${PWD}/unit-test-results.json
 mqtt_integration_test_json_output ?= ${PWD}/mqtt-integration-test-results.json
+pubsub_integration_test_json_output ?= ${PWD}/pubsub-integration-test-results.json
 grpc_integration_test_json_output ?= ${PWD}/grpc-integration-test-results.json
 
 # maestro services config
@@ -134,6 +141,13 @@ help:
 	@echo "make deploy               deploy via templates to local openshift instance"
 	@echo "make undeploy             undeploy from local openshift instance"
 	@echo "make project              create and use an Example project"
+	@echo "make db/setup             setup local PostgreSQL database"
+	@echo "make db/teardown          teardown local PostgreSQL database"
+	@echo "make mqtt/setup           setup local MQTT broker"
+	@echo "make mqtt/teardown        teardown local MQTT broker"
+	@echo "make pubsub/setup         setup local Pub/Sub emulator"
+	@echo "make pubsub/init          initialize Pub/Sub topics and subscriptions"
+	@echo "make pubsub/teardown      teardown local Pub/Sub emulator"
 	@echo "make clean                delete temporary generated files"
 	@echo "$(fake)"
 .PHONY: help
@@ -251,16 +265,21 @@ test:
 #   make test-integration TESTFLAGS="-run TestAccounts"     acts as TestAccounts* and run TestAccountsGet, TestAccountsPost, etc.
 #   make test-integration TESTFLAGS="-run TestAccountsGet"  runs TestAccountsGet
 #   make test-integration TESTFLAGS="-short"                skips long-run tests
-test-integration: test-integration-mqtt test-integration-grpc
+test-integration: test-integration-mqtt test-integration-pubsub test-integration-grpc
 .PHONY: test-integration
 
 test-integration-mqtt:
-	BROKER=mqtt MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(mqtt_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=mqtt MESSAGE_DRIVER_CONFIG=$(PWD)/secrets/mqtt.config MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(mqtt_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-mqtt
 
+test-integration-pubsub:
+	MESSAGE_DRIVER_TYPE=pubsub MESSAGE_DRIVER_CONFIG=$(PWD)/secrets/pubsub.config PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(pubsub_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+			./test/integration
+.PHONY: test-integration-pubsub
+
 test-integration-grpc:
-	BROKER=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-grpc
 
@@ -275,7 +294,11 @@ generate:
 
 run: install
 	maestro migration
-	maestro server
+	@if [ "$(MESSAGE_DRIVER_TYPE)" = "grpc" ]; then \
+		maestro server --message-broker-type=$(MESSAGE_DRIVER_TYPE); \
+	else \
+		maestro server --message-broker-type=$(MESSAGE_DRIVER_TYPE) --message-broker-config-file=./secrets/$(MESSAGE_DRIVER_TYPE).config; \
+	fi
 .PHONY: run
 
 # Run Swagger and host the api docs
@@ -444,6 +467,21 @@ mqtt/setup: mqtt/prepare
 mqtt/teardown:
 	$(container_tool) stop mqtt-maestro
 	$(container_tool) rm mqtt-maestro
+
+.PHONY: pubsub/setup
+pubsub/setup:
+	@mkdir -p ${PWD}/secrets
+	@echo '{"projectID":"$(pubsub_project_id)","endpoint":"localhost:$(pubsub_port)","insecure":true,"topics":{"sourceEvents":"projects/$(pubsub_project_id)/topics/sourceevents","sourceBroadcast":"projects/$(pubsub_project_id)/topics/sourcebroadcast"},"subscriptions":{"agentEvents":"projects/$(pubsub_project_id)/subscriptions/agentevents-maestro","agentBroadcast":"projects/$(pubsub_project_id)/subscriptions/agentbroadcast-maestro"}}' > $(pubsub_config_file)
+	$(container_tool) run --name pubsub-maestro -p $(pubsub_port):8085 -e PUBSUB_PROJECT_ID=$(pubsub_project_id) -d gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=$(pubsub_project_id)
+
+.PHONY: pubsub/teardown
+pubsub/teardown:
+	$(container_tool) stop pubsub-maestro
+	$(container_tool) rm pubsub-maestro
+
+.PHONY: pubsub/init
+pubsub/init:
+	@PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) PUBSUB_PROJECT_ID=$(pubsub_project_id) bash hack/init-pubsub-emulator.sh
 
 crc/login:
 	@echo "Logging into CRC"
