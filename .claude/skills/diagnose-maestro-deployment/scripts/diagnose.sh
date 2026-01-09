@@ -100,9 +100,21 @@ if ! command -v helm &> /dev/null; then
     exit 1
 fi
 
+if ! command -v jq &> /dev/null; then
+    echo "ERROR: jq not installed (required for JSON parsing)"
+    echo "Install with: brew install jq (macOS) or apt-get install jq (Linux)"
+    exit 1
+fi
+
 if ! az account show &> /dev/null; then
     echo "ERROR: Not logged into Azure"
     exit 1
+fi
+
+# kubelogin is optional but recommended for Azure AD authentication
+if ! command -v kubelogin &> /dev/null; then
+    echo "WARNING: kubelogin not installed (Azure AD authentication may fail)"
+    echo "Install with: brew install Azure/kubelogin/kubelogin (macOS)"
 fi
 
 echo "✓ All prerequisites met"
@@ -118,16 +130,23 @@ MGMT_KUBECONFIG="$TEMP_DIR/mgmt.kubeconfig"
 # Get cluster credentials
 echo "Step 2: Retrieving cluster credentials..."
 
+# Initialize issue tracking early (will be used if credentials fail)
+CREDENTIAL_ISSUES=0
+
 if az aks get-credentials \
     --resource-group "$SVC_RESOURCE_GROUP" \
     --name "$SVC_CLUSTER_NAME" \
     --overwrite-existing \
     -f "$SVC_KUBECONFIG" 2>/dev/null; then
     echo "✓ Service cluster credentials retrieved"
-    kubelogin convert-kubeconfig -l azurecli --kubeconfig "$SVC_KUBECONFIG" 2>/dev/null
+    # kubelogin may fail but shouldn't stop the script
+    if command -v kubelogin &> /dev/null; then
+        kubelogin convert-kubeconfig -l azurecli --kubeconfig "$SVC_KUBECONFIG" 2>/dev/null || true
+    fi
 else
     echo "✗ Failed to get service cluster credentials"
     SVC_KUBECONFIG=""
+    CREDENTIAL_ISSUES=$((CREDENTIAL_ISSUES + 1))
 fi
 
 if az aks get-credentials \
@@ -136,10 +155,14 @@ if az aks get-credentials \
     --overwrite-existing \
     -f "$MGMT_KUBECONFIG" 2>/dev/null; then
     echo "✓ Management cluster credentials retrieved"
-    kubelogin convert-kubeconfig -l azurecli --kubeconfig "$MGMT_KUBECONFIG" 2>/dev/null
+    # kubelogin may fail but shouldn't stop the script
+    if command -v kubelogin &> /dev/null; then
+        kubelogin convert-kubeconfig -l azurecli --kubeconfig "$MGMT_KUBECONFIG" 2>/dev/null || true
+    fi
 else
     echo "✗ Failed to get management cluster credentials"
     MGMT_KUBECONFIG=""
+    CREDENTIAL_ISSUES=$((CREDENTIAL_ISSUES + 1))
 fi
 
 echo ""
@@ -194,7 +217,6 @@ if [ -n "$MGMT_KUBECONFIG" ]; then
 
     # Determine what to check based on log analysis
     FAILED_RELEASES=""
-    NAMESPACES_TO_CHECK=""
 
     if [ -f "$LOG_ANALYSIS_DIR/failed_helm_releases.txt" ]; then
         # Use log analysis results to identify failed releases
@@ -240,8 +262,17 @@ if [ -n "$MGMT_KUBECONFIG" ]; then
 
                 # Check for resource conflicts if indicated in log analysis
                 if [ -f "$LOG_ANALYSIS_DIR/resource_conflicts.txt" ]; then
-                    while IFS=: read -r conflict_type resource_name resource_type manager fields; do
+                    while IFS= read -r line; do
+                        # Parse CONFLICT:resource_name:resource_type:manager:fields format
+                        # Use awk to properly split on first 4 colons only
+                        conflict_type=$(echo "$line" | awk -F: '{print $1}')
                         if [ "$conflict_type" = "CONFLICT" ]; then
+                            resource_name=$(echo "$line" | awk -F: '{print $2}')
+                            # Resource type may contain colons, extract everything between 2nd and 3rd-to-last colon
+                            resource_type=$(echo "$line" | awk -F: '{for(i=3;i<NF-1;i++) printf "%s%s", $i, (i<NF-2?":":"")}')
+                            manager=$(echo "$line" | awk -F: '{print $(NF-1)}')
+                            fields=$(echo "$line" | awk -F: '{print $NF}')
+
                             echo "Resource Conflict Detected:" >> "$REPORT_FILE"
                             echo "  Resource: $resource_name (type: $resource_type)" >> "$REPORT_FILE"
                             echo "  Managed by: $manager" >> "$REPORT_FILE"
@@ -250,13 +281,6 @@ if [ -n "$MGMT_KUBECONFIG" ]; then
                                 echo "$fields" | tr '|' '\n' | sed 's/^/    - /' >> "$REPORT_FILE"
                             fi
                             echo "" >> "$REPORT_FILE"
-
-                            # Try to get the actual resource
-                            if kubectl --kubeconfig "$MGMT_KUBECONFIG" get "$resource_type" "$resource_name" &>/dev/null; then
-                                echo "Resource details:" >> "$REPORT_FILE"
-                                kubectl --kubeconfig "$MGMT_KUBECONFIG" get "$resource_type" "$resource_name" -o yaml >> "$REPORT_FILE" 2>/dev/null
-                                echo "" >> "$REPORT_FILE"
-                            fi
                         fi
                     done < "$LOG_ANALYSIS_DIR/resource_conflicts.txt"
                 fi
@@ -310,7 +334,10 @@ if [ -d "$LOG_ANALYSIS_DIR" ]; then
     # Include error patterns
     if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/error_patterns.txt" ]; then
         echo "Identified Error Patterns:" >> "$REPORT_FILE"
-        while IFS=':::' read -r pattern context; do
+        while IFS= read -r line; do
+            # Split on literal ':::' delimiter
+            pattern="${line%%:::*}"
+            context="${line#*:::}"
             echo "  • Pattern: $pattern" >> "$REPORT_FILE"
             echo "    Context: $(echo "$context" | head -c 200)..." >> "$REPORT_FILE"
             echo "" >> "$REPORT_FILE"
@@ -343,12 +370,10 @@ if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/erro
 
     # Determine primary failure based on most common pattern
     primary_pattern=""
-    max_count=0
     if [ -s "$LOG_ANALYSIS_DIR/pattern_counts.txt" ]; then
         # Get the first line (highest count)
         read -r count pattern_name < "$LOG_ANALYSIS_DIR/pattern_counts.txt"
         primary_pattern="$pattern_name"
-        max_count="$count"
     fi
 
     if [ -n "$primary_pattern" ]; then
@@ -388,8 +413,16 @@ fi
 # Analyze resource conflicts
 if [ -f "$LOG_ANALYSIS_DIR/resource_conflicts.txt" ] && [ -s "$LOG_ANALYSIS_DIR/resource_conflicts.txt" ]; then
     echo "Resource Conflicts Detected:" >> "$REPORT_FILE"
-    while IFS=: read -r conflict_type resource_name resource_type manager fields; do
+    while IFS= read -r line; do
+        # Parse CONFLICT:resource_name:resource_type:manager:fields format
+        conflict_type=$(echo "$line" | awk -F: '{print $1}')
         if [ "$conflict_type" = "CONFLICT" ]; then
+            resource_name=$(echo "$line" | awk -F: '{print $2}')
+            # Resource type may contain colons
+            resource_type=$(echo "$line" | awk -F: '{for(i=3;i<NF-1;i++) printf "%s%s", $i, (i<NF-2?":":"")}')
+            manager=$(echo "$line" | awk -F: '{print $(NF-1)}')
+            fields=$(echo "$line" | awk -F: '{print $NF}')
+
             echo "  • Resource: $resource_name ($resource_type)" >> "$REPORT_FILE"
             echo "    Conflicting manager: $manager" >> "$REPORT_FILE"
             if [ -n "$fields" ] && [ "$fields" != "" ]; then
@@ -410,7 +443,26 @@ echo "" >> "$REPORT_FILE"
 ISSUES_FOUND=0
 CRITICAL_ISSUES=0
 
-# Issue 1: Failed Helm Releases (dynamic)
+# Issue: Credential failures (if any)
+if [ "$CREDENTIAL_ISSUES" -gt 0 ]; then
+    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+    echo "[$ISSUES_FOUND] Failed to Retrieve Cluster Credentials" >> "$REPORT_FILE"
+    echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+    if [ -z "$SVC_KUBECONFIG" ]; then
+        echo "    Failed: Service cluster ($SVC_CLUSTER_NAME)" >> "$REPORT_FILE"
+    fi
+    if [ -z "$MGMT_KUBECONFIG" ]; then
+        echo "    Failed: Management cluster ($MGMT_CLUSTER_NAME)" >> "$REPORT_FILE"
+    fi
+    echo "    " >> "$REPORT_FILE"
+    echo "    Recommendation:" >> "$REPORT_FILE"
+    echo "      Verify Azure credentials and cluster access permissions" >> "$REPORT_FILE"
+    echo "      Check that resource groups and cluster names are correct" >> "$REPORT_FILE"
+    echo "" >> "$REPORT_FILE"
+fi
+
+# Issue: Failed Helm Releases (dynamic)
 if [ -n "$FAILED_RELEASES" ]; then
     for release_info in $FAILED_RELEASES; do
         if [[ "$release_info" == *":"* ]]; then
@@ -443,8 +495,8 @@ if [ -n "$FAILED_RELEASES" ]; then
                 echo "    Severity: CRITICAL" >> "$REPORT_FILE"
                 echo "    Actual Status: ✗ No pods found in namespace" >> "$REPORT_FILE"
             else
+                # Partial failure: some pods running, some not - this is WARNING not CRITICAL
                 severity="WARNING"
-                CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
                 echo "    Severity: WARNING" >> "$REPORT_FILE"
                 echo "    Actual Status: ⚠ $running_pods/$total_pods pods Running" >> "$REPORT_FILE"
             fi
@@ -466,24 +518,22 @@ fi
 
 # Issue 2: Missing deployments in service cluster
 if [ -n "$SVC_KUBECONFIG" ]; then
-    # Check for expected namespaces
-    for ns in maestro; do
-        if ! kubectl --kubeconfig "$SVC_KUBECONFIG" get namespace "$ns" &>/dev/null; then
-            ISSUES_FOUND=$((ISSUES_FOUND + 1))
-            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
-            echo "[$ISSUES_FOUND] Missing Deployment: $ns in Service Cluster" >> "$REPORT_FILE"
-            echo "    Severity: CRITICAL" >> "$REPORT_FILE"
-            echo "    Status: Namespace does not exist" >> "$REPORT_FILE"
-            echo "    " >> "$REPORT_FILE"
-            echo "    Likely Cause:" >> "$REPORT_FILE"
-            echo "      Deployment pipeline may have halted before service cluster setup" >> "$REPORT_FILE"
-            echo "    " >> "$REPORT_FILE"
-            echo "    Recommendation:" >> "$REPORT_FILE"
-            echo "      Option 1: Continue deployment to service cluster" >> "$REPORT_FILE"
-            echo "      Option 2: Re-run complete deployment" >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-        fi
-    done
+    # Check for maestro namespace
+    if ! kubectl --kubeconfig "$SVC_KUBECONFIG" get namespace maestro &>/dev/null; then
+        ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+        echo "[$ISSUES_FOUND] Missing Deployment: maestro in Service Cluster" >> "$REPORT_FILE"
+        echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+        echo "    Status: Namespace does not exist" >> "$REPORT_FILE"
+        echo "    " >> "$REPORT_FILE"
+        echo "    Likely Cause:" >> "$REPORT_FILE"
+        echo "      Deployment pipeline may have halted before service cluster setup" >> "$REPORT_FILE"
+        echo "    " >> "$REPORT_FILE"
+        echo "    Recommendation:" >> "$REPORT_FILE"
+        echo "      Option 1: Continue deployment to service cluster" >> "$REPORT_FILE"
+        echo "      Option 2: Re-run complete deployment" >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+    fi
 fi
 
 # Issue 3: Error patterns from logs
@@ -506,8 +556,8 @@ if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/erro
                 echo "    Description: Resource timing conflict detected" >> "$REPORT_FILE"
                 ;;
             timeout)
+                # Timeouts are warnings unless they prevent critical operations
                 echo "    Severity: WARNING" >> "$REPORT_FILE"
-                CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
                 echo "    Description: Operation timed out" >> "$REPORT_FILE"
                 ;;
             authentication)

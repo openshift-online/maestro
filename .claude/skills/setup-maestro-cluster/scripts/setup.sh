@@ -3,6 +3,18 @@ set -e
 
 echo "Starting Maestro long-running cluster setup..."
 
+
+# Cleanup function
+cleanup() {
+    if [ -n "$TEMP_DIR" ] && [ -d "$TEMP_DIR" ]; then
+        echo "Cleaning up temporary directory: $TEMP_DIR"
+        rm -rf "$TEMP_DIR"
+    fi
+}
+
+# Register cleanup on exit
+trap cleanup EXIT INT TERM
+
 # Step 1: Check if Azure CLI is installed
 if ! command -v az &> /dev/null; then
     echo "ERROR: Azure CLI is not installed."
@@ -84,7 +96,9 @@ fi
 
 popd > /dev/null
 
+# Cleanup temporary directory
+echo "Cleaning up temporary clone..."
+rm -rf "$TEMP_DIR"
+
 echo ""
 echo "Setup complete!"
-echo "Note: The ARO-HCP repository has been cloned to: $TEMP_DIR/ARO-HCP"
-echo "You can navigate there to manage the environment."

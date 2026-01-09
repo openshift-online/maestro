@@ -170,7 +170,7 @@ echo ""
 echo "Step 5: Extracting deployment information..."
 
 # Get pod template hash for active replicaset
-pod_template_hash=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" get rs -l app=maestro -n maestro -o jsonpath='{range .items[?(@.spec.replicas>0)]}{.metadata.name}{"\n"}{end}' | awk -F '-' '{print $2}')
+pod_template_hash=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" get rs -l app=maestro -n maestro -o jsonpath='{range .items[?(@.spec.replicas>0)]}{.metadata.labels.pod-template-hash}{"\n"}{end}' | head -1)
 if [ -z "$pod_template_hash" ]; then
     echo "ERROR: No active replicaset found"
     exit 1
