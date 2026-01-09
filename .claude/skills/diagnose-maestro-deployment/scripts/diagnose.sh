@@ -330,53 +330,77 @@ echo "Diagnosis Summary" >> "$REPORT_FILE"
 echo "=================" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 
-# Root Cause Analysis
+# Root Cause Analysis (Dynamic based on error patterns)
 echo "ROOT CAUSE ANALYSIS:" >> "$REPORT_FILE"
 echo "-------------------" >> "$REPORT_FILE"
+echo "" >> "$REPORT_FILE"
 
-# Determine primary root cause
-if [ -n "$FAILED_RELEASES" ]; then
-    if echo "$FAILED_RELEASES" | grep -q "hypershift"; then
-        echo "" >> "$REPORT_FILE"
-        echo "Primary Failure: Helm post-install hook timing conflict" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        echo "The hypershift Helm release failed because:" >> "$REPORT_FILE"
-        echo "1. The hypershift-operator started and created ClusterSizingConfiguration" >> "$REPORT_FILE"
-        echo "2. Helm's post-install hook then tried to create the same resource" >> "$REPORT_FILE"
-        echo "3. This caused a field conflict (5 fields managed by different owners)" >> "$REPORT_FILE"
+# Analyze error patterns from logs
+if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/error_patterns.txt" ]; then
+    # Group errors by pattern type
+    declare -A pattern_counts
+    while IFS=':::' read -r pattern context; do
+        pattern_counts[$pattern]=$((${pattern_counts[$pattern]:-0} + 1))
+    done < "$LOG_ANALYSIS_DIR/error_patterns.txt"
 
-        # Add specific conflict details if available
-        if [ -n "$CONFLICT_FIELDS" ]; then
-            echo "" >> "$REPORT_FILE"
-            echo "Conflicting Fields:" >> "$REPORT_FILE"
-            echo "$CONFLICT_FIELDS" >> "$REPORT_FILE"
+    # Determine primary failure based on most common pattern
+    primary_pattern=""
+    max_count=0
+    for pattern in "${!pattern_counts[@]}"; do
+        if [ "${pattern_counts[$pattern]}" -gt "$max_count" ]; then
+            max_count="${pattern_counts[$pattern]}"
+            primary_pattern="$pattern"
         fi
+    done
 
-        echo "" >> "$REPORT_FILE"
-        echo "4. Helm marked the release as 'failed' even though the operator is working" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        echo "Actual Impact: LOW - Hypershift operator is functional despite Helm status" >> "$REPORT_FILE"
+    if [ -n "$primary_pattern" ]; then
+        case "$primary_pattern" in
+            timing_conflict)
+                echo "Primary Failure Type: Timing/Race Condition" >> "$REPORT_FILE"
+                echo "Multiple components attempted to manage the same resources simultaneously," >> "$REPORT_FILE"
+                echo "leading to conflicts. This often occurs when operators start before Helm" >> "$REPORT_FILE"
+                echo "post-install hooks complete." >> "$REPORT_FILE"
+                ;;
+            timeout)
+                echo "Primary Failure Type: Timeout" >> "$REPORT_FILE"
+                echo "One or more operations exceeded their time limits. This may indicate" >> "$REPORT_FILE"
+                echo "slow network, resource constraints, or hung processes." >> "$REPORT_FILE"
+                ;;
+            authentication)
+                echo "Primary Failure Type: Authentication/Authorization" >> "$REPORT_FILE"
+                echo "Deployment failed due to insufficient permissions or invalid credentials." >> "$REPORT_FILE"
+                ;;
+            network)
+                echo "Primary Failure Type: Network Connectivity" >> "$REPORT_FILE"
+                echo "Network-related errors prevented successful deployment." >> "$REPORT_FILE"
+                ;;
+            resource_limit)
+                echo "Primary Failure Type: Resource Constraints" >> "$REPORT_FILE"
+                echo "Insufficient cluster resources (CPU, memory, or storage) to complete deployment." >> "$REPORT_FILE"
+                ;;
+            *)
+                echo "Primary Failure Type: $primary_pattern" >> "$REPORT_FILE"
+                echo "Multiple errors of this type detected in deployment logs." >> "$REPORT_FILE"
+                ;;
+        esac
         echo "" >> "$REPORT_FILE"
     fi
+fi
 
-    # Check if this caused cascading failures
-    if kubectl --kubeconfig "$SVC_KUBECONFIG" get namespace maestro &>/dev/null 2>&1; then
-        SVC_MAESTRO_EXISTS=true
-    else
-        SVC_MAESTRO_EXISTS=false
-    fi
-
-    if [ "$SVC_MAESTRO_EXISTS" = "false" ]; then
-        echo "Cascading Failure: Service cluster deployment incomplete" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        echo "Because the management cluster deployment reported 'failed':" >> "$REPORT_FILE"
-        echo "1. The deployment pipeline halted execution" >> "$REPORT_FILE"
-        echo "2. Service cluster Maestro deployment never started" >> "$REPORT_FILE"
-        echo "3. E2E tests cannot run without Maestro in service cluster" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        echo "Actual Impact: HIGH - Service cluster is incomplete and non-functional" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-    fi
+# Analyze resource conflicts
+if [ -f "$LOG_ANALYSIS_DIR/resource_conflicts.txt" ] && [ -s "$LOG_ANALYSIS_DIR/resource_conflicts.txt" ]; then
+    echo "Resource Conflicts Detected:" >> "$REPORT_FILE"
+    while IFS=: read -r conflict_type resource_name resource_type manager fields; do
+        if [ "$conflict_type" = "CONFLICT" ]; then
+            echo "  • Resource: $resource_name ($resource_type)" >> "$REPORT_FILE"
+            echo "    Conflicting manager: $manager" >> "$REPORT_FILE"
+            if [ -n "$fields" ] && [ "$fields" != "" ]; then
+                echo "    Fields:" >> "$REPORT_FILE"
+                echo "$fields" | tr '|' '\n' | sed 's/^/      - /' >> "$REPORT_FILE"
+            fi
+            echo "" >> "$REPORT_FILE"
+        fi
+    done < "$LOG_ANALYSIS_DIR/resource_conflicts.txt"
 fi
 
 echo "" >> "$REPORT_FILE"
@@ -384,117 +408,127 @@ echo "DETAILED ISSUES:" >> "$REPORT_FILE"
 echo "----------------" >> "$REPORT_FILE"
 echo "" >> "$REPORT_FILE"
 
-# Check for known issues
+# Dynamically generate issues based on discoveries
 ISSUES_FOUND=0
 CRITICAL_ISSUES=0
 
+# Issue 1: Failed Helm Releases (dynamic)
 if [ -n "$FAILED_RELEASES" ]; then
-    if echo "$FAILED_RELEASES" | grep -q "hypershift"; then
-        echo "[$((ISSUES_FOUND + 1))] Hypershift Helm Release Failed" >> "$REPORT_FILE"
-        echo "    Status: Failed (false-positive)" >> "$REPORT_FILE"
-        echo "    Severity: WARNING" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    Root Cause:" >> "$REPORT_FILE"
-        echo "      ClusterSizingConfiguration resource conflict between Helm hook" >> "$REPORT_FILE"
-        echo "      and hypershift-operator-manager" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    What Happened:" >> "$REPORT_FILE"
-        echo "      • Helm post-install hook: aro-hcp-hypershift-operator/templates/cluster.clustersizingconfiguration.yaml" >> "$REPORT_FILE"
-        echo "      • Tried to apply ClusterSizingConfiguration resource" >> "$REPORT_FILE"
-        echo "      • Resource already managed by hypershift-operator-manager" >> "$REPORT_FILE"
-        echo "      • 5 field conflicts detected (sizes, transitionDelay)" >> "$REPORT_FILE"
-
-        # Add specific conflict details if available
-        if [ -n "$CONFLICT_FIELDS" ]; then
-            echo "    " >> "$REPORT_FILE"
-            echo "    Specific Conflicting Fields:" >> "$REPORT_FILE"
-            echo "$CONFLICT_FIELDS" | sed 's/^/    /' >> "$REPORT_FILE"
-        fi
-
-        echo "    " >> "$REPORT_FILE"
-        echo "    Actual Service Status:" >> "$REPORT_FILE"
-
-        # Check actual pod status
-        if kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n hypershift -l app=operator 2>/dev/null | grep -q "Running"; then
-            echo "      ✓ Hypershift operator pod is Running" >> "$REPORT_FILE"
-            echo "      ✓ Services are functional despite Helm failure" >> "$REPORT_FILE"
+    for release_info in $FAILED_RELEASES; do
+        if [[ "$release_info" == *":"* ]]; then
+            release=$(echo "$release_info" | cut -d: -f1)
+            namespace=$(echo "$release_info" | cut -d: -f2)
         else
-            echo "      ✗ Hypershift operator pod NOT running" >> "$REPORT_FILE"
-            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+            release="$release_info"
+            namespace=$(helm --kubeconfig "$MGMT_KUBECONFIG" list -A -o json 2>/dev/null | \
+                jq -r ".[] | select(.name == \"$release\") | .namespace" | head -1)
+            [ -z "$namespace" ] && namespace="unknown"
         fi
-        echo "    " >> "$REPORT_FILE"
-        echo "    Recommendation:" >> "$REPORT_FILE"
-        echo "      This is a known upstream timing issue. Services are working correctly." >> "$REPORT_FILE"
-        echo "      No action needed unless operator pod is not Running." >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
+
         ISSUES_FOUND=$((ISSUES_FOUND + 1))
-    fi
+        echo "[$ISSUES_FOUND] Helm Release Failed: $release" >> "$REPORT_FILE"
+        echo "    Namespace: $namespace" >> "$REPORT_FILE"
 
-    if echo "$FAILED_RELEASES" | grep -q "mce"; then
-        echo "[$((ISSUES_FOUND + 1))] MCE (Multicluster Engine) Helm Release Failed" >> "$REPORT_FILE"
-        echo "    Status: Failed" >> "$REPORT_FILE"
-        echo "    Severity: WARNING" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    Root Cause:" >> "$REPORT_FILE"
-        echo "      Likely related to hypershift failure or similar timing issue" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    Actual Service Status:" >> "$REPORT_FILE"
+        # Determine severity based on pod status
+        severity="WARNING"
+        if [ "$namespace" != "unknown" ] && [ -n "$MGMT_KUBECONFIG" ]; then
+            running_pods=$(kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n "$namespace" --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l)
+            total_pods=$(kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n "$namespace" --no-headers 2>/dev/null | wc -l)
 
-        # Check actual pod status
-        MCE_PODS=$(kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n multicluster-engine --no-headers 2>/dev/null | wc -l | tr -d ' ')
-        MCE_RUNNING=$(kubectl --kubeconfig "$MGMT_KUBECONFIG" get pods -n multicluster-engine --field-selector=status.phase=Running --no-headers 2>/dev/null | wc -l | tr -d ' ')
-
-        if [ "$MCE_PODS" -gt 0 ]; then
-            echo "      ✓ Found $MCE_PODS MCE pods ($MCE_RUNNING Running)" >> "$REPORT_FILE"
-            if [ "$MCE_RUNNING" -eq "$MCE_PODS" ]; then
-                echo "      ✓ All MCE services are functional" >> "$REPORT_FILE"
-            else
-                echo "      ⚠ Some MCE pods not Running" >> "$REPORT_FILE"
+            if [ "$total_pods" -gt 0 ] && [ "$running_pods" -eq "$total_pods" ]; then
+                severity="WARNING"
+                echo "    Severity: WARNING (Helm failed but pods are running)" >> "$REPORT_FILE"
+                echo "    Actual Status: ✓ All $total_pods pods are Running" >> "$REPORT_FILE"
+            elif [ "$total_pods" -eq 0 ]; then
+                severity="CRITICAL"
                 CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+                echo "    Actual Status: ✗ No pods found in namespace" >> "$REPORT_FILE"
+            else
+                severity="WARNING"
+                CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                echo "    Severity: WARNING" >> "$REPORT_FILE"
+                echo "    Actual Status: ⚠ $running_pods/$total_pods pods Running" >> "$REPORT_FILE"
             fi
         else
-            echo "      ✗ No MCE pods found" >> "$REPORT_FILE"
-            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+            echo "    Severity: $severity" >> "$REPORT_FILE"
         fi
+
+        # Add recommendation based on severity
         echo "    " >> "$REPORT_FILE"
         echo "    Recommendation:" >> "$REPORT_FILE"
-        echo "      Verify all MCE operator pods are Running." >> "$REPORT_FILE"
-        echo "      If yes, services are functional despite Helm failure." >> "$REPORT_FILE"
+        if [ "$severity" = "WARNING" ]; then
+            echo "      Helm failure may be a false-positive. Verify pods are functional." >> "$REPORT_FILE"
+        else
+            echo "      Investigate pod failures and check Helm release logs." >> "$REPORT_FILE"
+        fi
         echo "" >> "$REPORT_FILE"
-        ISSUES_FOUND=$((ISSUES_FOUND + 1))
-    fi
+    done
 fi
 
-# Check if maestro is missing in service cluster
+# Issue 2: Missing deployments in service cluster
 if [ -n "$SVC_KUBECONFIG" ]; then
-    if ! kubectl --kubeconfig "$SVC_KUBECONFIG" get pods -n maestro &>/dev/null || \
-       [ $(kubectl --kubeconfig "$SVC_KUBECONFIG" get pods -n maestro --no-headers 2>/dev/null | wc -l) -eq 0 ]; then
-        echo "[$((ISSUES_FOUND + 1))] Maestro Not Deployed in Service Cluster" >> "$REPORT_FILE"
-        echo "    Status: Missing" >> "$REPORT_FILE"
-        echo "    Severity: CRITICAL" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    Root Cause:" >> "$REPORT_FILE"
-        echo "      Deployment pipeline halted after management cluster Helm failures" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    What Happened:" >> "$REPORT_FILE"
-        echo "      1. Management cluster deployment reported failures" >> "$REPORT_FILE"
-        echo "      2. Deployment script exited with error code" >> "$REPORT_FILE"
-        echo "      3. Service cluster setup phase never executed" >> "$REPORT_FILE"
-        echo "      4. Maestro namespace does not exist in service cluster" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    Impact:" >> "$REPORT_FILE"
-        echo "      ✗ Service cluster is incomplete" >> "$REPORT_FILE"
-        echo "      ✗ E2E tests cannot run" >> "$REPORT_FILE"
-        echo "      ✗ Maestro server-agent communication not possible" >> "$REPORT_FILE"
-        echo "    " >> "$REPORT_FILE"
-        echo "    Recommendation:" >> "$REPORT_FILE"
-        echo "      Option 1: Manually deploy Maestro to service cluster" >> "$REPORT_FILE"
-        echo "      Option 2: Re-run deployment with fix for Helm timing issue" >> "$REPORT_FILE"
-        echo "      Option 3: Continue deployment from service cluster step" >> "$REPORT_FILE"
-        echo "" >> "$REPORT_FILE"
-        ISSUES_FOUND=$((ISSUES_FOUND + 1))
-        CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
-    fi
+    # Check for expected namespaces
+    for ns in maestro; do
+        if ! kubectl --kubeconfig "$SVC_KUBECONFIG" get namespace "$ns" &>/dev/null; then
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+            CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+            echo "[$ISSUES_FOUND] Missing Deployment: $ns in Service Cluster" >> "$REPORT_FILE"
+            echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+            echo "    Status: Namespace does not exist" >> "$REPORT_FILE"
+            echo "    " >> "$REPORT_FILE"
+            echo "    Likely Cause:" >> "$REPORT_FILE"
+            echo "      Deployment pipeline may have halted before service cluster setup" >> "$REPORT_FILE"
+            echo "    " >> "$REPORT_FILE"
+            echo "    Recommendation:" >> "$REPORT_FILE"
+            echo "      Option 1: Continue deployment to service cluster" >> "$REPORT_FILE"
+            echo "      Option 2: Re-run complete deployment" >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+        fi
+    done
+fi
+
+# Issue 3: Error patterns from logs
+if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/error_patterns.txt" ]; then
+    # Group unique error types
+    declare -A seen_patterns
+    while IFS=':::' read -r pattern context; do
+        if [ -z "${seen_patterns[$pattern]}" ]; then
+            seen_patterns[$pattern]=1
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+
+            echo "[$ISSUES_FOUND] Error Pattern Detected: $pattern" >> "$REPORT_FILE"
+
+            case "$pattern" in
+                timing_conflict|helm_hook_failed)
+                    echo "    Severity: WARNING" >> "$REPORT_FILE"
+                    echo "    Description: Resource timing conflict detected" >> "$REPORT_FILE"
+                    ;;
+                timeout)
+                    echo "    Severity: WARNING" >> "$REPORT_FILE"
+                    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                    echo "    Description: Operation timed out" >> "$REPORT_FILE"
+                    ;;
+                authentication)
+                    echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+                    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                    echo "    Description: Authentication or authorization failure" >> "$REPORT_FILE"
+                    ;;
+                network)
+                    echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+                    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                    echo "    Description: Network connectivity issue" >> "$REPORT_FILE"
+                    ;;
+                *)
+                    echo "    Severity: WARNING" >> "$REPORT_FILE"
+                    echo "    Description: $pattern error detected" >> "$REPORT_FILE"
+                    ;;
+            esac
+
+            echo "    Context: $(echo "$context" | head -c 150)..." >> "$REPORT_FILE"
+            echo "" >> "$REPORT_FILE"
+        fi
+    done < "$LOG_ANALYSIS_DIR/error_patterns.txt"
 fi
 
 if [ $ISSUES_FOUND -eq 0 ]; then
