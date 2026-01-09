@@ -31,10 +31,10 @@ Where `test-type` can be:
 
 **Example:**
 ```bash
-export SVC_RESOURCE_GROUP="hcp-underlay-pers-usw3supa-svc"
-export SVC_CLUSTER_NAME="pers-usw3supa-svc"
-export MGMT_RESOURCE_GROUP="hcp-underlay-pers-usw3supa-mgmt-1"
-export MGMT_CLUSTER_NAME="pers-usw3supa-mgmt-1"
+export SVC_RESOURCE_GROUP="hcp-underlay-<cluster-id>-svc"
+export SVC_CLUSTER_NAME="<cluster-id>-svc"
+export MGMT_RESOURCE_GROUP="hcp-underlay-<cluster-id>-mgmt-1"
+export MGMT_CLUSTER_NAME="<cluster-id>-mgmt-1"
 
 /run-e2e-tests upgrade
 ```
