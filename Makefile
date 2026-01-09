@@ -59,15 +59,20 @@ mqtt_port ?= 1883
 mqtt_user ?= maestro
 mqtt_password_file ?= ${PWD}/secrets/mqtt.password
 mqtt_config_file ?= ${PWD}/secrets/mqtt.config
+mqtt_image ?= quay.io/maestro/eclipse-mosquitto:2.0.18
 
 # Pub/Sub emulator configuration
 pubsub_host ?= maestro-pubsub.$(namespace)
 pubsub_port ?= 8085
 pubsub_project_id ?= maestro-test
 pubsub_config_file ?= ${PWD}/secrets/pubsub.config
+pubsub_image ?= gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
 
 # Log verbosity level
 klog_v:=2
+
+# message driver type, mqtt, grpc or pubsub, default is mqtt.
+MESSAGE_DRIVER_TYPE ?= mqtt
 
 # Test output files
 unit_test_json_output ?= ${PWD}/unit-test-results.json
@@ -224,17 +229,17 @@ test-integration: test-integration-mqtt test-integration-pubsub test-integration
 .PHONY: test-integration
 
 test-integration-mqtt:
-	MESSAGE_BROKER_TYPE=mqtt MESSAGE_BROKER_CONFIG=$(PWD)/secrets/mqtt.config MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(mqtt_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=mqtt MESSAGE_DRIVER_CONFIG=$(PWD)/secrets/mqtt.config MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(mqtt_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-mqtt
 
 test-integration-pubsub:
-	MESSAGE_BROKER_TYPE=pubsub MESSAGE_BROKER_CONFIG=$(PWD)/secrets/pubsub.config MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(pubsub_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=pubsub MESSAGE_DRIVER_CONFIG=$(PWD)/secrets/pubsub.config PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(pubsub_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-pubsub
 
 test-integration-grpc:
-	MESSAGE_BROKER_TYPE=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-grpc
 
@@ -348,8 +353,8 @@ mqtt/prepare:
 .PHONY: mqtt/setup
 mqtt/setup: mqtt/prepare
 	@echo '{"brokerHost":"localhost:1883","username":"$(mqtt_user)","password":"$(shell cat $(mqtt_password_file))","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > $(mqtt_config_file)
-	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(MQTT_IMAGE) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mqtt_user) $(shell cat $(mqtt_password_file))
-	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(MQTT_IMAGE)
+	$(container_tool) run --rm -v $(shell pwd)/hack:/mosquitto/data:z $(mqtt_image) mosquitto_passwd -c -b /mosquitto/data/mosquitto-passwd.txt $(mqtt_user) $(shell cat $(mqtt_password_file))
+	$(container_tool) run --name mqtt-maestro -p 1883:1883 -v $(shell pwd)/hack/mosquitto-passwd.txt:/mosquitto/config/password.txt -v $(shell pwd)/hack/mosquitto.conf:/mosquitto/config/mosquitto.conf -d $(mqtt_image)
 
 .PHONY: mqtt/teardown
 mqtt/teardown:
@@ -360,7 +365,7 @@ mqtt/teardown:
 pubsub/setup:
 	@mkdir -p ${PWD}/secrets
 	@echo '{"projectID":"$(pubsub_project_id)","endpoint":"localhost:$(pubsub_port)","insecure":true,"topics":{"sourceEvents":"projects/$(pubsub_project_id)/topics/sourceevents","sourceBroadcast":"projects/$(pubsub_project_id)/topics/sourcebroadcast"},"subscriptions":{"agentEvents":"projects/$(pubsub_project_id)/subscriptions/agentevents-maestro","agentBroadcast":"projects/$(pubsub_project_id)/subscriptions/agentbroadcast-maestro"}}' > $(pubsub_config_file)
-	$(container_tool) run --name pubsub-maestro -p $(pubsub_port):8085 -e PUBSUB_PROJECT_ID=$(pubsub_project_id) -d gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=$(pubsub_project_id)
+	$(container_tool) run --name pubsub-maestro -p $(pubsub_port):8085 -e PUBSUB_PROJECT_ID=$(pubsub_project_id) -d $(pubsub_image) gcloud beta emulators pubsub start --host-port=0.0.0.0:8085 --project=$(pubsub_project_id)
 
 .PHONY: pubsub/teardown
 pubsub/teardown:
@@ -368,13 +373,8 @@ pubsub/teardown:
 	$(container_tool) rm pubsub-maestro
 
 .PHONY: pubsub/init
-pubsub/init: pubsub/setup
-	@echo "Initializing Pub/Sub emulator topics and subscriptions..."
-	@echo "Waiting for emulator to be ready..."
-	@for i in {1..30}; do \
-		curl -s http://localhost:$(pubsub_port) >/dev/null 2>&1 && break || sleep 1; \
-	done
-	@PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) PUBSUB_PROJECT_ID=$(pubsub_project_id) python3 hack/init-pubsub-emulator.py
+pubsub/init:
+	@PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) PUBSUB_PROJECT_ID=$(pubsub_project_id) bash hack/init-pubsub-emulator.sh
 
 crc/login:
 	@echo "Logging into CRC"

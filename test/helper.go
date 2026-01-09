@@ -109,12 +109,12 @@ func NewHelper(t *testing.T) *Helper {
 		}
 		pflag.Parse()
 
-		// Set the message broker type and config if they are set in the environment
-		msgBrokerType := os.Getenv("MESSAGE_BROKER_TYPE")
+		// Set the message driver type and config if they are set in the environment
+		msgBrokerType := os.Getenv("MESSAGE_DRIVER_TYPE")
 		if msgBrokerType != "" {
 			env.Config.MessageBroker.MessageBrokerType = msgBrokerType
 		}
-		msgBrokerConfig := os.Getenv("MESSAGE_BROKER_CONFIG")
+		msgBrokerConfig := os.Getenv("MESSAGE_DRIVER_CONFIG")
 		if msgBrokerConfig != "" {
 			env.Config.MessageBroker.MessageBrokerConfig = msgBrokerConfig
 		}
