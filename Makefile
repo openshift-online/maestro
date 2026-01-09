@@ -269,17 +269,17 @@ test-integration: test-integration-mqtt test-integration-pubsub test-integration
 .PHONY: test-integration
 
 test-integration-mqtt:
-	MESSAGE_BROKER_TYPE=mqtt MESSAGE_BROKER_CONFIG=$(PWD)/secrets/mqtt.config MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(mqtt_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=mqtt MESSAGE_DRIVER_CONFIG=$(PWD)/secrets/mqtt.config MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(mqtt_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-mqtt
 
 test-integration-pubsub:
-	MESSAGE_BROKER_TYPE=pubsub MESSAGE_BROKER_CONFIG=$(PWD)/secrets/pubsub.config MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(pubsub_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=pubsub MESSAGE_DRIVER_CONFIG=$(PWD)/secrets/pubsub.config PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(pubsub_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-pubsub
 
 test-integration-grpc:
-	MESSAGE_BROKER_TYPE=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
+	MESSAGE_DRIVER_TYPE=grpc MAESTRO_ENV=testing gotestsum --jsonfile-timing-events=$(grpc_integration_test_json_output) --format $(TEST_SUMMARY_FORMAT) -- -count=1 -p 1 -ldflags -s -v -timeout 1h $(TESTFLAGS) \
 			./test/integration
 .PHONY: test-integration-grpc
 
@@ -480,13 +480,8 @@ pubsub/teardown:
 	$(container_tool) rm pubsub-maestro
 
 .PHONY: pubsub/init
-pubsub/init: pubsub/setup
-	@echo "Initializing Pub/Sub emulator topics and subscriptions..."
-	@echo "Waiting for emulator to be ready..."
-	@for i in {1..30}; do \
-		curl -s http://localhost:$(pubsub_port) >/dev/null 2>&1 && break || sleep 1; \
-	done
-	@PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) PUBSUB_PROJECT_ID=$(pubsub_project_id) python3 hack/init-pubsub-emulator.py
+pubsub/init:
+	@PUBSUB_EMULATOR_HOST=localhost:$(pubsub_port) PUBSUB_PROJECT_ID=$(pubsub_project_id) bash hack/init-pubsub-emulator.sh
 
 crc/login:
 	@echo "Logging into CRC"

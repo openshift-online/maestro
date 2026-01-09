@@ -62,7 +62,9 @@ spec:
             TARGET_COMPONENT_NAME="maestro"
             REPO_URL=$(echo $SNAPSHOT | jq -r '.components[] | select(.name == "maestro").source.git.url')
             REPO_COMMIT=$(echo $SNAPSHOT | jq -r '.components[] | select(.name == "maestro").source.git.revision')
-            test_output_file=${PWD}/test_output.json
+            mqtt_test_output_file=${PWD}/mqtt_test_output.json
+            pubsub_test_output_file=${PWD}/pubsub_test_output.json
+            grpc_test_output_file=${PWD}/grpc_test_output.json
 
             # Log Vars for Tracibility
             echo "REPO_URL: $REPO_URL"
@@ -84,16 +86,38 @@ spec:
             # Generate mqtt config file
             echo '{"brokerHost":"localhost:1883","username":"","password":"","topics":{"sourceEvents":"sources/maestro/consumers/+/sourceevents","agentEvents":"sources/maestro/consumers/+/agentevents"}}' > secrets/mqtt.config
 
+            # Generate pubsub config file
+            echo '{"projectID":"maestro-test","endpoint":"localhost:8085","insecure":true,"topics":{"sourceEvents":"projects/maestro-test/topics/sourceevents","sourceBroadcast":"projects/maestro-test/topics/sourcebroadcast"},"subscriptions":{"agentEvents":"projects/maestro-test/subscriptions/agentevents-maestro","agentBroadcast":"projects/maestro-test/subscriptions/agentbroadcast-maestro"}}' > secrets/pubsub.config
+
             # Generate db.password
             echo 'foobar-bizz-buzz' > secrets/db.password
 
+            # Wait for the pubsub emulator to be ready
+            echo "[INFO] Waiting for pubsub emulator to be ready for connection"
+            timeout 5m bash -c 'until curl -s http://localhost:8085 > /dev/null 2>&1; do sleep 2s; done'
+
+            # Initialize pubsub topics and subscriptions
+            export PUBSUB_EMULATOR_HOST=localhost:8085
+            export PUBSUB_PROJECT_ID=maestro-test
+            bash hack/init-pubsub-emulator.sh
+
             # Run integration tests with JSON output
-            make test-integration integration_test_json_output="$test_output_file"
+            make test-integration \
+              mqtt_integration_test_json_output="$mqtt_test_output_file" \
+              pubsub_integration_test_json_output="$pubsub_test_output_file" \
+              grpc_integration_test_json_output="$grpc_test_output_file"
 
             # Read, process, and write output in accepted format
             # Formatting docs: https://redhat-appstudio.github.io/book/ADR/0030-tekton-results-naming-convention.html#test_output-schema-validation
-            FAILURES=$(cat $test_output_file | jq 'select(.Action == "fail")' | jq -r --slurp 'length')
-            SUCCESSES=$(cat $test_output_file | jq 'select(.Action == "pass")' | jq -r --slurp 'length')
+            # Combine results from all three broker tests
+            MQTT_FAILURES=$(cat $mqtt_test_output_file | jq 'select(.Action == "fail")' | jq -r --slurp 'length')
+            MQTT_SUCCESSES=$(cat $mqtt_test_output_file | jq 'select(.Action == "pass")' | jq -r --slurp 'length')
+            PUBSUB_FAILURES=$(cat $pubsub_test_output_file | jq 'select(.Action == "fail")' | jq -r --slurp 'length')
+            PUBSUB_SUCCESSES=$(cat $pubsub_test_output_file | jq 'select(.Action == "pass")' | jq -r --slurp 'length')
+            GRPC_FAILURES=$(cat $grpc_test_output_file | jq 'select(.Action == "fail")' | jq -r --slurp 'length')
+            GRPC_SUCCESSES=$(cat $grpc_test_output_file | jq 'select(.Action == "pass")' | jq -r --slurp 'length')
+            FAILURES=$((MQTT_FAILURES + PUBSUB_FAILURES + GRPC_FAILURES))
+            SUCCESSES=$((MQTT_SUCCESSES + PUBSUB_SUCCESSES + GRPC_SUCCESSES))
             # Hard-code warnings
             WARNINGS=0
             RESULT="$(if [[ $FAILURES == 0 ]]; then echo "SUCCESS"; else echo "FAILURE"; fi)"
@@ -129,6 +153,16 @@ spec:
             volumeMounts:
               - mountPath: /mosquitto/data
                 name: mqttdata
+          - image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+            name: pubsub-test
+            command:
+              - gcloud
+              - beta
+              - emulators
+              - pubsub
+              - start
+              - --host-port=0.0.0.0:8085
+              - --project=maestro-test
         volumes:
           - name: pgdata
             emptyDir: {}

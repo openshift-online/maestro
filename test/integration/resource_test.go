@@ -199,6 +199,9 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	// the resource patch request is protected by the advisory lock, so there should only be one update
 	Expect(updatedCount).To(Equal(1))
 
+	// Give additional time for database transactions to fully complete and release locks
+	time.Sleep(3 * time.Second)
+
 	// ensure the locks for current test are released
 	query := fmt.Sprintf("select count(*) from pg_locks where locktype='advisory' and objid not in (%s)", strings.Join(objids, ","))
 	if len(objids) == 0 {
