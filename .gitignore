@@ -72,3 +72,6 @@ test/upgrade/report/*
 
 # Ignore ARO-HCP kubeconfig
 *.kubeconfig
+
+# Ignore diagnostic reports
+maestro-diagnosis-*.txt

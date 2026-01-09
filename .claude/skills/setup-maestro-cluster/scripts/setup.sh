@@ -42,8 +42,8 @@ fi
 
 echo "Cloning ARO-HCP repository to: $TEMP_DIR"
 
-if ! git clone https://github.com/Azure/ARO-HCP "$TEMP_DIR/ARO-HCP"; then
-    echo "ERROR: Failed to clone ARO-HCP repository"
+if ! timeout 300 git clone https://github.com/Azure/ARO-HCP "$TEMP_DIR/ARO-HCP"; then
+    echo "ERROR: Failed to clone ARO-HCP repository (timeout: 300s)"
     rm -rf "$TEMP_DIR"
     exit 1
 fi
@@ -71,13 +71,13 @@ echo "Starting personal-dev-env deployment..."
 echo "This may take several minutes..."
 echo ""
 
-if make personal-dev-env; then
+if timeout 3600 make personal-dev-env; then
     echo ""
     echo "✓ Deployment completed successfully!"
     echo "ARO-HCP repository location: $TEMP_DIR/ARO-HCP"
 else
     echo ""
-    echo "ERROR: Deployment failed!"
+    echo "ERROR: Deployment failed or timed out (timeout: 3600s)!"
     popd > /dev/null
     exit 1
 fi
