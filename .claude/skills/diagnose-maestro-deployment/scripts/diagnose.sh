@@ -337,21 +337,19 @@ echo "" >> "$REPORT_FILE"
 
 # Analyze error patterns from logs
 if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/error_patterns.txt" ]; then
-    # Group errors by pattern type
-    declare -A pattern_counts
-    while IFS=':::' read -r pattern context; do
-        pattern_counts[$pattern]=$((${pattern_counts[$pattern]:-0} + 1))
-    done < "$LOG_ANALYSIS_DIR/error_patterns.txt"
+    # Group errors by pattern type (bash 3.x compatible)
+    # Count occurrences of each pattern
+    cut -d':' -f1 < "$LOG_ANALYSIS_DIR/error_patterns.txt" | sort | uniq -c | sort -rn > "$LOG_ANALYSIS_DIR/pattern_counts.txt"
 
     # Determine primary failure based on most common pattern
     primary_pattern=""
     max_count=0
-    for pattern in "${!pattern_counts[@]}"; do
-        if [ "${pattern_counts[$pattern]}" -gt "$max_count" ]; then
-            max_count="${pattern_counts[$pattern]}"
-            primary_pattern="$pattern"
-        fi
-    done
+    if [ -s "$LOG_ANALYSIS_DIR/pattern_counts.txt" ]; then
+        # Get the first line (highest count)
+        read -r count pattern_name < "$LOG_ANALYSIS_DIR/pattern_counts.txt"
+        primary_pattern="$pattern_name"
+        max_count="$count"
+    fi
 
     if [ -n "$primary_pattern" ]; then
         case "$primary_pattern" in
@@ -490,45 +488,47 @@ fi
 
 # Issue 3: Error patterns from logs
 if [ -f "$LOG_ANALYSIS_DIR/error_patterns.txt" ] && [ -s "$LOG_ANALYSIS_DIR/error_patterns.txt" ]; then
-    # Group unique error types
-    declare -A seen_patterns
-    while IFS=':::' read -r pattern context; do
-        if [ -z "${seen_patterns[$pattern]}" ]; then
-            seen_patterns[$pattern]=1
-            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+    # Group unique error types (bash 3.x compatible)
+    # Get unique patterns
+    cut -d':' -f1 < "$LOG_ANALYSIS_DIR/error_patterns.txt" | sort -u > "$LOG_ANALYSIS_DIR/unique_patterns.txt"
 
-            echo "[$ISSUES_FOUND] Error Pattern Detected: $pattern" >> "$REPORT_FILE"
+    while IFS= read -r pattern; do
+        ISSUES_FOUND=$((ISSUES_FOUND + 1))
 
-            case "$pattern" in
-                timing_conflict|helm_hook_failed)
-                    echo "    Severity: WARNING" >> "$REPORT_FILE"
-                    echo "    Description: Resource timing conflict detected" >> "$REPORT_FILE"
-                    ;;
-                timeout)
-                    echo "    Severity: WARNING" >> "$REPORT_FILE"
-                    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
-                    echo "    Description: Operation timed out" >> "$REPORT_FILE"
-                    ;;
-                authentication)
-                    echo "    Severity: CRITICAL" >> "$REPORT_FILE"
-                    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
-                    echo "    Description: Authentication or authorization failure" >> "$REPORT_FILE"
-                    ;;
-                network)
-                    echo "    Severity: CRITICAL" >> "$REPORT_FILE"
-                    CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
-                    echo "    Description: Network connectivity issue" >> "$REPORT_FILE"
-                    ;;
-                *)
-                    echo "    Severity: WARNING" >> "$REPORT_FILE"
-                    echo "    Description: $pattern error detected" >> "$REPORT_FILE"
-                    ;;
-            esac
+        # Get first context for this pattern
+        context=$(grep "^${pattern}:::" "$LOG_ANALYSIS_DIR/error_patterns.txt" | head -1 | cut -d':' -f4-)
 
-            echo "    Context: $(echo "$context" | head -c 150)..." >> "$REPORT_FILE"
-            echo "" >> "$REPORT_FILE"
-        fi
-    done < "$LOG_ANALYSIS_DIR/error_patterns.txt"
+        echo "[$ISSUES_FOUND] Error Pattern Detected: $pattern" >> "$REPORT_FILE"
+
+        case "$pattern" in
+            timing_conflict|helm_hook_failed)
+                echo "    Severity: WARNING" >> "$REPORT_FILE"
+                echo "    Description: Resource timing conflict detected" >> "$REPORT_FILE"
+                ;;
+            timeout)
+                echo "    Severity: WARNING" >> "$REPORT_FILE"
+                CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                echo "    Description: Operation timed out" >> "$REPORT_FILE"
+                ;;
+            authentication)
+                echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+                CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                echo "    Description: Authentication or authorization failure" >> "$REPORT_FILE"
+                ;;
+            network)
+                echo "    Severity: CRITICAL" >> "$REPORT_FILE"
+                CRITICAL_ISSUES=$((CRITICAL_ISSUES + 1))
+                echo "    Description: Network connectivity issue" >> "$REPORT_FILE"
+                ;;
+            *)
+                echo "    Severity: WARNING" >> "$REPORT_FILE"
+                echo "    Description: $pattern error detected" >> "$REPORT_FILE"
+                ;;
+        esac
+
+        echo "    Context: $(echo "$context" | head -c 150)..." >> "$REPORT_FILE"
+        echo "" >> "$REPORT_FILE"
+    done < "$LOG_ANALYSIS_DIR/unique_patterns.txt"
 fi
 
 if [ $ISSUES_FOUND -eq 0 ]; then
