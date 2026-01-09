@@ -68,22 +68,22 @@ while IFS= read -r line; do
 
         if [[ "$issue_title" =~ "Hypershift" ]]; then
             # Hypershift issue - show clear cause and effect
-            issue_value="*失败原因:*"
-            issue_value+=$'\n'"• hypershift release 的 post-install hook 尝试创建 ClusterSizingConfiguration 资源"
-            issue_value+=$'\n'"• 但该资源已经被 hypershift-operator-manager 先创建并管理"
+            issue_value="*Root Cause:*"
+            issue_value+=$'\n'"• Hypershift release post-install hook attempted to create ClusterSizingConfiguration resource"
+            issue_value+=$'\n'"• Resource was already created and managed by hypershift-operator-manager"
 
             # Get specific conflicting fields
             specific_conflicts=$(echo "$issue_section" | sed -n '/Specific Conflicting Fields:/,/^    $/p' | grep "•" | sed 's/^      • //')
             if [ -n "$specific_conflicts" ]; then
-                issue_value+=$'\n'"• 导致字段冲突："
+                issue_value+=$'\n'"• Leading to field conflicts:"
                 while IFS= read -r field; do
                     issue_value+=$'\n'"  - $field"
                 done <<< "$specific_conflicts"
             fi
-            issue_value+=$'\n'"• Helm 认为 post-install hook 失败，所以标记整个 release 为 failed"
+            issue_value+=$'\n'"• Helm marked the release as failed due to post-install hook failure"
 
             # Get actual status
-            issue_value+=$'\n\n'"*实际运行状态:*"
+            issue_value+=$'\n\n'"*Actual Status:*"
             actual_status=$(echo "$issue_section" | sed -n '/Actual Service Status:/,/^    $/p' | grep "✓" | sed 's/^      //')
             if [ -n "$actual_status" ]; then
                 while IFS= read -r line; do
@@ -91,15 +91,15 @@ while IFS= read -r line; do
                 done <<< "$actual_status"
             fi
 
-            issue_value+=$'\n\n'"*结论:* 虽然 Helm 状态是 failed，但服务实际上正常运行。这是一个 Helm hook 的时序问题。"
+            issue_value+=$'\n\n'"*Conclusion:* Although Helm status is failed, services are actually running normally. This is a Helm hook timing issue."
 
         elif [[ "$issue_title" =~ "MCE" ]]; then
             # MCE issue - similar structure
             root_cause=$(echo "$issue_section" | sed -n '/Root Cause:/,/^    $/p' | grep -v "Root Cause:" | grep -v "^    $" | sed 's/^      //' | head -1)
-            issue_value="*失败原因:*"$'\n'"• $root_cause"
+            issue_value="*Root Cause:*"$'\n'"• $root_cause"
 
             # Get actual status
-            issue_value+=$'\n\n'"*实际运行状态:*"
+            issue_value+=$'\n\n'"*Actual Status:*"
             actual_status=$(echo "$issue_section" | sed -n '/Actual Service Status:/,/^    $/p' | grep "✓" | sed 's/^      //')
             if [ -n "$actual_status" ]; then
                 while IFS= read -r line; do
@@ -107,11 +107,11 @@ while IFS= read -r line; do
                 done <<< "$actual_status"
             fi
 
-            issue_value+=$'\n\n'"*结论:* MCE 服务正常运行，Helm failure 可忽略。"
+            issue_value+=$'\n\n'"*Conclusion:* MCE services are running normally, Helm failure can be ignored."
 
         elif [[ "$issue_title" =~ "Maestro Not Deployed" ]]; then
             # Maestro not deployed - show cascading failure
-            issue_value="*失败原因 (级联失败):*"
+            issue_value="*Root Cause (Cascading Failure):*"
             what_happened=$(echo "$issue_section" | sed -n '/What Happened:/,/^    $/p' | grep -v "What Happened:" | grep -v "^    $" | sed 's/^      //' | sed 's/^[0-9]\. /• /')
             if [ -n "$what_happened" ]; then
                 while IFS= read -r line; do
@@ -120,7 +120,7 @@ while IFS= read -r line; do
             fi
 
             # Get impact
-            issue_value+=$'\n\n'"*影响:*"
+            issue_value+=$'\n\n'"*Impact:*"
             impact=$(echo "$issue_section" | sed -n '/Impact:/,/^    $/p' | grep "✗" | sed 's/^      //')
             if [ -n "$impact" ]; then
                 while IFS= read -r line; do
@@ -128,7 +128,7 @@ while IFS= read -r line; do
                 done <<< "$impact"
             fi
 
-            issue_value+=$'\n\n'"*结论:* Service cluster 部署未完成，需要手动干预。"
+            issue_value+=$'\n\n'"*Conclusion:* Service cluster deployment incomplete, manual intervention required."
         fi
 
         # Add to issues array
