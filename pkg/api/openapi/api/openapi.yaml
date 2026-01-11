@@ -95,6 +95,13 @@ paths:
         style: form
       - explode: false
         in: header
+        name: X-Operation-ID-Key
+        required: false
+        schema:
+          type: string
+        style: simple
+      - explode: false
+        in: header
         name: X-Operation-ID
         required: false
         schema:
@@ -182,6 +189,13 @@ paths:
         in: path
         name: id
         required: true
+        schema:
+          type: string
+        style: simple
+      - explode: false
+        in: header
+        name: X-Operation-ID-Key
+        required: false
         schema:
           type: string
         style: simple

@@ -843,14 +843,15 @@ func (a *DefaultAPIService) ApiMaestroV1ConsumersPostExecute(r ApiApiMaestroV1Co
 }
 
 type ApiApiMaestroV1ResourceBundlesGetRequest struct {
-	ctx          context.Context
-	ApiService   *DefaultAPIService
-	page         *int32
-	size         *int32
-	search       *string
-	orderBy      *string
-	fields       *string
-	xOperationID *string
+	ctx             context.Context
+	ApiService      *DefaultAPIService
+	page            *int32
+	size            *int32
+	search          *string
+	orderBy         *string
+	fields          *string
+	xOperationIDKey *string
+	xOperationID    *string
 }
 
 // Page number of record list when record list exceeds specified page size
@@ -880,6 +881,11 @@ func (r ApiApiMaestroV1ResourceBundlesGetRequest) OrderBy(orderBy string) ApiApi
 // Supplies a comma-separated list of fields to be returned. Fields of sub-structures and of arrays use &lt;structure&gt;.&lt;field&gt; notation. &lt;stucture&gt;.* means all field of a structure Example: For each Subscription to get id, href, plan(id and kind) and labels (all fields)  &#x60;&#x60;&#x60; ocm get subscriptions --parameter fields&#x3D;id,href,plan.id,plan.kind,labels.* --parameter fetchLabels&#x3D;true &#x60;&#x60;&#x60;
 func (r ApiApiMaestroV1ResourceBundlesGetRequest) Fields(fields string) ApiApiMaestroV1ResourceBundlesGetRequest {
 	r.fields = &fields
+	return r
+}
+
+func (r ApiApiMaestroV1ResourceBundlesGetRequest) XOperationIDKey(xOperationIDKey string) ApiApiMaestroV1ResourceBundlesGetRequest {
+	r.xOperationIDKey = &xOperationIDKey
 	return r
 }
 
@@ -966,6 +972,9 @@ func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesGetExecute(r ApiApiMaestr
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xOperationIDKey != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Operation-ID-Key", r.xOperationIDKey, "simple", "")
 	}
 	if r.xOperationID != nil {
 		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Operation-ID", r.xOperationID, "simple", "")
@@ -1184,10 +1193,16 @@ func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesIdDeleteExecute(r ApiApiM
 }
 
 type ApiApiMaestroV1ResourceBundlesIdGetRequest struct {
-	ctx          context.Context
-	ApiService   *DefaultAPIService
-	id           string
-	xOperationID *string
+	ctx             context.Context
+	ApiService      *DefaultAPIService
+	id              string
+	xOperationIDKey *string
+	xOperationID    *string
+}
+
+func (r ApiApiMaestroV1ResourceBundlesIdGetRequest) XOperationIDKey(xOperationIDKey string) ApiApiMaestroV1ResourceBundlesIdGetRequest {
+	r.xOperationIDKey = &xOperationIDKey
+	return r
 }
 
 func (r ApiApiMaestroV1ResourceBundlesIdGetRequest) XOperationID(xOperationID string) ApiApiMaestroV1ResourceBundlesIdGetRequest {
@@ -1253,6 +1268,9 @@ func (a *DefaultAPIService) ApiMaestroV1ResourceBundlesIdGetExecute(r ApiApiMaes
 	localVarHTTPHeaderAccept := selectHeaderAccept(localVarHTTPHeaderAccepts)
 	if localVarHTTPHeaderAccept != "" {
 		localVarHeaderParams["Accept"] = localVarHTTPHeaderAccept
+	}
+	if r.xOperationIDKey != nil {
+		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Operation-ID-Key", r.xOperationIDKey, "simple", "")
 	}
 	if r.xOperationID != nil {
 		parameterAddToHeaderOrQuery(localVarHeaderParams, "X-Operation-ID", r.xOperationID, "simple", "")

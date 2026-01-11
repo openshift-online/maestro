@@ -29,10 +29,10 @@ func (writer *loggingWriter) WriteHeader(status int) {
 	writer.ResponseWriter.WriteHeader(status)
 }
 
-func (writer *loggingWriter) log(logMsg string, err error) {
+func (writer *loggingWriter) log(logLevel int, logMsg string, err error) {
 	switch err {
 	case nil:
-		writer.logger.V(4).Info(logMsg)
+		writer.logger.V(logLevel).Info(logMsg)
 	default:
 		writer.logger.Error(err, "Unable to format request/response log")
 	}

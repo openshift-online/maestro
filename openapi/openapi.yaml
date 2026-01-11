@@ -48,6 +48,10 @@ paths:
       - $ref: '#/components/parameters/orderBy'
       - $ref: '#/components/parameters/fields'
       - in: header
+        name: X-Operation-ID-Key
+        schema:
+          type: string
+      - in: header
         name: X-Operation-ID
         schema:
           type: string
@@ -89,6 +93,10 @@ paths:
                 $ref: '#/components/schemas/Error'
       parameters:
       - $ref: '#/components/parameters/id'
+      - in: header
+        name: X-Operation-ID-Key
+        schema:
+          type: string
       - in: header
         name: X-Operation-ID
         schema:

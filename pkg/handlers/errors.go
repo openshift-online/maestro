@@ -66,13 +66,13 @@ func (h errorHandler) Get(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h errorHandler) Create(w http.ResponseWriter, r *http.Request) {
-	handleError(r.Context(), w, errors.NotImplemented("create"))
+	handleError(w, r, errors.NotImplemented("create"))
 }
 
 func (h errorHandler) Patch(w http.ResponseWriter, r *http.Request) {
-	handleError(r.Context(), w, errors.NotImplemented("path"))
+	handleError(w, r, errors.NotImplemented("patch"))
 }
 
 func (h errorHandler) Delete(w http.ResponseWriter, r *http.Request) {
-	handleError(r.Context(), w, errors.NotImplemented("delete"))
+	handleError(w, r, errors.NotImplemented("delete"))
 }

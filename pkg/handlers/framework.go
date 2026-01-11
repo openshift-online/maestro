@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -9,7 +8,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/errors"
-	loggertracing "github.com/openshift-online/maestro/pkg/logger"
+	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 // handlerConfig defines the common things each REST controller must do.
@@ -28,19 +27,18 @@ type handlerConfig struct {
 }
 
 type validate func() *errors.ServiceError
-type errorHandlerFunc func(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError)
+type errorHandlerFunc func(w http.ResponseWriter, r *http.Request, err *errors.ServiceError)
 type httpAction func() (interface{}, *errors.ServiceError)
 
-func handleError(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError) {
-	operationID := loggertracing.GetOperationID(ctx)
-	logger := klog.FromContext(ctx)
+func handleError(w http.ResponseWriter, r *http.Request, err *errors.ServiceError) {
+	logger := klog.FromContext(r.Context())
 	// If this is a 400 error, its the user's issue, log as info rather than error
 	if err.HttpCode >= 400 && err.HttpCode <= 499 {
 		logger.Info("user request error", "error", err)
 	} else {
 		logger.Error(err, "user request error")
 	}
-	writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))
+	writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(r.Header.Get(maestrologger.OpIDHeader)))
 }
 
 func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int) {
@@ -50,20 +48,20 @@ func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStat
 
 	bytes, err := io.ReadAll(r.Body)
 	if err != nil {
-		handleError(r.Context(), w, errors.MalformedRequest("Unable to read request body: %s", err))
+		handleError(w, r, errors.MalformedRequest("Unable to read request body: %s", err))
 		return
 	}
 
 	err = json.Unmarshal(bytes, &cfg.MarshalInto)
 	if err != nil {
-		handleError(r.Context(), w, errors.MalformedRequest("Invalid request format: %s", err))
+		handleError(w, r, errors.MalformedRequest("Invalid request format: %s", err))
 		return
 	}
 
 	for _, v := range cfg.Validate {
 		err := v()
 		if err != nil {
-			cfg.ErrorHandler(r.Context(), w, err)
+			cfg.ErrorHandler(w, r, err)
 			return
 		}
 	}
@@ -72,7 +70,7 @@ func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStat
 
 	switch {
 	case serviceErr != nil:
-		cfg.ErrorHandler(r.Context(), w, serviceErr)
+		cfg.ErrorHandler(w, r, serviceErr)
 	default:
 		writeJSONResponse(w, httpStatus, result)
 	}
@@ -86,7 +84,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, ht
 	for _, v := range cfg.Validate {
 		err := v()
 		if err != nil {
-			cfg.ErrorHandler(r.Context(), w, err)
+			cfg.ErrorHandler(w, r, err)
 			return
 		}
 	}
@@ -95,7 +93,7 @@ func handleDelete(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, ht
 
 	switch {
 	case serviceErr != nil:
-		cfg.ErrorHandler(r.Context(), w, serviceErr)
+		cfg.ErrorHandler(w, r, serviceErr)
 	default:
 		writeJSONResponse(w, httpStatus, result)
 	}
@@ -112,7 +110,7 @@ func handleGet(w http.ResponseWriter, r *http.Request, cfg *handlerConfig) {
 	case serviceErr == nil:
 		writeJSONResponse(w, http.StatusOK, result)
 	default:
-		cfg.ErrorHandler(r.Context(), w, serviceErr)
+		cfg.ErrorHandler(w, r, serviceErr)
 	}
 }
 
@@ -123,7 +121,7 @@ func handleList(w http.ResponseWriter, r *http.Request, cfg *handlerConfig) {
 
 	results, serviceError := cfg.Action()
 	if serviceError != nil {
-		cfg.ErrorHandler(r.Context(), w, serviceError)
+		cfg.ErrorHandler(w, r, serviceError)
 		return
 	}
 	writeJSONResponse(w, http.StatusOK, results)

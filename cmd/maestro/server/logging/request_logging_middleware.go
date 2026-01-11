@@ -8,9 +8,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"k8s.io/klog/v2"
-	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
-
-	maestrologger "github.com/openshift-online/maestro/pkg/logger"
 )
 
 func RegisterLoggerMiddleware(ctx context.Context, router *mux.Router) {
@@ -19,6 +16,7 @@ func RegisterLoggerMiddleware(ctx context.Context, router *mux.Router) {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				path := strings.TrimSuffix(r.URL.Path, "/")
 				doLog := true
+				logLevel := 2
 
 				// these contribute greatly to log spam but are not useful or meaningful.
 				// consider a list/map of URLs should this grow in the future.
@@ -26,25 +24,26 @@ func RegisterLoggerMiddleware(ctx context.Context, router *mux.Router) {
 					doLog = false
 				}
 
-				// TODO set opid of logger from req
-				// Get operation ID from request header if existed
-				opID := r.Header.Get(string(maestrologger.OpIDHeader))
-				logger := klog.FromContext(ctx).WithValues(sdkgologging.ContextTracingOPIDKey, opID)
-				loggingWriter := NewLoggingWriter(logger, w, r, NewJSONLogFormatter())
+				if path == "/healthcheck" {
+					logLevel = 4
+				}
 
 				reqCtx := r.Context()
-				newReqCtx := klog.NewContext(reqCtx, logger)
+				logger := klog.FromContext(reqCtx)
+				loggingWriter := NewLoggingWriter(logger, w, r, NewJSONLogFormatter())
 
 				if doLog {
-					loggingWriter.log(loggingWriter.prepareRequestLog())
+					msg, err := loggingWriter.prepareRequestLog()
+					loggingWriter.log(logLevel, msg, err)
 				}
 
 				before := time.Now()
-				next.ServeHTTP(loggingWriter, r.WithContext(newReqCtx))
+				next.ServeHTTP(loggingWriter, r)
 				elapsed := time.Since(before).String()
 
 				if doLog {
-					loggingWriter.log(loggingWriter.prepareResponseLog(elapsed))
+					msg, err := loggingWriter.prepareResponseLog(elapsed)
+					loggingWriter.log(logLevel, msg, err)
 				}
 			})
 		})

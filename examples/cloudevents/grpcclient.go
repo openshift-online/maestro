@@ -27,8 +27,6 @@ var (
 	grpcServerAddr      = flag.String("grpc-server", "127.0.0.1:8090", "The grpc server address")
 	grpcServerTLS       = flag.Bool("grpc-server-tls", false, "Connect grpc server with TLS if true")
 	grpcServerCAFile    = flag.String("grpc-server-ca-file", "", "The CA for grpc server")
-	grpcClientCertFile  = flag.String("grpc-client-cert-file", "", "The client certificate to access grpc server")
-	grpcClientKeyFile   = flag.String("grpc-client-key-file", "", "The client key to access grpc server")
 	grpcClientTokenFile = flag.String("grpc-client-token-file", "", "The client token to access grpc server")
 	consumerName        = flag.String("consumer-name", "", "The Consumer Name")
 	cloudEventFile      = flag.String("cloudevent-file", "", "The absolute file path containing the CloudEvent resource")
