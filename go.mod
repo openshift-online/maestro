@@ -26,7 +26,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
 	github.com/onsi/ginkgo/v2 v2.27.3
-	github.com/onsi/gomega v1.38.3
+	github.com/onsi/gomega v1.39.0
 	github.com/openshift-online/ocm-common v0.0.34
 	github.com/openshift-online/ocm-sdk-go v0.1.486
 	github.com/openshift/library-go v0.0.0-20251120164824-14a789e09884
@@ -56,8 +56,8 @@ require (
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 	open-cluster-management.io/api v1.1.1-0.20260108015315-68cef17a0643
-	open-cluster-management.io/ocm v1.1.1-0.20260108015314-635b0ff7e9cf
-	open-cluster-management.io/sdk-go v1.1.1-0.20260108080638-c607eaaa5d12
+	open-cluster-management.io/ocm v1.1.1-0.20260112054407-532b09a44026
+	open-cluster-management.io/sdk-go v1.1.1-0.20260112054941-b6c1a665df1b
 	sigs.k8s.io/yaml v1.6.0
 )
 
