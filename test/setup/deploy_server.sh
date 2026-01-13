@@ -15,33 +15,19 @@
 # limitations under the License.
 
 tls_enable=${ENABLE_MAESTRO_TLS:-"false"}
+msg_broker=${MESSAGE_DRIVER_TYPE:-"mqtt"}
+server_replicas=${SERVER_REPLICAS:-"1"}
+enable_broadcast=${ENABLE_BROADCAST_SUBSCRIPTION:-"false"}
+enable_istio=${ENABLE_ISTIO:-"false"}
 
 export image_tag=${image_tag:-"latest"}
 export external_image_registry=${external_image_registry:-"image-registry.testing"}
 export internal_image_registry=${internal_image_registry:-"image-registry.testing"}
 
 export namespace="maestro"
-export agent_namespace="maestro-agent"
-
 export KUBECONFIG=${PWD}/test/_output/.kubeconfig
 
-# Deploy maestro into maestro namespace
-export ENABLE_JWT=false
-export ENABLE_OCM_MOCK=true
-export maestro_svc_type="NodePort"
-export maestro_svc_node_port=30080
-export grpc_svc_type="NodePort"
-export grpc_svc_node_port=30090
-export liveness_probe_init_delay_seconds=1
-export readiness_probe_init_delay_seconds=1
-if [ -n "${ENABLE_BROADCAST_SUBSCRIPTION}" ] && [ "${ENABLE_BROADCAST_SUBSCRIPTION}" = "true" ]; then
-  export subscription_type="broadcast"
-  export agent_topic="sources/maestro/consumers/+/agentevents"
-fi
-
-rest_api_schema="http"
 if [ "$tls_enable" = "true" ]; then
-  rest_api_schema="https"
   # deploy openshift service-ca to generate certs for internal services (metrics/health)
   kubectl label node maestro-control-plane node-role.kubernetes.io/master= --overwrite
   kubectl apply -f "${PWD}/test/setup/service-ca-crds"
@@ -70,16 +56,164 @@ EOF
     kubectl delete secret maestro-grpc-cert -n "$namespace" --ignore-not-found
     kubectl create secret generic maestro-grpc-cert -n "$namespace" --from-file=ca.crt=${grpc_cert_dir}/ca.crt --from-file=server.crt=${grpc_cert_dir}/server.crt --from-file=server.key=${grpc_cert_dir}/server.key --from-file=client.crt=${grpc_cert_dir}/client.crt --from-file=client.key=${grpc_cert_dir}/client.key
   fi
-  make deploy-service-tls
-else
-  make deploy-service
 fi
+
+# Build Helm values for maestro-server
+values_file="${PWD}/test/_output/maestro-server-values.yaml"
+
+# Set Istio annotations if enabled
+if [ "$enable_istio" = "true" ]; then
+  istio_annotations='  annotations:
+    proxy.istio.io/config: |
+      {
+        "holdApplicationUntilProxyStarts": true
+      }'
+else
+  istio_annotations=''
+fi
+
+cat > "$values_file" <<EOF
+environment: development
+
+serviceAccount:
+  name: maestro
+
+# Logging configuration
+logging:
+  klogV: "10"
+
+image:
+  registry: ${external_image_registry}
+  repository: maestro/maestro
+  tag: ${image_tag}
+  pullPolicy: IfNotPresent
+
+replicas: ${server_replicas}
+
+# Database configuration - use embedded PostgreSQL for testing
+database:
+  maxOpenConnections: 50
+  sslMode: disable
+  debug: true
+  secretName: maestro-rds
+
+# Message broker configuration
+messageBroker:
+  type: ${msg_broker}
+  secretName: maestro-${msg_broker}
+  mqtt:
+    port: 1883
+    host: maestro-mqtt
+    tls:
+      enabled: ${tls_enable}
+      caFile: /secrets/mqtt-certs/ca.crt
+      clientCertFile: /secrets/mqtt-certs/client.crt
+      clientKeyFile: /secrets/mqtt-certs/client.key
+  grpc:
+    url: maestro-grpc-broker.${namespace}:8091
+    tls:
+      enabled: ${tls_enable}
+      certFile: /secrets/grpc-broker-cert/server.crt
+      keyFile: /secrets/grpc-broker-cert/server.key
+      clientCAFile: /secrets/grpc-broker-cert/ca.crt
+
+# Server configuration
+server:
+${istio_annotations}
+  https:
+    enabled: $( [ "$enable_istio" = "true" ] && echo "false" || echo "true" )
+  hostname: ""
+  http:
+    bindPort: 8000
+  grpc:
+    bindPort: 8090
+    tls:
+      enabled: ${tls_enable}
+      certFile: /secrets/maestro-grpc-cert/server.crt
+      keyFile: /secrets/maestro-grpc-cert/server.key
+      clientCAFile: /secrets/maestro-grpc-cert/ca.crt
+  metrics:
+    bindPort: 8080
+    https:
+      enabled: false
+  healthCheck:
+    bindPort: 8083
+  httpReadTimeout: 5s
+  httpWriteTimeout: 30s
+
+# Service configuration - NodePort for e2e testing
+service:
+  api:
+    type: NodePort
+    port: 8000
+    nodePort: 30080
+  grpc:
+    type: NodePort
+    port: 8090
+    nodePort: 30090
+  metrics:
+    port: 8080
+  healthcheck:
+    port: 8083
+
+# Disable route for KinD testing
+route:
+  enabled: false
+
+# Use embedded PostgreSQL for testing
+postgresql:
+  enabled: true
+  image: quay.io/maestro/postgres:17.2
+  database:
+    name: maestro
+    user: maestro
+    password: maestro
+    host: maestro-db
+  service:
+    name: maestro-db
+    port: 5432
+  persistence:
+    enabled: true
+    size: 512Mi
+  secretName: maestro-rds
+
+# Use embedded MQTT broker for testing (if MQTT mode)
+mosquitto:
+  enabled: $( [ "$msg_broker" = "mqtt" ] && echo "true" || echo "false" )
+  image: quay.io/maestro/eclipse-mosquitto:2.0.18
+  service:
+    name: maestro-mqtt
+    port: 1883
+  tls:
+    enabled: ${tls_enable}
+    caFile: /secrets/mqtt-certs/ca.crt
+    clientCertFile: /secrets/mqtt-certs/client.crt
+    clientKeyFile: /secrets/mqtt-certs/client.key
+EOF
+
+# Deploy using Helm
+helm upgrade --install maestro-server \
+  ./charts/maestro-server \
+  --namespace "${namespace}" \
+  --values "$values_file" \
+  --wait \
+  --timeout 5m
 
 kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=300s
 
 # TODO use maestro service health check to ensure the service ready
 sleep 30 # wait 30 seconds for the service ready
 
+if [ "$tls_enable" = "true" ]; then
+  # deploy grpc-client-token for testing
+  kubectl apply -f "${PWD}/test/setup/grpc-client" -n ${namespace}
+fi
+
 # Expose the RESTAPI and gRPC service hosts
-echo "${rest_api_schema}://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
+# HTTPS is enabled unless Istio is enabled (Istio handles mTLS)
+if [ "$enable_istio" = "true" ]; then
+  echo "http://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
+else
+  echo "https://127.0.0.1:30080" > ${PWD}/test/_output/.external_restapi_endpoint
+fi
 echo "127.0.0.1:30090" > ${PWD}/test/_output/.external_grpc_endpoint

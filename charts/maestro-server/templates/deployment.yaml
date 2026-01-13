@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: maestro
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "maestro-server.selectorLabels" . | nindent 6 }}
+  replicas: {{ .Values.replicas }}
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        {{- include "maestro-server.selectorLabels" . | nindent 8 }}
+      {{- with .Values.server.annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "maestro-server.serviceAccountName" . }}
+      volumes:
+      - name: logging-config
+        configMap:
+          name: maestro-logging-config
+          optional: true
+      - name: service
+        secret:
+          secretName: maestro
+          optional: true
+      - name: rds
+        secret:
+          secretName: {{ .Values.database.secretName }}
+      - name: {{ .Values.messageBroker.type }}
+        secret:
+          secretName: {{ .Values.messageBroker.secretName }}
+      {{- if eq .Values.messageBroker.type "mqtt" }}
+      - name: mqtt-certs
+        secret:
+          secretName: maestro-server-certs
+          optional: true
+      {{- end }}
+      {{- if eq .Values.messageBroker.type "grpc" }}
+      - name: grpc-broker-cert
+        secret:
+          secretName: maestro-grpc-broker-cert
+          optional: true
+      {{- end }}
+      {{- if .Values.server.https.enabled }}
+      - name: https-certs
+        secret:
+          secretName: maestro-https-certs
+      {{- end }}
+      {{- if .Values.server.grpc.tls.enabled }}
+      - name: maestro-grpc-cert
+        secret:
+          secretName: maestro-grpc-cert
+          optional: true
+      {{- end }}
+      initContainers:
+      {{- if .Values.database.cloudSqlProxy.enabled }}
+      - name: cloud-sql-proxy
+        restartPolicy: Always
+        image: {{ .Values.database.cloudSqlProxy.image }}
+        imagePullPolicy: IfNotPresent
+        args:
+        - "--structured-logs"
+        - "--port=5432"
+        - {{ .Values.database.cloudSqlProxy.instanceConnectionName | quote }}
+      {{- end }}
+      - name: migration
+        image: {{ include "maestro-server.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        volumeMounts:
+        - name: rds
+          mountPath: /secrets/rds
+        command:
+        - /usr/local/bin/maestro
+        - migration
+        - --db-host-file=/secrets/rds/db.host
+        - --db-port-file=/secrets/rds/db.port
+        - --db-user-file=/secrets/rds/db.user
+        - --db-password-file=/secrets/rds/db.password
+        - --db-name-file=/secrets/rds/db.name
+        {{- if eq .Values.database.sslMode "verify-full" }}
+        - --db-rootcert=/secrets/rds/db.ca_cert
+        {{- end }}
+        - --db-sslmode={{ .Values.database.sslMode }}
+        - --alsologtostderr
+        - -v={{ .Values.logging.klogV }}
+      containers:
+      - name: service
+        image: {{ include "maestro-server.image" . }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        volumeMounts:
+        - name: logging-config
+          mountPath: /configs/logging
+        - name: rds
+          mountPath: /secrets/rds
+        - name: {{ .Values.messageBroker.type }}
+          mountPath: /secrets/{{ .Values.messageBroker.type }}
+        {{- if eq .Values.messageBroker.type "mqtt" }}
+        - name: mqtt-certs
+          mountPath: /secrets/mqtt-certs
+        {{- end }}
+        {{- if eq .Values.messageBroker.type "grpc" }}
+        - name: grpc-broker-cert
+          mountPath: /secrets/grpc-broker-cert
+        {{- end }}
+        {{- if .Values.server.https.enabled }}
+        - name: https-certs
+          mountPath: /secrets/https-certs
+          readOnly: true
+        {{- end }}
+        {{- if and .Values.server.grpc.tls.enabled }}
+        - name: maestro-grpc-cert
+          mountPath: /secrets/maestro-grpc-cert
+          readOnly: true
+        {{- end }}
+        env:
+          - name: "MAESTRO_ENV"
+            value: {{ .Values.environment | quote }}
+          - name: POD_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+        command:
+        - /usr/local/bin/maestro
+        - server
+        - --client-id=maestro-$(POD_NAME)
+        - --db-host-file=/secrets/rds/db.host
+        - --db-port-file=/secrets/rds/db.port
+        - --db-user-file=/secrets/rds/db.user
+        - --db-password-file=/secrets/rds/db.password
+        - --db-name-file=/secrets/rds/db.name
+        {{- if eq .Values.database.sslMode "verify-full" }}
+        - --db-rootcert=/secrets/rds/db.ca_cert
+        {{- end }}
+        - --db-sslmode={{ .Values.database.sslMode }}
+        - --message-broker-type={{ .Values.messageBroker.type }}
+        - --message-broker-config-file=/secrets/{{ .Values.messageBroker.type }}/config.yaml
+        - --enable-https={{ .Values.server.https.enabled }}
+        {{- if .Values.server.https.enabled }}
+        - --https-cert-file=/secrets/https-certs/tls.crt
+        - --https-key-file=/secrets/https-certs/tls.key
+        {{- end }}
+        {{- if .Values.server.grpc.tls.enabled }}
+        - --grpc-tls-cert-file={{ .Values.server.grpc.tls.certFile }}
+        - --grpc-tls-key-file={{ .Values.server.grpc.tls.keyFile }}
+        - --grpc-client-ca-file={{ .Values.server.grpc.tls.clientCAFile }}
+        {{- end }}
+        {{- if and (eq .Values.messageBroker.type "grpc") .Values.messageBroker.grpc.tls.enabled }}
+        - --grpc-broker-tls-cert-file={{ .Values.messageBroker.grpc.tls.certFile }}
+        - --grpc-broker-tls-key-file={{ .Values.messageBroker.grpc.tls.keyFile }}
+        - --grpc-broker-client-ca-file={{ .Values.messageBroker.grpc.tls.clientCAFile }}
+        {{- end }}
+        - --server-hostname={{ .Values.server.hostname }}
+        - --http-server-bindport={{ .Values.server.http.bindPort }}
+        - --grpc-server-bindport={{ .Values.server.grpc.bindPort }}
+        - --health-check-server-bindport={{ .Values.server.healthCheck.bindPort }}
+        - --enable-health-check-https={{ .Values.server.https.enabled }}
+        - --db-max-open-connections={{ .Values.database.maxOpenConnections }}
+        - --enable-db-debug={{ .Values.database.debug }}
+        - --enable-metrics-https={{ .Values.server.metrics.https.enabled }}
+        - --http-read-timeout={{ .Values.server.httpReadTimeout }}
+        - --http-write-timeout={{ .Values.server.httpWriteTimeout }}
+        - --label-metrics-inclusion-duration={{ .Values.metrics.labelMetricsInclusionDuration }}
+        - --alsologtostderr
+        - -v={{ .Values.logging.klogV }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /healthcheck
+            port: {{ .Values.server.healthCheck.bindPort }}
+            scheme: {{ if .Values.server.https.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          initialDelaySeconds: 25
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /healthcheck
+            port: {{ .Values.server.healthCheck.bindPort }}
+            scheme: {{ if .Values.server.https.enabled }}HTTPS{{ else }}HTTP{{ end }}
+          initialDelaySeconds: 20
+          periodSeconds: 5

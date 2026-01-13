@@ -1,0 +1,72 @@
+# Default values for maestro-agent
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+environment: production
+
+# CRD installation control
+# Set to false if CRDs are already installed
+installWorkCRDs: true
+
+# Consumer name - identifies the agent/cluster
+consumerName: cluster1
+
+# cloudevents client Id. in rosa, only consumer name is used to create certs
+cloudeventsClientId: cluster1-work-agent
+
+# default client certificate refresh/reload duration for message broker
+clientCertRefreshDuration: 5m
+
+# Service Account configuration
+serviceAccount:
+  name: maestro-agent-sa
+  annotations: {}
+
+image:
+  registry: quay.io
+  repository: redhat-user-workloads/maestro-rhtap-tenant/maestro/maestro
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Logging configuration
+logging:
+  klogV: "2"
+
+# Message broker configuration
+messageBroker:
+  type: mqtt  # mqtt / grpc / pubsub
+
+  # MQTT configuration
+  mqtt:
+    port: "1883"
+    host: maestro-mqtt.maestro
+    user: maestro
+    password: ""
+    rootCert: ""
+    clientCert: ""
+    clientKey: ""
+    # Topics will be auto-generated based on consumerName
+
+  # gRPC configuration
+  grpc:
+    url: maestro-grpc-broker.maestro:8091
+    tls:
+      caCert: ""
+      clientCert: ""
+      clientKey: ""
+
+  # Google Cloud Pub/Sub configuration
+  pubsub:
+    projectID: ""
+    credentialsJSON: ""
+    credentialsFile: /secrets/pubsub/credentials.json
+    # Topics configuration (use full GCP resource names)
+    # Agent publishes to these topics
+    topics:
+      agentEvents: ""  # e.g., projects/my-project/topics/agentevents
+      agentBroadcast: ""  # e.g., projects/my-project/topics/agentbroadcast
+    # Subscriptions configuration (use full GCP resource names)
+    # Agent subscribes to these subscriptions
+    subscriptions:
+      sourceEvents: ""  # e.g., projects/my-project/subscriptions/sourceevents-cluster1
+      sourceBroadcast: ""  # e.g., projects/my-project/subscriptions/sourcebroadcast-cluster1

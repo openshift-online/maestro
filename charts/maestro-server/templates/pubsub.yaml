@@ -1,0 +1,32 @@
+{{- if eq .Values.messageBroker.type "pubsub" -}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.messageBroker.secretName }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+stringData:
+  config.yaml: |
+    {{- if .Values.messageBroker.pubsub.projectID }}
+    projectID: {{ .Values.messageBroker.pubsub.projectID }}
+    {{- end }}
+    {{- if .Values.messageBroker.pubsub.topics }}
+    topics:
+      {{- if .Values.messageBroker.pubsub.topics.sourceEvents }}
+      sourceEvents: {{ .Values.messageBroker.pubsub.topics.sourceEvents }}
+      {{- end }}
+      {{- if .Values.messageBroker.pubsub.topics.sourceBroadcast }}
+      sourceBroadcast: {{ .Values.messageBroker.pubsub.topics.sourceBroadcast }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.messageBroker.pubsub.subscriptions }}
+    subscriptions:
+      {{- if .Values.messageBroker.pubsub.subscriptions.agentEvents }}
+      agentEvents: {{ .Values.messageBroker.pubsub.subscriptions.agentEvents }}
+      {{- end }}
+      {{- if .Values.messageBroker.pubsub.subscriptions.agentBroadcast }}
+      agentBroadcast: {{ .Values.messageBroker.pubsub.subscriptions.agentBroadcast }}
+      {{- end }}
+    {{- end }}
+{{- end }}

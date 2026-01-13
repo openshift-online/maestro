@@ -1,0 +1,16 @@
+apiVersion: v2
+name: maestro-server
+description: Helm chart for Maestro Server - CloudEvents-based Kubernetes resource delivery system
+type: application
+version: 0.1.0
+appVersion: "latest"
+keywords:
+  - maestro
+  - cloudevents
+  - kubernetes
+  - resource-delivery
+maintainers:
+  - name: Maestro Team
+    url: https://github.com/openshift-online/maestro
+sources:
+  - https://github.com/openshift-online/maestro

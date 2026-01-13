@@ -1,0 +1,32 @@
+{{- if and (eq .Values.messageBroker.type "mqtt") .Values.messageBroker.secretName }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.messageBroker.secretName }}
+  labels:
+    {{- include "maestro-server.labels" . | nindent 4 }}
+stringData:
+  config.yaml: |
+    brokerHost: {{ .Values.messageBroker.mqtt.host }}:{{ .Values.messageBroker.mqtt.port }}
+    {{- if .Values.messageBroker.mqtt.user }}
+    username: {{ .Values.messageBroker.mqtt.user }}
+    {{- end }}
+    {{- if .Values.messageBroker.mqtt.password }}
+    password: {{ .Values.messageBroker.mqtt.password }}
+    {{- end }}
+    {{- if .Values.messageBroker.mqtt.tls.enabled }}
+    caFile: {{ .Values.messageBroker.mqtt.tls.caFile }}
+    clientCertFile: {{ .Values.messageBroker.mqtt.tls.clientCertFile }}
+    clientKeyFile: {{ .Values.messageBroker.mqtt.tls.clientKeyFile }}
+    {{- end }}
+    {{- if .Values.messageBroker.mqtt.topics }}
+    topics:
+      {{- if .Values.messageBroker.mqtt.topics.sourceEvents }}
+      sourceEvents: {{ .Values.messageBroker.mqtt.topics.sourceEvents }}
+      {{- end }}
+      {{- if .Values.messageBroker.mqtt.topics.agentEvents }}
+      agentEvents: {{ .Values.messageBroker.mqtt.topics.agentEvents }}
+      {{- end }}
+    {{- end }}
+{{- end }}

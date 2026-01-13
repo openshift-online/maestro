@@ -20,11 +20,9 @@ version:=$(shell date +%s)
 # Tag for the image:
 image_tag ?= $(version)
 
-# The namespace and the environment are calculated from the name of the user to
-# avoid clashes in shared infrastructure:
-environment:=${USER}
-namespace ?= maestro-${USER}
-agent_namespace ?= maestro-agent-${USER}
+# The namespace where maestro server and agent will be deployed.
+namespace ?= maestro
+agent_namespace ?= maestro-agent
 
 # a tool for managing containers and images, etc. You can set it as docker
 container_tool ?= podman
@@ -53,7 +51,6 @@ db_port=5432
 db_user:=maestro
 db_password:=foobar-bizz-buzz
 db_password_file=${PWD}/secrets/db.password
-db_sslmode:=disable
 db_image?=quay.io/maestro/postgres:17.2
 
 # Message broker connection details
@@ -62,58 +59,14 @@ mqtt_port ?= 1883
 mqtt_user ?= maestro
 mqtt_password_file ?= ${PWD}/secrets/mqtt.password
 mqtt_config_file ?= ${PWD}/secrets/mqtt.config
-mqtt_root_cert ?= ""
-mqtt_client_cert ?= ""
-mqtt_client_key ?= ""
 
 # Log verbosity level
 klog_v:=2
-
-# consumer name from the database. it is used by the maestro agent to identify itself
-consumer_name ?= cluster1
-
-# Client id and secret are used to interact with other UHC services
-CLIENT_ID ?= maestro
-CLIENT_SECRET ?= maestro
-
-# Enable gRPC server and disable gRPC broker by default
-ENABLE_GRPC_SERVER ?= true
-ENABLE_GRPC_BROKER ?= false
-
-# Enable TLS
-ENABLE_TLS ?= false
-
-# message driver type, mqtt or grpc, default is mqtt.
-MESSAGE_DRIVER_TYPE ?= mqtt
-
-# default replicas for maestro server
-SERVER_REPLICAS ?= 1
-
-# Enable set images
-POSTGRES_IMAGE ?= quay.io/maestro/postgres:17.2
-MQTT_IMAGE ?= quay.io/maestro/eclipse-mosquitto:2.0.18
 
 # Test output files
 unit_test_json_output ?= ${PWD}/unit-test-results.json
 mqtt_integration_test_json_output ?= ${PWD}/mqtt-integration-test-results.json
 grpc_integration_test_json_output ?= ${PWD}/grpc-integration-test-results.json
-
-# maestro services config
-maestro_svc_type ?= ClusterIP
-maestro_svc_node_port ?= 0
-grpc_svc_type ?= ClusterIP
-grpc_svc_node_port ?= 0
-
-# maestro deployment config
-liveness_probe_init_delay_seconds ?= 15
-readiness_probe_init_delay_seconds ?= 20
-
-# subscription config
-subscription_type ?= shared
-agent_topic ?= "\$$share/statussubscribers/sources/maestro/consumers/+/agentevents"
-
-# default client certificate refresh/reload duration for message broker
-broker_client_cert_refresh_duration ?= 5m
 
 # Prints a list of useful targets.
 help:
@@ -131,16 +84,18 @@ help:
 	@echo "make generate             generate openapi modules"
 	@echo "make image                build docker image"
 	@echo "make push                 push docker image"
-	@echo "make deploy               deploy via templates to local openshift instance"
-	@echo "make undeploy             undeploy from local openshift instance"
-	@echo "make project              create and use an Example project"
+	@echo "make deploy               deploy maestro server via Helm"
+	@echo "make deploy-agent         deploy maestro agent via Helm (requires consumer_name)"
+	@echo "make undeploy             undeploy maestro server"
+	@echo "make undeploy-agent       undeploy maestro agent"
+	@echo "make lint-charts          lint Helm charts"
 	@echo "make clean                delete temporary generated files"
 	@echo "$(fake)"
 .PHONY: help
 
 # Encourage consistent tool versions
 OPENAPI_GENERATOR_VERSION:=5.4.0
-GO_VERSION:=go1.24.
+GO_VERSION:=go1.25.
 
 ### Constants:
 version:=$(shell date +%s)
@@ -288,7 +243,6 @@ run/docs:
 clean:
 	rm -rf \
 		$(binary) \
-		templates/*-template.json \
 		data/generated/openapi/*.json \
 .PHONY: clean
 
@@ -302,66 +256,6 @@ cmds:
 			|| exit 1; \
 	done
 
-
-# NOTE multiline variables are a PITA in Make. To use them in `oc process` later on, we need to first
-# export them as environment variables, then use the environment variable in `oc process`
-%-template:
-	@if [ "$(ENABLE_TLS)" = "true" ]; then \
-		TEMPLATE_FILE="templates/$*-tls-template.yml"; \
-	else \
-		TEMPLATE_FILE="templates/$*-template.yml"; \
-	fi; \
-	oc process \
-		--filename="$$TEMPLATE_FILE" \
-		--local="true" \
-		--ignore-unknown-parameters="true" \
-		--param="ENVIRONMENT=$(MAESTRO_ENV)" \
-		--param="KLOG_V=$(klog_v)" \
-		--param="SERVER_REPLICAS=$(SERVER_REPLICAS)" \
-		--param="DATABASE_HOST=$(db_host)" \
-		--param="DATABASE_NAME=$(db_name)" \
-		--param="DATABASE_PASSWORD=$(db_password)" \
-		--param="DATABASE_PORT=$(db_port)" \
-		--param="DATABASE_USER=$(db_user)" \
-		--param="DB_SSLMODE=$(db_sslmode)" \
-		--param="POSTGRES_IMAGE=$(POSTGRES_IMAGE)" \
-		--param="MQTT_HOST=$(mqtt_host)" \
-		--param="MQTT_PORT=$(mqtt_port)" \
-		--param="MQTT_USER=$(mqtt_user)" \
-		--param="MQTT_PASSWORD=$(shell cat $(mqtt_password_file))" \
-		--param="MQTT_ROOT_CERT=$(mqtt_root_cert)" \
-		--param="MQTT_CLIENT_CERT=$(mqtt_client_cert)" \
-		--param="MQTT_CLIENT_KEY=$(mqtt_client_key)" \
-		--param="MQTT_IMAGE=$(MQTT_IMAGE)" \
-		--param="IMAGE_REGISTRY=$(internal_image_registry)" \
-		--param="IMAGE_REPOSITORY=$(image_repository)" \
-		--param="IMAGE_TAG=$(image_tag)" \
-		--param="VERSION=$(version)" \
-		--param="AGENT_NAMESPACE=${agent_namespace}" \
-		--param="EXTERNAL_APPS_DOMAIN=${external_apps_domain}" \
-		--param="CONSUMER_NAME=$(consumer_name)" \
-		--param="ENABLE_GRPC_SERVER=$(ENABLE_GRPC_SERVER)" \
-		--param="MESSAGE_DRIVER_TYPE"=$(MESSAGE_DRIVER_TYPE) \
-		--param="MAESTRO_SVC_TYPE"=$(maestro_svc_type) \
-		--param="MAESTRO_SVC_NODE_PORT"=$(maestro_svc_node_port) \
-		--param="GRPC_SVC_TYPE"=$(grpc_svc_type) \
-		--param="GRPC_SVC_NODE_PORT"=$(grpc_svc_node_port) \
-		--param="LIVENESS_PROBE_INIT_DELAY_SECONDS"=$(liveness_probe_init_delay_seconds) \
-		--param="READINESS_PROBE_INIT_DELAY_SECONDS"=$(readiness_probe_init_delay_seconds) \
-		--param="SUBSCRIPTION_TYPE"=$(subscription_type) \
-		--param="AGENT_TOPIC"=$(agent_topic) \
-		--param="BROKER_CLIENT_CERT_REFRESH_DURATION"=$(broker_client_cert_refresh_duration) \
-	> "templates/$*-template.json"
-
-
-.PHONY: project
-project:
-	$(oc) new-project "$(namespace)" || $(oc) project "$(namespace)" || true
-
-.PHONY: agent-project
-agent-project:
-	$(oc) new-project "$(agent_namespace)" || $(oc) project "$(agent_namespace)" || true
-
 .PHONY: image
 image: cmds
 	$(container_tool) build -t "$(external_image_registry)/$(image_repository):$(image_tag)" .
@@ -371,50 +265,44 @@ e2e-image:
 	$(container_tool) build -f Dockerfile.e2e -t "$(external_image_registry)/$(image_repository)-e2e:$(image_tag)" .
 
 .PHONY: push
-push: image project
+push: image
 	$(container_tool) push "$(external_image_registry)/$(image_repository):$(image_tag)"
 
-deploy-%: project %-template
-	$(oc) apply -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'configured|$$'
-
-undeploy-%: project %-template
-	$(oc) delete -n $(namespace) --filename="templates/$*-template.json" | egrep --color=auto 'deleted|$$'
-
-.PHONY: deploy-agent
-deploy-agent: agent-project agent-template
-	$(oc) apply -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'configured|$$'
-
-.PHONY: undeploy-agent
-undeploy-agent: agent-project agent-template
-	$(oc) delete -n $(agent_namespace) --filename="templates/agent-template.json" | egrep --color=auto 'deleted|$$'
-
-.PHONY: template
-template: \
-	db-template \
-	mqtt-template \
-	service-template \
-	route-template \
-	$(NULL)
-
-# Depending on `template` first helps clustering the "foo configured", "bar unchanged",
-# "baz deleted" messages at the end, after all the noisy templating.
+# Deploy Maestro server using Helm charts
 .PHONY: deploy
-deploy: \
-	template \
-	deploy-db \
-	deploy-mqtt \
-	deploy-service \
-	deploy-route \
-	$(NULL)
+deploy:
+	helm upgrade --install maestro-server \
+		./charts/maestro-server \
+		--namespace $(namespace) \
+		--create-namespace \
+		--set mqtt.enabled=true \
+		--set route.enabled=true \
+		--set postgresql.enabled=true
 
+# Undeploy Maestro server using Helm charts
 .PHONY: undeploy
-undeploy: \
-	template \
-	undeploy-db \
-	undeploy-mqtt \
-	undeploy-service \
-	undeploy-route \
-	$(NULL)
+undeploy:
+	helm uninstall maestro-server --namespace $(namespace) || true
+
+# Deploy Maestro agent using Helm charts
+# Optional: Set install_work_crds=true to install CRDs (default: false to skip if already exists)
+.PHONY: deploy-agent
+deploy-agent:
+	@if [ -z "$(consumer_name)" ]; then \
+		echo "Error: consumer_name must be set"; \
+		exit 1; \
+	fi
+	helm upgrade --install maestro-agent \
+		./charts/maestro-agent \
+		--namespace $(agent_namespace) \
+		--create-namespace \
+		--set consumerName=$(consumer_name) \
+		--set installWorkCRDs=$(if $(install_work_crds),$(install_work_crds),false)
+
+# Undeploy Maestro agent using Helm charts
+.PHONY: undeploy-agent
+undeploy-agent:
+	helm uninstall maestro-agent --namespace $(agent_namespace) || true
 
 .PHONY: db/setup
 db/setup:
@@ -457,12 +345,12 @@ test-env/setup:
 	./test/setup/env_setup.sh
 .PHONY: test-env/setup
 
-# Deploy the Maestro server component to the test environment
+# Deploy the Maestro server component to the test environment using Helm
 test-env/deploy-server:
 	./test/setup/deploy_server.sh
 .PHONY: test-env/deploy-server
 
-# Deploy the Maestro agent component to the test environment
+# Deploy the Maestro agent component to the test environment using Helm
 # Configures agent to connect to the deployed server
 test-env/deploy-agent:
 	./test/setup/deploy_agent.sh
@@ -474,7 +362,7 @@ test-env/cleanup:
 	./test/setup/env_cleanup.sh
 .PHONY: test-env/cleanup
 
-# Prepare the test environment
+# Prepare the test environment using Helm charts
 test-env: test-env/cleanup test-env/setup test-env/deploy-server test-env/deploy-agent
 .PHONY: test-env
 
@@ -505,6 +393,7 @@ e2e-test/run:
 # Example:
 #   make e2e-test
 #   ENABLE_MAESTRO_TLS=true make e2e-test
+# NOTE: Uses Helm charts for deployment
 e2e-test: test-env e2e-test/run
 .PHONY: e2e-test
 
@@ -522,3 +411,29 @@ endif
 upgrade-test: test-env/cleanup test-env/setup
 	./test/upgrade/test.sh
 .PHONY: upgrade-test
+
+# ==============================================================================
+# Helm Chart Utility Targets
+# ==============================================================================
+
+# Lint all Helm charts
+lint-charts:
+	helm lint charts/maestro-server
+	helm lint charts/maestro-agent
+.PHONY: lint-charts
+
+# Package all Helm charts
+package-charts:
+	helm package charts/maestro-server -d charts/
+	helm package charts/maestro-agent -d charts/
+.PHONY: package-charts
+
+# Render maestro-server chart templates (dry-run)
+template-server:
+	helm template maestro-server ./charts/maestro-server --namespace $(namespace)
+.PHONY: template-server
+
+# Render maestro-agent chart templates (dry-run)
+template-agent:
+	helm template maestro-agent ./charts/maestro-agent --namespace $(agent_namespace)
+.PHONY: template-agent
