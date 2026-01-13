@@ -42,30 +42,40 @@ reducing the need for direct access to clusters.
 
 ## Run in Local Environment
 
-### Make a build, run postgres and mqtt broker
+### Make a build, run postgres and message broker (MQTT or Pub/Sub)
 
 ```shell
 
 # 1. build the project
 
-$ go install gotest.tools/gotestsum@latest  
+$ go install gotest.tools/gotestsum@latest
 $ make binary
 
-# 2. run a postgres database locally in docker 
+# 2. run a postgres database locally in docker
 
 $ make db/setup
 $ make db/login
-        
+
     root@f076ddf94520:/# psql -h localhost -U maestro maestro
     psql (14.4 (Debian 14.4-1.pgdg110+1))
     Type "help" for help.
-    
+
     maestro=# \dt
     Did not find any relations.
 
-# 3. run a mqtt broker locally in docker
+# 3a. run a MQTT broker locally in docker
 
 $ make mqtt/setup
+
+# OR
+
+# 3b. run a Pub/Sub emulator locally in docker
+
+$ make pubsub/setup
+
+# Initialize topics and subscriptions in the emulator
+# Note: Requires google-cloud-pubsub Python package (pip3 install google-cloud-pubsub)
+$ make pubsub/init
 ```
 
 ### Run database migrations
@@ -101,7 +111,12 @@ maestro=# \dt
 ### Running the Service
 
 ```shell
+# Run with MQTT broker (default)
 $ make run
+
+# OR run with Pub/Sub emulator
+# First, ensure the Pub/Sub emulator is running and configured
+$ MESSAGE_DRIVER_TYPE=pubsub make run
 ```
 
 #### List the consumers

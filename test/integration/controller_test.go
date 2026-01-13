@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/gomega"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/openshift-online/maestro/cmd/maestro/server"
@@ -417,12 +418,30 @@ func TestStatusControllerSync(t *testing.T) {
 	eventInstanceDao := dao.NewEventInstanceDao(&h.Env().Database.SessionFactory)
 
 	// prepare instances
-	if _, err := instanceDao.Get(ctx, "maestro"); err != nil && errors.Is(err, gorm.ErrRecordNotFound) {
-		// create a new instance if not found
-		if _, err := instanceDao.Create(ctx, &api.ServerInstance{
-			Meta: api.Meta{ID: "maestro"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
-			t.Fatal(err)
+	// Wrap the check and create in a transaction to avoid race conditions
+	err := h.Env().Database.SessionFactory.New(ctx).Transaction(func(tx *gorm.DB) error {
+		var instance api.ServerInstance
+		result := tx.Where("id = ?", "maestro").First(&instance)
+
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			// create a new instance if not found
+			newInstance := &api.ServerInstance{
+				Meta:          api.Meta{ID: "maestro"},
+				Ready:         true,
+				LastHeartbeat: time.Now(),
+			}
+			// best-effort insert; ignore if another tx inserts first
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(newInstance).Error; err != nil {
+				return err
+			}
+		} else if result.Error != nil {
+			return result.Error
 		}
+
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	if _, err := instanceDao.Create(ctx, &api.ServerInstance{
 		Meta: api.Meta{ID: "i1"}, Ready: true, LastHeartbeat: time.Now()}); err != nil {
