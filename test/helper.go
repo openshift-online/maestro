@@ -312,7 +312,7 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 	var brokerConfig any
 	switch helper.Broker {
 	case "mqtt":
-		// initilize the mqtt options
+		// initialize the mqtt options
 		mqttOptions, err := mqtt.BuildMQTTOptionsFromFlags(helper.Env().Config.MessageBroker.MessageBrokerConfig)
 		if err != nil {
 			log.Fatalf("Unable to build MQTT options: %s", err.Error())
@@ -323,14 +323,14 @@ func (helper *Helper) StartWorkAgent(ctx context.Context, clusterName string) {
 		if !exists {
 			log.Fatalf("Unable to find pubsub config for consumer %s", clusterName)
 		}
-		// initilize the pubsub options
+		// initialize the pubsub options
 		pubsubOptions, err := pubsub.BuildPubSubOptionsFromFlags(configPath)
 		if err != nil {
 			log.Fatalf("Unable to build pubsub options: %s", err.Error())
 		}
 		brokerConfig = pubsubOptions
 	default:
-		// initilize the grpc options
+		// initialize the grpc options
 		grpcOptions := &grpcoptions.GRPCOptions{Dialer: &grpcoptions.GRPCDialer{}}
 		grpcOptions.Dialer.URL = fmt.Sprintf("%s:%s", helper.Env().Config.HTTPServer.Hostname, helper.Env().Config.GRPCServer.BrokerBindPort)
 		brokerConfig = grpcOptions
