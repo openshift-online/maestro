@@ -1,0 +1,94 @@
+{{- if .Values.pubsubEmulator.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.pubsubEmulator.service.name }}-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/component: pubsub-init
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pubsub-init
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: init
+          image: registry.access.redhat.com/ubi9/python-311
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PUBSUB_EMULATOR_HOST
+              value: "{{ .Values.pubsubEmulator.service.name }}:{{ .Values.pubsubEmulator.service.port }}"
+            - name: PUBSUB_PROJECT_ID
+              value: "{{ .Values.pubsubEmulator.projectID }}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Installing google-cloud-pubsub..."
+              pip install --quiet google-cloud-pubsub==2.34.0
+
+              echo "Initializing Pub/Sub topics and subscriptions..."
+              python3 <<'PYTHON'
+              import os
+              from google.cloud import pubsub_v1
+              from google.api_core import exceptions
+
+              project_id = os.environ['PUBSUB_PROJECT_ID']
+
+              # Create publisher and subscriber clients
+              publisher = pubsub_v1.PublisherClient()
+              subscriber = pubsub_v1.SubscriberClient()
+
+              # Topics to create
+              topics = ['sourceevents', 'sourcebroadcast', 'agentevents', 'agentbroadcast']
+
+              # Create topics
+              for topic_name in topics:
+                topic_path = publisher.topic_path(project_id, topic_name)
+                try:
+                  publisher.create_topic(request={"name": topic_path})
+                  print(f"Created topic: {topic_path}")
+                except exceptions.AlreadyExists:
+                  print(f"Topic already exists: {topic_path}")
+                except Exception as e:
+                  print(f"Error creating topic {topic_path}: {e}")
+                  raise
+
+              # Subscriptions to create (name:topic:filter)
+              subscriptions = [
+                ('agentevents-maestro', 'agentevents', 'attributes.ce-originalsource="maestro"'),
+                ('agentbroadcast-maestro', 'agentbroadcast', '')
+              ]
+
+              # Create subscriptions
+              for sub_name, topic_name, filter_expr in subscriptions:
+                subscription_path = subscriber.subscription_path(project_id, sub_name)
+                topic_path = publisher.topic_path(project_id, topic_name)
+                try:
+                  if filter_expr:
+                    subscriber.create_subscription(
+                      request={"name": subscription_path, "topic": topic_path, "filter": filter_expr}
+                    )
+                    print(f"Created subscription: {subscription_path} with filter: {filter_expr}")
+                  else:
+                    subscriber.create_subscription(
+                      request={"name": subscription_path, "topic": topic_path}
+                    )
+                    print(f"Created subscription: {subscription_path}")
+                except exceptions.AlreadyExists:
+                  print(f"Subscription already exists: {subscription_path}")
+                except Exception as e:
+                  print(f"Error creating subscription {subscription_path}: {e}")
+                  raise
+
+              print("Pub/Sub initialization complete!")
+              PYTHON
+{{- end }}

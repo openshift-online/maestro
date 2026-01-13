@@ -128,6 +128,33 @@ jobs:
           SERVER_REPLICAS: 2
           MESSAGE_DRIVER_TYPE: grpc
           ENABLE_MAESTRO_TLS: true
+  e2e-pubsub:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check initial disk usage
+        run: df -h /
+      - name: Free disk space (optional cleanup)
+        run: |
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /opt/hostedtoolcache
+          docker system prune -af
+          df -h /
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+      - name: install ginkgo
+        run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
+      - name: Test E2E
+        run: |
+          make e2e-test
+        env:
+          container_tool: docker
+          SERVER_REPLICAS: 2
+          MESSAGE_DRIVER_TYPE: pubsub
+          ENABLE_MAESTRO_TLS: true
   upgrade:
     runs-on: ubuntu-22.04
     steps:

@@ -110,6 +110,22 @@ EOF
   fi
 fi
 
+# Configure pubsub settings
+if [ "$msg_broker" = "pubsub" ]; then
+  cat >> "$values_file" <<EOF
+  pubsub:
+    projectID: maestro-test
+    endpoint: maestro-pubsub.${namespace}:8085
+    disableTLS: true
+    topics:
+      agentEvents: projects/maestro-test/topics/agentevents
+      agentBroadcast: projects/maestro-test/topics/agentbroadcast
+    subscriptions:
+      sourceEvents: projects/maestro-test/subscriptions/sourceevents-${consumer_name}
+      sourceBroadcast: projects/maestro-test/subscriptions/sourcebroadcast-${consumer_name}
+EOF
+fi
+
 # Deploy using Helm
 helm upgrade --install maestro-agent \
   ./charts/maestro-agent \
