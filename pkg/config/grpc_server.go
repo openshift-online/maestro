@@ -32,6 +32,7 @@ type GRPCServerConfig struct {
 	ServerPingTimeout       time.Duration `json:"server_ping_timeout"`
 	PermitPingWithoutStream bool          `json:"permit_ping_without_stream"`
 	HeartbeatCheckInterval  time.Duration `json:"heartbeatCheckInterval"`
+	HeartbeatDisable        bool          `json:"heartbeat_disable"`
 }
 
 func NewGRPCServerConfig() *GRPCServerConfig {
@@ -64,4 +65,5 @@ func (s *GRPCServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.ClientCAFile, "grpc-client-ca-file", "", "The path to the client ca file, must specify if using mtls authentication type")
 	fs.StringVar(&s.BrokerClientCAFile, "grpc-broker-client-ca-file", "", "The path to the broker client ca file")
 	fs.DurationVar(&s.HeartbeatCheckInterval, "heartbeat-check-interval", 10*time.Second, "Duration the server send heartbeat messages")
+	fs.BoolVar(&s.HeartbeatDisable, "heartbeat-disable", false, "Disable heartbeat messages from server to clients")
 }

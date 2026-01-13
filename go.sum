@@ -397,8 +397,8 @@ github.com/onsi/ginkgo/v2 v2.27.3 h1:ICsZJ8JoYafeXFFlFAG75a7CxMsJHwgKwtO+82SE9L8
 github.com/onsi/ginkgo/v2 v2.27.3/go.mod h1:ArE1D/XhNXBXCBkKOLkbsb2c81dQHCRcF5zwn/ykDRo=
 github.com/onsi/gomega v1.4.3/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
 github.com/onsi/gomega v1.7.0/go.mod h1:ex+gbHU/CVuBBDIJjb2X0qEXbFg53c61hWP/1CpauHY=
-github.com/onsi/gomega v1.38.3 h1:eTX+W6dobAYfFeGC2PV6RwXRu/MyT+cQguijutvkpSM=
-github.com/onsi/gomega v1.38.3/go.mod h1:ZCU1pkQcXDO5Sl9/VVEGlDyp+zm0m1cmeG5TOzLgdh4=
+github.com/onsi/gomega v1.39.0 h1:y2ROC3hKFmQZJNFeGAMeHZKkjBL65mIZcvrLQBF9k6Q=
+github.com/onsi/gomega v1.39.0/go.mod h1:ZCU1pkQcXDO5Sl9/VVEGlDyp+zm0m1cmeG5TOzLgdh4=
 github.com/openshift-online/ocm-api-model/clientapi v0.0.440 h1:BGWikczo8UuSvzEkoTf6q9iodg/pC7ibfvn5bvuD5c0=
 github.com/openshift-online/ocm-api-model/clientapi v0.0.440/go.mod h1:fZwy5HY2URG9nrExvQeXrDU/08TGqZ16f8oymVEN5lo=
 github.com/openshift-online/ocm-api-model/model v0.0.440 h1:sfi+fEw3ORh32keJdkE7ZA0g1uCBf457dRg6Qs8yJ6s=
@@ -828,10 +828,10 @@ k8s.io/utils v0.0.0-20250604170112-4c0f3b243397 h1:hwvWFiBzdWw1FhfY1FooPn3kzWuJ8
 k8s.io/utils v0.0.0-20250604170112-4c0f3b243397/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 open-cluster-management.io/api v1.1.1-0.20260108015315-68cef17a0643 h1:eA/8UpvFuWr79O7/aAT4bcx/tVG9kkl7+4u9o9dRShM=
 open-cluster-management.io/api v1.1.1-0.20260108015315-68cef17a0643/go.mod h1:YcmA6SpGEekIMxdoeVIIyOaBhMA6ImWRLXP4g8n8T+4=
-open-cluster-management.io/ocm v1.1.1-0.20260108015314-635b0ff7e9cf h1:J7t6GhW++DkOfpHEdqQQLP8EVdgDh4cg3248YzcmPPo=
-open-cluster-management.io/ocm v1.1.1-0.20260108015314-635b0ff7e9cf/go.mod h1:dIjBV+mixDX9Ce1zFvRoOTYT3p1IJ5C9BT7qSSaWI+M=
-open-cluster-management.io/sdk-go v1.1.1-0.20260108080638-c607eaaa5d12 h1:WZrNXgDKxAneVjiiNf0b3ApOyjuEgBcz2akw6vYVxJ8=
-open-cluster-management.io/sdk-go v1.1.1-0.20260108080638-c607eaaa5d12/go.mod h1:4haPv/uuKqQ3gxi62/PPknlrUFi132ga0KYLwj5tpx0=
+open-cluster-management.io/ocm v1.1.1-0.20260112054407-532b09a44026 h1:/iEIzl+t3B+5CCm/DKM7rI/TGKhhv+K8KJYCC+LByJQ=
+open-cluster-management.io/ocm v1.1.1-0.20260112054407-532b09a44026/go.mod h1:2ToFX//FL/tQuKPdPTegx6D0PYhjyU38AxRdwow+dWs=
+open-cluster-management.io/sdk-go v1.1.1-0.20260112054941-b6c1a665df1b h1:r5U3cDh6kuBmzKnAUqeoYPwwVU/VS9udvpcDEkxh6g4=
+open-cluster-management.io/sdk-go v1.1.1-0.20260112054941-b6c1a665df1b/go.mod h1:4haPv/uuKqQ3gxi62/PPknlrUFi132ga0KYLwj5tpx0=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 h1:jpcvIRr3GLoUoEKRkHKSmGjxb6lWwrBlJsXc+eUYQHM=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2/go.mod h1:Ve9uj1L+deCXFrPOk1LpFXqTg7LCFzFso6PA48q/XZw=
 sigs.k8s.io/controller-runtime v0.22.4 h1:GEjV7KV3TY8e+tJ2LCTxUTanW4z/FmNB7l327UfMq9A=

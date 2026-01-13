@@ -184,7 +184,10 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 
 	// TODO after the sdk go support source grpc server
 	grpcServer := grpc.NewServer(grpcServerOptions...)
-	eventServer := servergrpc.NewGRPCBroker()
+	eventServer := servergrpc.NewGRPCBroker(&servergrpc.BrokerOptions{
+		HeartbeatDisabled:      config.HeartbeatDisable,
+		HeartbeatCheckInterval: config.HeartbeatCheckInterval,
+	})
 	pbv1.RegisterCloudEventServiceServer(grpcServer, eventServer)
 	svc := NewGRPCBrokerService(resourceService, statusEventService)
 	eventServer.RegisterService(context.Background(), workpayload.ManifestBundleEventDataType, svc)

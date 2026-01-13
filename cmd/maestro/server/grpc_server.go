@@ -43,6 +43,7 @@ type GRPCServer struct {
 	grpcAuthorizer         grpcauthorizer.GRPCAuthorizer
 	bindAddress            string
 	heartbeatCheckInterval time.Duration
+	heartbeatDisable       bool
 }
 
 // NewGRPCServer creates a new GRPCServer
@@ -143,6 +144,7 @@ func NewGRPCServer(
 		grpcAuthorizer:         grpcAuthorizer,
 		bindAddress:            env().Config.HTTPServer.Hostname + ":" + config.ServerBindPort,
 		heartbeatCheckInterval: config.HeartbeatCheckInterval,
+		heartbeatDisable:       config.HeartbeatDisable,
 	}
 }
 
@@ -346,29 +348,31 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		return nil
 	})
 
-	go func() {
-		ticker := time.NewTicker(svr.heartbeatCheckInterval)
-		defer ticker.Stop()
+	if !svr.heartbeatDisable {
+		go func() {
+			ticker := time.NewTicker(svr.heartbeatCheckInterval)
+			defer ticker.Stop()
 
-		for {
-			select {
-			case <-ticker.C:
-				heartbeat := &pbv1.CloudEvent{
-					SpecVersion: "1.0",
-					Id:          uuid.New().String(),
-					Type:        types.HeartbeatCloudEventsType,
-				}
-
+			for {
 				select {
-				case heartbeatCh <- heartbeat:
-				default:
-					logger.Info("send channel is full, dropping heartbeat")
+				case <-ticker.C:
+					heartbeat := &pbv1.CloudEvent{
+						SpecVersion: "1.0",
+						Id:          uuid.New().String(),
+						Type:        types.HeartbeatCloudEventsType,
+					}
+
+					select {
+					case heartbeatCh <- heartbeat:
+					default:
+						logger.Info("send channel is full, dropping heartbeat")
+					}
+				case <-ctx.Done():
+					return
 				}
-			case <-ctx.Done():
-				return
 			}
-		}
-	}()
+		}()
+	}
 
 	select {
 	case err := <-sendErrCh:
