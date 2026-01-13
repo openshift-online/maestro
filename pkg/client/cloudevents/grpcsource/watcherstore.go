@@ -73,7 +73,7 @@ func newRESTFulAPIWatcherStore(ctx context.Context,
 
 // GetWatcher returns a watcher to the source work client with a specified namespace (consumer name).
 // Using `metav1.NamespaceAll` to specify all namespaces.
-func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOptions) (watch.Interface, error) {
+func (m *RESTFulAPIWatcherStore) GetWatcher(ctx context.Context, namespace string, opts metav1.ListOptions) (watch.Interface, error) {
 	// Only list works from maestro server with the given namespace when a watcher is required
 	labelSelector, labelSearch, selectable, err := ToLabelSearch(opts)
 	if err != nil {
@@ -90,12 +90,12 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 	}
 
 	// for watch, we need list all works with the search condition from maestro server
-	rbs, _, err := PageList(m.ctx, m.logger, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
+	rbs, _, err := PageList(ctx, m.logger, m.apiClient, strings.Join(searches, " and "), metav1.ListOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	watcher := m.registerWatcher(namespace, labelSelector)
+	watcher := m.registerWatcher(ctx, namespace, labelSelector)
 
 	// save the works to a queue
 	for _, rb := range rbs.Items {
@@ -104,7 +104,7 @@ func (m *RESTFulAPIWatcherStore) GetWatcher(namespace string, opts metav1.ListOp
 			return nil, err
 		}
 
-		m.logger.Debug(m.ctx, "enqueue the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
+		m.logger.Debug(ctx, "enqueue the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
 		if err := m.workQueue.Add(work); err != nil {
 			return nil, err
 		}
@@ -125,11 +125,11 @@ func (m *RESTFulAPIWatcherStore) HandleReceivedResource(ctx context.Context, wor
 }
 
 // Get a work from maestro server with its namespace and name
-func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWork, bool, error) {
+func (m *RESTFulAPIWatcherStore) Get(ctx context.Context, namespace, name string) (*workv1.ManifestWork, bool, error) {
 	id := utils.UID(m.sourceID, common.ManifestWorkGR.String(), namespace, name)
 
-	req := m.apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(m.ctx, id)
-	if operationID := maestrologger.GetOperationID(m.ctx); operationID != "" {
+	req := m.apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, id)
+	if operationID := maestrologger.GetOperationID(ctx); operationID != "" {
 		req = req.XOperationID(operationID)
 	}
 
@@ -147,13 +147,13 @@ func (m *RESTFulAPIWatcherStore) Get(namespace, name string) (*workv1.ManifestWo
 		return nil, false, err
 	}
 
-	m.logger.Debug(m.ctx, "get the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
+	m.logger.Debug(ctx, "get the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
 	return work, true, nil
 }
 
 // List works from maestro server with a specified namespace and list options.
 // Using `metav1.NamespaceAll` to specify all namespace.
-func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions) (*store.ResourceList[*workv1.ManifestWork], error) {
+func (m *RESTFulAPIWatcherStore) List(ctx context.Context, namespace string, opts metav1.ListOptions) (*store.ResourceList[*workv1.ManifestWork], error) {
 	works := []*workv1.ManifestWork{}
 
 	_, labelSearch, selectable, err := ToLabelSearch(opts)
@@ -170,7 +170,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 		searches = append(searches, labelSearch)
 	}
 
-	rbs, nextPage, err := PageList(m.ctx, m.logger, m.apiClient, strings.Join(searches, " and "), opts)
+	rbs, nextPage, err := PageList(ctx, m.logger, m.apiClient, strings.Join(searches, " and "), opts)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 			return nil, err
 		}
 
-		m.logger.Debug(m.ctx, "list the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
+		m.logger.Debug(ctx, "list the work %s/%s (source=%s)", work.Namespace, work.Name, m.sourceID)
 		works = append(works, work)
 	}
 
@@ -191,7 +191,7 @@ func (m *RESTFulAPIWatcherStore) List(namespace string, opts metav1.ListOptions)
 	}, nil
 }
 
-func (m *RESTFulAPIWatcherStore) ListAll() ([]*workv1.ManifestWork, error) {
+func (m *RESTFulAPIWatcherStore) ListAll(ctx context.Context) ([]*workv1.ManifestWork, error) {
 	// for RESTFulAPIWatcherStore, this will not be called by manifestwork client, do nothing
 	return nil, nil
 }
@@ -223,6 +223,8 @@ func (m *RESTFulAPIWatcherStore) Sync() error {
 		// there are no watchers, do nothing
 		return nil
 	}
+
+	m.logger.Info(m.ctx, "sync the works for current watchers (source=%s)", m.sourceID)
 
 	namespaces := []string{}
 	for namespace := range m.watchers {
@@ -284,7 +286,7 @@ func (m *RESTFulAPIWatcherStore) process() {
 	}
 }
 
-func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string, labelSelector labels.Selector) watch.Interface {
+func (m *RESTFulAPIWatcherStore) registerWatcher(ctx context.Context, namespace string, labelSelector labels.Selector) watch.Interface {
 	m.Lock()
 	defer m.Unlock()
 
@@ -293,8 +295,8 @@ func (m *RESTFulAPIWatcherStore) registerWatcher(namespace string, labelSelector
 		return watcher
 	}
 
-	watcher = newWorkWatcher(m.ctx, m.logger, m.sourceID, namespace, labelSelector)
-	m.logger.Info(m.ctx, "register watcher %s/%s", m.sourceID, namespace)
+	watcher = newWorkWatcher(ctx, m.logger, m.sourceID, namespace, labelSelector)
+	m.logger.Info(ctx, "register watcher %s/%s", m.sourceID, namespace)
 	m.watchers[namespace] = watcher
 	sourceClientRegisteredWatchersGaugeMetric.WithLabelValues(m.sourceID, namespace).Inc()
 	return watcher

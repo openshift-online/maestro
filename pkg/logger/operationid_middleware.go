@@ -9,27 +9,29 @@ import (
 	"github.com/segmentio/ksuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"k8s.io/klog/v2"
+	sdkgologging "open-cluster-management.io/sdk-go/pkg/logging"
 )
 
-type OperationIDKey string
-
-const OpIDKey OperationIDKey = "opID"
-const OpIDHeader OperationIDKey = "X-Operation-ID"
+const OpIDKey = sdkgologging.ContextTracingOPIDKey
+const OpIDHeader string = "X-Operation-ID"
 
 // Middleware wraps the given HTTP handler so that the details of the request are sent to the log.
 func OperationIDMiddleware(handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		// Get operation ID from request header if existed
-		opID := r.Header.Get(string(OpIDHeader))
+		opID := r.Header.Get(OpIDHeader)
 		if opID != "" {
 			// Add operationID to context (override if existed)
 			ctx = context.WithValue(ctx, OpIDKey, opID)
 		} else {
 			// If no operationID from header, get it from context or generate a new one
 			ctx = WithOpID(r.Context())
-			opID, _ := ctx.Value(OpIDKey).(string)
-			w.Header().Set(string(OpIDHeader), opID)
+			opID, _ = ctx.Value(OpIDKey).(string)
+			// Set the generated operation ID in the request header for consistency
+			r.Header.Set(OpIDHeader, opID)
 		}
 
 		// Add operationID attribute to span
@@ -43,6 +45,9 @@ func OperationIDMiddleware(handler http.Handler) http.Handler {
 			})
 		}
 
+		// Add operationID to logger so it appears in all log messages
+		logger := klog.FromContext(ctx).WithValues(OpIDKey, opID)
+		ctx = klog.NewContext(ctx, logger)
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

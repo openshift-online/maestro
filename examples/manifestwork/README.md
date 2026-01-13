@@ -1,114 +1,248 @@
-# gRPC Source ManifestWork Client
+# MaestroGRPCSourceWorkClient
 
-This example shows how to build a source ManifestWork client with Maestro gRPC service and watch/get/list/create/patch/delete works by this client.
+This example shows how to build a `MaestroGRPCSourceWorkClient` with Maestro gRPC service and watch/get/list/create/patch/delete ManifestWorks.
 
-## Build the client
+## Programmatic Usage
+
+### Build the MaestroGRPCSourceWorkClient
 
 ```golang
 sourceID := "mw-client-example"
 
 workClient, err := grpcsource.NewMaestroGRPCSourceWorkClient(
-	ctx,
-	maestroAPIClient,
-	maestroGRPCOptions,
-	sourceID,
+  ctx,
+  logger,
+  maestroAPIClient,
+  maestroGRPCOptions,
+  sourceID,
 )
 
 if err != nil {
-		log.Fatal(err)
+  log.Fatal(err)
 }
 
 // watch/get/list/create/patch/delete by workClient
 ```
 
-## List works
+### Paginated List Example
 
-The `List` of the gRPC source ManifestWork client supports to paging list works, this will help to list the works when there are a lot of works in the maestro sever, e.g.
+The `List` operation supports pagination, which is useful when there are many works in Maestro:
 
 ```golang
-
 workClient, err := ...
 
-// There are 2500 works in the maestro, we will list these works with paging
+// Example: List 2500 works with pagination (1000 per page)
 
-// First list: this will return 1000 (this is controlled by `ListOptions.Limit`) works and
-// with a next page (2) in the `workList.ListMeta.Continue`
+// First page: returns 1000 works and a continuation token
 workList, err := workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		Limit: 1000
+  Limit: 1000
 })
 if err != nil {
   log.Fatal(err)
 }
 
-// Second list: we list works with last returned `ListMeta.Continue`, this will also return
-// 1000 works and with a next page (3) in the `workList.ListMeta.Continue`
+// Second page: returns next 1000 works
 workList, err = workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		Limit: 1000,
-    Continue: workList.ListMeta.Continue,
+  Limit: 1000,
+  Continue: workList.ListMeta.Continue,
 })
 if err != nil {
   log.Fatal(err)
 }
 
-// Third list: we also list works with last returned `ListMeta.Continue`, this will return
-// all remaining works (500) and the `workList.ListMeta.Continue` will be empty
+// Third page: returns remaining 500 works, Continue will be empty
 workList, err = workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-		Limit: 1000,
-    Continue: workList.ListMeta.Continue,
+  Limit: 1000,
+  Continue: workList.ListMeta.Continue,
 })
 if err != nil {
   log.Fatal(err)
 }
 ```
 
+## Command-line Client (client.go)
 
-## Run the example
+The example `client.go` provides a command-line interface for all ManifestWork operations.
 
-1. Run `make test-env` to prepare the environment
+### Usage
 
-2. Run the client-a `go run examples/manifestwork/client-a/main.go --consumer-name=$(cat test/e2e/.consumer_name)` to watch the status of works in a terminal
+```bash
+go run examples/manifestwork/client.go <command> [arguments]
 
-3. Run the client-b `go run examples/manifestwork/client-b/main.go --consumer-name=$(cat test/e2e/.consumer_name)` to create/get/update/delete work in another new terminal
+Commands:
+  get <work-name>           Get a specific manifestwork
+  list                      List all manifestworks
+  apply <manifestwork-file> Create or update a manifestwork from a JSON file
+  delete <work-name>        Delete a manifestwork
+  watch                     Watch for manifestwork changes
 
-The output of the client-b
-
+Common Flags:
+  --consumer-name string                 The Consumer Name (required)
+  --maestro-server string                The maestro server address (default "http://127.0.0.1:30080")
+  --grpc-server string                   The grpc server address (default "127.0.0.1:30090")
+  --source string                        The source ID for manifestwork client (default "mw-client-example")
+  --grpc-server-ca-file string           The CA certificate for grpc server
+  --grpc-client-cert-file string         The client certificate to access grpc server
+  --grpc-client-key-file string          The client key to access grpc server
+  --grpc-client-token-file string        The client token to access grpc server
+  --server-healthiness-timeout duration  The server healthiness timeout (default 20s)
+  --print-work-details                   Print detailed work information (for watch command)
 ```
-the work 432999ad-b13e-4f24-8c0b-ceca24ad79ba/work-dpfqk (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is created
-the work 432999ad-b13e-4f24-8c0b-ceca24ad79ba/work-dpfqk (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is updated
-the work 432999ad-b13e-4f24-8c0b-ceca24ad79ba/work-dpfqk (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is deleted
+
+### ManifestWork JSON File
+
+Before creating a manifestwork, review the [manifestwork.json](./manifestwork.json) file. You can modify it as needed.
+
+**Important notes about supported features:**
+- **Deletion options**: Only `Foreground` and `Orphan` propagation policies are verified. Others may not work.
+- **Update strategy**: `ServerSideApply`, `Update`, `CreateOnly`, and `ReadOnly` are verified. Others are not guaranteed.
+
+See the full [ManifestWork API](https://github.com/open-cluster-management-io/api/blob/main/work/v1/types.go) for all available options.
+
+### Quick Start (Local Development)
+
+Use this method when running Maestro locally with `make test-env`:
+
+1. **Prepare the environment:**
+   ```bash
+   make test-env
+   ```
+
+2. **Watch for work changes:**
+   ```bash
+   go run examples/manifestwork/client.go watch \
+     --consumer-name=$(cat test/_output/.consumer_name) \
+     --print-work-details \
+     --insecure-skip-verify
+   ```
+
+3. **Apply a manifestwork from file:**
+   ```bash
+   go run examples/manifestwork/client.go apply examples/manifestwork/manifestwork.json \
+     --consumer-name=$(cat test/_output/.consumer_name) \
+     --insecure-skip-verify
+   ```
+
+4. **List all works:**
+   ```bash
+   go run examples/manifestwork/client.go list \
+     --consumer-name=$(cat test/_output/.consumer_name) \
+     --insecure-skip-verify
+   ```
+
+5. **Get a specific work:**
+   ```bash
+   go run examples/manifestwork/client.go get nginx-work \
+     --consumer-name=$(cat test/_output/.consumer_name) \
+     --insecure-skip-verify
+   ```
+
+6. **Delete a work:**
+   ```bash
+   go run examples/manifestwork/client.go delete nginx-work \
+     --consumer-name=$(cat test/_output/.consumer_name) \
+     --insecure-skip-verify
+   ```
+
+### Production Setup
+
+1. **Set up port forwarding:**
+   ```bash
+   kubectl -n maestro port-forward svc/maestro 8000 &
+   kubectl -n maestro port-forward svc/maestro-grpc 8090 &
+   ```
+
+2. **Run commands with TLS:**
+
+   If your maestro server is running with TLS, use the following examples:
+
+   ```bash
+   # Apply a manifestwork with TLS
+   go run examples/manifestwork/client.go apply examples/manifestwork/manifestwork.json \
+     --consumer-name=$CONSUMER_NAME \
+     --maestro-server=https://127.0.0.1:8000 \
+     --grpc-server=127.0.0.1:8090 \
+     --grpc-server-ca-file=<your grpc server ca.crt> \
+     --grpc-client-token-file=<your grpc server token>
+
+   # Watch with TLS
+   go run examples/manifestwork/client.go watch \
+     --consumer-name=$CONSUMER_NAME \
+     --maestro-server=https://127.0.0.1:8000 \
+     --grpc-server=127.0.0.1:8090 \
+     --grpc-server-ca-file=<your grpc server ca.crt> \
+     --grpc-client-token-file=<your grpc server token> \
+     --print-work-details
+   ```
+
+   **Note:** You need to create a cluster role to grant publish & subscribe permissions to the client by running this command:
+   ```bash
+   $ cat << EOF | kubectl apply -f -
+   apiVersion: rbac.authorization.k8s.io/v1
+   kind: ClusterRole
+   metadata:
+     name: grpc-pub-sub
+   rules:
+   - nonResourceURLs:
+     - /sources/mw-client-example
+     verbs:
+     - pub
+     - sub
+   EOF
+   ```
+
+3. **Run commands without TLS:**
+
+   If your maestro server is running without TLS, use the following examples:
+
+   ```bash
+   # Apply a manifestwork without TLS
+   go run examples/manifestwork/client.go apply examples/manifestwork/manifestwork.json \
+     --consumer-name=$CONSUMER_NAME \
+     --maestro-server=http://127.0.0.1:8000 \
+     --grpc-server=127.0.0.1:8090 \
+     --insecure-skip-verify
+
+   # Watch without TLS
+   go run examples/manifestwork/client.go watch \
+     --consumer-name=$CONSUMER_NAME \
+     --maestro-server=http://127.0.0.1:8000 \
+     --grpc-server=127.0.0.1:8090 \
+     --print-work-details \
+     --insecure-skip-verify
+   ```
+
+### Example Output
+
+**Creating a work:**
+```
+Apply manifestwork (opid=3bd7d...)
+Work 77112687-f4ac-42d1-b8b8-6f999428c19d/nginx-work (uid=abc123...) created successfully
 ```
 
-The output of the client-a
-
+**Updating an existing work:**
 ```
-watched work (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is modified
+Apply manifestwork (opid=5ad7d...)
+Work 77112687-f4ac-42d1-b8b8-6f999428c19d/nginx-work (uid=abc123...) updated successfully
+```
+
+**Watching changes with `--print-work-details`:**
+```
+Watch manifestwork (opid=9ed7d...)
+[MODIFIED] Work: 77112687-f4ac-42d1-b8b8-6f999428c19d/nginx-work (uid=abc123...)
 {
   "metadata": {
-    "name": "work-dpfqk",
-    "namespace": "432999ad-b13e-4f24-8c0b-ceca24ad79ba",
-    "uid": "b33b9c35-0dd4-5b4d-b419-fe9a21045fa7",
-    "resourceVersion": "2",
-    "creationTimestamp": null
-    "labels": {
-      "work.label": "example"
-    },
-    "annotations": {
-      "work.annotations": "example"
-    }
+    "name": "nginx-work",
+    "namespace": "77112687-f4ac-42d1-b8b8-6f999428c19d",
+    ...
   },
   "spec": {
     "workload": {
       "manifests": [
         {
-          "apiVersion": "v1",
-          "data": {
-            "test": "zpchv"
-          },
-          "kind": "ConfigMap",
-          "metadata": {
-            "name": "work-dpfqk",
-            "namespace": "default"
-          }
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          ...
         }
       ]
     }
@@ -118,87 +252,29 @@ watched work (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is modified
       {
         "type": "Applied",
         "status": "True",
-        "lastTransitionTime": "2024-06-11T03:49:13Z",
-        "reason": "AppliedManifestWorkComplete",
-        "message": "Apply manifest work complete"
-      },
-      {
-        "type": "Available",
-        "status": "True",
-        "lastTransitionTime": "2024-06-11T03:49:13Z",
-        "reason": "ResourcesAvailable",
-        "message": "All resources are available"
+        ...
       }
-    ],
-    "resourceStatus": {
-      "manifests": [
-        {
-          "resourceMeta": {
-            "ordinal": 0,
-            "group": "",
-            "version": "v1",
-            "kind": "ConfigMap",
-            "resource": "configmaps",
-            "name": "work-dpfqk",
-            "namespace": "default"
-          },
-          "statusFeedback": {},
-          "conditions": [
-            {
-              "type": "Applied",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "AppliedManifestComplete",
-              "message": "Apply manifest complete"
-            },
-            {
-              "type": "Available",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "ResourceAvailable",
-              "message": "Resource is available"
-            },
-            {
-              "type": "StatusFeedbackSynced",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "NoStatusFeedbackSynced",
-              "message": ""
-            }
-          ]
-        }
-      ]
-    }
+    ]
   }
 }
-watched work (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is modified
+```
+
+**Getting work:**
+```
+Get manifestwork 114916d9-f470-4905-8793-785d58ee0f8d/nginx-work (opid=7cd7d...)
 {
   "metadata": {
-    "name": "work-dpfqk",
-    "namespace": "432999ad-b13e-4f24-8c0b-ceca24ad79ba",
-    "uid": "b33b9c35-0dd4-5b4d-b419-fe9a21045fa7",
-    "resourceVersion": "2",
-    "creationTimestamp": null,
-    "labels": {
-      "work.label": "example"
-    },
-    "annotations": {
-      "work.annotations": "example"
-    }
-  },
+    "name": "nginx-work",
+    "namespace": "77112687-f4ac-42d1-b8b8-6f999428c19d",
+    ...
+  }
   "spec": {
     "workload": {
       "manifests": [
         {
-          "apiVersion": "v1",
-          "data": {
-            "test": "zpchv"
-          },
-          "kind": "ConfigMap",
-          "metadata": {
-            "name": "work-dpfqk",
-            "namespace": "default"
-          }
+          "apiVersion": "apps/v1",
+          "kind": "Deployment",
+          ...
         }
       ]
     }
@@ -208,154 +284,19 @@ watched work (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is modified
       {
         "type": "Applied",
         "status": "True",
-        "lastTransitionTime": "2024-06-11T03:49:13Z",
-        "reason": "AppliedManifestWorkComplete",
-        "message": "Apply manifest work complete"
-      },
-      {
-        "type": "Available",
-        "status": "True",
-        "lastTransitionTime": "2024-06-11T03:49:13Z",
-        "reason": "ResourcesAvailable",
-        "message": "All resources are available"
+        ...
       }
-    ],
-    "resourceStatus": {
-      "manifests": [
-        {
-          "resourceMeta": {
-            "ordinal": 0,
-            "group": "",
-            "version": "v1",
-            "kind": "ConfigMap",
-            "resource": "configmaps",
-            "name": "work-dpfqk",
-            "namespace": "default"
-          },
-          "statusFeedback": {},
-          "conditions": [
-            {
-              "type": "Applied",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "AppliedManifestComplete",
-              "message": "Apply manifest complete"
-            },
-            {
-              "type": "Available",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "ResourceAvailable",
-              "message": "Resource is available"
-            },
-            {
-              "type": "StatusFeedbackSynced",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "NoStatusFeedbackSynced",
-              "message": ""
-            }
-          ]
-        }
-      ]
-    }
+    ]
   }
 }
-watched work (uid=b33b9c35-0dd4-5b4d-b419-fe9a21045fa7) is deleted
-{
-  "metadata": {
-    "name": "work-dpfqk",
-    "namespace": "432999ad-b13e-4f24-8c0b-ceca24ad79ba",
-    "uid": "b33b9c35-0dd4-5b4d-b419-fe9a21045fa7",
-    "resourceVersion": "1",
-    "creationTimestamp": null,
-    "labels": {
-      "work.label": "example"
-    },
-    "annotations": {
-      "work.annotations": "example"
-    }
-  },
-  "spec": {
-    "workload": {
-      "manifests": [
-        {
-          "apiVersion": "v1",
-          "data": {
-            "test": "zpchv"
-          },
-          "kind": "ConfigMap",
-          "metadata": {
-            "name": "work-dpfqk",
-            "namespace": "default"
-          }
-        }
-      ]
-    }
-  },
-  "status": {
-    "conditions": [
-      {
-        "type": "Applied",
-        "status": "True",
-        "lastTransitionTime": "2024-06-11T03:49:13Z",
-        "reason": "AppliedManifestWorkComplete",
-        "message": "Apply manifest work complete"
-      },
-      {
-        "type": "Available",
-        "status": "True",
-        "lastTransitionTime": "2024-06-11T03:49:13Z",
-        "reason": "ResourcesAvailable",
-        "message": "All resources are available"
-      },
-      {
-        "type": "Deleted",
-        "status": "True",
-        "lastTransitionTime": "2024-06-11T03:49:18Z",
-        "reason": "ManifestsDeleted",
-        "message": "The manifests are deleted from the cluster 432999ad-b13e-4f24-8c0b-ceca24ad79ba"
-      }
-    ],
-    "resourceStatus": {
-      "manifests": [
-        {
-          "resourceMeta": {
-            "ordinal": 0,
-            "group": "",
-            "version": "v1",
-            "kind": "ConfigMap",
-            "resource": "configmaps",
-            "name": "work-dpfqk",
-            "namespace": "default"
-          },
-          "statusFeedback": {},
-          "conditions": [
-            {
-              "type": "Applied",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "AppliedManifestComplete",
-              "message": "Apply manifest complete"
-            },
-            {
-              "type": "Available",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "ResourceAvailable",
-              "message": "Resource is available"
-            },
-            {
-              "type": "StatusFeedbackSynced",
-              "status": "True",
-              "lastTransitionTime": "2024-06-11T03:49:13Z",
-              "reason": "NoStatusFeedbackSynced",
-              "message": ""
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
+```
+
+
+**Listing works:**
+```
+List manifestworks (opid=9dd7d...):
+Consumer    Name            UID         Created
+77112687... nginx-work      941681df... 2026-01-08T17:04:58+08:00
+77112687... test-work      941681df... 2026-01-08T17:04:58+08:00
+77112687... demo-work      941681df... 2026-01-08T17:04:58+08:00
 ```

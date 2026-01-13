@@ -26,7 +26,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
 	github.com/onsi/ginkgo/v2 v2.27.3
-	github.com/onsi/gomega v1.38.2
+	github.com/onsi/gomega v1.38.3
 	github.com/openshift-online/ocm-common v0.0.34
 	github.com/openshift-online/ocm-sdk-go v0.1.486
 	github.com/openshift/library-go v0.0.0-20251120164824-14a789e09884
@@ -42,22 +42,22 @@ require (
 	go.opentelemetry.io/otel/sdk v1.39.0
 	go.opentelemetry.io/otel/trace v1.39.0
 	golang.org/x/oauth2 v0.32.0
-	google.golang.org/grpc v1.77.0
+	google.golang.org/grpc v1.78.0
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/resty.v1 v1.12.0
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.30.0
-	k8s.io/api v0.34.2
-	k8s.io/apimachinery v0.34.2
-	k8s.io/apiserver v0.34.2
-	k8s.io/client-go v0.34.2
-	k8s.io/component-base v0.34.2
+	k8s.io/api v0.34.3
+	k8s.io/apimachinery v0.34.3
+	k8s.io/apiserver v0.34.3
+	k8s.io/client-go v0.34.3
+	k8s.io/component-base v0.34.3
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
-	open-cluster-management.io/api v1.1.1-0.20251215032811-ee922fbb996c
-	open-cluster-management.io/ocm v1.1.1-0.20251211014758-deb61b0a60d5
-	open-cluster-management.io/sdk-go v1.1.1-0.20260107092441-5ee79eb2f623
+	open-cluster-management.io/api v1.1.1-0.20260108015315-68cef17a0643
+	open-cluster-management.io/ocm v1.1.1-0.20260108015314-635b0ff7e9cf
+	open-cluster-management.io/sdk-go v1.1.1-0.20260108080638-c607eaaa5d12
 	sigs.k8s.io/yaml v1.6.0
 )
 
@@ -95,9 +95,9 @@ require (
 	github.com/fxamacker/cbor/v2 v2.9.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/go-openapi/jsonpointer v0.21.0 // indirect
-	github.com/go-openapi/jsonreference v0.20.2 // indirect
-	github.com/go-openapi/swag v0.23.0 // indirect
+	github.com/go-openapi/jsonpointer v0.21.1 // indirect
+	github.com/go-openapi/jsonreference v0.21.0 // indirect
+	github.com/go-openapi/swag v0.23.1 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
@@ -124,7 +124,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
-	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/mailru/easyjson v0.9.0 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/microcosm-cc/bluemonday v1.0.23 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -194,9 +194,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
-	k8s.io/apiextensions-apiserver v0.34.2 // indirect
-	k8s.io/kms v0.34.2 // indirect
-	k8s.io/kube-aggregator v0.34.2 // indirect
+	k8s.io/apiextensions-apiserver v0.34.3 // indirect
+	k8s.io/kms v0.34.3 // indirect
+	k8s.io/kube-aggregator v0.34.3 // indirect
 	k8s.io/kube-openapi v0.0.0-20250710124328-f3f2b991d03b // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
 	sigs.k8s.io/controller-runtime v0.22.4 // indirect
