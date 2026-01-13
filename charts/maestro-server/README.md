@@ -133,7 +133,6 @@ The following table lists the configurable parameters and their default values.
 |-----------|-------------|---------|
 | `server.https.enabled` | Enable HTTPS | `false` |
 | `server.http.bindPort` | HTTP bind port | `8000` |
-| `server.grpc.enabled` | Enable gRPC server | `false` |
 | `server.grpc.bindPort` | gRPC bind port | `8090` |
 | `server.metrics.bindPort` | Metrics bind port | `8080` |
 | `server.healthCheck.bindPort` | Health check bind port | `8083` |
@@ -185,7 +184,6 @@ The following table lists the configurable parameters and their default values.
 helm install maestro-server ./charts/maestro-server \
   --namespace maestro \
   --create-namespace \
-  --set server.grpc.enabled=true \
   --set messageBroker.type=grpc \
   --set replicas=3 \
   --set resources.requests.memory=1Gi \

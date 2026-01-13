@@ -6,7 +6,7 @@ environment: production
 
 # CRD installation control
 # Set to false if CRDs are already installed
-installCRDs: true
+installWorkCRDs: true
 
 # Consumer name - identifies the agent/cluster
 consumerName: cluster1

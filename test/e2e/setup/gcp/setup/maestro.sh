@@ -144,8 +144,6 @@ messageBroker:
 server:
   https:
     enabled: false
-  grpc:
-    enabled: true
   hostname: ""
 
 service:

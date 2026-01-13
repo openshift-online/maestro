@@ -325,7 +325,7 @@ You should get a response like this:
 
 ```shell
 $ export consumer_name=cluster1
-$ export install_crds=false
+$ export install_work_crds=false
 $ make deploy-agent
 $ oc get pod -n maestro-agent
 NAME                             READY   STATUS    RESTARTS   AGE

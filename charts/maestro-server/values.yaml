@@ -104,7 +104,6 @@ server:
   http:
     bindPort: 8000
   grpc:
-    enabled: true
     bindPort: 8090
     tls:
       enabled: false
@@ -145,7 +144,7 @@ service:
 
 # Route configuration (OpenShift)
 route:
-  enabled: true
+  enabled: false
   host: ""  # If empty, OpenShift will auto-generate
   tls:
     enabled: true

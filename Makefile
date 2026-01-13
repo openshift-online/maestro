@@ -276,6 +276,7 @@ deploy:
 		--namespace $(namespace) \
 		--create-namespace \
 		--set mqtt.enabled=true \
+		--set route.enabled=true \
 		--set postgresql.enabled=true
 
 # Undeploy Maestro server using Helm charts
@@ -284,7 +285,7 @@ undeploy:
 	helm uninstall maestro-server --namespace $(namespace) || true
 
 # Deploy Maestro agent using Helm charts
-# Optional: Set install_crds=true to install CRDs (default: false to skip if already exists)
+# Optional: Set install_work_crds=true to install CRDs (default: false to skip if already exists)
 .PHONY: deploy-agent
 deploy-agent:
 	@if [ -z "$(consumer_name)" ]; then \
@@ -296,7 +297,7 @@ deploy-agent:
 		--namespace $(agent_namespace) \
 		--create-namespace \
 		--set consumerName=$(consumer_name) \
-		--set installCRDs=$(if $(install_crds),$(install_crds),false)
+		--set installWorkCRDs=$(if $(install_work_crds),$(install_work_crds),false)
 
 # Undeploy Maestro agent using Helm charts
 .PHONY: undeploy-agent

@@ -56,7 +56,7 @@ spec:
         secret:
           secretName: maestro-https-certs
       {{- end }}
-      {{- if and .Values.server.grpc.enabled .Values.server.grpc.tls.enabled }}
+      {{- if .Values.server.grpc.tls.enabled }}
       - name: maestro-grpc-cert
         secret:
           secretName: maestro-grpc-cert
@@ -117,7 +117,7 @@ spec:
           mountPath: /secrets/https-certs
           readOnly: true
         {{- end }}
-        {{- if and .Values.server.grpc.enabled .Values.server.grpc.tls.enabled }}
+        {{- if and .Values.server.grpc.tls.enabled }}
         - name: maestro-grpc-cert
           mountPath: /secrets/maestro-grpc-cert
           readOnly: true
@@ -144,13 +144,12 @@ spec:
         - --db-sslmode={{ .Values.database.sslMode }}
         - --message-broker-type={{ .Values.messageBroker.type }}
         - --message-broker-config-file=/secrets/{{ .Values.messageBroker.type }}/config.yaml
-        - --enable-grpc-server={{ .Values.server.grpc.enabled }}
         - --enable-https={{ .Values.server.https.enabled }}
         {{- if .Values.server.https.enabled }}
         - --https-cert-file=/secrets/https-certs/tls.crt
         - --https-key-file=/secrets/https-certs/tls.key
         {{- end }}
-        {{- if and .Values.server.grpc.enabled .Values.server.grpc.tls.enabled }}
+        {{- if .Values.server.grpc.tls.enabled }}
         - --grpc-tls-cert-file={{ .Values.server.grpc.tls.certFile }}
         - --grpc-tls-key-file={{ .Values.server.grpc.tls.keyFile }}
         - --grpc-client-ca-file={{ .Values.server.grpc.tls.clientCAFile }}
