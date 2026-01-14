@@ -50,15 +50,6 @@ spec:
               subscriber = pubsub_v1.SubscriberClient()
               publisher = pubsub_v1.PublisherClient()
 
-              # Extract topic names from full resource paths
-              # If using full paths like "projects/my-project/topics/sourceevents"
-              # we need to extract just the topic name
-              def extract_topic_name(topic_path):
-                  if topic_path.startswith('projects/'):
-                      # Full resource path: projects/PROJECT_ID/topics/TOPIC_NAME
-                      return topic_path.split('/')[-1]
-                  return topic_path
-
               subscriptions = [
                 (
                   f'sourceevents-{consumer_name}',

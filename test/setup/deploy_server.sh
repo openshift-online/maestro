@@ -218,8 +218,13 @@ helm upgrade --install maestro-server \
   --wait \
   --timeout 5m
 
-kubectl rollout restart deploy/maestro -n ${namespace}
-kubectl rollout status deploy/maestro --timeout=300s -n ${namespace}
+if [ "$msg_broker" = "pubsub" ]; then
+  # restart to ensure maestro server starting subscriptions after pubsub-init post-hook completes
+  kubectl rollout restart deploy/maestro -n ${namespace}
+  kubectl rollout status deploy/maestro --timeout=300s -n ${namespace}
+else
+  kubectl wait deploy/maestro -n ${namespace} --for condition=Available=True --timeout=300s
+fi
 
 # TODO use maestro service health check to ensure the service ready
 sleep 30 # wait 30 seconds for the service ready
