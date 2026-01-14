@@ -116,6 +116,16 @@ messageBroker:
       certFile: /secrets/grpc-broker-cert/server.crt
       keyFile: /secrets/grpc-broker-cert/server.key
       clientCAFile: /secrets/grpc-broker-cert/ca.crt
+  pubsub:
+    projectID: maestro-test
+    endpoint: maestro-pubsub:8085
+    disableTLS: true
+    topics:
+      sourceEvents: projects/maestro-test/topics/sourceevents
+      sourceBroadcast: projects/maestro-test/topics/sourcebroadcast
+    subscriptions:
+      agentEvents: projects/maestro-test/subscriptions/agentevents-maestro
+      agentBroadcast: projects/maestro-test/subscriptions/agentbroadcast-maestro
 
 # Server configuration
 server:
@@ -189,6 +199,15 @@ mosquitto:
     caFile: /secrets/mqtt-certs/ca.crt
     clientCertFile: /secrets/mqtt-certs/client.crt
     clientKeyFile: /secrets/mqtt-certs/client.key
+
+# Use embedded Pub/Sub emulator for testing (if Pub/Sub mode)
+pubsubEmulator:
+  enabled: $( [ "$msg_broker" = "pubsub" ] && echo "true" || echo "false" )
+  image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+  projectID: maestro-test
+  service:
+    name: maestro-pubsub
+    port: 8085
 EOF
 
 # Deploy using Helm
@@ -199,7 +218,13 @@ helm upgrade --install maestro-server \
   --wait \
   --timeout 5m
 
-kubectl wait deploy/maestro -n $namespace --for condition=Available=True --timeout=300s
+if [ "$msg_broker" = "pubsub" ]; then
+  # restart to ensure maestro server starting subscriptions after pubsub-init post-hook completes
+  kubectl rollout restart deploy/maestro -n ${namespace}
+  kubectl rollout status deploy/maestro --timeout=300s -n ${namespace}
+else
+  kubectl wait deploy/maestro -n ${namespace} --for condition=Available=True --timeout=300s
+fi
 
 # TODO use maestro service health check to ensure the service ready
 sleep 30 # wait 30 seconds for the service ready

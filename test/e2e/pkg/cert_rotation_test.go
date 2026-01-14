@@ -30,8 +30,27 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 		var deployName string
 		var originalMQTTCerts map[string][]byte
 		var originalGRPCBrokerCerts map[string][]byte
+		var skip bool
 
 		BeforeAll(func() {
+			// Check if any CA secrets exist (MQTT or gRPC)
+			// Certificate rotation is only applicable for MQTT and gRPC brokers
+			// Pub/Sub emulator does not use client certificates
+			_, mqttErr := agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Get(ctx, "maestro-mqtt-ca", metav1.GetOptions{})
+			_, grpcErr := agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Get(ctx, "maestro-grpc-broker-ca", metav1.GetOptions{})
+
+			if errors.IsNotFound(mqttErr) && errors.IsNotFound(grpcErr) {
+				skip = true
+				Skip("Skipping certificate rotation tests: no CA secrets found")
+			}
+
+			if mqttErr != nil && !errors.IsNotFound(mqttErr) {
+				Expect(mqttErr).ShouldNot(HaveOccurred())
+			}
+			if grpcErr != nil && !errors.IsNotFound(grpcErr) {
+				Expect(grpcErr).ShouldNot(HaveOccurred())
+			}
+
 			workName = fmt.Sprintf("cert-rotation-%s", k8srand.String(5))
 			deployName = fmt.Sprintf("nginx-%s", k8srand.String(5))
 
@@ -102,6 +121,10 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 		})
 
 		AfterAll(func() {
+			if skip {
+				return
+			}
+
 			By("restoring original MQTT certificate")
 			if len(originalMQTTCerts) > 0 {
 				secret, err := agentTestOpts.kubeClientSet.CoreV1().Secrets(agentTestOpts.agentNamespace).Get(ctx, "maestro-agent-certs", metav1.GetOptions{})

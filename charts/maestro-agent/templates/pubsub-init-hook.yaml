@@ -1,0 +1,96 @@
+{{- if eq .Values.messageBroker.type "pubsub" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "maestro-agent.fullname" . }}-pubsub-init
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "maestro-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: pubsub-init
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "maestro-agent.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: pubsub-init
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: init
+          image: registry.access.redhat.com/ubi9/python-311
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PUBSUB_EMULATOR_HOST
+              value: "{{ .Values.messageBroker.pubsub.endpoint }}"
+            - name: PUBSUB_PROJECT_ID
+              value: "{{ .Values.messageBroker.pubsub.projectID }}"
+            - name: CONSUMER_NAME
+              value: "{{ .Values.consumerName }}"
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -e
+              echo "Installing google-cloud-pubsub..."
+              pip install --quiet google-cloud-pubsub==2.34.0
+
+              echo "Initializing Pub/Sub agent subscriptions for consumer: ${CONSUMER_NAME}..."
+              python3 <<'PYTHON'
+              import os
+              from google.cloud import pubsub_v1
+              from google.api_core import exceptions
+
+              project_id = os.environ['PUBSUB_PROJECT_ID']
+              consumer_name = os.environ['CONSUMER_NAME']
+
+              subscriber = pubsub_v1.SubscriberClient()
+              publisher = pubsub_v1.PublisherClient()
+
+              subscriptions = [
+                (
+                  f'sourceevents-{consumer_name}',
+                  'sourceevents',
+                  f'attributes.ce-clustername="{consumer_name}"'
+                ),
+                (
+                  f'sourcebroadcast-{consumer_name}',
+                  'sourcebroadcast',
+                  ''
+                )
+              ]
+
+              for sub_name, topic_name, filter_expr in subscriptions:
+                subscription_path = subscriber.subscription_path(project_id, sub_name)
+                topic_path = publisher.topic_path(project_id, topic_name)
+
+                try:
+                  if filter_expr:
+                    subscriber.create_subscription(
+                      request={
+                        "name": subscription_path,
+                        "topic": topic_path,
+                        "filter": filter_expr
+                      }
+                    )
+                    print(f"Created subscription: {subscription_path} with filter: {filter_expr}")
+                  else:
+                    subscriber.create_subscription(
+                      request={
+                        "name": subscription_path,
+                        "topic": topic_path
+                      }
+                    )
+                    print(f"Created subscription: {subscription_path}")
+                except exceptions.AlreadyExists:
+                  print(f"Subscription already exists: {subscription_path}")
+                except Exception as e:
+                  print(f"Error creating subscription {subscription_path}: {e}")
+                  raise
+
+              print(f"Pub/Sub agent subscriptions for '{consumer_name}' initialized successfully!")
+              PYTHON
+{{- end }}

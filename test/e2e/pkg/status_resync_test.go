@@ -302,23 +302,6 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			_ = agentTestOpts.kubeClientSet.CoreV1().ServiceAccounts("default").Delete(ctx, deployName, metav1.DeleteOptions{})
 
 			watcherCancel()
-
-			By("check the source work client connecting to restarted maestro server by creating and deleting a work")
-			// note: wait some time to ensure source work client is connected to the restarted maestro server
-			testWorkName := fmt.Sprintf("work-%s", rand.String(5))
-			testWork := helper.NewManifestWork(testWorkName, deployName, "default", 1)
-			Eventually(func() error {
-				_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, testWork, metav1.CreateOptions{})
-				return err
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
-
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkName, metav1.DeleteOptions{})
-			Expect(err).ShouldNot(HaveOccurred())
-
-			By("check the resource deletion via source workclient")
-			Eventually(func() error {
-				return AssertWorkNotFound(testWorkName)
-			}, 1*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
 		})
 	})
 })

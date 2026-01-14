@@ -1,0 +1,62 @@
+{{- if .Values.pubsubEmulator.enabled -}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.pubsubEmulator.service.name }}
+  labels:
+    app.kubernetes.io/component: pubsub-emulator
+  annotations:
+    template.openshift.io/expose-uri: "tcp://{.spec.clusterIP}:{.spec.ports[?(.name=='pubsub')].port}"
+spec:
+  type: ClusterIP
+  ports:
+    - name: pubsub
+      protocol: TCP
+      port: {{ .Values.pubsubEmulator.service.port }}
+      targetPort: 8085
+  selector:
+    app.kubernetes.io/component: pubsub-emulator
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.pubsubEmulator.service.name }}
+  labels:
+    app.kubernetes.io/component: pubsub-emulator
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/component: pubsub-emulator
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/component: pubsub-emulator
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: pubsub-emulator
+          image: {{ .Values.pubsubEmulator.image }}
+          imagePullPolicy: IfNotPresent
+          command:
+            - gcloud
+            - beta
+            - emulators
+            - pubsub
+            - start
+            - --host-port=0.0.0.0:8085
+            - --project={{ .Values.pubsubEmulator.projectID }}
+          ports:
+            - containerPort: 8085
+              name: pubsub
+              protocol: TCP
+          volumeMounts:
+            - name: pubsub-persistent-storage
+              mountPath: /data
+      volumes:
+        - name: pubsub-persistent-storage
+          emptyDir: {}
+{{- end }}

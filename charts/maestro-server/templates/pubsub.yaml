@@ -11,6 +11,10 @@ stringData:
     {{- if .Values.messageBroker.pubsub.projectID }}
     projectID: {{ .Values.messageBroker.pubsub.projectID }}
     {{- end }}
+    {{- if .Values.messageBroker.pubsub.endpoint }}
+    endpoint: {{ .Values.messageBroker.pubsub.endpoint }}
+    {{- end }}
+    disableTLS: {{ .Values.messageBroker.pubsub.disableTLS }}
     {{- if .Values.messageBroker.pubsub.topics }}
     topics:
       {{- if .Values.messageBroker.pubsub.topics.sourceEvents }}

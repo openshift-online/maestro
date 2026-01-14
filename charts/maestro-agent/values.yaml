@@ -58,6 +58,8 @@ messageBroker:
   # Google Cloud Pub/Sub configuration
   pubsub:
     projectID: ""
+    endpoint: ""
+    disableTLS: false
     credentialsJSON: ""
     credentialsFile: /secrets/pubsub/credentials.json
     # Topics configuration (use full GCP resource names)
