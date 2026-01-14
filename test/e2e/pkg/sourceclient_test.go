@@ -2,24 +2,30 @@ package e2e_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/bxcodec/faker/v3/support/slice"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	"github.com/prometheus/client_golang/prometheus"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/component-base/metrics/testutil"
+	"k8s.io/utils/ptr"
+	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 
@@ -578,6 +584,225 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			// Expect(AssertWorks(works.Items, workName, prodWorkName)).ShouldNot(HaveOccurred())
 		})
 	})
+
+	Context("Monitor a single workload with two source work clients", func() {
+		var watchCtx context.Context
+		var watchCancel context.CancelFunc
+
+		var firstSourceID string
+		var secondSourceID string
+
+		var firstSourceWorkClient workv1client.WorkV1Interface
+		var secondSourceWorkClient workv1client.WorkV1Interface
+
+		var firstWatchedResult *WatchedResult
+		var secondWatchedResult *WatchedResult
+
+		var deployName = fmt.Sprintf("nginx-%s", rand.String(5))
+		var deployUID string
+
+		var work *workv1.ManifestWork
+
+		BeforeEach(func() {
+			firstSourceID = "sourceclient-1-test" + rand.String(5)
+			secondSourceID = "sourceclient-2-test" + rand.String(5)
+
+			By("add the gRPC auth rule", func() {
+				err := helper.AddGRPCAuthRule(ctx, serverTestOpts.kubeClientSet, "grpc-pub-sub", "source", firstSourceID)
+				Expect(err).To(Succeed())
+				err = helper.AddGRPCAuthRule(ctx, serverTestOpts.kubeClientSet, "grpc-pub-sub", "source", secondSourceID)
+				Expect(err).To(Succeed())
+			})
+
+			By("create a deployment on agent side", func() {
+				deployment := &appsv1.Deployment{}
+				deploymentJSON := helper.NewManifestJSON(deployName, "default", 0)
+				err := json.Unmarshal([]byte(deploymentJSON), deployment)
+				Expect(err).To(Succeed())
+				_, err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Create(ctx, deployment, metav1.CreateOptions{})
+				Expect(err).To(Succeed())
+				deployment, err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
+				Expect(err).To(Succeed())
+				Expect(*deployment.Spec.Replicas).Should(Equal(int32(0)))
+				deployUID = string(deployment.UID)
+			})
+
+			work = NewReadonlyWork(deployName)
+
+			watchCtx, watchCancel = context.WithCancel(ctx)
+
+			logger, err := logging.NewStdLoggerBuilder().Build()
+			Expect(err).ShouldNot(HaveOccurred())
+
+			By("create first work client", func() {
+				var err error
+				firstSourceWorkClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
+					ctx,
+					logger,
+					apiClient,
+					grpcOptions,
+					firstSourceID,
+				)
+				Expect(err).ShouldNot(HaveOccurred())
+				firstWatcher, err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Watch(watchCtx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				firstWatchedResult = StartWatch(watchCtx, firstWatcher)
+			})
+
+			By("create second work client", func() {
+				var err error
+				secondSourceWorkClient, err = grpcsource.NewMaestroGRPCSourceWorkClient(
+					ctx,
+					logger,
+					apiClient,
+					grpcOptions,
+					secondSourceID,
+				)
+				Expect(err).ShouldNot(HaveOccurred())
+				secondWatcher, err := secondSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Watch(watchCtx, metav1.ListOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				secondWatchedResult = StartWatch(watchCtx, secondWatcher)
+			})
+		})
+
+		AfterEach(func() {
+			// Attempt to delete from both clients, ignoring NotFound errors
+			err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, work.Name, metav1.DeleteOptions{})
+			if !errors.IsNotFound(err) {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			err = secondSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, work.Name, metav1.DeleteOptions{})
+			if !errors.IsNotFound(err) {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Delete(ctx, deployName, metav1.DeleteOptions{})
+			if err != nil && !errors.IsNotFound(err) {
+				Expect(err).ShouldNot(HaveOccurred())
+			}
+
+			watchCancel()
+		})
+
+		It("Should have two independent manifestworks applied", func() {
+			var firstWorkUID string
+			var secondWorkUID string
+
+			By("create two bundles for a single workload using manifestwork", func() {
+				firstCreated, err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+
+				secondCreated, err := secondSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+
+				firstWorkUID = string(firstCreated.UID)
+				secondWorkUID = string(secondCreated.UID)
+
+				Expect(firstWorkUID).ShouldNot(Equal(secondWorkUID))
+			})
+
+			By("check the appliedmanifestworks", func() {
+				Eventually(func() error {
+					// there are two appliedmanifestworks
+					appliedWorks, err := agentTestOpts.workClientSet.WorkV1().AppliedManifestWorks().List(ctx, metav1.ListOptions{
+						LabelSelector: "maestro.e2e.test.name=monitor",
+					})
+					if err != nil {
+						return err
+					}
+
+					if len(appliedWorks.Items) != 2 {
+						return fmt.Errorf("unexpected applied works %d", len(appliedWorks.Items))
+					}
+
+					appliedWorkNames := []string{}
+					for _, appliedWork := range appliedWorks.Items {
+						parts := strings.SplitN(appliedWork.Name, "-", 2)
+						if len(parts) != 2 {
+							return fmt.Errorf("unexpected applied work name: %s", appliedWork.Name)
+						}
+
+						appliedWorkNames = append(appliedWorkNames, parts[1])
+					}
+
+					if !slice.Contains(appliedWorkNames, firstWorkUID) {
+						return fmt.Errorf("the first work %s is not found in %v", firstWorkUID, appliedWorkNames)
+					}
+
+					if !slice.Contains(appliedWorkNames, secondWorkUID) {
+						return fmt.Errorf("the second work %s is not found in %v", secondWorkUID, appliedWorkNames)
+					}
+
+					return nil
+				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			})
+
+			By("update deploy replicas", func() {
+				deployment, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+				updatedDeploy := deployment.DeepCopy()
+				updatedDeploy.Spec.Replicas = ptr.To(int32(1))
+				_, err = agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Update(ctx, updatedDeploy, metav1.UpdateOptions{})
+				Expect(err).ShouldNot(HaveOccurred())
+			})
+
+			By("check the bundle status", func() {
+				// the status should be synced
+				Eventually(func() error {
+					if err := AssertReplicas(firstWatchedResult.WatchedWorks, work.Name, int32(1)); err != nil {
+						return fmt.Errorf("failed to check in first watcher: %v", err)
+					}
+
+					if err := AssertReplicas(secondWatchedResult.WatchedWorks, work.Name, int32(1)); err != nil {
+						return fmt.Errorf("failed to check in second watcher: %v", err)
+					}
+
+					return nil
+				}, 5*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
+			})
+
+			By("delete the first work", func() {
+				Eventually(func() error {
+					// delete one, the other should be not be changed
+					if err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, work.Name, metav1.DeleteOptions{}); err != nil {
+						return err
+					}
+
+					if _, err := secondSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, work.Name, metav1.GetOptions{}); err != nil {
+						return err
+					}
+
+					appliedWorks, err := agentTestOpts.workClientSet.WorkV1().AppliedManifestWorks().List(ctx, metav1.ListOptions{
+						LabelSelector: "maestro.e2e.test.name=monitor",
+					})
+					if err != nil {
+						return err
+					}
+
+					if len(appliedWorks.Items) != 1 {
+						return fmt.Errorf("unexpected applied works %d", len(appliedWorks.Items))
+					}
+
+					if !strings.Contains(appliedWorks.Items[0].Name, secondWorkUID) {
+						return fmt.Errorf("applied work is recreated")
+					}
+
+					// deploy should not be recreated
+					deploy, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})
+					if err != nil {
+						return err
+					}
+
+					if deployUID != string(deploy.UID) {
+						return fmt.Errorf("deploy is recreated")
+					}
+
+					return nil
+				}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			})
+		})
+	})
 })
 
 type WatchedResult struct {
@@ -702,6 +927,35 @@ func AssertWorks(works []workv1.ManifestWork, expected ...string) error {
 	return nil
 }
 
+func AssertReplicas(watchedWorks []*workv1.ManifestWork, name string, replicas int32) error {
+	var latestWatchedWork *workv1.ManifestWork
+	for i := len(watchedWorks) - 1; i >= 0; i-- {
+		if watchedWorks[i].Name == name {
+			latestWatchedWork = watchedWorks[i]
+			break
+		}
+	}
+
+	if latestWatchedWork == nil {
+		return fmt.Errorf("the work %s not watched", name)
+	}
+
+	for _, manifest := range latestWatchedWork.Status.ResourceStatus.Manifests {
+		if meta.IsStatusConditionTrue(manifest.Conditions, "StatusFeedbackSynced") {
+			feedbackJson, err := json.Marshal(manifest.StatusFeedbacks)
+			if err != nil {
+				return err
+			}
+
+			if strings.Contains(string(feedbackJson), fmt.Sprintf(`readyReplicas\":%d`, replicas)) {
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("the expected replicas %d is not found from feedback", replicas)
+}
+
 func NewManifestWorkWithLabels(name string, labels map[string]string) *workv1.ManifestWork {
 	work := NewManifestWork(name)
 	work.Labels = labels
@@ -744,6 +998,61 @@ func NewManifest(name string) workv1.Manifest {
 	manifest := workv1.Manifest{}
 	manifest.Raw = objectStr
 	return manifest
+}
+
+func NewReadonlyWork(deployName string) *workv1.ManifestWork {
+	return &workv1.ManifestWork{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: fmt.Sprintf("work-%s", rand.String(5)),
+			Labels: map[string]string{
+				"maestro.e2e.test.name": "monitor",
+			},
+		},
+		Spec: workv1.ManifestWorkSpec{
+			Workload: workv1.ManifestsTemplate{
+				Manifests: []workv1.Manifest{
+					{
+						RawExtension: runtime.RawExtension{
+							Object: &appsv1.Deployment{
+								TypeMeta: metav1.TypeMeta{
+									APIVersion: "apps/v1",
+									Kind:       "Deployment",
+								},
+								ObjectMeta: metav1.ObjectMeta{
+									Name:      deployName,
+									Namespace: "default",
+								},
+							},
+						},
+					},
+				},
+			},
+			ManifestConfigs: []workv1.ManifestConfigOption{
+				{
+					ResourceIdentifier: workv1.ResourceIdentifier{
+						Group:     "apps",
+						Resource:  "deployments",
+						Name:      deployName,
+						Namespace: "default",
+					},
+					FeedbackRules: []workv1.FeedbackRule{
+						{
+							Type: workv1.JSONPathsType,
+							JsonPaths: []workv1.JsonPath{
+								{
+									Name: "resource",
+									Path: "@",
+								},
+							},
+						},
+					},
+					UpdateStrategy: &workv1.UpdateStrategy{
+						Type: workv1.UpdateStrategyTypeReadOnly,
+					},
+				},
+			},
+		},
+	}
 }
 
 func ensureObservedGeneration(work *workv1.ManifestWork) error {
