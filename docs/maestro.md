@@ -194,12 +194,14 @@ The `grpcClientTokenFile` stores the token for the corresponding service account
 
 ![maestro-mqtt-sub-dataflow](./images/maestro-mqtt-sub-dataflow.png)
 
-1. The Maestro agent watches the applied ManifestWork status change and publishes a [CloudEvent](./resources/cloudevents.agent.json) representing it.
+1. The Maestro agent watches applied manifest status changes.
 
-2. The Maestro server receives the ManifestWork status and updates the corresponding [`Resource` record status](./resources/resource-status-in-db.md) in its database (Maestro server finds the corresponding Resource via CloudEvent resourceid).
+2. The Maestro agent updates the corresponding ManifestWork status and publishes a [CloudEvent](./resources/cloudevents.agent.json) representing it.
 
-3. The Maestro server sends this update using a [CloudEvent](./resources/cloudevents.status.maestro.json). 
+3. The Maestro server receives the ManifestWork status and updates the corresponding [`Resource` record status](./resources/resource-status-in-db.md) in its database (Maestro server finds the corresponding Resource via CloudEvent resourceid).
 
-4. The MaestroGRPCSourceWorkClient receives this CloudEvent and converts it back to a [ManifestWork](./resources/manifestwork.watched.json).
+4. The Maestro server sends this update using a [CloudEvent](./resources/cloudevents.status.maestro.json). 
 
-5. The Consumer watches this updated ManifestWork.
+5. The MaestroGRPCSourceWorkClient receives this CloudEvent and converts it back to a [ManifestWork](./resources/manifestwork.watched.json).
+
+6. The Consumer watches this updated ManifestWork.
