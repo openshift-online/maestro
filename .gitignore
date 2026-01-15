@@ -70,3 +70,9 @@ unit-test-results.json
 *integration-test-results.json
 test/e2e/setup/aro/aro-hcp
 test/upgrade/report/*
+
+# Ignore ARO-HCP kubeconfig
+*.kubeconfig
+
+# Ignore diagnostic reports
+maestro-diagnosis-*.txt
