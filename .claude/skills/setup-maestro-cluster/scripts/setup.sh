@@ -1,8 +1,52 @@
 #!/bin/bash
 set -e
 
+# Parse command line arguments
+OVERRIDE_USER=""
+OVERRIDE_PERSIST=""
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --user)
+            OVERRIDE_USER="$2"
+            shift 2
+            ;;
+        --persist)
+            OVERRIDE_PERSIST="true"
+            shift
+            ;;
+        --no-persist)
+            OVERRIDE_PERSIST="false"
+            shift
+            ;;
+        *)
+            echo "Unknown argument: $1"
+            echo "Usage: $0 [--user <username>] [--persist|--no-persist]"
+            exit 1
+            ;;
+    esac
+done
+
 echo "Starting Maestro long-running cluster setup..."
 
+# Cross-platform timeout function
+run_with_timeout() {
+    local timeout_duration=$1
+    shift
+
+    if command -v timeout &> /dev/null; then
+        # Linux: use GNU timeout
+        timeout "$timeout_duration" "$@"
+    elif command -v gtimeout &> /dev/null; then
+        # macOS with coreutils installed
+        gtimeout "$timeout_duration" "$@"
+    else
+        # macOS fallback: run without timeout
+        # Note: This is less ideal but allows the script to proceed
+        echo "Warning: timeout command not available, running without timeout limit"
+        "$@"
+    fi
+}
 
 # Cleanup function
 cleanup() {
@@ -54,7 +98,7 @@ fi
 
 echo "Cloning ARO-HCP repository to: $TEMP_DIR"
 
-if ! timeout 300 git clone https://github.com/Azure/ARO-HCP "$TEMP_DIR/ARO-HCP"; then
+if ! run_with_timeout 300 git clone https://github.com/Azure/ARO-HCP "$TEMP_DIR/ARO-HCP"; then
     echo "ERROR: Failed to clone ARO-HCP repository (timeout: 300s)"
     rm -rf "$TEMP_DIR"
     exit 1
@@ -66,10 +110,18 @@ echo "✓ Repository cloned successfully"
 pushd "$TEMP_DIR/ARO-HCP" > /dev/null
 
 echo "Setting environment variables..."
-# Set USER to oasis if not already set (required by ARO-HCP)
-export USER="${USER:-oasis}"
-# PERSIST can be set via environment variable (default: true for not auto-cleanup after testing)
-export PERSIST="${PERSIST:-true}"
+# Set USER: use --user flag value, then environment variable, then default to oasis
+if [ -n "$OVERRIDE_USER" ]; then
+    export USER="$OVERRIDE_USER"
+else
+    export USER="${USER:-oasis}"
+fi
+# Set PERSIST: use --persist flag value, then environment variable, then default to true
+if [ -n "$OVERRIDE_PERSIST" ]; then
+    export PERSIST="$OVERRIDE_PERSIST"
+else
+    export PERSIST="${PERSIST:-true}"
+fi
 export GITHUB_ACTIONS=true
 export GOTOOLCHAIN=go1.24.4
 
@@ -83,7 +135,7 @@ echo "Starting personal-dev-env deployment..."
 echo "This may take several minutes..."
 echo ""
 
-if timeout 3600 make personal-dev-env; then
+if run_with_timeout 3600 make personal-dev-env; then
     echo ""
     echo "✓ Deployment completed successfully!"
     echo "ARO-HCP repository location: $TEMP_DIR/ARO-HCP"
