@@ -37,6 +37,7 @@ jobs:
 
       # Get AKS credentials
       - name: Get AKS credentials
+        id: get_credentials
         run: |
           az aks get-credentials \
             --resource-group ${{ secrets.SVC_RESOURCE_GROUP }} \
@@ -48,6 +49,21 @@ jobs:
             --name ${{ secrets.MGMT_CLUSTER_NAME }} \
             --overwrite-existing \
             -f ./mgmt-cluster.kubeconfig
+
+      # Send Slack notification if credentials retrieval failed
+      - name: Notify Slack on credentials failure
+        uses: slackapi/slack-github-action@v2.1.1
+        if: failure() && steps.get_credentials.outcome == 'failure'
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":x: *AKS Credentials Retrieval Failed* - Cluster may be down! <!subteam^S09NY6A9QH3>\n"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ":x: *AKS Credentials Retrieval Failed*\n\n<!subteam^S09NY6A9QH3> The long-running cluster may be down or inaccessible.\n\n*Clusters:*\n- SVC Cluster: ${{ secrets.SVC_CLUSTER_NAME }}\n- MGMT Cluster: ${{ secrets.MGMT_CLUSTER_NAME }}\n\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>"
 
       # Convert kubeconfig for non-interactive login (GitHub runner)
       - name: Convert kubeconfig for kubelogin
@@ -115,6 +131,7 @@ jobs:
 
       - name: start pre-upgrade
         id: pre_upgrade
+        continue-on-error: true
         run: |
           pod_template_hash=$(kubectl --kubeconfig "$(pwd)/svc-cluster.kubeconfig" get rs -l app=maestro -n maestro -o jsonpath='{range .items[?(@.spec.replicas>0)]}{.metadata.name}{"\n"}{end}' | awk -F '-' '{print $2}')
           if [ -z "$pod_template_hash" ]; then
@@ -149,6 +166,9 @@ jobs:
             bash -x test/upgrade/script/run.sh || exit 1
 
       - name: start to upgrade server
+        id: upgrade_server
+        continue-on-error: true
+        if: steps.pre_upgrade.outcome == 'success'
         run: |
           KUBECONFIG=$(pwd)/svc-cluster.kubeconfig make e2e/rollout
           consumer_name="${{ steps.pre_upgrade.outputs.consumer_name }}"
@@ -173,6 +193,9 @@ jobs:
             bash -x test/upgrade/script/run.sh || exit 1
 
       - name: start to upgrade agent
+        id: upgrade_agent
+        continue-on-error: true
+        if: steps.pre_upgrade.outcome == 'success'
         run: |
           KUBECONFIG=$(pwd)/mgmt-cluster.kubeconfig make e2e/rollout
           consumer_name="${{ steps.pre_upgrade.outputs.consumer_name }}"
@@ -217,12 +240,12 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: incoming-webhook
           payload: |
-            text: "*GitHub Action build result*: ${{ job.status }}\n"
+            text: "${{ job.status == 'success' && ':white_check_mark:' || ':x:' }} *Maestro Long Running E2E Test*: ${{ job.status }}${{ job.status != 'success' && ' <!subteam^S09NY6A9QH3>' || '' }}\n"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "*GitHub Action build result: ${{ job.status }}*\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View logs>"
+                  text: "${{ job.status == 'success' && ':white_check_mark:' || ':x:' }} *Maestro Long Running E2E Test Result: ${{ job.status }}*${{ job.status != 'success' && '\n\n<!subteam^S09NY6A9QH3> Please check the failed test cases below:' || '' }}\n\n*Test Steps Status:*\n${{ steps.pre_upgrade.outcome == 'success' && ':white_check_mark:' || steps.pre_upgrade.outcome == 'failure' && ':x:' || ':heavy_minus_sign:' }} Pre-upgrade tests\n${{ steps.upgrade_server.outcome == 'success' && ':white_check_mark:' || steps.upgrade_server.outcome == 'failure' && ':x:' || ':heavy_minus_sign:' }} Upgrade server tests\n${{ steps.upgrade_agent.outcome == 'success' && ':white_check_mark:' || steps.upgrade_agent.outcome == 'failure' && ':x:' || ':heavy_minus_sign:' }} Upgrade agent tests\n\n${{ (steps.pre_upgrade.outcome == 'failure' || steps.upgrade_server.outcome == 'failure' || steps.upgrade_agent.outcome == 'failure') && '*Failed Test Cases:*\n' || '' }}${{ steps.pre_upgrade.outcome == 'failure' && '- Pre-upgrade test suite failed\n' || '' }}${{ steps.upgrade_server.outcome == 'failure' && '- Server upgrade test suite failed\n' || '' }}${{ steps.upgrade_agent.outcome == 'failure' && '- Agent upgrade test suite failed\n' || '' }}\n<${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View detailed logs>"
 
       - name: Clean up
         if: always()
