@@ -33,7 +33,7 @@ import (
 
 var (
 	sourceID                 = flag.String("source", "mw-client-example", "The source for manifestwork client")
-	maestroServerAddr        = flag.String("maestro-server", "http://127.0.0.1:30080", "The maestro server address")
+	maestroServerAddr        = flag.String("maestro-server", "https://127.0.0.1:30080", "The maestro server address")
 	grpcServerAddr           = flag.String("grpc-server", "127.0.0.1:30090", "The grpc server address")
 	grpcServerCAFile         = flag.String("grpc-server-ca-file", "", "The CA for grpc server")
 	grpcClientCertFile       = flag.String("grpc-client-cert-file", "", "The client certificate to access grpc server")
