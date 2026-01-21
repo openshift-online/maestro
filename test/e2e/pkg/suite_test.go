@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/ocm-sdk-go/logging"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
+	logtracing "github.com/openshift-online/maestro/pkg/logger"
 	"github.com/openshift-online/maestro/test"
 	"github.com/openshift-online/maestro/test/e2e/pkg/reporter"
 )
@@ -286,8 +288,9 @@ func cleanupResources(ctx context.Context) error {
 
 	works := []string{}
 	for _, work := range workList.Items {
-		By(fmt.Sprintf("clean up the left over resources %s after test", work.Name))
-		if err := mwGRPCClient.Delete(ctx, work.Name, metav1.DeleteOptions{}); err != nil {
+		opIDCtx, opID := newOpIDContext(ctx)
+		By(fmt.Sprintf("clean up the left over resources %s after test (op-id: %s)", work.Name, opID))
+		if err := mwGRPCClient.Delete(opIDCtx, work.Name, metav1.DeleteOptions{}); err != nil {
 			return fmt.Errorf("failed to delete manifestwork: %v", err)
 		}
 		works = append(works, work.Name)
@@ -320,4 +323,16 @@ func contains(s string, list []string) bool {
 		}
 	}
 	return false
+}
+
+// newOpIDContext creates a new context with a unique operation ID for tracing.
+// Returns both the context and the operation ID string for logging.
+// Usage:
+//
+//	opIDCtx, opID := newOpIDContext(ctx)
+//	By(fmt.Sprintf("create resource (op-id: %s)", opID))
+//	result, err := client.Create(opIDCtx, resource, opts)
+func newOpIDContext(ctx context.Context) (context.Context, string) {
+	opID := uuid.New().String()
+	return context.WithValue(ctx, logtracing.OpIDKey, opID), opID
 }

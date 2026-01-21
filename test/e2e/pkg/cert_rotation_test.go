@@ -87,9 +87,10 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			err = restartDeployment(ctx, agentTestOpts.kubeClientSet, "maestro-agent", agentTestOpts.agentNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("creating a test work with deployment (1 replica)")
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("creating a test work with deployment (1 replica) (op-id: %s)", opID))
 			work := helper.NewManifestWork(workName, deployName, "default", 1)
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("verifying the deployment is created on the agent cluster")
@@ -147,8 +148,9 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			err := restartDeployment(ctx, agentTestOpts.kubeClientSet, "maestro-agent", agentTestOpts.agentNamespace)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By(fmt.Sprintf("deleting test work %s", workName))
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("deleting test work %s (op-id: %s)", workName, opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("ensuring the work is deleted")
@@ -190,7 +192,9 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			patchData, err := grpcsource.ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("patch the work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("eventually verifying the deployment replicas is updated to 2 (certificate refreshed)")

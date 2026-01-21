@@ -53,8 +53,9 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			Expect(err).ShouldNot(HaveOccurred())
 			watchedResult = StartWatch(watcherCtx, watcher)
 
-			By("create a resource with source work client")
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create a resource with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -276,10 +277,11 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 			})
 
-			By("delete the resource with source work client")
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the resource with source work client (op-id: %s)", opID))
 			// note: wait some time to ensure source work client is connected to the restarted maestro server
 			Eventually(func() error {
-				return sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+				return sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
