@@ -102,15 +102,6 @@ func ValidateManifestBundleUpdate(new, old datatypes.JSONMap) error {
 	if oldManifestBundleWrapper == nil {
 		return fmt.Errorf("old manifest bundle is empty")
 	}
-	if len(newManifestBundleWrapper.Manifests) != len(oldManifestBundleWrapper.Manifests) {
-		return fmt.Errorf("new and old manifest have different number of objects")
-	}
-	for i := range newManifestBundleWrapper.Manifests {
-		if err := ValidateObjectUpdate(newManifestBundleWrapper.Manifests[i], oldManifestBundleWrapper.Manifests[i]); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
