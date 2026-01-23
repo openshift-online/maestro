@@ -65,7 +65,7 @@ image:
 
 # Logging configuration
 logging:
-  klogV: "10"
+  klogV: "4"
 
 # Message broker configuration
 messageBroker:

@@ -27,8 +27,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		var resourceID string
 
 		BeforeAll(func() {
-			By("create the resource with source work client")
-			createdWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create the resource with source work client (op-id: %s)", opID))
+			createdWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(createdWork.Name).To(Equal(workName))
 
@@ -51,8 +52,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		AfterAll(func() {
-			By("delete the resource with source work client")
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the resource with source work client (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -81,7 +83,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			patchData, err := grpcsource.ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("patch the resource with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -102,8 +106,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("delete and create again", func() {
-			By("delete the resource")
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the resource with source work client (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -128,8 +133,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			By("create the resource again")
-			createdWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("create the resource again with source work client (op-id: %s)", opID))
+			createdWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(createdWork.Name).To(Equal(workName))
 
@@ -170,7 +176,6 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			}, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("create the readonly resource with source work client")
 			work := &workv1.ManifestWork{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: workName,
@@ -211,13 +216,16 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				},
 			}
 
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create the readonly resource with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		AfterAll(func() {
-			By("delete the readonly resource with source work client")
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the readonly resource with source work client (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			err = agentTestOpts.kubeClientSet.CoreV1().Secrets("default").Delete(ctx, secretName, metav1.DeleteOptions{})
@@ -269,15 +277,17 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		nestedWorkName := fmt.Sprintf("nested-work-%s", rand.String(5))
 		nestedWorkNamespace := "default"
 		BeforeAll(func() {
-			By("create a resource with nested work using SSA")
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create a resource with nested work using SSA with source work client (op-id: %s)", opID))
 			work := newNestedManifestWork(workName, nestedWorkName, nestedWorkNamespace)
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		AfterAll(func() {
-			By("delete the resource with source work client")
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the resource with source work client (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("check the resource deletion via source workclient")
@@ -315,7 +325,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		BeforeEach(func() {
 			workName = "work-" + rand.String(5)
 			work := NewManifestWork(workName)
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create the resource with source work client (op-id: %s)", opID))
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
@@ -323,7 +335,9 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		AfterEach(func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the resource with source work client (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -333,7 +347,6 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 
 		It("should return error when updating an obsolete work", func() {
-			By("update a work by work client")
 			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
@@ -342,16 +355,19 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			patchData, err := grpcsource.ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("patch the resource with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			By("update the work by work client again")
 			obsoleteWork := work.DeepCopy()
 			obsoleteWork.Spec.Workload.Manifests = []workv1.Manifest{NewManifest(workName)}
 			patchData, err = grpcsource.ToWorkPatch(work, obsoleteWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("patch the resource again with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).Should(HaveOccurred())
 			Expect(strings.Contains(err.Error(), "the resource version is not the latest")).Should(BeTrue())
 

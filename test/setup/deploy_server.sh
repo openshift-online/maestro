@@ -80,7 +80,7 @@ serviceAccount:
 
 # Logging configuration
 logging:
-  klogV: "10"
+  klogV: "4"
 
 image:
   registry: ${external_image_registry}

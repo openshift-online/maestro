@@ -52,6 +52,16 @@ jobs:
           container_tool: docker
           SERVER_REPLICAS: 2
           ENABLE_MAESTRO_TLS: true
+      - name: Collect logs on failure
+        if: failure()
+        run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-logs
+          path: /tmp/maestro-logs/
+          retention-days: 7
   e2e-broadcast-subscription:
     runs-on: ubuntu-22.04
     steps:
@@ -78,6 +88,16 @@ jobs:
           container_tool: docker
           SERVER_REPLICAS: 3
           ENABLE_BROADCAST_SUBSCRIPTION: true
+      - name: Collect logs on failure
+        if: failure()
+        run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-broadcast-subscription-logs
+          path: /tmp/maestro-logs/
+          retention-days: 7
   e2e-with-istio:
     runs-on: ubuntu-22.04
     steps:
@@ -101,6 +121,16 @@ jobs:
         env:
           container_tool: docker
           ENABLE_ISTIO: true
+      - name: Collect logs on failure
+        if: failure()
+        run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-istio-logs
+          path: /tmp/maestro-logs/
+          retention-days: 7
   e2e-grpc-broker:
     runs-on: ubuntu-22.04
     steps:
@@ -128,6 +158,16 @@ jobs:
           SERVER_REPLICAS: 2
           MESSAGE_DRIVER_TYPE: grpc
           ENABLE_MAESTRO_TLS: true
+      - name: Collect logs on failure
+        if: failure()
+        run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-grpc-broker-logs
+          path: /tmp/maestro-logs/
+          retention-days: 7
   e2e-pubsub:
     runs-on: ubuntu-22.04
     steps:
@@ -155,6 +195,16 @@ jobs:
           SERVER_REPLICAS: 2
           MESSAGE_DRIVER_TYPE: pubsub
           ENABLE_MAESTRO_TLS: true
+      - name: Collect logs on failure
+        if: failure()
+        run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-pubsub-logs
+          path: /tmp/maestro-logs/
+          retention-days: 7
   upgrade:
     runs-on: ubuntu-22.04
     steps:
@@ -180,3 +230,13 @@ jobs:
         env:
           container_tool: docker
           ENABLE_ISTIO: true
+      - name: Collect logs on failure
+        if: failure()
+        run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: upgrade-logs
+          path: /tmp/maestro-logs/
+          retention-days: 7

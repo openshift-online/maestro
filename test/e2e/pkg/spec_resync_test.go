@@ -29,8 +29,9 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 		workC := helper.NewManifestWork(workNameC, deployC, "default", 1)
 
 		BeforeAll(func() {
-			By("create resource A with source work client")
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, workA, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create resource A with source work client (op-id: %s)", opID))
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, workA, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -44,8 +45,9 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 				return nil
 			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
 
-			By("create resource B with source work client")
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, workB, metav1.CreateOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("create resource B with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, workB, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() error {
@@ -97,7 +99,9 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 			patchData, err := grpcsource.ToWorkPatch(workA, newWorkA)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workNameA, types.MergePatchType, patchData, metav1.PatchOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("patch resource A (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workNameA, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -115,7 +119,9 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 		})
 
 		It("delete the resource B with source work client", func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workNameB, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete resource B (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workNameB, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
@@ -132,7 +138,9 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 		})
 
 		It("create resource C with source work client", func() {
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, workC, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create resource C (op-id: %s)", opID))
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, workC, metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -217,17 +225,22 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 		})
 
 		AfterAll(func() {
-			By("delete the nginx A, and nginx C resources and B if not deleted")
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workNameA, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the nginx A, and nginx C resources and B if not deleted (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workNameA, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workNameB, metav1.GetOptions{})
 			if err == nil || !errors.IsNotFound(err) {
-				err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workNameB, metav1.DeleteOptions{})
+				opIDCtx, opID = newOpIDContext(ctx)
+				By(fmt.Sprintf("delete resource B (op-id: %s)", opID))
+				err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workNameB, metav1.DeleteOptions{})
 				Expect(err).ShouldNot(HaveOccurred())
 			}
 
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workNameC, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete resource C (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workNameC, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {

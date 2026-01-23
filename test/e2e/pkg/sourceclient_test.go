@@ -50,20 +50,28 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			initWorkAName = "init-work-a-" + rand.String(5)
 			work := NewManifestWorkWithLabels(initWorkAName, map[string]string{"app": "test"})
 
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create init work A (op-id: %s)", opID))
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			initWorkBName = "init-work-b-" + rand.String(5)
 			work = NewManifestWorkWithLabels(initWorkBName, map[string]string{"app": "test"})
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("create init work B (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, initWorkAName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete init work A (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, initWorkAName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, initWorkBName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete init work B (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, initWorkBName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -98,7 +106,9 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 			By("create a work with source work client")
 			workName := "work-" + rand.String(5)
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
@@ -113,14 +123,18 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			patchData, err := grpcsource.ToWorkPatch(work, newWork)
 			Expect(err).ShouldNot(HaveOccurred())
 
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(ctx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("patch work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the work status is updated by agent
 			<-time.After(5 * time.Second)
 
 			By("delete the work with source work client")
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete work (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -167,14 +181,18 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 
 			By("create a work with source work client")
 			workName := "work-" + rand.String(5)
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, NewManifestWork(workName), metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, NewManifestWork(workName), metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("delete the work with source work client")
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete work (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -227,14 +245,18 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			By("create a work with source work client")
 			workName := "work-" + rand.String(5)
 			work := NewManifestWorkWithLabels(workName, map[string]string{"app": "test"})
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
 			<-time.After(5 * time.Second)
 
 			By("delete the work with source work client")
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete work (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -272,7 +294,9 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			By("create and process a work with first watcher")
 			workName := "watcher-test-work-" + rand.String(5)
 			work := NewManifestWork(workName)
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for work to be processed
@@ -299,7 +323,9 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			secondResult := StartWatch(watcherCtx, secondWatcher)
 
 			By("verify second watcher can process events independently")
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete work (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			By("verify second watcher received events")
@@ -348,13 +374,17 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			By("create a work")
 			workName := "work-" + rand.String(5)
 			work := NewManifestWorkWithLabels(workName, map[string]string{"app": "test-create-delete"})
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			<-time.After(1 * time.Second)
 
 			By("delete the work after 1s")
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete work (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -380,27 +410,37 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			// prepare works firstly
 			workName = "work-" + rand.String(5)
 			work := NewManifestWork(workName)
-			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create work (op-id: %s)", opID))
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			prodWorkName = "work-production-" + rand.String(5)
 			work = NewManifestWorkWithLabels(prodWorkName, map[string]string{"app": "test", "env": "production"})
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("create prod work (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkAName = "work-integration-a-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkAName, map[string]string{"app": "test", "env": "integration", "val": "a"})
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("create test work A (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkBName = "work-integration-b-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkBName, map[string]string{"app": "test", "env": "integration", "val": "b"})
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("create test work B (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			testWorkCName = "work-integration-c-" + rand.String(5)
 			work = NewManifestWorkWithLabels(testWorkCName, map[string]string{"app": "test", "env": "integration", "val": "c"})
-			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("create test work C (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			// wait for few seconds to ensure the creation is finished
@@ -408,19 +448,29 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 		})
 
 		AfterEach(func() {
-			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, workName, metav1.DeleteOptions{})
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete work (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, prodWorkName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete prod work (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, prodWorkName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkAName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete test work A (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, testWorkAName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkBName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete test work B (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, testWorkBName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
-			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, testWorkCName, metav1.DeleteOptions{})
+			opIDCtx, opID = newOpIDContext(ctx)
+			By(fmt.Sprintf("delete test work C (op-id: %s)", opID))
+			err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, testWorkCName, metav1.DeleteOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
@@ -690,10 +740,14 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			var secondWorkUID string
 
 			By("create two bundles for a single workload using manifestwork", func() {
-				firstCreated, err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+				opIDCtx, opID := newOpIDContext(ctx)
+				By(fmt.Sprintf("create work with first source client (op-id: %s)", opID))
+				firstCreated, err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 				Expect(err).ShouldNot(HaveOccurred())
 
-				secondCreated, err := secondSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(ctx, work, metav1.CreateOptions{})
+				opIDCtx, opID = newOpIDContext(ctx)
+				By(fmt.Sprintf("create work with second source client (op-id: %s)", opID))
+				secondCreated, err := secondSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
 				Expect(err).ShouldNot(HaveOccurred())
 
 				firstWorkUID = string(firstCreated.UID)
@@ -765,7 +819,9 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			By("delete the first work", func() {
 				Eventually(func() error {
 					// delete one, the other should be not be changed
-					if err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(ctx, work.Name, metav1.DeleteOptions{}); err != nil {
+					opIDCtx, opID := newOpIDContext(ctx)
+					By(fmt.Sprintf("delete work with first source client (op-id: %s)", opID))
+					if err := firstSourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, work.Name, metav1.DeleteOptions{}); err != nil {
 						return err
 					}
 

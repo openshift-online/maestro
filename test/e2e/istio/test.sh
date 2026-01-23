@@ -32,12 +32,12 @@ timeout=${TIMEOUT:-"30m"}
 
 if [ ! -f "$server_kubeconfig" ]; then
    echo "ERROR: server_kubeconfig not found at $server_kubeconfig" >&2
-    exit 1
+   exit 1
 fi
 
 if [ ! -f "$agent_kubeconfig" ]; then
    echo "ERROR: agent_kubeconfig not found at $agent_kubeconfig" >&2
-    exit 1
+   exit 1
 fi
 
 if [ ! -f "$server_in_cluster_kubeconfig" ]; then
