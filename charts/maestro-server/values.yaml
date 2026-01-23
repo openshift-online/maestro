@@ -182,7 +182,7 @@ postgresql:
 # MQTT broker deployment (optional, for development)
 mosquitto:
   enabled: false
-  image: quay.io/maestro/eclipse-mosquitto:2.0.18
+  image: quay.io/maestro/eclipse-mosquitto:2.0.20
   service:
     name: maestro-mqtt
     port: 1883
