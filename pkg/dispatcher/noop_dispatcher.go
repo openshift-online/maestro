@@ -35,8 +35,8 @@ func NewNoopDispatcher(sessionFactory db.SessionFactory, sourceClient cloudevent
 // Start is a no-op implementation.
 func (d *NoopDispatcher) Start(ctx context.Context) {
 	logger := klog.FromContext(ctx)
-	// handle client reconnected signal and resync status from consumers for this source
-	go d.resyncOnReconnect(ctx)
+	// handle client subscribed signal and resync status from consumers for this source
+	go d.resyncOnSubscribed(ctx)
 
 	// listen for server_instance update
 	logger.Info("NoopDispatcher listening for server_instances updates")
@@ -49,16 +49,16 @@ func (d *NoopDispatcher) Start(ctx context.Context) {
 
 }
 
-// resyncOnReconnect listens for client reconnected signal and resyncs all consumers for this source.
-func (d *NoopDispatcher) resyncOnReconnect(ctx context.Context) {
+// resyncOnSubscribed listens for client subscribed signal and resyncs all consumers for this source.
+func (d *NoopDispatcher) resyncOnSubscribed(ctx context.Context) {
 	logger := klog.FromContext(ctx)
-	// receive client reconnect signal and resync current consumers for this source
+	// receive client subscribed signal and resync current consumers for this source
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-d.sourceClient.ReconnectedChan():
-			// when receiving a client reconnected signal, we resync all consumers for this source
+		case <-d.sourceClient.SubscribedChan():
+			// when receiving a client subscribed signal, we resync all consumers for this source
 			// TODO: optimize this to only resync resource status for necessary consumers
 			consumerIDs := []string{}
 			consumers, err := d.consumerDao.All(ctx)
