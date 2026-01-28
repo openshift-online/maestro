@@ -175,6 +175,6 @@ func (s *SourceClientMock) Resync(ctx context.Context, consumers []string) error
 	return nil
 }
 
-func (s *SourceClientMock) ReconnectedChan() <-chan struct{} {
+func (s *SourceClientMock) SubscribedChan() <-chan struct{} {
 	return nil
 }
