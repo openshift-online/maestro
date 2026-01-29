@@ -105,7 +105,7 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 		}
 
 		// handle the resource status update according status update type
-		if err := handleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
+		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
 			return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 		}
 
@@ -150,14 +150,14 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 	return true, nil
 }
 
-// handleStatusUpdate processes the resource status update from the agent.
+// HandleStatusUpdate processes the resource status update from the agent.
 // The resource argument contains the updated status.
 // The function performs the following steps:
 // 1. Verifies if the resource is still in the Maestro server and checks if the consumer name matches.
 // 2. Retrieves the resource from Maestro and fills back the work metadata from the spec event to the status event.
 // 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
 // otherwise, updates the resource status and creates a status event.
-func handleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
+func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
 	logger := klog.FromContext(ctx)
 	logger.Info("handle resource status update by the current instance")
 
