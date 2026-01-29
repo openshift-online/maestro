@@ -55,7 +55,7 @@ func (s *GRPCBrokerService) List(ctx context.Context, listOpts types.ListOptions
 
 	evts := []*ce.Event{}
 	for _, res := range resources {
-		evt, err := encodeResourceSpec(res, types.ResyncResponseAction)
+		evt, err := EncodeResourceSpec(res, types.ResyncResponseAction)
 		if err != nil {
 			return nil, kubeerrors.NewInternalError(err)
 		}
@@ -68,13 +68,13 @@ func (s *GRPCBrokerService) List(ctx context.Context, listOpts types.ListOptions
 // HandleStatusUpdate processes the resource status update from the agent.
 func (s *GRPCBrokerService) HandleStatusUpdate(ctx context.Context, evt *ce.Event) error {
 	// decode the cloudevent data as resource with status
-	resource, err := decodeResourceStatus(evt)
+	resource, err := DecodeResourceStatus(evt)
 	if err != nil {
 		return fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
 
 	// handle the resource status update according status update type
-	if err := handleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
+	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
 		return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 	}
 
@@ -252,7 +252,7 @@ func (s *GRPCBroker) Get(ctx context.Context, resourceID string, action types.Ev
 		return nil, kubeerrors.NewInternalError(err)
 	}
 
-	return encodeResourceSpec(resource, action)
+	return EncodeResourceSpec(resource, action)
 }
 
 // On StatusUpdate will be called on each new status event inserted into db.
@@ -306,14 +306,14 @@ func (s *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool, 
 	return s.eventServer.Subscribers().Has(resource.ConsumerName), nil
 }
 
-// decodeResourceStatus translates a CloudEvent into a resource containing the status JSON map.
-func decodeResourceStatus(evt *ce.Event) (*api.Resource, error) {
+// DecodeResourceStatus translates a CloudEvent into a resource containing the status JSON map.
+func DecodeResourceStatus(evt *ce.Event) (*api.Resource, error) {
 	codec := cloudevents.NewCodec(source)
 	return codec.Decode(evt)
 }
 
-// encodeResourceSpec translates a resource spec JSON map into a CloudEvent.
-func encodeResourceSpec(resource *api.Resource, action types.EventAction) (*ce.Event, error) {
+// EncodeResourceSpec translates a resource spec JSON map into a CloudEvent.
+func EncodeResourceSpec(resource *api.Resource, action types.EventAction) (*ce.Event, error) {
 	eventType := types.CloudEventsType{
 		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
