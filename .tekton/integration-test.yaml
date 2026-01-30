@@ -36,6 +36,13 @@ spec:
           description: Test output
         steps:
         - image: registry.redhat.io/openshift4/ose-cli:latest
+          resources:
+            requests:
+              memory: "4Gi"
+              cpu: "2"
+            limits:
+              memory: "6Gi"
+              cpu: "4"
           env:
           - name: SNAPSHOT
             value: $(params.SNAPSHOT)
