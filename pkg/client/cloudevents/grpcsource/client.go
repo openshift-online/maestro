@@ -48,7 +48,7 @@ func NewMaestroGRPCSourceWorkClient(
 			select {
 			case <-ctx.Done():
 				return
-			case <-cloudEventsClient.ReconnectedChan():
+			case <-cloudEventsClient.SubscribedChan():
 				// reconnect happened, sync the works for current watchers
 				if err := watcherStore.Sync(); err != nil {
 					logger.Error(ctx, "failed to sync the works %v", err)

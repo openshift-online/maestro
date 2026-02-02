@@ -81,7 +81,7 @@ func (d *HashDispatcher) resyncOnReconnect(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-d.sourceClient.ReconnectedChan():
+		case <-d.sourceClient.SubscribedChan():
 			// when receiving a client reconnected signal, we resync current consumers for this source
 			if err := d.sourceClient.Resync(ctx, d.consumerSet.ToSlice()); err != nil {
 				logger.Error(err, "failed to resync resources status for consumers", "consumers", d.consumerSet.ToSlice())

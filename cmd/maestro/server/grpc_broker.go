@@ -46,30 +46,16 @@ func NewGRPCBrokerService(resourceService services.ResourceService,
 	}
 }
 
-// Get the cloudEvent based on resourceID from the service
-func (s *GRPCBrokerService) Get(ctx context.Context, resourceID string) (*ce.Event, error) {
-	resource, err := s.resourceService.Get(ctx, resourceID)
-	if err != nil {
-		// if the resource is not found, it indicates the resource has been processed.
-		if err.Is404() {
-			return nil, kubeerrors.NewNotFound(schema.GroupResource{Resource: "manifestbundles"}, resourceID)
-		}
-		return nil, kubeerrors.NewInternalError(err)
-	}
-
-	return encodeResourceSpec(resource)
-}
-
 // List the cloudEvent from the service
-func (s *GRPCBrokerService) List(listOpts types.ListOptions) ([]*ce.Event, error) {
-	resources, err := s.resourceService.List(context.Background(), listOpts)
+func (s *GRPCBrokerService) List(ctx context.Context, listOpts types.ListOptions) ([]*ce.Event, error) {
+	resources, err := s.resourceService.List(ctx, listOpts)
 	if err != nil {
 		return nil, err
 	}
 
 	evts := []*ce.Event{}
 	for _, res := range resources {
-		evt, err := encodeResourceSpec(res)
+		evt, err := EncodeResourceSpec(res, types.ResyncResponseAction)
 		if err != nil {
 			return nil, kubeerrors.NewInternalError(err)
 		}
@@ -82,13 +68,13 @@ func (s *GRPCBrokerService) List(listOpts types.ListOptions) ([]*ce.Event, error
 // HandleStatusUpdate processes the resource status update from the agent.
 func (s *GRPCBrokerService) HandleStatusUpdate(ctx context.Context, evt *ce.Event) error {
 	// decode the cloudevent data as resource with status
-	resource, err := decodeResourceStatus(evt)
+	resource, err := DecodeResourceStatus(evt)
 	if err != nil {
 		return fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
 
 	// handle the resource status update according status update type
-	if err := handleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
+	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
 		return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 	}
 
@@ -229,17 +215,44 @@ func (bkr *GRPCBroker) Start(ctx context.Context) {
 
 // OnCreate is called by the controller when a resource is created on the maestro server.
 func (s *GRPCBroker) OnCreate(ctx context.Context, resourceID string) error {
-	return s.eventServer.OnCreate(ctx, workpayload.ManifestBundleEventDataType, resourceID)
+	evt, err := s.Get(ctx, resourceID, types.CreateRequestAction)
+	if err != nil {
+		return err
+	}
+	return s.eventServer.HandleEvent(ctx, evt)
 }
 
 // OnUpdate is called by the controller when a resource is updated on the maestro server.
 func (s *GRPCBroker) OnUpdate(ctx context.Context, resourceID string) error {
-	return s.eventServer.OnUpdate(ctx, workpayload.ManifestBundleEventDataType, resourceID)
+	evt, err := s.Get(ctx, resourceID, types.UpdateRequestAction)
+	if err != nil {
+		return err
+	}
+	return s.eventServer.HandleEvent(ctx, evt)
 }
 
 // OnDelete is called by the controller when a resource is deleted from the maestro server.
 func (s *GRPCBroker) OnDelete(ctx context.Context, resourceID string) error {
-	return s.eventServer.OnDelete(ctx, workpayload.ManifestBundleEventDataType, resourceID)
+	evt, err := s.Get(ctx, resourceID, types.DeleteRequestAction)
+	if err != nil {
+		return err
+	}
+
+	return s.eventServer.HandleEvent(ctx, evt)
+}
+
+// Get the cloudEvent based on resourceID from the service
+func (s *GRPCBroker) Get(ctx context.Context, resourceID string, action types.EventAction) (*ce.Event, error) {
+	resource, err := s.resourceService.Get(ctx, resourceID)
+	if err != nil {
+		// if the resource is not found, it indicates the resource has been processed.
+		if err.Is404() {
+			return nil, kubeerrors.NewNotFound(schema.GroupResource{Resource: "manifestbundles"}, resourceID)
+		}
+		return nil, kubeerrors.NewInternalError(err)
+	}
+
+	return EncodeResourceSpec(resource, action)
 }
 
 // On StatusUpdate will be called on each new status event inserted into db.
@@ -293,18 +306,18 @@ func (s *GRPCBroker) PredicateEvent(ctx context.Context, eventID string) (bool, 
 	return s.eventServer.Subscribers().Has(resource.ConsumerName), nil
 }
 
-// decodeResourceStatus translates a CloudEvent into a resource containing the status JSON map.
-func decodeResourceStatus(evt *ce.Event) (*api.Resource, error) {
+// DecodeResourceStatus translates a CloudEvent into a resource containing the status JSON map.
+func DecodeResourceStatus(evt *ce.Event) (*api.Resource, error) {
 	codec := cloudevents.NewCodec(source)
 	return codec.Decode(evt)
 }
 
-// encodeResourceSpec translates a resource spec JSON map into a CloudEvent.
-func encodeResourceSpec(resource *api.Resource) (*ce.Event, error) {
+// EncodeResourceSpec translates a resource spec JSON map into a CloudEvent.
+func EncodeResourceSpec(resource *api.Resource, action types.EventAction) (*ce.Event, error) {
 	eventType := types.CloudEventsType{
 		CloudEventsDataType: workpayload.ManifestBundleEventDataType,
 		SubResource:         types.SubResourceSpec,
-		Action:              types.EventAction("create_request"),
+		Action:              action,
 	}
 
 	codec := cloudevents.NewCodec(source)
