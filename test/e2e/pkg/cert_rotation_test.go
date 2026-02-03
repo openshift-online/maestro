@@ -103,7 +103,7 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 					return fmt.Errorf("expected 1 replica, got %d", *deployment.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			By("verifying work status is reported back")
 			Eventually(func() error {
@@ -118,7 +118,7 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 					return fmt.Errorf("work not available yet")
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		AfterAll(func() {
@@ -156,7 +156,7 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 			By("ensuring the work is deleted")
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			By("ensuring the deployment is deleted from agent cluster")
 			Eventually(func() error {
@@ -168,7 +168,7 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 					return err
 				}
 				return fmt.Errorf("deployment %s still exists", deployName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		It("should update work when certificate expires and succeed after rotation", func() {
@@ -210,7 +210,7 @@ var _ = Describe("Certificate Rotation", Ordered, Label("e2e-tests-cert-rotation
 					return fmt.Errorf("expected 2 replicas, got %d", *deployment.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 	})
 })
@@ -429,7 +429,7 @@ func restartDeployment(ctx context.Context, kubeClient kubernetes.Interface, dep
 		}
 
 		return nil
-	}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+	}).ShouldNot(HaveOccurred())
 
 	// Give the deployment a moment to establish connections
 	time.Sleep(5 * time.Second)

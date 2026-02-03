@@ -42,7 +42,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			resourceID = string(createdWork.UID)
 			gotResource, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
@@ -66,11 +66,11 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		It("patch the resource with source work client", func() {
@@ -120,7 +120,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return err
 				}
 				return fmt.Errorf("nginx deployment still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				_, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
@@ -131,7 +131,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return fmt.Errorf("unexpected http code, got %d, expected %d", resp.StatusCode, http.StatusNotFound)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			opIDCtx, opID = newOpIDContext(ctx)
 			By(fmt.Sprintf("create the resource again with source work client (op-id: %s)", opID))
@@ -148,7 +148,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return fmt.Errorf("unexpected replicas, expected 1, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			// the resource id should not change
 			gotResource, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
@@ -240,12 +240,12 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return err
 				}
 				return fmt.Errorf("auth secret still exists")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			By("check the resource deletion via source workclient")
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		It("get the resource status back", func() {
@@ -268,7 +268,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				}
 
 				return fmt.Errorf("work status manifests are empty")
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 	})
 
@@ -293,7 +293,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			By("check the resource deletion via source workclient")
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 2*time.Minute, 2*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		It("check the nested work is created and not updated", func() {
@@ -301,7 +301,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Eventually(func() error {
 				_, err := agentTestOpts.workClientSet.WorkV1().ManifestWorks(nestedWorkNamespace).Get(ctx, nestedWorkName, metav1.GetOptions{})
 				return err
-			}, 30*time.Second, time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			// make sure the nested work is not updated
 			Consistently(func() error {
@@ -315,7 +315,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 				}
 
 				return nil
-			}, 1*time.Minute, 1*time.Second).Should(BeNil())
+			}).Should(BeNil())
 		})
 	})
 
@@ -342,7 +342,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 			Eventually(func() error {
 				return AssertWorkNotFound(workName)
-			}, 1*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 		})
 

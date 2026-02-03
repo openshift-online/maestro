@@ -90,6 +90,10 @@ func init() {
 }
 
 var _ = BeforeSuite(func() {
+	// For cases that need more than 2 minutes, please set the timeout in the test case EXPLICITLY.
+	SetDefaultEventuallyTimeout(2 * time.Minute)
+	SetDefaultEventuallyPollingInterval(2 * time.Second)
+
 	ctx, cancel = context.WithCancel(context.Background())
 
 	// initialize the api client
@@ -194,7 +198,7 @@ var _ = AfterSuite(func() {
 	// clean up the resources
 	Eventually(func() error {
 		return cleanupResources(ctx)
-	}, 2*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
+	}).WithTimeout(5 * time.Minute).ShouldNot(HaveOccurred())
 
 	// close the grpc connection
 	if grpcConn != nil {
