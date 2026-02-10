@@ -105,27 +105,6 @@ func ValidateManifestBundleUpdate(new, old datatypes.JSONMap) error {
 	return nil
 }
 
-func ValidateObjectUpdate(new, old datatypes.JSONMap) error {
-	fldPath := field.NewPath("metadata")
-
-	newObj := unstructured.Unstructured{Object: new}
-	oldObj := unstructured.Unstructured{Object: old}
-
-	errs := field.ErrorList{}
-
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetAPIVersion(), oldObj.GetAPIVersion(), field.NewPath("apiVersion"))...)
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetKind(), oldObj.GetKind(), field.NewPath("kind"))...)
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetName(), oldObj.GetName(), fldPath.Child("name"))...)
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetNamespace(), oldObj.GetNamespace(), fldPath.Child("namespace"))...)
-	errs = append(errs, validateMetaData(newObj)...)
-
-	if len(errs) == 0 {
-		return nil
-	}
-
-	return fmt.Errorf("%s", errs.ToAggregate().Error())
-}
-
 // validatedAPIVersion tests whether the value passed is a valid apiVersion. A
 // valid apiVersion contains a version string that matches DNS_LABEL format,
 // with an optional group/ prefix, where the group string matches DNS_SUBDOMAIN

@@ -158,7 +158,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 		})
 	})
 
-	Context("Resource ReadOnly  Tests", func() {
+	Context("Resource ReadOnly Tests", func() {
 		workName := "work-readonly-" + rand.String(5)
 		secretName := "auth-" + rand.String(5)
 		manifest := fmt.Sprintf("{\"apiVersion\":\"v1\",\"kind\":\"Secret\",\"metadata\":{\"name\":\"%s\",\"namespace\":\"default\"}}", secretName)
@@ -373,6 +373,79 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 
 			// wait for few seconds to ensure the update is finished
 			<-time.After(5 * time.Second)
+		})
+	})
+
+	Context("Update workload to add or remove manifests", func() {
+		var workName string
+
+		BeforeAll(func() {
+			workName = "work-" + rand.String(5)
+			work := NewManifestWork(workName)
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("create the resource with source work client (op-id: %s)", opID))
+			_, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Create(opIDCtx, work, metav1.CreateOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for few seconds to ensure the creation is finished
+			<-time.After(5 * time.Second)
+		})
+
+		AfterAll(func() {
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("delete the resource with source work client (op-id: %s)", opID))
+			err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				return AssertWorkNotFound(workName)
+			}).ShouldNot(HaveOccurred())
+
+		})
+
+		It("should add a new manifest to the workload successfully", func() {
+			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			newWork := work.DeepCopy()
+			newWork.Spec.Workload.Manifests = append(work.Spec.Workload.Manifests, NewManifest(workName+"-updated"))
+			patchData, err := grpcsource.ToWorkPatch(work, newWork)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("patch the resource with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for few seconds to ensure the update is finished
+			<-time.After(5 * time.Second)
+
+			updatedWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(len(updatedWork.Spec.Workload.Manifests)).To(Equal(2))
+		})
+
+		It("should remove the manifests from the workload successfully", func() {
+			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			newWork := work.DeepCopy()
+			// remove the last manifest in the workload
+			newWork.Spec.Workload.Manifests = newWork.Spec.Workload.Manifests[:len(newWork.Spec.Workload.Manifests)-1]
+			patchData, err := grpcsource.ToWorkPatch(work, newWork)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("patch the resource with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for few seconds to ensure the update is finished
+			<-time.After(5 * time.Second)
+
+			updatedWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(len(updatedWork.Spec.Workload.Manifests)).To(Equal(1))
 		})
 	})
 })
