@@ -1,11 +1,13 @@
 package environments
 
 import (
+	"flag"
 	"os/exec"
 	"reflect"
 	"testing"
 
 	"github.com/spf13/pflag"
+	"k8s.io/klog/v2"
 )
 
 func BenchmarkGetResources(b *testing.B) {
@@ -23,6 +25,10 @@ func BenchmarkGetResources(b *testing.B) {
 }
 
 func TestLoadServices(t *testing.T) {
+	// Initialize klog flags first (same as main.go does)
+	klog.InitFlags(nil)
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+
 	env := Environment()
 	// Override environment name
 	env.Name = "testing"

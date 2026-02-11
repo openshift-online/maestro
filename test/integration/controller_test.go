@@ -24,8 +24,7 @@ import (
 func TestControllerRacing(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
 	}()
@@ -163,9 +162,7 @@ func TestControllerRacing(t *testing.T) {
 
 func TestControllerReconcile(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
-
-	account := h.NewRandAccount()
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// start work agent so that grpc broker can work
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
@@ -287,9 +284,7 @@ func TestControllerReconcile(t *testing.T) {
 
 func TestControllerSync(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
-
-	account := h.NewRandAccount()
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// start work agent so that grpc broker can work
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
@@ -409,9 +404,7 @@ func TestControllerSync(t *testing.T) {
 
 func TestStatusControllerSync(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
-
-	account := h.NewRandAccount()
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	ctx, cancel := context.WithCancel(context.Background())
 
 	instanceDao := dao.NewInstanceDao(&h.Env().Database.SessionFactory)
 	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
@@ -585,9 +578,7 @@ func TestStatusControllerSync(t *testing.T) {
 
 func TestMultipleControllers(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
-
-	account := h.NewRandAccount()
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
 	}()

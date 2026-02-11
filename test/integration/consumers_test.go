@@ -20,8 +20,7 @@ import (
 func TestConsumerGet(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// 401 using no JWT token
 	_, _, err := client.DefaultAPI.ApiMaestroV1ConsumersIdGet(context.Background(), "foo").Execute()
@@ -51,8 +50,7 @@ func TestConsumerGet(t *testing.T) {
 func TestConsumerPost(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// POST responses per openapi spec: 201, 409, 500
 	c := openapi.Consumer{
@@ -101,8 +99,7 @@ func TestConsumerPost(t *testing.T) {
 func TestConsumerPatch(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// create a consumer
 	consumer, err := h.CreateConsumer("brontosaurus")
@@ -144,9 +141,8 @@ func TestConsumerPatch(t *testing.T) {
 }
 
 func TestConsumerDelete(t *testing.T) {
-	h, client := test.RegisterIntegration(t)
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	_, client := test.RegisterIntegration(t)
+	ctx := context.Background()
 
 	// POST responses per openapi spec: 201, 409, 500
 	c := openapi.Consumer{
@@ -179,8 +175,7 @@ func TestConsumerDelete(t *testing.T) {
 
 func TestConsumerDeleteForbidden(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// create a consumser
 	c := openapi.Consumer{
@@ -214,8 +209,7 @@ func TestConsumerDeleteForbidden(t *testing.T) {
 
 func TestConsumerDeleting(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// create 10 consumers
 	consumerNum := 10
@@ -332,8 +326,7 @@ func TestConsumerDeleting(t *testing.T) {
 func TestConsumerPaging(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// Paging
 	_, err := h.CreateConsumerList(20)

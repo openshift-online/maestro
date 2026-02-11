@@ -108,7 +108,6 @@ make undeploy
 - **pkg/controllers/**: Event processing controllers and framework
 - **pkg/client/**: CloudEvents clients for MQTT and gRPC communication
 - **pkg/config/**: Configuration management for database, message brokers, and servers
-- **pkg/auth/**: Authentication and authorization middleware
 
 ### Key Concepts
 - **Resources**: Kubernetes manifests stored in the database and transported via CloudEvents

@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/segmentio/ksuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -37,13 +36,6 @@ func OperationIDMiddleware(handler http.Handler) http.Handler {
 		// Add operationID attribute to span
 		span := trace.SpanFromContext(ctx)
 		span.SetAttributes(operationIDAttribute(opID))
-
-		// Add operationID to sentry context
-		if hub := sentry.GetHubFromContext(ctx); hub != nil {
-			hub.ConfigureScope(func(scope *sentry.Scope) {
-				scope.SetTag("operation_id", opID)
-			})
-		}
 
 		// Add operationID to logger so it appears in all log messages
 		logger := klog.FromContext(ctx).WithValues(OpIDKey, opID)
