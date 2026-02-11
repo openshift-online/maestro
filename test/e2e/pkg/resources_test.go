@@ -1,6 +1,7 @@
 package e2e_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -447,8 +449,57 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(len(updatedWork.Spec.Workload.Manifests)).To(Equal(1))
 		})
+
+		It("should replace the manifest from the workload successfully", func() {
+			work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			newWork := work.DeepCopy()
+			// replace the manifest in the workload
+			newWork.Spec.Workload.Manifests[0] = newSecretManifest(workName + "-replaced")
+			patchData, err := grpcsource.ToWorkPatch(work, newWork)
+			Expect(err).ShouldNot(HaveOccurred())
+
+			opIDCtx, opID := newOpIDContext(ctx)
+			By(fmt.Sprintf("patch the resource with source work client (op-id: %s)", opID))
+			_, err = sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Patch(opIDCtx, workName, types.MergePatchType, patchData, metav1.PatchOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+
+			// wait for few seconds to ensure the update is finished
+			<-time.After(5 * time.Second)
+
+			updatedWork, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
+			Expect(err).ShouldNot(HaveOccurred())
+			manifest := map[string]interface{}{}
+			Expect(json.Unmarshal(updatedWork.Spec.Workload.Manifests[0].Raw, &manifest)).NotTo(HaveOccurred(), "Error unmarshalling manifest:  %v", err)
+			Expect(manifest["kind"]).To(Equal("Secret"))
+		})
 	})
 })
+
+func newSecretManifest(name string) workv1.Manifest {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Secret",
+			"metadata": map[string]interface{}{
+				"namespace": "default",
+				"name":      name,
+				"labels": map[string]string{
+					"test": "true",
+				},
+			},
+			"stringData": map[string]string{
+				"test": rand.String(5),
+			},
+		},
+	}
+	objectStr, _ := obj.MarshalJSON()
+	manifest := workv1.Manifest{}
+	manifest.Raw = objectStr
+	manifest.RawExtension.Object = obj
+	return manifest
+}
 
 func newNestedManifestWork(workName, nestedWorkName, nestedWorkNamespace string) *workv1.ManifestWork {
 	nestedWork := &workv1.ManifestWork{
