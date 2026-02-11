@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/getsentry/sentry-go"
 	"k8s.io/klog/v2"
 )
 
@@ -56,7 +55,6 @@ func SendAPI(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(data)
 	if err != nil {
 		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
-		sentry.CaptureException(err)
 		return
 	}
 }
@@ -93,7 +91,6 @@ func SendAPIV1(w http.ResponseWriter, r *http.Request) {
 	_, err = w.Write(data)
 	if err != nil {
 		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
-		sentry.CaptureException(err)
 		return
 	}
 }

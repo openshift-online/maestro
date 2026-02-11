@@ -7,10 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/getsentry/sentry-go"
 	"k8s.io/klog/v2"
-
-	"github.com/openshift-online/maestro/cmd/maestro/environments"
 )
 
 type Server interface {
@@ -32,8 +29,6 @@ func check(ctx context.Context, err error, msg string) {
 	if err != nil && err != http.ErrServerClosed {
 		logger := klog.FromContext(ctx)
 		logger.Error(err, msg)
-		sentry.CaptureException(err)
-		sentry.Flush(environments.Environment().Config.Sentry.Timeout)
 		os.Exit(1)
 	}
 }

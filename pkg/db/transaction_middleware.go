@@ -2,13 +2,10 @@ package db
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
-	"github.com/getsentry/sentry-go"
 	"k8s.io/klog/v2"
 
-	"github.com/openshift-online/maestro/pkg/db/db_context"
 	"github.com/openshift-online/maestro/pkg/errors"
 	loggertracing "github.com/openshift-online/maestro/pkg/logger"
 )
@@ -32,14 +29,6 @@ func TransactionMiddleware(next http.Handler, connection SessionFactory) http.Ha
 		// Set the value of the request pointer to the value of a new copy of the request with the new context key,vale
 		// stored in it
 		*r = *r.WithContext(ctx)
-
-		if hub := sentry.GetHubFromContext(ctx); hub != nil {
-			hub.ConfigureScope(func(scope *sentry.Scope) {
-				if txid, ok := db_context.TxID(ctx); ok {
-					scope.SetTag("db_transaction_id", fmt.Sprintf("%d", txid))
-				}
-			})
-		}
 
 		// Returned from handlers and resolve transactions.
 		defer func() { Resolve(r.Context()) }()

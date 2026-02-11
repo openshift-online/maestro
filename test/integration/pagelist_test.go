@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -17,8 +18,7 @@ import (
 func TestListSyncWorks(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	consumer1, err := h.CreateConsumer("cluster-" + rand.String(5))
 	Expect(err).NotTo(HaveOccurred())

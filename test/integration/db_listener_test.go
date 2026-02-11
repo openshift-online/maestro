@@ -16,9 +16,7 @@ func TestWaitForNotification(t *testing.T) {
 	result := make(chan string)
 
 	h, _ := test.RegisterIntegration(t)
-
-	account := h.NewRandAccount()
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
 	}()

@@ -14,11 +14,6 @@ type HTTPServerConfig struct {
 	HTTPSCertFile string        `json:"https_cert_file"`
 	HTTPSKeyFile  string        `json:"https_key_file"`
 	EnableHTTPS   bool          `json:"enable_https"`
-	EnableJWT     bool          `json:"enable_jwt"`
-	EnableAuthz   bool          `json:"enable_authz"`
-	JwkCertFile   string        `json:"jwk_cert_file"`
-	JwkCertURL    string        `json:"jwk_cert_url"`
-	ACLFile       string        `json:"acl_file"`
 }
 
 func NewHTTPServerConfig() *HTTPServerConfig {
@@ -28,11 +23,6 @@ func NewHTTPServerConfig() *HTTPServerConfig {
 		ReadTimeout:   5 * time.Second,
 		WriteTimeout:  30 * time.Second,
 		EnableHTTPS:   false,
-		EnableJWT:     false,
-		EnableAuthz:   false,
-		JwkCertFile:   "",
-		JwkCertURL:    "https://sso.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs",
-		ACLFile:       "",
 		HTTPSCertFile: "",
 		HTTPSKeyFile:  "",
 	}
@@ -46,13 +36,6 @@ func (s *HTTPServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&s.HTTPSCertFile, "https-cert-file", s.HTTPSCertFile, "The path to the tls.crt file.")
 	fs.StringVar(&s.HTTPSKeyFile, "https-key-file", s.HTTPSKeyFile, "The path to the tls.key file.")
 	fs.BoolVar(&s.EnableHTTPS, "enable-https", s.EnableHTTPS, "Enable HTTPS rather than HTTP")
-	fs.BoolVar(&s.EnableJWT, "enable-jwt", s.EnableJWT, "Enable JWT authentication validation")
-	fs.MarkDeprecated("enable-jwt", "this flag is deprecated and will be removed in a future release. JWT authentication validation is no longer supported.")
-	fs.BoolVar(&s.EnableAuthz, "enable-authz", s.EnableAuthz, "Enable Authorization on endpoints, should only be disabled for debug")
-	fs.MarkDeprecated("enable-authz", "this flag is deprecated and will be removed in a future release. Authorization is no longer supported.")
-	fs.StringVar(&s.JwkCertFile, "jwk-cert-file", s.JwkCertFile, "JWK Certificate file")
-	fs.StringVar(&s.JwkCertURL, "jwk-cert-url", s.JwkCertURL, "JWK Certificate URL")
-	fs.StringVar(&s.ACLFile, "acl-file", s.ACLFile, "Access control list file")
 }
 
 func (s *HTTPServerConfig) ReadFiles() error {
