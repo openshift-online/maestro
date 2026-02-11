@@ -49,10 +49,24 @@ func ValidateManifestBundle(manifestBundle datatypes.JSONMap) error {
 	if manifestBundleWrapper == nil {
 		return fmt.Errorf("manifest bundle is empty")
 	}
-	for _, obj := range manifestBundleWrapper.Manifests {
-		if err := ValidateObject(obj); err != nil {
+
+	// Track seen manifests to detect duplicates
+	seen := sets.New[string]()
+
+	for i, manifest := range manifestBundleWrapper.Manifests {
+		if err := ValidateObject(manifest); err != nil {
 			return err
 		}
+		// Check for duplicate manifests
+		info, err := extractManifestInfo(manifest)
+		if err != nil {
+			return fmt.Errorf("failed to extract metadata from manifest at index %d: %w", i, err)
+		}
+
+		if seen.Has(info.key) {
+			return fmt.Errorf("duplicate manifest for resource %s/%s with resource type %s", info.namespace, info.name, info.gvk)
+		}
+		seen.Insert(info.key)
 	}
 
 	return nil
@@ -86,34 +100,6 @@ func ValidateObject(obj datatypes.JSONMap) error {
 	}
 
 	return fmt.Errorf("%s", errs.ToAggregate().Error())
-}
-
-func ValidateManifestBundleUpdate(new, old datatypes.JSONMap) error {
-	newManifestBundleWrapper, err := api.DecodeManifestBundle(new)
-	if err != nil {
-		return fmt.Errorf("failed to decode new manifest bundle: %v", err)
-	}
-	if newManifestBundleWrapper == nil {
-		return fmt.Errorf("new manifest bundle is empty")
-	}
-
-	// Track seen manifests to detect duplicates
-	seen := sets.New[string]()
-
-	for i, manifest := range newManifestBundleWrapper.Manifests {
-
-		// Check for duplicate manifests
-		info, err := extractManifestInfo(manifest)
-		if err != nil {
-			return fmt.Errorf("failed to extract metadata from manifest at index %d: %w", i, err)
-		}
-
-		if seen.Has(info.key) {
-			return fmt.Errorf("duplicate manifest for resource %s/%s with resource type %s", info.namespace, info.name, info.gvk)
-		}
-		seen.Insert(info.key)
-	}
-	return nil
 }
 
 // manifestInfo contains the metadata needed for duplicate detection and error messages.

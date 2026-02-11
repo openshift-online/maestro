@@ -124,7 +124,7 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return found, nil
 	}
 
-	if err := ValidateManifestBundleUpdate(resource.Payload, found.Payload); err != nil {
+	if err := ValidateManifestBundle(resource.Payload); err != nil {
 		return nil, errors.Validation("the new manifest bundle in the resource is invalid, %v", err)
 	}
 
