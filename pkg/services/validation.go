@@ -8,6 +8,7 @@ import (
 	apivalidation "k8s.io/apimachinery/pkg/api/validation"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	v1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+	"k8s.io/apimachinery/pkg/util/sets"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -48,10 +49,24 @@ func ValidateManifestBundle(manifestBundle datatypes.JSONMap) error {
 	if manifestBundleWrapper == nil {
 		return fmt.Errorf("manifest bundle is empty")
 	}
-	for _, obj := range manifestBundleWrapper.Manifests {
-		if err := ValidateObject(obj); err != nil {
+
+	// Track seen manifests to detect duplicates
+	seen := sets.New[string]()
+
+	for i, manifest := range manifestBundleWrapper.Manifests {
+		if err := ValidateObject(manifest); err != nil {
 			return err
 		}
+		// Check for duplicate manifests
+		info, err := extractManifestInfo(manifest)
+		if err != nil {
+			return fmt.Errorf("failed to extract metadata from manifest at index %d: %w", i, err)
+		}
+
+		if seen.Has(info.key) {
+			return fmt.Errorf("duplicate manifest for resource %s/%s with resource type %s", info.namespace, info.name, info.gvk)
+		}
+		seen.Insert(info.key)
 	}
 
 	return nil
@@ -87,52 +102,24 @@ func ValidateObject(obj datatypes.JSONMap) error {
 	return fmt.Errorf("%s", errs.ToAggregate().Error())
 }
 
-func ValidateManifestBundleUpdate(new, old datatypes.JSONMap) error {
-	newManifestBundleWrapper, err := api.DecodeManifestBundle(new)
-	if err != nil {
-		return fmt.Errorf("failed to decode new manifest bundle: %v", err)
-	}
-	if newManifestBundleWrapper == nil {
-		return fmt.Errorf("new manifest bundle is empty")
-	}
-	oldManifestBundleWrapper, err := api.DecodeManifestBundle(old)
-	if err != nil {
-		return fmt.Errorf("failed to decode old manifest bundle: %v", err)
-	}
-	if oldManifestBundleWrapper == nil {
-		return fmt.Errorf("old manifest bundle is empty")
-	}
-	if len(newManifestBundleWrapper.Manifests) != len(oldManifestBundleWrapper.Manifests) {
-		return fmt.Errorf("new and old manifest have different number of objects")
-	}
-	for i := range newManifestBundleWrapper.Manifests {
-		if err := ValidateObjectUpdate(newManifestBundleWrapper.Manifests[i], oldManifestBundleWrapper.Manifests[i]); err != nil {
-			return err
-		}
-	}
-
-	return nil
+// manifestInfo contains the metadata needed for duplicate detection and error messages.
+type manifestInfo struct {
+	key       string // unique key for duplicate detection: apiVersion/kind/namespace/name
+	name      string
+	namespace string
+	gvk       string // apiVersion.kind format for error messages
 }
 
-func ValidateObjectUpdate(new, old datatypes.JSONMap) error {
-	fldPath := field.NewPath("metadata")
-
-	newObj := unstructured.Unstructured{Object: new}
-	oldObj := unstructured.Unstructured{Object: old}
-
-	errs := field.ErrorList{}
-
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetAPIVersion(), oldObj.GetAPIVersion(), field.NewPath("apiVersion"))...)
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetKind(), oldObj.GetKind(), field.NewPath("kind"))...)
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetName(), oldObj.GetName(), fldPath.Child("name"))...)
-	errs = append(errs, apivalidation.ValidateImmutableField(newObj.GetNamespace(), oldObj.GetNamespace(), fldPath.Child("namespace"))...)
-	errs = append(errs, validateMetaData(newObj)...)
-
-	if len(errs) == 0 {
-		return nil
-	}
-
-	return fmt.Errorf("%s", errs.ToAggregate().Error())
+// extractManifestInfo extracts metadata from a manifest for duplicate detection.
+func extractManifestInfo(manifest datatypes.JSONMap) (*manifestInfo, error) {
+	unstructuredObj := unstructured.Unstructured{Object: manifest}
+	return &manifestInfo{
+		key: fmt.Sprintf("%s/%s/%s/%s", unstructuredObj.GetAPIVersion(), unstructuredObj.GetKind(),
+			unstructuredObj.GetNamespace(), unstructuredObj.GetName()),
+		name:      unstructuredObj.GetName(),
+		namespace: unstructuredObj.GetNamespace(),
+		gvk:       fmt.Sprintf("%s.%s", unstructuredObj.GetAPIVersion(), unstructuredObj.GetKind()),
+	}, nil
 }
 
 // validatedAPIVersion tests whether the value passed is a valid apiVersion. A
