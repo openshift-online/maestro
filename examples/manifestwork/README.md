@@ -24,9 +24,70 @@ if err != nil {
 // watch/get/list/create/patch/delete by workClient
 ```
 
-### Paginated List Example
+### List Options
 
-The `List` operation supports pagination, which is useful when there are many works in Maestro:
+The `List` operation supports several filtering and pagination options via `metav1.ListOptions`:
+
+#### Namespace Filtering
+
+```golang
+workClient, err := ...
+
+// List works for a specific consumer (namespace)
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{})
+
+// List works across all consumers
+workList, err := workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{})
+```
+
+#### Label Selectors
+
+The client supports Kubernetes-style label selectors for filtering works:
+
+```golang
+// Equality-based selector (app=test)
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "app=test",
+})
+
+// Multiple labels with AND (app=test,env=production)
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "app=test,env=production",
+})
+
+// Not equals (app=test,env!=integration)
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "app=test,env!=integration",
+})
+
+// Set-based selector - IN operator (env in (production, integration))
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "env in (production, integration)",
+})
+
+// Set-based selector - NOT IN operator (val notin (a,b))
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "env=integration,val notin (a,b)",
+})
+
+// Label exists (has the 'val' label, regardless of value)
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "val",
+})
+```
+
+**Supported Label Selector Operators:**
+- Equality: `=`, `==`
+- Inequality: `!=`
+- Set membership: `in (value1, value2, ...)`
+- Set exclusion: `notin (value1, value2, ...)`
+- Label existence: `labelkey` (checks if label exists)
+
+**Note:** The label "does not exist" operator (`!labelkey`) is not currently supported.
+
+#### Pagination
+
+Pagination is useful when there are many works in Maestro:
 
 ```golang
 workClient, err := ...
@@ -35,7 +96,7 @@ workClient, err := ...
 
 // First page: returns 1000 works and a continuation token
 workList, err := workClient.ManifestWorks(metav1.NamespaceAll).List(ctx, metav1.ListOptions{
-  Limit: 1000
+  Limit: 1000,
 })
 if err != nil {
   log.Fatal(err)
@@ -60,14 +121,39 @@ if err != nil {
 }
 ```
 
-## Command-line Client (client.go)
+#### Combining Options
+
+You can combine namespace filtering, label selectors, and pagination:
+
+```golang
+// List integration environment works for a specific consumer with pagination
+workList, err := workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "env=integration",
+  Limit: 100,
+})
+
+// Continue to next page
+workList, err = workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListOptions{
+  LabelSelector: "env=integration",
+  Limit: 100,
+  Continue: workList.ListMeta.Continue,
+})
+```
+
+## Command-line
 
 The example `client.go` provides a command-line interface for all ManifestWork operations.
+
+### Build
+
+```bash
+make maestro-cli
+```
 
 ### Usage
 
 ```bash
-go run examples/manifestwork/client.go <command> [arguments]
+./maestro-cli <command> [arguments]
 
 Commands:
   get <work-name>           Get a specific manifestwork
@@ -87,6 +173,7 @@ Common Flags:
   --grpc-client-token-file string        The client token to access grpc server
   --server-healthiness-timeout duration  The server healthiness timeout (default 20s)
   --print-work-details                   Print detailed work information (for watch command)
+  --verbose                              Enable verbose logging
 ```
 
 ### ManifestWork JSON File
@@ -110,7 +197,7 @@ Use this method when running Maestro locally with `make test-env`:
 
 2. **Watch for work changes:**
    ```bash
-   go run examples/manifestwork/client.go watch \
+  ./maestro-cli watch \
      --consumer-name=$(cat test/_output/.consumer_name) \
      --print-work-details \
      --insecure-skip-verify
@@ -118,28 +205,28 @@ Use this method when running Maestro locally with `make test-env`:
 
 3. **Apply a manifestwork from file:**
    ```bash
-   go run examples/manifestwork/client.go apply examples/manifestwork/manifestwork.json \
+   ./maestro-cli apply examples/manifestwork/manifestwork.json \
      --consumer-name=$(cat test/_output/.consumer_name) \
      --insecure-skip-verify
    ```
 
 4. **List all works:**
    ```bash
-   go run examples/manifestwork/client.go list \
+   ./maestro-cli list \
      --consumer-name=$(cat test/_output/.consumer_name) \
      --insecure-skip-verify
    ```
 
 5. **Get a specific work:**
    ```bash
-   go run examples/manifestwork/client.go get nginx-work \
+   ./maestro-cli get nginx-work \
      --consumer-name=$(cat test/_output/.consumer_name) \
      --insecure-skip-verify
    ```
 
 6. **Delete a work:**
    ```bash
-   go run examples/manifestwork/client.go delete nginx-work \
+   ./maestro-cli delete nginx-work \
      --consumer-name=$(cat test/_output/.consumer_name) \
      --insecure-skip-verify
    ```
@@ -158,7 +245,7 @@ Use this method when running Maestro locally with `make test-env`:
 
    ```bash
    # Apply a manifestwork with TLS
-   go run examples/manifestwork/client.go apply examples/manifestwork/manifestwork.json \
+   ./maestro-cli apply examples/manifestwork/manifestwork.json \
      --consumer-name=$CONSUMER_NAME \
      --maestro-server=https://127.0.0.1:8000 \
      --grpc-server=127.0.0.1:8090 \
@@ -166,7 +253,7 @@ Use this method when running Maestro locally with `make test-env`:
      --grpc-client-token-file=<your grpc server token>
 
    # Watch with TLS
-   go run examples/manifestwork/client.go watch \
+   ./maestro-cli watch \
      --consumer-name=$CONSUMER_NAME \
      --maestro-server=https://127.0.0.1:8000 \
      --grpc-server=127.0.0.1:8090 \
@@ -197,14 +284,14 @@ Use this method when running Maestro locally with `make test-env`:
 
    ```bash
    # Apply a manifestwork without TLS
-   go run examples/manifestwork/client.go apply examples/manifestwork/manifestwork.json \
+   ./maestro-cli apply examples/manifestwork/manifestwork.json \
      --consumer-name=$CONSUMER_NAME \
      --maestro-server=http://127.0.0.1:8000 \
      --grpc-server=127.0.0.1:8090 \
      --insecure-skip-verify
 
    # Watch without TLS
-   go run examples/manifestwork/client.go watch \
+   ./maestro-cli watch \
      --consumer-name=$CONSUMER_NAME \
      --maestro-server=http://127.0.0.1:8000 \
      --grpc-server=127.0.0.1:8090 \

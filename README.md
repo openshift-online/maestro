@@ -40,7 +40,127 @@ ensuring that resource status is continuously updated and monitored.
 **Improve Security Architecture**: Maestro enhances security by eliminating the need for kubeconfigs,
 reducing the need for direct access to clusters.
 
-## Run in Local Environment
+## Run in KinD Cluster
+
+You can also run the maestro in a KinD cluster locally.
+
+```shell
+$ make test-env
+```
+
+This creates a KinD cluster with name `maestro`, and deploys the maestro server and agent in the cluster. The Kubeconfig of the KinD cluster is in `./test/_output/.kubeconfig`.
+
+```shell
+$ export KUBECONFIG=$(pwd)/test/_output/.kubeconfig
+$ kubectl -n maestro get svc
+NAME                  TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
+maestro               NodePort    10.96.143.3     <none>        8000:30080/TCP   7m42s
+maestro-db            ClusterIP   10.96.53.61     <none>        5432/TCP         7m59s
+maestro-grpc          NodePort    10.96.114.161   <none>        8090:30090/TCP   7m42s
+maestro-healthcheck   ClusterIP   10.96.67.145    <none>        8083/TCP         7m42s
+maestro-metrics       ClusterIP   10.96.201.253   <none>        8080/TCP         7m42s
+maestro-mqtt          ClusterIP   10.96.241.85    <none>        1883/TCP         7m59s
+
+$ kubectl get pods -n maestro
+NAME                             READY   STATUS    RESTARTS   AGE
+maestro-85c847764-4xdt6          1/1     Running   0          5m
+maestro-db-65f57d978c-c68        1/1     Running   0          5m
+maestro-mqtt-6cb7bdf46c-kcczm    1/1     Running   0          5m
+$ kubectl get pods -n maestro-agent
+NAME                             READY   STATUS    RESTARTS   AGE
+maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          3m
+```
+
+Now you can create a resource bundle with the `MaestroGRPCSourceWorkClient`, check the [document](./examples/manifestwork/README.md) for more details.
+
+## Run in OpenShift
+
+If you are using an OpenShift cluster in the cloud, you need to export Kubeconfig to point to your cluster and skip the CRC login step. If you are using CodeReady Containers (CRC) locally, you need to login to the CRC cluster first.
+
+### Log into CRC
+
+Use OpenShift Local to deploy to a local openshift cluster. Be sure to have CRC running locally:
+
+```shell
+$ crc status
+CRC VM:          Running
+OpenShift:       Running (v4.13.12)
+RAM Usage:       7.709GB of 30.79GB
+Disk Usage:      23.75GB of 32.68GB (Inside the CRC VM)
+Cache Usage:     37.62GB
+```
+
+```shell
+$ make crc/login
+Logging into CRC
+Logged into "https://api.crc.testing:6443" as "kubeadmin" using existing credentials.
+
+You have access to 66 projects, the list has been suppressed. You can list all projects with 'oc projects'
+
+Using project "default".
+Login Succeeded!
+```
+
+### Set external_apps_domain
+
+You need to set the `external_apps_domain` environment variable to point your cluster.
+```shell
+$ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontroller default -o jsonpath='{.status.domain}'`
+```
+
+### Deploy Maestro
+
+If you want to push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman. Then run `make push` to push the image to the registry.
+
+If you want to use the default image, you can skip the `make push` step.
+
+```shell
+$ make deploy
+
+$ oc get pod -n maestro
+NAME                            READY   STATUS      RESTARTS   AGE
+maestro-85c847764-4xdt6         1/1     Running     0          62s
+maestro-db-5d4c4679f5-r92vg     1/1     Running     0          61s
+maestro-mqtt-6cb7bdf46c-kcczm   1/1     Running     0          63s
+```
+
+### Create a Consumer
+
+```shell
+$ curl -k -X POST -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    https://maestro-maestro.${external_apps_domain}/api/maestro/v1/consumers \
+    -d '{
+    "name": "cluster1"
+  }'
+```
+You should get a response like this:
+
+```shell
+{
+  "created_at":"2023-12-08T11:35:08.557450505Z",
+  "href":"/api/maestro/v1/consumers/3f28c601-5028-47f4-9264-5cc43f2f27fb",
+  "id":"3f28c601-5028-47f4-9264-5cc43f2f27fb",
+  "kind":"Consumer",
+  "name":"cluster1",
+  "updated_at":"2023-12-08T11:35:08.557450505Z"
+}
+```
+
+### Deploy Maestro Agent
+
+```shell
+$ export consumer_name=cluster1
+$ export install_work_crds=false
+$ make deploy-agent
+$ oc get pod -n maestro-agent
+NAME                             READY   STATUS    RESTARTS   AGE
+maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
+```
+
+Now you can create a resource bundle with the `MaestroGRPCSourceWorkClient`, check the [document](./examples/manifestwork/README.md) for more details.
+
+## Run Maestro server with binary
 
 ### Make a build, run postgres and message broker (MQTT or Pub/Sub)
 
@@ -260,119 +380,4 @@ curl http://localhost:8000/api/maestro/v1/resource-bundles
   "size": 1,
   "total": 1
 }
-```
-
-## Run in OpenShift
-
-If you are using an OpenShift cluster in the cloud, you need to export Kubeconfig to point to your cluster and skip the CRC login step. If you are using CodeReady Containers (CRC) locally, you need to login to the CRC cluster first.
-
-### Log into CRC
-
-Use OpenShift Local to deploy to a local openshift cluster. Be sure to have CRC running locally:
-
-```shell
-$ crc status
-CRC VM:          Running
-OpenShift:       Running (v4.13.12)
-RAM Usage:       7.709GB of 30.79GB
-Disk Usage:      23.75GB of 32.68GB (Inside the CRC VM)
-Cache Usage:     37.62GB
-```
-
-```shell
-$ make crc/login
-Logging into CRC
-Logged into "https://api.crc.testing:6443" as "kubeadmin" using existing credentials.
-
-You have access to 66 projects, the list has been suppressed. You can list all projects with 'oc projects'
-
-Using project "default".
-Login Succeeded!
-```
-
-### Set external_apps_domain
-
-You need to set the `external_apps_domain` environment variable to point your cluster.
-```shell
-$ export external_apps_domain=`oc -n openshift-ingress-operator get ingresscontroller default -o jsonpath='{.status.domain}'`
-```
-
-### Deploy Maestro
-
-If you want to push the image to your OpenShift cluster default registry and then deploy it to the cluster. You need to follow [this document](https://docs.openshift.com/container-platform/4.13/registry/securing-exposing-registry.html) to expose a default registry manually and login into the registry with podman. Then run `make push` to push the image to the registry.
-
-If you want to use the default image, you can skip the `make push` step.
-
-```shell
-$ make deploy
-
-$ oc get pod -n maestro
-NAME                            READY   STATUS      RESTARTS   AGE
-maestro-85c847764-4xdt6         1/1     Running     0          62s
-maestro-db-5d4c4679f5-r92vg     1/1     Running     0          61s
-maestro-mqtt-6cb7bdf46c-kcczm   1/1     Running     0          63s
-```
-
-### Create a Consumer
-
-```shell
-$ curl -k -X POST -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    https://maestro-maestro.${external_apps_domain}/api/maestro/v1/consumers \
-    -d '{
-    "name": "cluster1"
-  }'
-```
-You should get a response like this:
-
-```shell
-{
-  "created_at":"2023-12-08T11:35:08.557450505Z",
-  "href":"/api/maestro/v1/consumers/3f28c601-5028-47f4-9264-5cc43f2f27fb",
-  "id":"3f28c601-5028-47f4-9264-5cc43f2f27fb",
-  "kind":"Consumer",
-  "name":"cluster1",
-  "updated_at":"2023-12-08T11:35:08.557450505Z"
-}
-```
-
-### Deploy Maestro Agent
-
-```shell
-$ export consumer_name=cluster1
-$ export install_work_crds=false
-$ make deploy-agent
-$ oc get pod -n maestro-agent
-NAME                             READY   STATUS    RESTARTS   AGE
-maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
-```
-
-Now you can create a resource bundle with the `MaestroGRPCSourceWorkClient`, check the [document](./examples/manifestwork/README.md) for more details.
-
-## Run in KinD Cluster
-
-You can also run the maestro in a KinD cluster locally. The simplest way is to use the provided script to create a KinD cluster and deploy the maestro in the cluster. It creates a KinD cluster with name `maestro`, and deploys the maestro server and agent in the cluster.
-
-```shell
-$ make test-env
-```
-The Kubeconfig of the KinD cluster is in `./test/_output/.kubeconfig`.
-```shell
-$ export KUBECONFIG=$(pwd)/test/_output/.kubeconfig
-$ kubectl -n maestro get svc
-NAME                  TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)          AGE
-maestro               NodePort    10.96.143.3     <none>        8000:30080/TCP   7m42s
-maestro-db            ClusterIP   10.96.53.61     <none>        5432/TCP         7m59s
-maestro-grpc          NodePort    10.96.114.161   <none>        8090:30090/TCP   7m42s
-maestro-healthcheck   ClusterIP   10.96.67.145    <none>        8083/TCP         7m42s
-maestro-metrics       ClusterIP   10.96.201.253   <none>        8080/TCP         7m42s
-maestro-mqtt          ClusterIP   10.96.241.85    <none>        1883/TCP         7m59s
-$ kubectl get pods -n maestro
-NAME                             READY   STATUS    RESTARTS   AGE
-maestro-85c847764-4xdt6          1/1     Running   0          5m
-maestro-db-65f57d978c-c68        1/1     Running   0          5m
-maestro-mqtt-6cb7bdf46c-kcczm    1/1     Running   0          5m
-$ kubectl get pods -n maestro-agent
-NAME                             READY   STATUS    RESTARTS   AGE
-maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          3m
 ```

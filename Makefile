@@ -189,6 +189,10 @@ binary: check-gopath
 	${GO} build $(BUILD_OPTS) ./cmd/maestro
 .PHONY: binary
 
+maestro-cli:
+	${GO} build $(BUILD_OPTS) -o maestro-cli ./examples/manifestwork/client.go
+.PHONY: maestro-cli
+
 # Install
 install: check-gopath
 	CGO_ENABLED=$(CGO_ENABLED) GOEXPERIMENT=boringcrypto ${GO} install -ldflags="$(ldflags)" ./cmd/maestro
