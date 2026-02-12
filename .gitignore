@@ -32,6 +32,7 @@
 # Ignore built binaries
 /maestro
 /maestroperf
+/maestro-cli
 
 # Ignore generated templates
 /templates/*-template.json
