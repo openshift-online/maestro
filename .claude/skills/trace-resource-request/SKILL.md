@@ -35,6 +35,16 @@ Use this skill when:
 
 **Common scenario**: You know a deployment or service isn't working, but only know its Kubernetes name. Use `trace-manifestwork` to find the associated resource ID and work name, then use this skill to trace through server and agent logs to identify where the request failed or stalled.
 
+## Terminology
+
+**IMPORTANT**: In Maestro colloquial usage, **ManifestWork** and **resource bundle** are the same concept and are used interchangeably:
+
+- **ManifestWork**: The formal Kubernetes Custom Resource Definition (CRD) name used by the Open Cluster Management SDK
+- **Resource bundle**: The term used in Maestro's RESTful API endpoints (e.g., `/api/maestro/v1/resource-bundles`)
+- **Resource**: The term used in database tables (`resources` table) and some internal code
+
+When users refer to "resource bundles," "resources," or "ManifestWorks," they are all talking about the same thing: a collection of Kubernetes manifests packaged together for delivery to target clusters. In log messages and traces, you'll see all three terms used to refer to this concept.
+
 ## Request Flow Overview
 
 Understanding the complete request flow is critical for effective troubleshooting:
