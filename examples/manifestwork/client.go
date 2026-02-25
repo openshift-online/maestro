@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/google/uuid"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
@@ -23,6 +24,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/klog/v2"
 
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
@@ -43,6 +45,7 @@ var (
 	serverHealthinessTimeout = flag.Duration("server-healthiness-timeout", 20*time.Second, "The server healthiness timeout")
 	printWorkDetails         = flag.Bool("print-work-details", false, "Print detailed work information (for watch command)")
 	insecureSkipVerify       = flag.Bool("insecure-skip-verify", false, "Skip TLS verification when using https (INSECURE)")
+	verbose                  = flag.Bool("verbose", false, "Enable verbose logging")
 )
 
 func main() {
@@ -81,7 +84,19 @@ func main() {
 	}
 
 	// Parse flags
+	// check if the klog flag is already registered to avoid duplicate flag define error
+	if flag.CommandLine.Lookup("alsologtostderr") == nil {
+		klog.InitFlags(nil)
+	}
 	flag.CommandLine.Parse(otherArgs)
+
+	// Configure klog based on verbose flag
+	if *verbose {
+		flag.Set("v", "4")
+	} else {
+		// Completely disable klog output by setting a discard logger
+		klog.SetLogger(logr.Discard())
+	}
 
 	if command == "" {
 		printUsage()
@@ -158,7 +173,7 @@ func main() {
 }
 
 func printUsage() {
-	fmt.Println("Usage: go run client.go <command> [arguments]")
+	fmt.Println("Usage: maestro-cli <command> [arguments] [flags]")
 	fmt.Println()
 	fmt.Println("Commands:")
 	fmt.Println("  get <work-name>           Get a specific manifestwork")
@@ -167,8 +182,23 @@ func printUsage() {
 	fmt.Println("  delete <work-name>        Delete a manifestwork")
 	fmt.Println("  watch                     Watch for manifestwork changes")
 	fmt.Println()
-	fmt.Println("Flags:")
-	flag.PrintDefaults()
+	fmt.Println("Required Flags:")
+	fmt.Println("  --consumer-name string    The Consumer Name")
+	fmt.Println()
+	fmt.Println("Common Flags:")
+	fmt.Println("  --maestro-server string   The maestro server address (default \"https://127.0.0.1:30080\")")
+	fmt.Println("  --grpc-server string      The grpc server address (default \"127.0.0.1:30090\")")
+	fmt.Println("  --insecure-skip-verify    Skip TLS verification when using https (INSECURE)")
+	fmt.Println("  --verbose                 Enable verbose logging")
+	fmt.Println()
+	fmt.Println("Additional Flags:")
+	fmt.Println("  --source string                     The source for manifestwork client (default \"mw-client-example\")")
+	fmt.Println("  --grpc-server-ca-file string        The CA for grpc server")
+	fmt.Println("  --grpc-client-cert-file string      The client certificate to access grpc server")
+	fmt.Println("  --grpc-client-key-file string       The client key to access grpc server")
+	fmt.Println("  --grpc-client-token-file string     The client token to access grpc server")
+	fmt.Println("  --server-healthiness-timeout duration The server healthiness timeout (default 20s)")
+	fmt.Println("  --print-work-details                Print detailed work information (for watch command)")
 }
 
 func createWorkClient(ctx context.Context) (workv1client.WorkV1Interface, error) {
@@ -192,7 +222,12 @@ func createWorkClient(ctx context.Context) (workv1client.WorkV1Interface, error)
 		},
 	})
 
-	logger, err := logging.NewStdLoggerBuilder().Build()
+	loggerBuilder := logging.NewStdLoggerBuilder().Info(false)
+	if *verbose {
+		loggerBuilder.Info(true)
+		loggerBuilder.Debug(true)
+	}
+	logger, err := loggerBuilder.Build()
 	if err != nil {
 		return nil, err
 	}

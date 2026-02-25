@@ -43,6 +43,15 @@ This skill traces these relationships bidirectionally, combining database querie
 
 ## Key Concepts
 
+### Terminology
+
+**IMPORTANT**: In Maestro colloquial usage, **ManifestWork** and **resource bundle** are the same concept and are used interchangeably:
+
+- **ManifestWork**: The formal Kubernetes Custom Resource Definition (CRD) name used by the Open Cluster Management SDK
+- **Resource bundle**: The term used in Maestro's RESTful API endpoints (e.g., `/api/maestro/v1/resource-bundles`)
+
+When users refer to "resource bundles," they are talking about ManifestWork resources. Both terms describe a collection of Kubernetes manifests packaged together for delivery to target clusters. The database stores these in the `resources` table, while the Kubernetes cluster manages them as ManifestWork/AppliedManifestWork CRs.
+
 ### Cluster Architecture
 
 **CRITICAL**: Maestro uses a dual-cluster architecture:

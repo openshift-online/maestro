@@ -182,13 +182,32 @@ query_db() {
         echo ""
     fi
 
-    # Check for postgres-breakglass (ARO-HCP INT - CRITICAL ENVIRONMENT)
+    # Check for maestro-db first (normal database pod)
+    pod_name=$(kubectl_svc -n maestro get pods -l name=maestro-db -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+
+    if [[ -n "$pod_name" ]]; then
+        echo "Database: maestro-db"
+        echo ""
+
+        # Try to detect the postgres user
+        local db_user
+        db_user=$(kubectl_svc -n maestro exec -i "$pod_name" -- env 2>/dev/null | grep '^POSTGRES_USER=' | cut -d= -f2)
+
+        if [[ -z "$db_user" ]]; then
+            db_user="maestro"
+        fi
+
+        kubectl_svc -n maestro exec -i "$pod_name" -- psql -U "$db_user" -d maestro -c "$sql_query"
+        return 0
+    fi
+
+    # Fallback: Check for postgres-breakglass (ARO-HCP INT - CRITICAL ENVIRONMENT)
     local breakglass_deployment
     breakglass_deployment=$(kubectl_svc -n maestro get deployment postgres-breakglass -o jsonpath='{.metadata.name}' 2>/dev/null || echo "")
 
     if [[ -n "$breakglass_deployment" ]]; then
+        echo "Database: postgres-breakglass (fallback - maestro-db not found)"
         echo "Environment: ARO-HCP INT (CRITICAL)"
-        echo "Database: postgres-breakglass"
         echo ""
 
         # Check if pod is running
@@ -254,16 +273,6 @@ query_db() {
         echo ""
         echo "Press Enter after you've executed the query to continue the trace..."
         read -r
-        return 0
-    fi
-
-    # Check for maestro-db (Service cluster)
-    pod_name=$(kubectl_svc -n maestro get pods -l name=maestro-db -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-
-    if [[ -n "$pod_name" ]]; then
-        echo "Database: maestro-db (Service cluster)"
-        echo ""
-        kubectl_svc -n maestro exec -i "$pod_name" -- psql -U maestro -d maestro -c "$sql_query"
         return 0
     fi
 
