@@ -9,6 +9,7 @@ import (
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/cmd/maestro/agent"
+	"github.com/openshift-online/maestro/cmd/maestro/consumer"
 	"github.com/openshift-online/maestro/cmd/maestro/migrate"
 	"github.com/openshift-online/maestro/cmd/maestro/servecmd"
 )
@@ -39,9 +40,10 @@ func main() {
 	migrateCmd := migrate.NewMigrationCommand()
 	serveCmd := servecmd.NewServerCommand()
 	agentCmd := agent.NewAgentCommand()
+	consumerCmd := consumer.NewConsumerCommand()
 
 	// Add subcommand(s)
-	rootCmd.AddCommand(migrateCmd, serveCmd, agentCmd)
+	rootCmd.AddCommand(migrateCmd, serveCmd, agentCmd, consumerCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalf("error running command: %v", err)

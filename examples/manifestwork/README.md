@@ -140,14 +140,14 @@ workList, err = workClient.ManifestWorks("consumer-name").List(ctx, metav1.ListO
 })
 ```
 
-## Command-line
+## Run the example
 
 The example `client.go` provides a command-line interface for all ManifestWork operations.
 
 ### Build
 
 ```bash
-make maestro-cli
+go build -o maestro-cli examples/manifestwork/client.go
 ```
 
 ### Usage
@@ -197,7 +197,7 @@ Use this method when running Maestro locally with `make test-env`:
 
 2. **Watch for work changes:**
    ```bash
-  ./maestro-cli watch \
+   ./maestro-cli watch \
      --consumer-name=$(cat test/_output/.consumer_name) \
      --print-work-details \
      --insecure-skip-verify
