@@ -99,7 +99,7 @@ var _ = Describe("Resources", Ordered, Label("e2e-tests-resources"), func() {
 					return fmt.Errorf("unexpected replicas, expected 2, got %d", *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 10*time.Minute, 1*time.Second).ShouldNot(HaveOccurred())
+			}).WithTimeout(10 * time.Minute).ShouldNot(HaveOccurred())
 
 			gotResource, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, resourceID).Execute()
 			Expect(err).ShouldNot(HaveOccurred())
