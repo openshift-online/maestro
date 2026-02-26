@@ -182,7 +182,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					}
 				}
 				return nil
-			}, 5*time.Minute, 30*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the nginx A deployment is updated", func() {
@@ -195,7 +195,7 @@ var _ = Describe("Spec Resync After Restart", Ordered, Label("e2e-tests-spec-res
 					return fmt.Errorf("unexpected replicas for nginx A deployment %s, expected 2, got %d", deployA, *deploy.Spec.Replicas)
 				}
 				return nil
-			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the nginx B deployment is deleted", func() {

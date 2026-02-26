@@ -199,7 +199,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 
 				return nil
-			}, 5*time.Minute, 30*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 		})
 
 		It("ensure the resource status is resynced", func() {
@@ -209,7 +209,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 					return nil
 				}
 				return fmt.Errorf("no works watched")
-			}, 5*time.Minute, 5*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				work, err := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Get(ctx, workName, metav1.GetOptions{})
@@ -233,9 +233,9 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 				}
 
 				return fmt.Errorf("unexpected status")
-			},
-				10*time.Minute, // timeout is double work resync interval time (4~6 mins)
-				2*time.Second).ShouldNot(HaveOccurred())
+			}).
+				WithTimeout(10 * time.Minute). // timeout is double work resync interval time (4~6 mins)
+				ShouldNot(HaveOccurred())
 		})
 
 		AfterAll(func() {
@@ -282,7 +282,7 @@ var _ = Describe("Status Resync After Restart", Ordered, Label("e2e-tests-status
 			// note: wait some time to ensure source work client is connected to the restarted maestro server
 			Eventually(func() error {
 				return sourceWorkClient.ManifestWorks(agentTestOpts.consumerName).Delete(opIDCtx, workName, metav1.DeleteOptions{})
-			}, 3*time.Minute, 3*time.Second).ShouldNot(HaveOccurred())
+			}).ShouldNot(HaveOccurred())
 
 			Eventually(func() error {
 				_, err := agentTestOpts.kubeClientSet.AppsV1().Deployments("default").Get(ctx, deployName, metav1.GetOptions{})

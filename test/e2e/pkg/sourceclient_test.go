@@ -813,7 +813,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 					}
 
 					return nil
-				}, 5*time.Minute, 10*time.Second).ShouldNot(HaveOccurred())
+				}).ShouldNot(HaveOccurred())
 			})
 
 			By("delete the first work", func() {
