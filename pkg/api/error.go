@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/getsentry/sentry-go"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/errors"
@@ -42,7 +41,6 @@ func SendNotFound(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger := klog.FromContext(r.Context())
 		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
-		sentry.CaptureException(err)
 		return
 	}
 }
@@ -64,7 +62,6 @@ func SendUnauthorized(w http.ResponseWriter, r *http.Request, message string) {
 	if err != nil {
 		logger := klog.FromContext(r.Context())
 		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
-		sentry.CaptureException(err)
 		return
 	}
 }
@@ -76,7 +73,6 @@ func SendPanic(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger := klog.FromContext(r.Context())
 		logger.Error(err, "cannot send response body for request", "path", r.URL.Path)
-		sentry.CaptureException(err)
 	}
 }
 
@@ -107,7 +103,6 @@ func init() {
 			err.Error(),
 		)
 		klog.Error(err)
-		sentry.CaptureException(err)
 		os.Exit(1)
 	}
 }

@@ -40,10 +40,7 @@ func (e *productionEnvImpl) VisitClients(c *Clients) error {
 
 func (e *productionEnvImpl) Flags() map[string]string {
 	return map[string]string{
-		"v":               "1",
-		"ocm-debug":       "false",
-		"enable-ocm-mock": "true",
-		"enable-sentry":   "false",
-		"source-id":       "maestro",
+		"v":         "1",
+		"source-id": "maestro",
 	}
 }

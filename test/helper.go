@@ -2,19 +2,16 @@ package test
 
 import (
 	"context"
-	"crypto/rsa"
 	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/bxcodec/faker/v3"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	amv1 "github.com/openshift-online/ocm-sdk-go/accountsmgmt/v1"
 	"github.com/segmentio/ksuid"
@@ -43,21 +40,10 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
-	"github.com/openshift-online/maestro/test/mocks/jwk"
-)
-
-const (
-	jwtKeyFile = "test/support/jwt_private_key.pem"
-	jwtCAFile  = "test/support/jwt_ca.pem"
-	jwkKID     = "uhctestkey"
-	jwkAlg     = "RS256"
 )
 
 var helper *Helper
 var once sync.Once
-
-// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
-var jwkURL string
 
 // TimeFunc defines a way to get a new Time instance common to the entire test suite.
 // Aria's environment has Virtual Time that may not be actual time. We compensate
@@ -83,8 +69,6 @@ type Helper struct {
 	ControllerManager       *server.ControllersServer
 	WorkAgentHolder         *work.ClientHolder
 	TimeFunc                TimeFunc
-	JWTPrivateKey           *rsa.PrivateKey
-	JWTCA                   *rsa.PublicKey
 	T                       *testing.T
 	teardowns               []func() error
 	consumerPubSubConfigMap map[string]string // Maps consumer name to PubSub config file path
@@ -92,15 +76,10 @@ type Helper struct {
 
 func NewHelper(t *testing.T) *Helper {
 	once.Do(func() {
-		jwtKey, jwtCA, err := parseJWTKeys()
-		if err != nil {
-			fmt.Println("Unable to read JWT keys - this may affect tests that make authenticated server requests")
-		}
-
 		env := helper.Env()
 		// Manually set environment name, ignoring environment variables
 		env.Name = envtypes.TestingEnv
-		err = env.AddFlags(pflag.CommandLine)
+		err := env.AddFlags(pflag.CommandLine)
 		if err != nil {
 			log.Fatalf("Unable to add environment flags: %s", err.Error())
 		}
@@ -132,8 +111,6 @@ func NewHelper(t *testing.T) *Helper {
 			EventBroadcaster:        event.NewEventBroadcaster(),
 			AppConfig:               env.Config,
 			DBFactory:               env.Database.SessionFactory,
-			JWTPrivateKey:           jwtKey,
-			JWTCA:                   jwtCA,
 			consumerPubSubConfigMap: make(map[string]string),
 		}
 
@@ -166,13 +143,10 @@ func NewHelper(t *testing.T) *Helper {
 			helper.EventFilter = controllers.NewPredicatedEventFilter(helper.EventServer.PredicateEvent)
 		}
 
-		// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
-		jwkMockTeardown := helper.StartJWKCertServerMock()
 		helper.teardowns = []func() error{
 			helper.sendShutdownSignal,
 			helper.stopAPIServer,
 			helper.stopMetricsServer,
-			jwkMockTeardown,
 			helper.cleanupTempFiles,
 		}
 
@@ -210,10 +184,8 @@ func (helper *Helper) Teardown() {
 }
 
 func (helper *Helper) startAPIServer() {
-	// TODO jwk mock server needs to be refactored out of the helper and into the testing environment
 	logger := klog.FromContext(helper.Ctx)
 
-	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
 	helper.APIServer = server.NewAPIServer(helper.Ctx, helper.EventBroadcaster)
 	go func() {
 		logger.V(4).Info("Test API server started")
@@ -491,17 +463,6 @@ func (helper *Helper) NewAccount(username, name, email string) *amv1.Account {
 	return acct
 }
 
-func (helper *Helper) NewAuthenticatedContext(account *amv1.Account) context.Context {
-	tokenString := helper.CreateJWTString(account)
-	return context.WithValue(context.Background(), openapi.ContextAccessToken, tokenString)
-}
-
-func (helper *Helper) StartJWKCertServerMock() (teardown func() error) {
-	jwkURL, teardown = jwk.NewJWKCertServerMock(helper.T, helper.JWTCA, jwkKID, jwkAlg)
-	helper.Env().Config.HTTPServer.JwkCertURL = jwkURL
-	return teardown
-}
-
 func (helper *Helper) DeleteAll(table interface{}) {
 	g2 := helper.DBFactory.New(context.Background())
 	err := g2.Model(table).Unscoped().Delete(table).Error
@@ -578,55 +539,6 @@ func (helper *Helper) ResetDB() error {
 	return nil
 }
 
-func (helper *Helper) CreateJWTString(account *amv1.Account) string {
-	// Use an RH SSO JWT by default since we are phasing RHD out
-	claims := jwt.MapClaims{
-		"iss":        helper.Env().Config.OCM.TokenURL,
-		"username":   strings.ToLower(account.Username()),
-		"first_name": account.FirstName(),
-		"last_name":  account.LastName(),
-		"typ":        "Bearer",
-		"iat":        time.Now().Unix(),
-		"exp":        time.Now().Add(1 * time.Hour).Unix(),
-	}
-	if account.Email() != "" {
-		claims["email"] = account.Email()
-	}
-	/* TODO the ocm api model needs to be updated to expose this
-	if account.ServiceAccount {
-		claims["clientId"] = account.Username()
-	}
-	*/
-
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	// Set the token header kid to the same value we expect when validating the token
-	// The kid is an arbitrary identifier for the key
-	// See https://tools.ietf.org/html/rfc7517#section-4.5
-	token.Header["kid"] = jwkKID
-
-	// private key and public key taken from http://kjur.github.io/jsjws/tool_jwt.html
-	// the go-jwt-middleware pkg we use does the same for their tests
-	signedToken, err := token.SignedString(helper.JWTPrivateKey)
-	if err != nil {
-		helper.T.Errorf("Unable to sign test jwt: %s", err)
-		return ""
-	}
-	return signedToken
-}
-
-func (helper *Helper) CreateJWTToken(account *amv1.Account) *jwt.Token {
-	tokenString := helper.CreateJWTString(account)
-
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		return helper.JWTCA, nil
-	})
-	if err != nil {
-		helper.T.Errorf("Unable to parse signed jwt: %s", err)
-		return nil
-	}
-	return token
-}
-
 // Convert an error response from the openapi client to an openapi error struct
 func (helper *Helper) OpenapiError(err error) openapi.Error {
 	generic := err.(openapi.GenericOpenAPIError)
@@ -636,60 +548,4 @@ func (helper *Helper) OpenapiError(err error) openapi.Error {
 		helper.T.Errorf("Unable to convert error response to openapi error: %s", jsonErr)
 	}
 	return exErr
-}
-
-func parseJWTKeys() (*rsa.PrivateKey, *rsa.PublicKey, error) {
-	projectRootDir := getProjectRootDir()
-	privateBytes, err := os.ReadFile(filepath.Join(projectRootDir, jwtKeyFile))
-	if err != nil {
-		err = fmt.Errorf("unable to read JWT key file %s: %s", jwtKeyFile, err)
-		return nil, nil, err
-	}
-	pubBytes, err := os.ReadFile(filepath.Join(projectRootDir, jwtCAFile))
-	if err != nil {
-		err = fmt.Errorf("unable to read JWT ca file %s: %s", jwtKeyFile, err)
-		return nil, nil, err
-	}
-
-	// Parse keys
-	privateKey, err := jwt.ParseRSAPrivateKeyFromPEMWithPassword(privateBytes, "passwd")
-	if err != nil {
-		err = fmt.Errorf("unable to parse JWT private key: %s", err)
-		return nil, nil, err
-	}
-	pubKey, err := jwt.ParseRSAPublicKeyFromPEM(pubBytes)
-	if err != nil {
-		err = fmt.Errorf("unable to parse JWT ca: %s", err)
-		return nil, nil, err
-	}
-
-	return privateKey, pubKey, nil
-}
-
-// Return project root path based on the relative path of this file
-func getProjectRootDir() string {
-	curr, err := os.Getwd()
-	if err != nil {
-		log.Fatalf("Unable to get working directory: %v", err.Error())
-		return ""
-	}
-	root := curr
-	for {
-		anchor := filepath.Join(curr, ".git")
-		_, err = os.Stat(anchor)
-		if err != nil && !os.IsNotExist(err) {
-			log.Fatalf("Unable to check if directory '%s' exists", anchor)
-			break
-		}
-		if err == nil {
-			root = curr
-			break
-		}
-		next := filepath.Dir(curr)
-		if next == curr {
-			break
-		}
-		curr = next
-	}
-	return root
 }

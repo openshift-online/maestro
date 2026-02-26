@@ -21,8 +21,6 @@ func (e *devEnvImpl) VisitMessageBroker(c *MessageBroker) error {
 }
 
 func (e *devEnvImpl) VisitConfig(c *ApplicationConfig) error {
-	c.ApplicationConfig.HTTPServer.EnableJWT = false
-	c.ApplicationConfig.HTTPServer.EnableHTTPS = false
 	return nil
 }
 
@@ -41,14 +39,10 @@ func (e *devEnvImpl) VisitClients(c *Clients) error {
 func (e *devEnvImpl) Flags() map[string]string {
 	return map[string]string{
 		"v":                    "10",
-		"enable-authz":         "false",
-		"ocm-debug":            "false",
-		"enable-ocm-mock":      "true",
 		"enable-https":         "false",
 		"enable-metrics-https": "false",
 		"server-hostname":      "localhost",
 		"http-server-bindport": "8000",
-		"enable-sentry":        "false",
 		"source-id":            "maestro",
 	}
 }

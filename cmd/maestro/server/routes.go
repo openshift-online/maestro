@@ -9,7 +9,6 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/server/logging"
 	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/auth"
 	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/handlers"
 	"github.com/openshift-online/maestro/pkg/logger"
@@ -26,9 +25,6 @@ func (s *apiServer) routes(ctx context.Context) *mux.Router {
 	resourceBundleHandler := handlers.NewResourceBundleHandler(services.Resources(), services.Generic())
 	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Resources(), services.Generic())
 	errorsHandler := handlers.NewErrorsHandler()
-
-	authMiddleware := &auth.AuthMiddlewareMock{}
-	authzMiddleware := auth.NewAuthzMiddlewareMock()
 
 	// mainRouter is top level "/"
 	mainRouter := mux.NewRouter()
@@ -63,8 +59,6 @@ func (s *apiServer) routes(ctx context.Context) *mux.Router {
 	apiV1ResourceBundleRouter.HandleFunc("", resourceBundleHandler.List).Methods(http.MethodGet)
 	apiV1ResourceBundleRouter.HandleFunc("/{id}", resourceBundleHandler.Get).Methods(http.MethodGet)
 	apiV1ResourceBundleRouter.HandleFunc("/{id}", resourceBundleHandler.Delete).Methods(http.MethodDelete)
-	apiV1ResourceBundleRouter.Use(authMiddleware.AuthenticateAccountJWT)
-	apiV1ResourceBundleRouter.Use(authzMiddleware.AuthorizeApi)
 
 	//  /api/maestro/v1/consumers
 	apiV1ConsumersRouter := apiV1Router.PathPrefix("/consumers").Subrouter()
@@ -73,8 +67,6 @@ func (s *apiServer) routes(ctx context.Context) *mux.Router {
 	apiV1ConsumersRouter.HandleFunc("", consumerHandler.Create).Methods(http.MethodPost)
 	apiV1ConsumersRouter.HandleFunc("/{id}", consumerHandler.Patch).Methods(http.MethodPatch)
 	apiV1ConsumersRouter.HandleFunc("/{id}", consumerHandler.Delete).Methods(http.MethodDelete)
-	apiV1ConsumersRouter.Use(authMiddleware.AuthenticateAccountJWT)
-	apiV1ConsumersRouter.Use(authzMiddleware.AuthorizeApi)
 
 	return mainRouter
 }

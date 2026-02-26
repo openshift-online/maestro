@@ -3,10 +3,8 @@ package environments
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/spf13/pflag"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -18,7 +16,6 @@ import (
 	envtypes "github.com/openshift-online/maestro/cmd/maestro/environments/types"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
-	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
@@ -84,8 +81,6 @@ func (e *Env) Initialize() error {
 
 	messages := environment.Config.ReadFiles()
 	if len(messages) != 0 {
-		err := fmt.Errorf("unable to read configuration files:\n%s", strings.Join(messages, "\n"))
-		sentry.CaptureException(err)
 		log.Fatalf("Unable to read configuration files:\n%s", strings.Join(messages, "\n"))
 	}
 
@@ -110,11 +105,6 @@ func (e *Env) Initialize() error {
 	}
 	if err := envImpl.VisitClients(&e.Clients); err != nil {
 		log.Fatalf("Failed to visit Clients: %s", err)
-	}
-
-	err = e.InitializeSentry()
-	if err != nil {
-		return fmt.Errorf("failed to initialize sentry: %w", err)
 	}
 
 	seedErr := e.Seed()
@@ -144,28 +134,6 @@ func (e *Env) LoadServices() {
 }
 
 func (e *Env) LoadClients() error {
-	var err error
-
-	ocmConfig := ocm.Config{
-		BaseURL:      e.Config.OCM.BaseURL,
-		ClientID:     e.Config.OCM.ClientID,
-		ClientSecret: e.Config.OCM.ClientSecret,
-		SelfToken:    e.Config.OCM.SelfToken,
-		TokenURL:     e.Config.OCM.TokenURL,
-		Debug:        e.Config.OCM.Debug,
-	}
-
-	// Create OCM Authz client
-	if e.Config.OCM.EnableMock {
-		klog.V(4).Info("Using Mock OCM Authz Client")
-		e.Clients.OCM, err = ocm.NewClientMock(ocmConfig)
-	} else {
-		e.Clients.OCM, err = ocm.NewClient(ocmConfig)
-	}
-	if err != nil {
-		return fmt.Errorf("Unable to create OCM Authz client: %v", err)
-	}
-
 	// Create CloudEvents Source client
 	if e.Config.MessageBroker.EnableMock {
 		klog.V(4).Info("Using Mock CloudEvents Source Client")
@@ -218,54 +186,11 @@ func (e *Env) LoadClients() error {
 	return nil
 }
 
-func (e *Env) InitializeSentry() error {
-	options := sentry.ClientOptions{}
-
-	if e.Config.Sentry.Enabled {
-		key := e.Config.Sentry.Key
-		url := e.Config.Sentry.URL
-		project := e.Config.Sentry.Project
-		klog.V(4).Infof("Sentry error reporting enabled to %s on project %s", url, project)
-		options.Dsn = fmt.Sprintf("https://%s@%s/%s", key, url, project)
-	} else {
-		// Setting the DSN to an empty string effectively disables sentry
-		// See https://godoc.org/github.com/getsentry/sentry-go#ClientOptions Dsn
-		klog.V(4).Info("Disabling Sentry error reporting")
-		options.Dsn = ""
-	}
-
-	transport := sentry.NewHTTPTransport()
-	transport.Timeout = e.Config.Sentry.Timeout
-	// since sentry.HTTPTransport is asynchronous, Sentry needs a buffer to cache pending requests.
-	// the BufferSize is the size of the buffer. Sentry drops requests when the buffer is full:
-	// https://github.com/getsentry/sentry-go/blob/4f72d7725080f61e924409c8ddd008739fd4a837/transport.go#L312
-	// errors in our system are relatively sparse, we don't need a large BufferSize.
-	transport.BufferSize = 10
-	options.Transport = transport
-	options.Debug = e.Config.Sentry.Debug
-	options.AttachStacktrace = true
-	options.Environment = e.Name
-
-	hostname, err := os.Hostname()
-	if err != nil && hostname != "" {
-		options.ServerName = hostname
-	}
-	// TODO figure out some way to set options.Release and options.Dist
-
-	err = sentry.Init(options)
-	if err != nil {
-		return fmt.Errorf("Unable to initialize sentry integration: %s", err.Error())
-	}
-
-	return nil
-}
-
 func (e *Env) Teardown() {
 	if e.Name != envtypes.TestingEnv {
 		if err := e.Database.SessionFactory.Close(); err != nil {
 			log.Fatalf("Unable to close db connection: %s", err.Error())
 		}
-		e.Clients.OCM.Close()
 	}
 }
 

@@ -37,8 +37,7 @@ import (
 func TestResourceBundleGet(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// 401 using no JWT token
 	_, _, err := client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(context.Background(), "foo").Execute()
@@ -83,8 +82,7 @@ func TestResourceBundleGet(t *testing.T) {
 func TestResourcePaging(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// Paging
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
@@ -112,8 +110,7 @@ func TestResourcePaging(t *testing.T) {
 func TestResourceListSearch(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
 	Expect(err).NotTo(HaveOccurred())
@@ -140,8 +137,7 @@ func TestResourceListSearch(t *testing.T) {
 func TestUpdateResourceWithRacingRequests(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	var objids []string
 	rows, err := h.DBFactory.DirectDB().Query("SELECT objid FROM pg_locks WHERE locktype='advisory'")
@@ -225,9 +221,7 @@ func TestUpdateResourceWithRacingRequests(t *testing.T) {
 
 func TestResourceFromGRPC(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
-	account := h.NewRandAccount()
-
-	ctx, cancel := context.WithCancel(h.NewAuthenticatedContext(account))
+	ctx, cancel := context.WithCancel(context.Background())
 	defer func() {
 		cancel()
 		// give one second to terminate the work agent
@@ -472,8 +466,7 @@ func TestResourceFromGRPC(t *testing.T) {
 func TestMarkAsDeletingThenUpdate(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// Create a consumer and resource
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
@@ -539,8 +532,7 @@ func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkI
 func TestUpdateAndUpdateStatusIsolation(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
-	account := h.NewRandAccount()
-	ctx := h.NewAuthenticatedContext(account)
+	ctx := context.Background()
 
 	// Step 1: Create a resource
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))

@@ -20,8 +20,6 @@ type ApplicationConfig struct {
 	EventServer   *EventServerConfig   `json:"event_server"`
 	Database      *DatabaseConfig      `json:"database"`
 	MessageBroker *MessageBrokerConfig `json:"message_broker"`
-	OCM           *OCMConfig           `json:"ocm"`
-	Sentry        *SentryConfig        `json:"sentry"`
 }
 
 func NewApplicationConfig() *ApplicationConfig {
@@ -33,8 +31,6 @@ func NewApplicationConfig() *ApplicationConfig {
 		EventServer:   NewEventServerConfig(),
 		Database:      NewDatabaseConfig(),
 		MessageBroker: NewMessageBrokerConfig(),
-		OCM:           NewOCMConfig(),
-		Sentry:        NewSentryConfig(),
 	}
 }
 
@@ -47,8 +43,6 @@ func (c *ApplicationConfig) AddFlags(flagset *pflag.FlagSet) {
 	c.EventServer.AddFlags(flagset)
 	c.Database.AddFlags(flagset)
 	c.MessageBroker.AddFlags(flagset)
-	c.OCM.AddFlags(flagset)
-	c.Sentry.AddFlags(flagset)
 }
 
 func (c *ApplicationConfig) ReadFiles() []string {
@@ -58,11 +52,9 @@ func (c *ApplicationConfig) ReadFiles() []string {
 	}{
 		{c.HTTPServer.ReadFiles, "Server"},
 		{c.Database.ReadFiles, "Database"},
-		{c.OCM.ReadFiles, "OCM"},
 		{c.Metrics.ReadFiles, "Metrics"},
 		{c.HealthCheck.ReadFiles, "HealthCheck"},
 		{c.EventServer.ReadFiles, "EventServer"},
-		{c.Sentry.ReadFiles, "Sentry"},
 	}
 	messages := []string{}
 	for _, rf := range readFiles {

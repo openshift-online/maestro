@@ -3,10 +3,8 @@ package environments
 import (
 	"sync"
 
-	"github.com/openshift-online/maestro/pkg/auth"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
-	"github.com/openshift-online/maestro/pkg/client/ocm"
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
 )
@@ -36,7 +34,6 @@ type MessageBroker struct {
 }
 
 type Handlers struct {
-	AuthMiddleware auth.JWTMiddleware
 }
 
 type Services struct {
@@ -48,7 +45,6 @@ type Services struct {
 }
 
 type Clients struct {
-	OCM               *ocm.Client
 	GRPCAuthorizer    grpcauthorizer.GRPCAuthorizer
 	CloudEventsSource cloudevents.SourceClient
 }
@@ -57,7 +53,6 @@ type ConfigDefaults struct {
 	Server   map[string]interface{}
 	Metrics  map[string]interface{}
 	Database map[string]interface{}
-	OCM      map[string]interface{}
 	Options  map[string]interface{}
 }
 
