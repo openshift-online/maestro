@@ -39,7 +39,13 @@ func (d *resourceDaoMock) Update(ctx context.Context, resource *api.Resource) (*
 }
 
 func (d *resourceDaoMock) UpdateStatus(ctx context.Context, resource *api.Resource) (*api.Resource, error) {
-	return nil, errors.NotImplemented("Resource").AsError()
+	for i, r := range d.resources {
+		if r.ID == resource.ID {
+			d.resources[i].Status = resource.Status
+			return d.resources[i], nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 func (d *resourceDaoMock) Delete(ctx context.Context, id string, unscoped bool) error {

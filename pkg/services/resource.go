@@ -236,6 +236,24 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, false, nil
 	}
 
+	// Track first status reported metric (when status transitions from empty to non-empty)
+	if len(found.Status) == 0 && len(resource.Status) > 0 {
+		timeToFirstStatus := time.Since(found.CreatedAt)
+
+		labels := prometheus.Labels{
+			metricsIDLabel:       found.ID,
+			metricsConsumerLabel: found.ConsumerName,
+			metricsSourceLabel:   found.Source,
+		}
+		resourceTimeToFirstStatusMetric.With(labels).Observe(timeToFirstStatus.Seconds())
+
+		logger.V(4).Info("First status reported for resource",
+			"resourceID", found.ID,
+			"consumer", found.ConsumerName,
+			"source", found.Source,
+			"timeToFirstStatus", timeToFirstStatus.String())
+	}
+
 	// Only update resource status
 	found.Status = resource.Status
 	updated, err := s.resourceDao.UpdateStatus(ctx, found)
@@ -367,34 +385,34 @@ const metricsSubsystem = "resource"
 
 // Names of the labels added to metrics:
 const (
-	metricsIDLabel     = "id"
-	metricsActionLabel = "action"
+	metricsIDLabel       = "id"
+	metricsActionLabel   = "action"
+	metricsConsumerLabel = "consumer"
+	metricsSourceLabel   = "source"
 )
-
-// metricsLabels - Array of labels added to metrics:
-var metricsLabels = []string{
-	metricsIDLabel,
-	metricsActionLabel,
-}
 
 // Names of the metrics:
 const (
-	processedCountMetric = "processed_total"
+	processedCountMetric    = "processed_total"
+	timeToFirstStatusMetric = "time_to_first_status_seconds"
 )
 
 // Register the metrics:
 func RegisterResourceMetrics() {
 	prometheus.MustRegister(resourceProcessedCountMetric)
+	prometheus.MustRegister(resourceTimeToFirstStatusMetric)
 }
 
 // Unregister the metrics:
 func UnregisterResourceMetrics() {
 	prometheus.Unregister(resourceProcessedCountMetric)
+	prometheus.Unregister(resourceTimeToFirstStatusMetric)
 }
 
 // Reset the metrics:
 func ResetResourceMetrics() {
 	resourceProcessedCountMetric.Reset()
+	resourceTimeToFirstStatusMetric.Reset()
 }
 
 // Description of the resource process count metric:
@@ -404,5 +422,16 @@ var resourceProcessedCountMetric = prometheus.NewCounterVec(
 		Name:      processedCountMetric,
 		Help:      "Number of processed resources.",
 	},
-	metricsLabels,
+	[]string{metricsIDLabel, metricsActionLabel},
+)
+
+// Description of the time to first status metric:
+var resourceTimeToFirstStatusMetric = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Subsystem: metricsSubsystem,
+		Name:      timeToFirstStatusMetric,
+		Help:      "Time in seconds from resource creation to first status report.",
+		Buckets:   []float64{1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0},
+	},
+	[]string{metricsIDLabel, metricsConsumerLabel, metricsSourceLabel},
 )

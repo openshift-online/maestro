@@ -209,6 +209,54 @@ resource_processed_total{action="update",id="4bd1408d-36f2-51a8-87aa-76d63dfd1d4
 
 ---
 
+### `resource_time_to_first_status_seconds`
+
+**Type:** `histogram`\
+**Help:** Time in seconds from resource creation to first status report.
+
+This histogram tracks the latency between when a resource is created in the Maestro database and when the first status update is received from the agent. It helps monitor agent responsiveness, network latency, and resource processing performance. The metric is only recorded once per resource (on the first status transition from empty to non-empty).
+
+**Labels:**
+- `id` - The unique resource identifier
+- `consumer` - The consumer/cluster name where the resource is deployed
+- `source` - The source of the resource
+
+**Example:**
+
+```
+# HELP resource_time_to_first_status_seconds Time in seconds from resource creation to first status report.
+# TYPE resource_time_to_first_status_seconds histogram
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="1"} 0
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="5"} 0
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="10"} 1
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="30"} 1
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="60"} 1
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="120"} 1
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="300"} 1
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="600"} 1
+resource_time_to_first_status_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="+Inf"} 1
+resource_time_to_first_status_seconds_sum{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc"} 7.234567
+resource_time_to_first_status_seconds_count{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc"} 1
+```
+
+**Common Queries:**
+
+```promql
+# P95 time to first status across all resources
+histogram_quantile(0.95, rate(resource_time_to_first_status_seconds_bucket[5m]))
+
+# P95 time to first status by consumer
+histogram_quantile(0.95, sum by (consumer, le) (rate(resource_time_to_first_status_seconds_bucket[5m])))
+
+# P95 time to first status by source
+histogram_quantile(0.95, sum by (source, le) (rate(resource_time_to_first_status_seconds_bucket[5m])))
+
+# Average time to first status
+rate(resource_time_to_first_status_seconds_sum[5m]) / rate(resource_time_to_first_status_seconds_count[5m])
+```
+
+---
+
 ### `resources_spec_resync_duration_seconds`
 
 **Type:** `histogram`\
