@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/klog/v2"
@@ -177,6 +178,25 @@ func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 
 	// set the resource source and type back for broadcast
 	resource.Source = found.Source
+
+	// Track first status received metric (when status transitions from empty to non-empty)
+	// This represents agent responsiveness and network latency
+	if len(found.Status) == 0 && len(resource.Status) > 0 {
+		timeToFirstStatusReceived := time.Since(found.CreatedAt)
+
+		services.RecordResourceFirstStatusLatencyMetric(
+			found.ID,
+			found.ConsumerName,
+			found.Source,
+			timeToFirstStatusReceived,
+		)
+
+		logger.V(4).Info("First status received from agent",
+			"resourceID", found.ID,
+			"consumer", found.ConsumerName,
+			"source", found.Source,
+			"timeToFirstStatusReceived", timeToFirstStatusReceived.String())
+	}
 
 	// convert the resource status to cloudevent
 	statusEvent, err := api.JSONMAPToCloudEvent(resource.Status)

@@ -236,24 +236,6 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return found, false, nil
 	}
 
-	// Track first status reported metric (when status transitions from empty to non-empty)
-	if len(found.Status) == 0 && len(resource.Status) > 0 {
-		timeToFirstStatus := time.Since(found.CreatedAt)
-
-		labels := prometheus.Labels{
-			metricsIDLabel:       found.ID,
-			metricsConsumerLabel: found.ConsumerName,
-			metricsSourceLabel:   found.Source,
-		}
-		resourceTimeToFirstStatusMetric.With(labels).Observe(timeToFirstStatus.Seconds())
-
-		logger.V(4).Info("First status reported for resource",
-			"resourceID", found.ID,
-			"consumer", found.ConsumerName,
-			"source", found.Source,
-			"timeToFirstStatus", timeToFirstStatus.String())
-	}
-
 	// Only update resource status
 	found.Status = resource.Status
 	updated, err := s.resourceDao.UpdateStatus(ctx, found)
@@ -393,26 +375,26 @@ const (
 
 // Names of the metrics:
 const (
-	processedCountMetric    = "processed_total"
-	timeToFirstStatusMetric = "time_to_first_status_seconds"
+	processedCountMetric     = "processed_total"
+	firstStatusLatencyMetric = "first_status_latency_seconds"
 )
 
 // Register the metrics:
 func RegisterResourceMetrics() {
 	prometheus.MustRegister(resourceProcessedCountMetric)
-	prometheus.MustRegister(resourceTimeToFirstStatusMetric)
+	prometheus.MustRegister(resourceFirstStatusLatencyMetric)
 }
 
 // Unregister the metrics:
 func UnregisterResourceMetrics() {
 	prometheus.Unregister(resourceProcessedCountMetric)
-	prometheus.Unregister(resourceTimeToFirstStatusMetric)
+	prometheus.Unregister(resourceFirstStatusLatencyMetric)
 }
 
 // Reset the metrics:
 func ResetResourceMetrics() {
 	resourceProcessedCountMetric.Reset()
-	resourceTimeToFirstStatusMetric.Reset()
+	resourceFirstStatusLatencyMetric.Reset()
 }
 
 // Description of the resource process count metric:
@@ -425,13 +407,26 @@ var resourceProcessedCountMetric = prometheus.NewCounterVec(
 	[]string{metricsIDLabel, metricsActionLabel},
 )
 
-// Description of the time to first status metric:
-var resourceTimeToFirstStatusMetric = prometheus.NewHistogramVec(
+// resourceFirstStatusLatencyMetric tracks when the server first receives a status update from the agent.
+// Represents agent responsiveness and network latency.
+var resourceFirstStatusLatencyMetric = prometheus.NewHistogramVec(
 	prometheus.HistogramOpts{
 		Subsystem: metricsSubsystem,
-		Name:      timeToFirstStatusMetric,
-		Help:      "Time in seconds from resource creation to first status report.",
-		Buckets:   []float64{1.0, 5.0, 10.0, 30.0, 60.0, 120.0, 300.0, 600.0},
+		Name:      firstStatusLatencyMetric,
+		Help:      "Time in seconds from resource creation to when the server first receives a status update from the agent. Represents agent responsiveness and network latency.",
+		Buckets:   []float64{5.0, 30.0, 120.0, 600.0},
 	},
 	[]string{metricsIDLabel, metricsConsumerLabel, metricsSourceLabel},
 )
+
+// RecordResourceFirstStatusLatencyMetric records the latency from resource creation
+// to when the server first receives a status update from the agent.
+// This should only be called once per resource (on first status transition from empty to non-empty).
+func RecordResourceFirstStatusLatencyMetric(resourceID, consumerName, source string, latency time.Duration) {
+	labels := prometheus.Labels{
+		metricsIDLabel:       resourceID,
+		metricsConsumerLabel: consumerName,
+		metricsSourceLabel:   source,
+	}
+	resourceFirstStatusLatencyMetric.With(labels).Observe(latency.Seconds())
+}

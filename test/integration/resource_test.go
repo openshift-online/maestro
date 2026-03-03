@@ -674,9 +674,9 @@ func createStatusWithSequenceID(t *testing.T, resourceID, sequenceID string) map
 	return statusMap
 }
 
-// TestTimeToFirstStatusMetric verifies that the time-to-first-status metric is collected
-// when a resource receives its first status update
-func TestTimeToFirstStatusMetric(t *testing.T) {
+// TestFirstStatusLatencyMetric verifies that the first status latency metric
+// is collected when the server first receives a status update from the agent (in HandleStatusUpdate)
+func TestFirstStatusLatencyMetric(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
 	ctx := context.Background()
@@ -692,82 +692,84 @@ func TestTimeToFirstStatusMetric(t *testing.T) {
 	Expect(len(resource.Status)).To(Equal(0), "Initial resource should have no status")
 
 	resourceService := h.Env().Services.Resources()
+	statusEventService := h.Env().Services.StatusEvents()
 
-	// Update the resource with first status
+	// Update the resource with first status through HandleStatusUpdate to test the "received" metric
 	statusRes := &api.Resource{
 		Meta: api.Meta{
 			ID: resource.ID,
 		},
-		Version: resource.Version,
-		Status:  createStatusWithSequenceID(t, resource.ID, "1"),
+		ConsumerName: consumer.Name,
+		Version:      resource.Version,
+		Status:       createStatusWithSequenceID(t, resource.ID, "1"),
 	}
 
-	_, updated, svcErr := resourceService.UpdateStatus(ctx, statusRes)
-	Expect(svcErr).NotTo(HaveOccurred())
-	Expect(updated).Should(BeTrue(), "First status should be updated successfully")
+	// Call HandleStatusUpdate (this is where the "received" metric is recorded)
+	err = server.HandleStatusUpdate(ctx, statusRes, resourceService, statusEventService)
+	Expect(err).NotTo(HaveOccurred())
 
 	// Verify status was set
 	updatedRes, svcErr := resourceService.Get(ctx, resource.ID)
 	Expect(svcErr).NotTo(HaveOccurred())
 	Expect(len(updatedRes.Status)).ShouldNot(Equal(0), "Status should not be empty after update")
 
-	// Verify the metric was recorded by checking the histogram sample count
+	// Verify the "received" metric was recorded
 	metricFamily, err := prometheus.DefaultGatherer.Gather()
 	Expect(err).NotTo(HaveOccurred())
 
-	var found bool
-	var observationCount uint64
+	// Check for the metric
+	var foundReceived bool
+	var receivedObservationCount uint64
 	for _, mf := range metricFamily {
-		if *mf.Name == "resource_time_to_first_status_seconds" {
+		if *mf.Name == "resource_first_status_latency_seconds" {
 			for _, metric := range mf.Metric {
-				// Check if this metric has our resource ID label
 				for _, label := range metric.Label {
 					if *label.Name == "id" && *label.Value == resource.ID {
-						found = true
+						foundReceived = true
 						if metric.Histogram != nil {
-							observationCount = *metric.Histogram.SampleCount
+							receivedObservationCount = *metric.Histogram.SampleCount
 						}
 						break
 					}
 				}
-				if found {
+				if foundReceived {
 					break
 				}
 			}
 		}
-		if found {
+		if foundReceived {
 			break
 		}
 	}
 
-	Expect(found).To(BeTrue(), "Metric should be recorded for the resource")
-	Expect(observationCount).To(Equal(uint64(1)), "Metric should have exactly 1 observation")
+	Expect(foundReceived).To(BeTrue(), "Received metric should be recorded for the resource")
+	Expect(receivedObservationCount).To(Equal(uint64(1)), "Received metric should have exactly 1 observation")
 
 	// Update status again - metric count should remain 1 (not incremented)
 	statusRes2 := &api.Resource{
 		Meta: api.Meta{
 			ID: updatedRes.ID,
 		},
-		Version: updatedRes.Version,
-		Status:  createStatusWithSequenceID(t, updatedRes.ID, "2"),
+		ConsumerName: consumer.Name,
+		Version:      updatedRes.Version,
+		Status:       createStatusWithSequenceID(t, updatedRes.ID, "2"),
 	}
 
-	_, updated2, svcErr := resourceService.UpdateStatus(ctx, statusRes2)
-	Expect(svcErr).NotTo(HaveOccurred())
-	Expect(updated2).Should(BeTrue(), "Second status update should succeed")
+	err = server.HandleStatusUpdate(ctx, statusRes2, resourceService, statusEventService)
+	Expect(err).NotTo(HaveOccurred())
 
 	// Verify metric count is still 1 (not incremented for subsequent updates)
 	metricFamily2, err := prometheus.DefaultGatherer.Gather()
 	Expect(err).NotTo(HaveOccurred())
 
-	var observationCount2 uint64
+	var receivedObservationCount2 uint64
 	for _, mf := range metricFamily2 {
-		if *mf.Name == "resource_time_to_first_status_seconds" {
+		if *mf.Name == "resource_first_status_latency_seconds" {
 			for _, metric := range mf.Metric {
 				for _, label := range metric.Label {
 					if *label.Name == "id" && *label.Value == resource.ID {
 						if metric.Histogram != nil {
-							observationCount2 = *metric.Histogram.SampleCount
+							receivedObservationCount2 = *metric.Histogram.SampleCount
 						}
 						break
 					}
@@ -776,5 +778,5 @@ func TestTimeToFirstStatusMetric(t *testing.T) {
 		}
 	}
 
-	Expect(observationCount2).To(Equal(uint64(1)), "Metric count should remain 1 after second status update")
+	Expect(receivedObservationCount2).To(Equal(uint64(1)), "Received metric count should remain 1 after second status update")
 }
