@@ -10,6 +10,7 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/agent"
 	"github.com/openshift-online/maestro/cmd/maestro/consumer"
+	"github.com/openshift-online/maestro/cmd/maestro/mcp"
 	"github.com/openshift-online/maestro/cmd/maestro/migrate"
 	"github.com/openshift-online/maestro/cmd/maestro/resourcebundle"
 	"github.com/openshift-online/maestro/cmd/maestro/servecmd"
@@ -43,9 +44,10 @@ func main() {
 	agentCmd := agent.NewAgentCommand()
 	consumerCmd := consumer.NewConsumerCommand()
 	resourceBundleCmd := resourcebundle.NewResourceBundleCommand()
+	mcpCmd := mcp.NewMCPCommand()
 
 	// Add subcommand(s)
-	rootCmd.AddCommand(migrateCmd, serveCmd, agentCmd, consumerCmd, resourceBundleCmd)
+	rootCmd.AddCommand(migrateCmd, serveCmd, agentCmd, consumerCmd, resourceBundleCmd, mcpCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalf("error running command: %v", err)
