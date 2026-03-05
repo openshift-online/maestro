@@ -77,3 +77,6 @@ test/upgrade/report/*
 
 # Ignore diagnostic reports
 maestro-diagnosis-*.txt
+
+nginx-bundle.*
+.mcp.json
