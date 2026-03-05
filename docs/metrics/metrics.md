@@ -282,8 +282,7 @@ resource_status_event_processing_latency_seconds_count{consumer="cluster1",id="2
 ```
 
 **Usage Tips:**
-
-- To estimate worst-case processing latency by resource ID: `histogram_quantile(0.99, sum(rate(resource_status_event_processing_latency_seconds_bucket[5m])) by (id, le))`Expand commentComment on line R241Resolved
+- To estimate worst-case processing latency by resource ID: `histogram_quantile(0.99, sum(rate(resource_status_event_processing_latency_seconds_bucket[5m])) by (id, le))`
 - To identify slow instances: `histogram_quantile(0.99, sum(rate(resource_status_event_processing_latency_seconds_bucket[5m])) by (server_instance_id, le))`
 - To monitor overall status processing latency: `histogram_quantile(0.95, sum(rate(resource_status_event_processing_latency_seconds_bucket[5m])) by (le))`
 
