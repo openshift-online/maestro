@@ -1,4 +1,4 @@
-{{- if eq .Values.messageBroker.type "pubsub" }}
+{{- if and (eq .Values.messageBroker.type "pubsub") .Values.messageBroker.pubsub.initHook.enabled }}
 apiVersion: batch/v1
 kind: Job
 metadata:

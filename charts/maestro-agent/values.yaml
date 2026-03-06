@@ -62,6 +62,10 @@ messageBroker:
     disableTLS: false
     credentialsJSON: ""
     credentialsFile: /secrets/pubsub/credentials.json
+    # Init hook configuration
+    # Set to false if subscriptions are managed externally (e.g., via Terraform)
+    initHook:
+      enabled: true
     # Topics configuration (use full GCP resource names)
     # Agent publishes to these topics
     topics:

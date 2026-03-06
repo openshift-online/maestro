@@ -102,6 +102,21 @@ The following table lists the configurable parameters and their default values.
 |-----------|-------------|---------|
 | `messageBroker.grpc.url` | gRPC server URL | `maestro-grpc-broker.maestro:8091` |
 
+### Pub/Sub Configuration
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `messageBroker.pubsub.projectID` | GCP project ID | `""` |
+| `messageBroker.pubsub.endpoint` | Pub/Sub emulator endpoint (optional) | `""` |
+| `messageBroker.pubsub.disableTLS` | Disable TLS for Pub/Sub connection | `false` |
+| `messageBroker.pubsub.credentialsJSON` | GCP credentials JSON (inline) | `""` |
+| `messageBroker.pubsub.credentialsFile` | Path to GCP credentials file | `/secrets/pubsub/credentials.json` |
+| `messageBroker.pubsub.initHook.enabled` | Enable pre-install hook to create subscriptions | `true` |
+| `messageBroker.pubsub.topics.agentEvents` | Agent events topic (full GCP resource name) | `""` |
+| `messageBroker.pubsub.topics.agentBroadcast` | Agent broadcast topic (full GCP resource name) | `""` |
+| `messageBroker.pubsub.subscriptions.sourceEvents` | Source events subscription (full GCP resource name) | `""` |
+| `messageBroker.pubsub.subscriptions.sourceBroadcast` | Source broadcast subscription (full GCP resource name) | `""` |
+
 ### RBAC Parameters
 
 | Parameter | Description | Default |
@@ -157,6 +172,33 @@ helm install maestro-agent ./charts/maestro-agent \
   --set logging.klogV=2
 ```
 
+### Production Deployment with Pub/Sub
+
+```bash
+# With automatic subscription creation (default)
+helm install maestro-agent ./charts/maestro-agent \
+  --namespace maestro-agent \
+  --create-namespace \
+  --set consumerName=production-cluster-001 \
+  --set messageBroker.type=pubsub \
+  --set messageBroker.pubsub.projectID=my-gcp-project \
+  --set messageBroker.pubsub.topics.agentEvents=projects/my-gcp-project/topics/agentevents \
+  --set messageBroker.pubsub.topics.agentBroadcast=projects/my-gcp-project/topics/agentbroadcast
+
+# With externally managed subscriptions (e.g., via Terraform)
+helm install maestro-agent ./charts/maestro-agent \
+  --namespace maestro-agent \
+  --create-namespace \
+  --set consumerName=production-cluster-001 \
+  --set messageBroker.type=pubsub \
+  --set messageBroker.pubsub.projectID=my-gcp-project \
+  --set messageBroker.pubsub.initHook.enabled=false \
+  --set messageBroker.pubsub.topics.agentEvents=projects/my-gcp-project/topics/agentevents \
+  --set messageBroker.pubsub.topics.agentBroadcast=projects/my-gcp-project/topics/agentbroadcast \
+  --set messageBroker.pubsub.subscriptions.sourceEvents=projects/my-gcp-project/subscriptions/sourceevents-production-cluster-001 \
+  --set messageBroker.pubsub.subscriptions.sourceBroadcast=projects/my-gcp-project/subscriptions/sourcebroadcast-production-cluster-001
+```
+
 ### Development Deployment
 
 ```bash
@@ -182,11 +224,13 @@ helm upgrade maestro-agent ./charts/maestro-agent \
 
 1. **Consumer Name**: The `consumerName` parameter must be unique for each cluster and match the consumer name registered in the Maestro Server.
 
-2. **Message Broker Configuration**: Ensure the agent can reach the MQTT broker or gRPC server configured in the Maestro Server.
+2. **Message Broker Configuration**: Ensure the agent can reach the MQTT broker, gRPC server, or Pub/Sub endpoint configured in the Maestro Server.
 
 3. **RBAC Permissions**: The agent is deployed with cluster-admin permissions by default to allow it to create any resource type. Review and adjust RBAC permissions based on your security requirements.
 
 4. **CRD Installation**: The `AppliedManifestWork` CRD is installed automatically. If you're upgrading or the CRD already exists, set `crds.create=false`.
+
+5. **Pub/Sub Subscription Management**: When using Pub/Sub, the chart includes a pre-install hook that automatically creates subscriptions. If you manage subscriptions externally (e.g., via Terraform or other IaC tools), disable the hook by setting `messageBroker.pubsub.initHook.enabled=false` to avoid requiring broad Pub/Sub permissions for the service account.
 
 ## Troubleshooting
 
