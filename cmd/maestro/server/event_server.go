@@ -322,5 +322,28 @@ func broadcastStatusEvent(ctx context.Context,
 		InstanceID: instanceID,
 	})
 
+	if err == nil {
+		// record metric: time from status event creation to processing by this instance
+		processingTime := time.Since(statusEvent.CreatedAt).Seconds()
+		consumerName := resource.ConsumerName
+		if consumerName == "" {
+			consumerName = "unknown"
+		}
+		services.RecordResourceTimeToStatusProcessed(
+			resource.ID,
+			consumerName,
+			resource.Source,
+			instanceID,
+			processingTime,
+		)
+		logger.V(4).Info("Recorded resource status processing time metric",
+			"resourceID", resource.ID,
+			"consumer", consumerName,
+			"source", resource.Source,
+			"instanceID", instanceID,
+			"processingTimeSeconds", processingTime,
+			"statusEventCreatedAt", statusEvent.CreatedAt)
+	}
+
 	return err
 }

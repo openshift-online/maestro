@@ -31,6 +31,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/errors"
+	"github.com/openshift-online/maestro/pkg/services"
 	"github.com/openshift-online/maestro/test"
 )
 
@@ -779,4 +780,94 @@ func TestFirstStatusLatencyMetric(t *testing.T) {
 	}
 
 	Expect(receivedObservationCount2).To(Equal(uint64(1)), "Received metric count should remain 1 after second status update")
+}
+
+func TestStatusEventProcessingLatencyMetric(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a consumer and resource
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resourceID := uuid.NewString()
+	resource, err := h.NewResource(resourceID, consumer.Name, deployName, "default", 1, 1)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Set the source to match the controller configuration
+	resource.Source = "test"
+
+	resourceService := h.Env().Services.Resources()
+	resource, svcErr := resourceService.Create(context.Background(), resource)
+	Expect(svcErr).NotTo(HaveOccurred())
+
+	// Start the controller manager to handle status events
+	h.StartControllerManager(ctx)
+
+	// Give time for the database listener to be fully set up
+	time.Sleep(1 * time.Second)
+
+	// Reset metrics to avoid interference from other tests
+	services.ResetResourceMetrics()
+
+	// Create a status event directly to trigger the flow
+	statusEventDao := dao.NewStatusEventDao(&h.Env().Database.SessionFactory)
+	statusEvent := &api.StatusEvent{
+		ResourceID:      resource.ID,
+		ResourceSource:  resource.Source,
+		ResourceType:    resource.Type,
+		StatusEventType: api.StatusUpdateEventType,
+	}
+	statusEvent, err = statusEventDao.Create(ctx, statusEvent)
+	Expect(err).NotTo(HaveOccurred())
+
+	// Manually add the status event to the controller queue to ensure it's processed
+	// This is needed because the database listener might not have picked up the pg_notify yet
+	h.ControllerManager.StatusController.AddStatusEvent(statusEvent.ID)
+
+	// Verify the metric was recorded
+	// The metric should have been recorded with labels: id, consumer, source, server_instance_id
+	metricName := "resource_status_event_processing_latency_seconds"
+
+	// Wait for the status event to be processed and metric to be recorded
+	Eventually(func() error {
+		families, err := prometheus.DefaultGatherer.Gather()
+		if err != nil {
+			return err
+		}
+
+		for _, mf := range families {
+			if mf.GetName() == metricName {
+				for _, m := range mf.GetMetric() {
+					labels := m.GetLabel()
+					hasCorrectResourceID := false
+					hasCorrectConsumer := false
+					hasCorrectSource := false
+
+					for _, label := range labels {
+						if label.GetName() == "id" && label.GetValue() == resource.ID {
+							hasCorrectResourceID = true
+						}
+						if label.GetName() == "consumer" && label.GetValue() == consumer.Name {
+							hasCorrectConsumer = true
+						}
+						if label.GetName() == "source" && label.GetValue() == resource.Source {
+							hasCorrectSource = true
+						}
+					}
+
+					if hasCorrectResourceID && hasCorrectConsumer && hasCorrectSource {
+						// Verify that at least one observation was recorded
+						if m.Histogram != nil && m.Histogram.GetSampleCount() > 0 {
+							return nil
+						}
+						return fmt.Errorf("metric found with correct labels but no samples recorded")
+					}
+				}
+			}
+		}
+		return fmt.Errorf("metric %s not found with correct labels (id=%s, consumer=%s, source=%s)", metricName, resource.ID, consumer.Name, resource.Source)
+	}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
 }

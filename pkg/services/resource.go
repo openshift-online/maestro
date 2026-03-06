@@ -375,26 +375,30 @@ const (
 
 // Names of the metrics:
 const (
-	processedCountMetric     = "processed_total"
-	firstStatusLatencyMetric = "first_status_latency_seconds"
+	processedCountMetric                      = "processed_total"
+	firstStatusLatencyMetric                  = "first_status_latency_seconds"
+	statusEventProcessingLatencySecondsMetric = "status_event_processing_latency_seconds"
 )
 
 // Register the metrics:
 func RegisterResourceMetrics() {
 	prometheus.MustRegister(resourceProcessedCountMetric)
 	prometheus.MustRegister(resourceFirstStatusLatencyMetric)
+	prometheus.MustRegister(statusEventProcessingLatencyMetric)
 }
 
 // Unregister the metrics:
 func UnregisterResourceMetrics() {
 	prometheus.Unregister(resourceProcessedCountMetric)
 	prometheus.Unregister(resourceFirstStatusLatencyMetric)
+	prometheus.Unregister(statusEventProcessingLatencyMetric)
 }
 
 // Reset the metrics:
 func ResetResourceMetrics() {
 	resourceProcessedCountMetric.Reset()
 	resourceFirstStatusLatencyMetric.Reset()
+	statusEventProcessingLatencyMetric.Reset()
 }
 
 // Description of the resource process count metric:
@@ -429,4 +433,20 @@ func RecordResourceFirstStatusLatencyMetric(resourceID, consumerName, source str
 		metricsSourceLabel:   source,
 	}
 	resourceFirstStatusLatencyMetric.With(labels).Observe(latency.Seconds())
+}
+
+// Description of the status event processing latency metric:
+var statusEventProcessingLatencyMetric = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Subsystem: metricsSubsystem,
+		Name:      statusEventProcessingLatencySecondsMetric,
+		Help:      "Latency in seconds from status event creation to it is processed by a server instance.",
+		Buckets:   []float64{0.05, 0.1, 0.5, 1, 5},
+	},
+	[]string{"id", "consumer", "source", "server_instance_id"},
+)
+
+// RecordResourceTimeToStatusProcessed records the time from status event creation to processing
+func RecordResourceTimeToStatusProcessed(resourceID, consumer, source, serverInstanceID string, durationSeconds float64) {
+	statusEventProcessingLatencyMetric.WithLabelValues(resourceID, consumer, source, serverInstanceID).Observe(durationSeconds)
 }
