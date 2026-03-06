@@ -58,9 +58,22 @@ Manage consumers (target clusters) that receive resource bundles from Maestro.
 
 See [Consumer Commands](consumer.md) for detailed documentation.
 
+### ResourceBundle Commands
+
+Manage resource bundles (collections of Kubernetes manifests).
+
+- [`resourcebundle list`](resourcebundle.md#list) - List resource bundles
+- [`resourcebundle get`](resourcebundle.md#get) - Get a resource bundle by ID
+- [`resourcebundle apply`](resourcebundle.md#apply) - Create or update a resource bundle
+- [`resourcebundle delete`](resourcebundle.md#delete) - Delete a resource bundle
+- [`resourcebundle status`](resourcebundle.md#status) - Get resource bundle status
+
+See [ResourceBundle Commands](resourcebundle.md) for detailed documentation.
+
 ## Additional Resources
 
 - [Server Command Reference](server.md)
 - [Consumer Commands Reference](consumer.md)
+- [ResourceBundle Commands Reference](resourcebundle.md)
 - [Maestro Architecture](../maestro.md)
 - [Maestro Troubleshooting](../troubleshooting.md)

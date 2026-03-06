@@ -73,7 +73,7 @@ NAME                             READY   STATUS    RESTARTS   AGE
 maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          3m
 ```
 
-Now you can create a resource bundle with the `MaestroGRPCSourceWorkClient`, check the [document](./examples/manifestwork/README.md) for more details.
+Now you can create and manage resource bundles using the Maestro CLI. See the [ResourceBundle Commands documentation](./docs/cli/resourcebundle.md#deploying-and-managing-a-resource-bundle) for details.
 
 ## Run in OpenShift
 
@@ -160,7 +160,7 @@ NAME                             READY   STATUS    RESTARTS   AGE
 maestro-agent-5dc9f5b4bf-8jcvq   1/1     Running   0          13s
 ```
 
-Now you can create a resource bundle with the `MaestroGRPCSourceWorkClient`, check the [document](./examples/manifestwork/README.md) for more details.
+Now you can create and manage resource bundles using the Maestro CLI. See the [ResourceBundle Commands documentation](./docs/cli/resourcebundle.md#deploying-and-managing-a-resource-bundle) for details.
 
 ## Run Maestro server with binary
 
