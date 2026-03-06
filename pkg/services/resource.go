@@ -367,34 +367,34 @@ const metricsSubsystem = "resource"
 
 // Names of the labels added to metrics:
 const (
-	metricsIDLabel     = "id"
-	metricsActionLabel = "action"
+	metricsIDLabel       = "id"
+	metricsActionLabel   = "action"
+	metricsConsumerLabel = "consumer"
+	metricsSourceLabel   = "source"
 )
-
-// metricsLabels - Array of labels added to metrics:
-var metricsLabels = []string{
-	metricsIDLabel,
-	metricsActionLabel,
-}
 
 // Names of the metrics:
 const (
-	processedCountMetric = "processed_total"
+	processedCountMetric     = "processed_total"
+	firstStatusLatencyMetric = "first_status_latency_seconds"
 )
 
 // Register the metrics:
 func RegisterResourceMetrics() {
 	prometheus.MustRegister(resourceProcessedCountMetric)
+	prometheus.MustRegister(resourceFirstStatusLatencyMetric)
 }
 
 // Unregister the metrics:
 func UnregisterResourceMetrics() {
 	prometheus.Unregister(resourceProcessedCountMetric)
+	prometheus.Unregister(resourceFirstStatusLatencyMetric)
 }
 
 // Reset the metrics:
 func ResetResourceMetrics() {
 	resourceProcessedCountMetric.Reset()
+	resourceFirstStatusLatencyMetric.Reset()
 }
 
 // Description of the resource process count metric:
@@ -404,5 +404,29 @@ var resourceProcessedCountMetric = prometheus.NewCounterVec(
 		Name:      processedCountMetric,
 		Help:      "Number of processed resources.",
 	},
-	metricsLabels,
+	[]string{metricsIDLabel, metricsActionLabel},
 )
+
+// resourceFirstStatusLatencyMetric tracks when the server first receives a status update from the agent.
+// Represents agent responsiveness and network latency.
+var resourceFirstStatusLatencyMetric = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Subsystem: metricsSubsystem,
+		Name:      firstStatusLatencyMetric,
+		Help:      "Time in seconds from resource creation to when the server first receives a status update from the agent. Represents agent responsiveness and network latency.",
+		Buckets:   []float64{5.0, 30.0, 120.0, 600.0},
+	},
+	[]string{metricsIDLabel, metricsConsumerLabel, metricsSourceLabel},
+)
+
+// RecordResourceFirstStatusLatencyMetric records the latency from resource creation
+// to when the server first receives a status update from the agent.
+// This should only be called once per resource (on first status transition from empty to non-empty).
+func RecordResourceFirstStatusLatencyMetric(resourceID, consumerName, source string, latency time.Duration) {
+	labels := prometheus.Labels{
+		metricsIDLabel:       resourceID,
+		metricsConsumerLabel: consumerName,
+		metricsSourceLabel:   source,
+	}
+	resourceFirstStatusLatencyMetric.With(labels).Observe(latency.Seconds())
+}

@@ -209,6 +209,50 @@ resource_processed_total{action="update",id="4bd1408d-36f2-51a8-87aa-76d63dfd1d4
 
 ---
 
+### `resource_first_status_latency_seconds`
+
+**Type:** `histogram`\
+**Help:** Time in seconds from resource creation to when the server first receives a status update from the agent. Represents agent responsiveness and network latency.
+
+This histogram tracks the latency between when a resource is created in the Maestro database and when the server first receives a status update from the agent. This metric is recorded in the event server's `HandleStatusUpdate` function, representing the agent's responsiveness and network latency. The metric is only recorded once per resource (on the first status transition from empty to non-empty).
+
+**Labels:**
+- `id` - The unique resource identifier
+- `consumer` - The consumer/cluster name where the resource is deployed
+- `source` - The source of the resource
+
+**Example:**
+
+```
+# HELP resource_first_status_latency_seconds Time in seconds from resource creation to when the server first receives a status update from the agent. Represents agent responsiveness and network latency.
+# TYPE resource_first_status_latency_seconds histogram
+resource_first_status_latency_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="5"} 1
+resource_first_status_latency_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="30"} 1
+resource_first_status_latency_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="120"} 1
+resource_first_status_latency_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="600"} 1
+resource_first_status_latency_seconds_bucket{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc",le="+Inf"} 1
+resource_first_status_latency_seconds_sum{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc"} 5.123456
+resource_first_status_latency_seconds_count{consumer="cluster-a",id="2c74c9e5-dda7-5b74-a51c-c7a7114b44c3",source="grpc"} 1
+```
+
+**Common Queries:**
+
+```promql
+# P95 first status latency across all resources
+histogram_quantile(0.95, rate(resource_first_status_latency_seconds_bucket[5m]))
+
+# P95 first status latency by consumer
+histogram_quantile(0.95, sum by (consumer, le) (rate(resource_first_status_latency_seconds_bucket[5m])))
+
+# P95 first status latency by source
+histogram_quantile(0.95, sum by (source, le) (rate(resource_first_status_latency_seconds_bucket[5m])))
+
+# Average first status latency
+rate(resource_first_status_latency_seconds_sum[5m]) / rate(resource_first_status_latency_seconds_count[5m])
+```
+
+---
+
 ### `resources_spec_resync_duration_seconds`
 
 **Type:** `histogram`\
