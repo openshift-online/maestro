@@ -70,10 +70,23 @@ Manage resource bundles (collections of Kubernetes manifests).
 
 See [ResourceBundle Commands](resourcebundle.md) for detailed documentation.
 
+### MCP Command
+
+Run the Model Context Protocol (MCP) server for AI assistant integration.
+
+- [`mcp`](mcp.md) - Start the MCP server for Claude Code and other AI assistants
+
+The MCP server exposes 12 tools for managing Maestro resources through conversational AI:
+- 7 resource bundle tools (list, get, apply, delete, status, search, list by consumer)
+- 5 consumer tools (list, get, create, update labels, delete)
+
+See [MCP Command](mcp.md) for detailed documentation.
+
 ## Additional Resources
 
 - [Server Command Reference](server.md)
 - [Consumer Commands Reference](consumer.md)
 - [ResourceBundle Commands Reference](resourcebundle.md)
+- [MCP Command Reference](mcp.md)
 - [Maestro Architecture](../maestro.md)
 - [Maestro Troubleshooting](../troubleshooting.md)
