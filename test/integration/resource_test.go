@@ -22,7 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 	workv1client "open-cluster-management.io/api/client/work/clientset/versioned/typed/work/v1"
 	workv1 "open-cluster-management.io/api/work/v1"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cemetrics "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/metrics"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -396,31 +395,8 @@ func TestResourceFromGRPC(t *testing.T) {
 	}, newResource)
 	Expect(err).NotTo(HaveOccurred(), "Error publishing resource with grpc source client: %v", err)
 
-	Eventually(func() error {
-		// ensure the work can be get by work client
-		work, err = agentWorkClient.Get(ctx, newResource.ID, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		if work.GetDeletionTimestamp() == nil {
-			return fmt.Errorf("work %s is not deleted", work.Name)
-		}
-		return nil
-	}, 10*time.Second, 1*time.Second).Should(Succeed())
-
-	// no real kubernete environment, so need to update the resource status manually
-	deletingWorkStatus := workv1.ManifestWorkStatus{
-		Conditions: []metav1.Condition{
-			{
-				Type:   common.ResourceDeleted,
-				Status: metav1.ConditionTrue,
-			},
-		},
-	}
-
-	// update the work status
-	Expect(updateWorkStatus(ctx, agentWorkClient, work, deletingWorkStatus)).NotTo(HaveOccurred())
-
+	// no real kube environment, so there is no finalizers, the work agent will delete this resource
+	// immediately
 	Eventually(func() error {
 		res, _, err = client.DefaultAPI.ApiMaestroV1ResourceBundlesIdGet(ctx, newResource.ID).Execute()
 		if res != nil {
