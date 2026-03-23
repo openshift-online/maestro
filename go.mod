@@ -48,11 +48,11 @@ require (
 	gorm.io/datatypes v1.2.7
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.30.0
-	k8s.io/api v0.35.2
-	k8s.io/apimachinery v0.35.2
-	k8s.io/apiserver v0.35.2
-	k8s.io/client-go v0.35.2
-	k8s.io/component-base v0.35.2
+	k8s.io/api v0.35.3
+	k8s.io/apimachinery v0.35.3
+	k8s.io/apiserver v0.35.3
+	k8s.io/client-go v0.35.3
+	k8s.io/component-base v0.35.3
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	open-cluster-management.io/api v1.2.1-0.20260305152611-5bfebdbc3fdf
@@ -188,7 +188,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	gorm.io/driver/mysql v1.5.6 // indirect
 	k8s.io/apiextensions-apiserver v0.35.2 // indirect
-	k8s.io/kms v0.35.2 // indirect
+	k8s.io/kms v0.35.3 // indirect
 	k8s.io/kube-aggregator v0.35.2 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 // indirect
