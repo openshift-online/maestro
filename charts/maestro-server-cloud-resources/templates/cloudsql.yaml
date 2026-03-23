@@ -1,0 +1,80 @@
+{{- if .Values.database.enabled }}
+# Cloud SQL resources for Maestro Server.
+#
+# The SQLInstance, SQLDatabase, and SQLUser are managed via Config Connector.
+#
+# The maestro-server deployment connects via the Cloud SQL Auth Proxy sidecar
+# (default: localhost:5432). The proxy authenticates using Workload Identity.
+#
+# Secret lifecycle: the ESO Password generator creates a stable random password
+# on first install (refreshInterval: "0") and never rotates it automatically.
+# The same secret is mounted into the maestro-server pod as /secrets/rds/.
+
+---
+# Cloud SQL PostgreSQL instance
+apiVersion: sql.cnrm.cloud.google.com/v1beta1
+kind: SQLInstance
+metadata:
+  name: {{ .Values.database.instance.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  databaseVersion: {{ .Values.database.instance.version }}
+  region: {{ .Values.gcp.region }}
+  settings:
+    tier: {{ .Values.database.instance.tier }}
+    diskSize: {{ .Values.database.instance.diskSize }}
+    diskType: {{ .Values.database.instance.diskType }}
+    diskAutoresize: {{ .Values.database.instance.diskAutoresize }}
+    diskAutoresizeLimit: {{ .Values.database.instance.diskAutoresizeLimit }}
+    ipConfiguration:
+      ipv4Enabled: {{ .Values.database.instance.ipConfiguration.ipv4Enabled }}
+      requireSsl: {{ .Values.database.instance.ipConfiguration.requireSsl }}
+    backupConfiguration:
+      enabled: {{ .Values.database.instance.backupConfiguration.enabled }}
+      pointInTimeRecoveryEnabled: {{ .Values.database.instance.backupConfiguration.pointInTimeRecoveryEnabled }}
+      backupRetentionSettings:
+        retainedBackups: {{ .Values.database.instance.backupConfiguration.retainedBackups }}
+        retentionUnit: COUNT
+    maintenanceWindow:
+      day: {{ .Values.database.instance.maintenanceWindow.day }}
+      hour: {{ .Values.database.instance.maintenanceWindow.hour }}
+      updateTrack: {{ .Values.database.instance.maintenanceWindow.updateTrack | quote }}
+    deletionProtectionEnabled: {{ .Values.database.instance.deletionProtection }}
+
+---
+# Database within the instance
+apiVersion: sql.cnrm.cloud.google.com/v1beta1
+kind: SQLDatabase
+metadata:
+  name: {{ .Values.database.name | replace "_" "-" }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  resourceID: {{ .Values.database.name | quote }}
+  charset: "UTF8"
+  collation: "en_US.UTF8"
+  instanceRef:
+    name: {{ .Values.database.instance.name }}
+
+---
+# Database user — password sourced from ESO-generated secret
+apiVersion: sql.cnrm.cloud.google.com/v1beta1
+kind: SQLUser
+metadata:
+  name: {{ .Values.database.user | replace "_" "-" }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  resourceID: {{ .Values.database.user | quote }}
+  instanceRef:
+    name: {{ .Values.database.instance.name }}
+  password:
+    valueFrom:
+      secretKeyRef:
+        name: {{ .Values.database.passwordSecret.name }}
+        key: password
+{{- end }}

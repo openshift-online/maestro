@@ -1,0 +1,17 @@
+{{- if .Values.database.enabled }}
+# sqladmin.googleapis.com must be enabled before Config Connector can reconcile
+# SQLInstance, SQLDatabase, and SQLUser resources.
+
+---
+apiVersion: serviceusage.cnrm.cloud.google.com/v1beta1
+kind: Service
+metadata:
+  name: sqladmin-googleapis-com
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  projectRef:
+    external: {{ .Values.gcp.project }}
+  resourceID: sqladmin.googleapis.com
+{{- end }}

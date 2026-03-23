@@ -1,0 +1,71 @@
+gcp:
+  project: ""       # Required. GCP project ID (e.g. my-gcp-project)
+  region: "us-central1"
+
+# Maestro Server k8s SA name (must match the SA used by the maestro-server chart)
+serverServiceAccount: "maestro"
+
+# Cloud SQL database for Maestro Server.
+# When enabled, creates a Cloud SQL PostgreSQL instance, database, user, and
+# ESO-managed credentials secret. The maestro-server deployment connects via
+# the Cloud SQL Auth Proxy sidecar.
+database:
+  enabled: true
+  # Cloud SQL instance
+  instance:
+    name: "maestro-db"
+    version: "POSTGRES_15"
+    tier: "db-custom-1-3840"  # 1 vCPU, 3.75 GB RAM
+    diskSize: 10              # GB
+    diskType: "PD_SSD"
+    diskAutoresize: true
+    diskAutoresizeLimit: 100  # GB
+    deletionProtection: false # set to true for production
+    ipConfiguration:
+      ipv4Enabled: true       # set to false for private-IP-only deployments
+      requireSsl: false        # set to true for production
+    backupConfiguration:
+      enabled: true
+      pointInTimeRecoveryEnabled: true
+      retainedBackups: 7
+    maintenanceWindow:
+      day: 7   # Sunday
+      hour: 2  # 2 AM UTC
+      updateTrack: "stable"
+  # Database and user inside the instance
+  name: "maestro"
+  user: "maestro"
+  # Connection settings for the Kubernetes Secret mounted by maestro-server.
+  # Defaults assume the Cloud SQL Auth Proxy sidecar runs on localhost:5432.
+  host: "localhost"
+  port: "5432"
+  # Kubernetes Secret populated by ESO; mounted by maestro-server at /secrets/rds/
+  passwordSecret:
+    name: "maestro-db"
+
+# Pub/Sub server-side subscriptions and IAM bindings.
+# When enabled, creates subscriptions for the Maestro server and grants
+# publish/subscribe/viewer permissions on the configured topics.
+# Topics must already exist (created externally, e.g. by Terraform or manually).
+pubsub:
+  enabled: true
+  # Topics configuration (use full GCP resource names)
+  topics:
+    sourceEvents: ""      # e.g., projects/my-project/topics/sourceevents
+    sourceBroadcast: ""   # e.g., projects/my-project/topics/sourcebroadcast
+    agentEvents: ""       # e.g., projects/my-project/topics/agentevents
+    agentBroadcast: ""    # e.g., projects/my-project/topics/agentbroadcast
+  # Subscriptions configuration (use full GCP resource names)
+  subscriptions:
+    agentEvents: ""       # e.g., projects/my-project/subscriptions/agentevents-server
+    agentBroadcast: ""    # e.g., projects/my-project/subscriptions/agentbroadcast-server
+
+# Maestro consumer registration CronJob.
+# Discovers consumers by listing GCP Secret Manager secrets with the
+# maestro-consumer-name label and registers them via the Maestro API.
+consumerRegistration:
+  enabled: false
+  schedule: "*/5 * * * *"
+  maestroUrl: ""  # e.g., http://maestro.hyperfleet:8000
+  serviceAccount: "maestro-consumer-registration"
+  image: "google/cloud-sdk:slim"

@@ -1,0 +1,167 @@
+{{- $wifPrefix := printf "serviceAccount:%s.svc.id.goog[%s/" .Values.gcp.project .Release.Namespace -}}
+{{- $serverGcpSa := printf "serviceAccount:%s@%s.iam.gserviceaccount.com" .Values.serverServiceAccount .Values.gcp.project -}}
+
+# ============================================================
+# Maestro Server GCP SA
+# Created in the GCP project; the maestro-server k8s SA is
+# annotated with iam.gke.io/gcp-service-account pointing here,
+# so the pod uses GCP SA impersonation via Workload Identity.
+# ============================================================
+
+---
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMServiceAccount
+metadata:
+  name: {{ .Values.serverServiceAccount }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  displayName: "Maestro Server"
+  description: "Used by maestro-server to publish/subscribe to Pub/Sub topics and connect to Cloud SQL"
+---
+# WIF binding: allow the maestro k8s SA to impersonate this GCP SA
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-wi-binding
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: "{{ $wifPrefix }}{{ .Values.serverServiceAccount }}]"
+  role: roles/iam.workloadIdentityUser
+  resourceRef:
+    apiVersion: iam.cnrm.cloud.google.com/v1beta1
+    kind: IAMServiceAccount
+    name: {{ .Values.serverServiceAccount }}
+
+# ============================================================
+# Maestro Server Cloud SQL permissions
+# ============================================================
+
+{{- if .Values.database.enabled }}
+---
+# Cloud SQL client (required for the Cloud SQL Auth Proxy to connect)
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-cloudsql-client
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: {{ $serverGcpSa | quote }}
+  role: roles/cloudsql.client
+  resourceRef:
+    apiVersion: resourcemanager.cnrm.cloud.google.com/v1beta1
+    kind: Project
+    external: {{ .Values.gcp.project }}
+{{- end }}
+
+# ============================================================
+# Maestro Server Pub/Sub permissions
+# ============================================================
+
+{{- if .Values.pubsub.enabled }}
+
+{{- $agentEventsSub := .Values.pubsub.subscriptions.agentEvents | splitList "/" | last }}
+{{- $agentBroadcastSub := .Values.pubsub.subscriptions.agentBroadcast | splitList "/" | last }}
+
+---
+# Publisher on sourceevents topic (sends work to agents)
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-sourceevents-publisher
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: {{ $serverGcpSa | quote }}
+  role: roles/pubsub.publisher
+  resourceRef:
+    apiVersion: pubsub.cnrm.cloud.google.com/v1beta1
+    kind: PubSubTopic
+    external: {{ .Values.pubsub.topics.sourceEvents }}
+---
+# Publisher on sourcebroadcast topic (broadcasts to all agents)
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-sourcebroadcast-publisher
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: {{ $serverGcpSa | quote }}
+  role: roles/pubsub.publisher
+  resourceRef:
+    apiVersion: pubsub.cnrm.cloud.google.com/v1beta1
+    kind: PubSubTopic
+    external: {{ .Values.pubsub.topics.sourceBroadcast }}
+---
+# Subscriber on agentevents server subscription (receives status from agents)
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-agentevents-subscriber
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: {{ $serverGcpSa | quote }}
+  role: roles/pubsub.subscriber
+  resourceRef:
+    apiVersion: pubsub.cnrm.cloud.google.com/v1beta1
+    kind: PubSubSubscription
+    name: {{ $agentEventsSub }}
+---
+# Subscriber on agentbroadcast server subscription
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-agentbroadcast-subscriber
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: {{ $serverGcpSa | quote }}
+  role: roles/pubsub.subscriber
+  resourceRef:
+    apiVersion: pubsub.cnrm.cloud.google.com/v1beta1
+    kind: PubSubSubscription
+    name: {{ $agentBroadcastSub }}
+---
+# Viewer on agentevents topic (required for topic.get during subscription init)
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-agentevents-viewer
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: {{ $serverGcpSa | quote }}
+  role: roles/pubsub.viewer
+  resourceRef:
+    apiVersion: pubsub.cnrm.cloud.google.com/v1beta1
+    kind: PubSubTopic
+    external: {{ .Values.pubsub.topics.agentEvents }}
+---
+# Viewer on agentbroadcast topic (required for topic.get during subscription init)
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPolicyMember
+metadata:
+  name: maestro-server-agentbroadcast-viewer
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+spec:
+  member: {{ $serverGcpSa | quote }}
+  role: roles/pubsub.viewer
+  resourceRef:
+    apiVersion: pubsub.cnrm.cloud.google.com/v1beta1
+    kind: PubSubTopic
+    external: {{ .Values.pubsub.topics.agentBroadcast }}
+{{- end }}
