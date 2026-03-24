@@ -1,0 +1,9 @@
+apiVersion: v2
+name: maestro-server-cloud-resources
+description: >-
+  GCP cloud resources for Maestro Server — Cloud SQL instance, Pub/Sub
+  subscriptions, GCP Service Account with Workload Identity, IAM bindings,
+  and optional consumer-registration CronJob. All GCP resources are managed
+  declaratively via Config Connector.
+type: application
+version: 0.1.0

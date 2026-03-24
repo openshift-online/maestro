@@ -1,0 +1,147 @@
+# Maestro consumer registration CronJob.
+# Discovers consumers by listing Secret Manager secrets with the
+# maestro-consumer-name label, then registers any unregistered consumer
+# via the Maestro API.
+{{- if .Values.consumerRegistration.enabled }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: maestro-consumer-registration-script
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: maestro-consumer-registration
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+data:
+  reconcile.sh: |
+    #!/bin/sh
+    # Errors are handled explicitly and result in a warning + exit 0 so that
+    # transient failures (Maestro not yet up, flaky gcloud call, etc.) do not
+    # record a job failure. The CronJob will simply retry on the next iteration.
+
+    GCP_PROJECT_ID="${GCP_PROJECT_ID}"
+    MAESTRO_URL="${MAESTRO_URL}"
+
+    echo "=== Maestro consumer registration ==="
+    echo "GCP project    : ${GCP_PROJECT_ID}"
+    echo "Maestro URL    : ${MAESTRO_URL}"
+
+    # Discover consumers: list SM secrets with the maestro-consumer-name label.
+    CONSUMER_NAMES=$(gcloud secrets list \
+      --project="${GCP_PROJECT_ID}" \
+      --filter='labels.maestro-consumer-name:*' \
+      --format='value(labels.maestro-consumer-name)' 2>&1)
+    if [ $? -ne 0 ]; then
+      echo "WARN: failed to list secrets in ${GCP_PROJECT_ID}:"
+      echo "      ${CONSUMER_NAMES}"
+      echo "      will retry on the next iteration"
+      exit 0
+    fi
+    CONSUMER_NAMES=$(echo "${CONSUMER_NAMES}" | grep -v '^$' || true)
+
+    if [ -z "${CONSUMER_NAMES}" ]; then
+      echo "No secrets found with maestro-consumer-name label — nothing to register"
+      exit 0
+    fi
+
+    echo "Consumers found in Secret Manager:"
+    echo "${CONSUMER_NAMES}" | sed 's/^/  /'
+
+    # Fetch the list of already-registered Maestro consumers.
+    # Exit gracefully if Maestro is not yet reachable.
+    EXISTING_RESPONSE=$(curl -sf --max-time 10 \
+      "${MAESTRO_URL}/api/maestro/v1/consumers" 2>&1)
+    if [ $? -ne 0 ]; then
+      echo "WARN: Maestro API not reachable at ${MAESTRO_URL}"
+      echo "      will retry on the next iteration"
+      exit 0
+    fi
+    EXISTING=$(echo "${EXISTING_RESPONSE}" | grep -o '"name":"[^"]*"' | sed 's/"name":"//;s/"//' || true)
+
+    echo "Consumers already registered in Maestro:"
+    if [ -z "${EXISTING}" ]; then
+      echo "  (none)"
+    else
+      echo "${EXISTING}" | sed 's/^/  /'
+    fi
+
+    # Register any consumer not yet present in Maestro.
+    for CONSUMER_NAME in ${CONSUMER_NAMES}; do
+      if echo "${EXISTING}" | grep -qx "${CONSUMER_NAME}"; then
+        echo "  [ok]   ${CONSUMER_NAME} already registered"
+        continue
+      fi
+
+      echo "  [reg]  Registering ${CONSUMER_NAME} ..."
+      CODE=$(curl -s --max-time 10 \
+        -o /tmp/maestro_response -w '%{http_code}' \
+        -X POST \
+        -H 'Content-Type: application/json' \
+        -d "{\"name\": \"${CONSUMER_NAME}\"}" \
+        "${MAESTRO_URL}/api/maestro/v1/consumers" 2>/dev/null)
+      if [ $? -ne 0 ]; then
+        echo "         WARN: curl failed for ${CONSUMER_NAME} — will retry next iteration"
+        continue
+      fi
+
+      BODY=$(cat /tmp/maestro_response)
+      echo "         HTTP ${CODE}: ${BODY}"
+
+      if [ "${CODE}" = "201" ] || [ "${CODE}" = "409" ]; then
+        echo "         -> registered"
+      else
+        echo "         WARN: unexpected response for ${CONSUMER_NAME} — will retry next iteration"
+      fi
+    done
+
+    echo "=== Registration complete ==="
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: maestro-consumer-registration
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: maestro-consumer-registration
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  schedule: {{ .Values.consumerRegistration.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: maestro-consumer-registration
+        spec:
+          serviceAccountName: {{ .Values.consumerRegistration.serviceAccount }}
+          restartPolicy: Never
+          volumes:
+            - name: script
+              configMap:
+                name: maestro-consumer-registration-script
+                defaultMode: 0755
+          containers:
+            - name: maestro-consumer-registration
+              image: {{ .Values.consumerRegistration.image }}
+              command:
+                - /scripts/reconcile.sh
+              env:
+                - name: GCP_PROJECT_ID
+                  value: {{ .Values.gcp.project | quote }}
+                - name: MAESTRO_URL
+                  value: {{ .Values.consumerRegistration.maestroUrl | quote }}
+              volumeMounts:
+                - name: script
+                  mountPath: /scripts
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
+{{- end }}

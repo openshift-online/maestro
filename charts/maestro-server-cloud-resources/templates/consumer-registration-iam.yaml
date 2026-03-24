@@ -1,0 +1,29 @@
+{{- if .Values.consumerRegistration.enabled }}
+
+# Grants roles/secretmanager.viewer to the CronJob's k8s SA via Workload Identity,
+# allowing it to list SM secrets and read their labels to discover registered consumers
+# (no access to secret data).
+# IAMPartialPolicy — additive project-level IAM binding.
+# Used instead of IAMPolicyMember (single binding) or IAMPolicy (full replacement,
+# would wipe all existing project bindings). IAMPartialPolicy adds only the specified
+# bindings without affecting anything else on the project.
+apiVersion: iam.cnrm.cloud.google.com/v1beta1
+kind: IAMPartialPolicy
+metadata:
+  name: maestro-consumer-registration-sm-viewer
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    cnrm.cloud.google.com/project-id: {{ .Values.gcp.project | quote }}
+  labels:
+    app.kubernetes.io/name: maestro-consumer-registration
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  resourceRef:
+    apiVersion: resourcemanager.cnrm.cloud.google.com/v1beta1
+    kind: Project
+    external: {{ .Values.gcp.project | quote }}
+  bindings:
+    - role: roles/secretmanager.viewer
+      members:
+        - member: "serviceAccount:{{ .Values.gcp.project }}.svc.id.goog[{{ .Release.Namespace }}/{{ .Values.consumerRegistration.serviceAccount }}]"
+{{- end }}
