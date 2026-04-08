@@ -16,9 +16,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/keepalive"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"k8s.io/klog/v2"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/constants"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/payload"
@@ -269,6 +271,14 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		}
 	}
 
+	// Generate subscription ID and send header IMMEDIATELY, before any other operations
+	// This ensures the client receives the header as soon as possible after the stream is established
+	// This is compatibility with sdk-go v1 and v2 gRPC clients
+	clientID := uuid.NewString()
+	if err := subServer.SendHeader(metadata.Pairs(constants.GRPCSubscriptionIDKey, clientID)); err != nil {
+		return fmt.Errorf("failed to send subscription header for subID %s: %w", clientID, err)
+	}
+
 	ctx, cancel := context.WithCancel(subServer.Context())
 	defer cancel()
 
@@ -315,7 +325,7 @@ func (svr *GRPCServer) Subscribe(subReq *pbv1.SubscriptionRequest, subServer pbv
 		}
 	}()
 
-	clientID := svr.eventBroadcaster.Register(ctx, subReq.Source, func(res *api.Resource) error {
+	svr.eventBroadcaster.Register(ctx, clientID, subReq.Source, func(res *api.Resource) error {
 		evt, err := encodeResourceStatus(res)
 		if err != nil {
 			return fmt.Errorf("failed to encode cloudevent: %v", err)
