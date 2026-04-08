@@ -178,9 +178,20 @@ func (s *HealthCheckServer) checkInstances(ctx context.Context) {
 // healthCheckHandler returns a 200 OK if the instance is ready, 503 Service Unavailable otherwise.
 func (s *HealthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	logger := klog.FromContext(r.Context()).WithValues("instanceID", s.instanceID)
-	instance, err := s.instanceDao.Get(r.Context(), s.instanceID)
+	// Use a detached context with its own timeout so the DB query is not cancelled
+	// when the kubelet closes the connection on probe timeout, allowing us to measure
+	// the actual query duration.
+	queryCtx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	start := time.Now()
+	instance, err := s.instanceDao.Get(queryCtx, s.instanceID)
+	queryDuration := time.Since(start)
+	if r.Context().Err() != nil {
+		logger.Error(err, "Healthcheck DB query outlasted probe connection", "queryDuration", queryDuration)
+		return
+	}
 	if err != nil {
-		logger.Error(err, "Error getting instance")
+		logger.Error(err, "Error getting instance", "queryDuration", queryDuration)
 		w.WriteHeader(http.StatusInternalServerError)
 		_, err := w.Write([]byte(`{"status": "error"}`))
 		if err != nil {
