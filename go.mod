@@ -56,7 +56,7 @@ require (
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	open-cluster-management.io/api v1.2.1-0.20260305152611-5bfebdbc3fdf
-	open-cluster-management.io/ocm v1.2.1-0.20260310135001-19a386c0609b
+	open-cluster-management.io/ocm v1.2.1
 	open-cluster-management.io/sdk-go v1.2.1-0.20260323031834-e885ccee3f1b
 	sigs.k8s.io/yaml v1.6.0
 )
@@ -111,8 +111,6 @@ require (
 	github.com/grpc-ecosystem/go-grpc-prometheus v1.2.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.27.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/itchyny/gojq v0.12.18 // indirect
-	github.com/itchyny/timefmt-go v0.1.7 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
