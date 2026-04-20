@@ -165,3 +165,54 @@ Now you can create and manage resource bundles using the Maestro CLI. See the [R
 ## Run Maestro server with binary
 
 See the [Server Command](./docs/cli/server.md#quick-start) for details.
+
+## Development
+
+### Prerequisites
+
+- Go 1.24.4+
+- PostgreSQL 17.2
+- Container runtime (podman or docker)
+- Eclipse Mosquitto 2.0.18 (for MQTT mode)
+
+### Building
+
+```bash
+make binary           # Build the maestro binary
+make install          # Install to GOPATH/bin
+make cmds             # Build all command binaries
+```
+
+### Testing
+
+```bash
+make test                     # Run unit tests
+make test-integration         # Run integration tests (MQTT and gRPC)
+make test-integration-mqtt    # MQTT integration tests only
+make test-integration-grpc    # gRPC integration tests only
+make e2e-test                 # End-to-end tests
+```
+
+### Code Quality
+
+```bash
+make verify           # Verify formatting and go version
+make lint             # Run golangci-lint
+```
+
+### Local Infrastructure
+
+```bash
+make db/setup         # Start PostgreSQL container
+make mqtt/setup       # Start MQTT broker container
+make db/teardown      # Remove PostgreSQL container
+make mqtt/teardown    # Remove MQTT broker container
+```
+
+### Contributing
+
+1. Fork and clone the repository
+2. Run `make db/setup && make mqtt/setup` for local infrastructure
+3. Run `make binary` to build
+4. Run `make test` to verify your changes
+5. Submit a pull request
