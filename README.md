@@ -6,6 +6,16 @@ Maestro is a system to leverage [CloudEvents](https://cloudevents.io/) to transp
 - The Maestro server is responsible for storing the resources and their status. And sending the resources to the message broker in the CloudEvents format. The Maestro server provides Resful APIs and gRPC APIs to manage the resources.
 - Maestro agent is responsible for receiving the resources and applying them to the target clusters. And reporting back the status of the resources.
 
+## Quick Start
+
+```bash
+make db/setup       # Start local PostgreSQL
+make mqtt/setup     # Start local MQTT broker
+make binary         # Build the maestro binary
+make test           # Run unit tests
+make run            # Run migrations and start server
+```
+
 ## Architecture
 
 Taking MQTT as an example:
