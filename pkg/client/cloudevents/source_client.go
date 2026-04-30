@@ -171,40 +171,10 @@ func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error
 	return nil
 }
 
-// statusHashBatchSize is the maximum number of resources for which real status hashes are computed
-// during a resync. Resources beyond this limit are included in the payload with an empty hash,
-// which causes the agent to treat them as mismatched and re-publish their status unconditionally.
-// This bounds hash computation cost and message size for consumers with many resources.
-const statusHashBatchSize = 2000
-
-// resyncConsumer sends a status resync request to the consumer. Real hashes are computed for the
-// first statusHashBatchSize resources; remaining resources are included with an empty hash so the
-// agent re-publishes their status without the server needing to compute all hashes upfront.
+// resyncConsumer sends a status resync request with an empty hash list to the consumer.
+// An empty list signals the agent to re-publish status for all its resources unconditionally,
+// keeping the outbound message small regardless of resource count.
 func (s *SourceClientImpl) resyncConsumer(ctx context.Context, consumer string) error {
-	objs, err := s.ResourceService.List(ctx, cetypes.ListOptions{
-		Source:              s.sourceID,
-		ClusterName:         consumer,
-		CloudEventsDataType: s.Codec.EventDataType(),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to list resources for consumer %s: %v", consumer, err)
-	}
-
-	hashes := make([]cepayload.ResourceStatusHash, len(objs))
-	for i, obj := range objs {
-		statusHash := ""
-		if i < statusHashBatchSize {
-			statusHash, err = ResourceStatusHashGetter(obj)
-			if err != nil {
-				return err
-			}
-		}
-		hashes[i] = cepayload.ResourceStatusHash{
-			ResourceID: string(obj.GetUID()),
-			StatusHash: statusHash,
-		}
-	}
-
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceStatus,
@@ -212,7 +182,7 @@ func (s *SourceClientImpl) resyncConsumer(ctx context.Context, consumer string) 
 	}
 
 	evt := cetypes.NewEventBuilder(s.sourceID, eventType).WithClusterName(consumer).NewEvent()
-	if err := evt.SetData(cloudevents.ApplicationJSON, &cepayload.ResourceStatusHashList{Hashes: hashes}); err != nil {
+	if err := evt.SetData(cloudevents.ApplicationJSON, &cepayload.ResourceStatusHashList{}); err != nil {
 		return fmt.Errorf("failed to set resync event data: %v", err)
 	}
 
