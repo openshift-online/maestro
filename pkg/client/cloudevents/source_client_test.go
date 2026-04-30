@@ -71,7 +71,7 @@ func (m *mockResourceService) ListWithArgs(_ context.Context, _ string, _ *servi
 	return nil, nil
 }
 
-// makeResources builds n resources with empty Status (no hash needed).
+// makeResources builds n resources with empty Status (hash of empty string is used).
 func makeResources(n int) []*api.Resource {
 	resources := make([]*api.Resource, n)
 	for i := range resources {
@@ -92,13 +92,8 @@ func newTestSourceClient(transport *mockTransport, resources []*api.Resource) *S
 	}
 }
 
-// decodeHashList decodes the ResourceStatusHashList from the first sent event.
-func decodeHashList(t *testing.T, transport *mockTransport) *cepayload.ResourceStatusHashList {
+func decodeHashList(t *testing.T, evt cloudevents.Event) *cepayload.ResourceStatusHashList {
 	t.Helper()
-	if len(transport.sentEvents) == 0 {
-		t.Fatal("expected transport to have received an event, got none")
-	}
-	evt := transport.sentEvents[0]
 	list := &cepayload.ResourceStatusHashList{}
 	if err := json.Unmarshal(evt.Data(), list); err != nil {
 		t.Fatalf("failed to decode ResourceStatusHashList: %v", err)
@@ -106,20 +101,17 @@ func decodeHashList(t *testing.T, transport *mockTransport) *cepayload.ResourceS
 	return list
 }
 
-// TestResyncConsumerHashList verifies that resyncConsumer produces a hash list
-// where the first statusHashBatchSize entries have real (non-empty) hashes and
-// any remaining entries have an empty hash, forcing the agent to re-publish
-// their status unconditionally.
+// TestResyncConsumerHashList verifies that resyncConsumer sends the correct number of batches,
+// each within the size limit, and that all hashes are real (no blank placeholders).
 func TestResyncConsumerHashList(t *testing.T) {
 	cases := []struct {
-		name            string
-		resourceCount   int
-		wantRealHashes  int
-		wantEmptyHashes int
+		name          string
+		resourceCount int
+		wantEvents    int
 	}{
-		{"fewer than batch size", 10, 10, 0},
-		{"exactly batch size", statusHashBatchSize, statusHashBatchSize, 0},
-		{"over batch size", statusHashBatchSize + 500, statusHashBatchSize, 500},
+		{"fewer than batch size", 10, 1},
+		{"exactly batch size", statusHashBatchSize, 1},
+		{"over batch size", statusHashBatchSize + 100, 2},
 	}
 
 	for _, c := range cases {
@@ -131,38 +123,53 @@ func TestResyncConsumerHashList(t *testing.T) {
 				t.Fatalf("resyncConsumer returned unexpected error: %v", err)
 			}
 
-			list := decodeHashList(t, transport)
-
-			if len(list.Hashes) != c.resourceCount {
-				t.Errorf("expected %d hash entries, got %d", c.resourceCount, len(list.Hashes))
+			if len(transport.sentEvents) != c.wantEvents {
+				t.Fatalf("expected %d events, got %d", c.wantEvents, len(transport.sentEvents))
 			}
 
-			realCount, emptyCount := 0, 0
-			for _, h := range list.Hashes {
-				if h.ResourceID == "" {
-					t.Error("found entry with empty ResourceID")
+			totalEntries := 0
+			for i, evt := range transport.sentEvents {
+				list := decodeHashList(t, evt)
+				if len(list.Hashes) > statusHashBatchSize {
+					t.Errorf("event %d: %d entries exceeds batch limit of %d", i, len(list.Hashes), statusHashBatchSize)
 				}
-				if h.StatusHash == "" {
-					emptyCount++
-				} else {
-					realCount++
+				for _, h := range list.Hashes {
+					if h.ResourceID == "" {
+						t.Errorf("event %d: found entry with empty ResourceID", i)
+					}
+					if h.StatusHash == "" {
+						t.Errorf("event %d: resource %s has empty hash — all hashes should be real", i, h.ResourceID)
+					}
 				}
+				totalEntries += len(list.Hashes)
 			}
 
-			if realCount != c.wantRealHashes {
-				t.Errorf("expected %d entries with real hashes, got %d", c.wantRealHashes, realCount)
-			}
-			if emptyCount != c.wantEmptyHashes {
-				t.Errorf("expected %d entries with empty hashes, got %d", c.wantEmptyHashes, emptyCount)
+			if totalEntries != c.resourceCount {
+				t.Errorf("expected %d total entries across all events, got %d", c.resourceCount, totalEntries)
 			}
 		})
 	}
 }
 
-// TestResyncConsumer5000Resources verifies the hash list content and prints the
-// payload size when the consumer manages 5000 resources (well above the batch size).
+// TestResyncConsumerEmpty verifies that no events are sent when the consumer has no resources.
+func TestResyncConsumerEmpty(t *testing.T) {
+	transport := &mockTransport{}
+	client := newTestSourceClient(transport, makeResources(0))
+
+	if err := client.resyncConsumer(context.Background(), "consumer-1"); err != nil {
+		t.Fatalf("resyncConsumer returned unexpected error: %v", err)
+	}
+
+	if len(transport.sentEvents) != 0 {
+		t.Errorf("expected 0 events for empty resource list, got %d", len(transport.sentEvents))
+	}
+}
+
+// TestResyncConsumer5000Resources verifies batch counts and logs payload sizes for a large consumer.
 func TestResyncConsumer5000Resources(t *testing.T) {
 	const count = 5000
+	wantEvents := (count + statusHashBatchSize - 1) / statusHashBatchSize // ceiling division
+
 	transport := &mockTransport{}
 	client := newTestSourceClient(transport, makeResources(count))
 
@@ -170,63 +177,51 @@ func TestResyncConsumer5000Resources(t *testing.T) {
 		t.Fatalf("resyncConsumer returned unexpected error: %v", err)
 	}
 
-	list := decodeHashList(t, transport)
-
-	if len(list.Hashes) != count {
-		t.Errorf("expected %d hash entries, got %d", count, len(list.Hashes))
+	if len(transport.sentEvents) != wantEvents {
+		t.Fatalf("expected %d events for %d resources, got %d", wantEvents, count, len(transport.sentEvents))
 	}
 
-	realCount, emptyCount := 0, 0
-	for _, h := range list.Hashes {
-		if h.StatusHash == "" {
-			emptyCount++
-		} else {
-			realCount++
+	totalEntries := 0
+	for i, evt := range transport.sentEvents {
+		list := decodeHashList(t, evt)
+
+		hashJSONSize := len(evt.Data())
+		fullEvent, err := evt.MarshalJSON()
+		if err != nil {
+			t.Fatalf("event %d: failed to marshal CloudEvent: %v", i, err)
 		}
+		t.Logf("event %d: %d entries, hash JSON: %d bytes (%.1f KB), full event: %d bytes (%.1f KB)",
+			i, len(list.Hashes), hashJSONSize, float64(hashJSONSize)/1024,
+			len(fullEvent), float64(len(fullEvent))/1024)
+
+		for _, h := range list.Hashes {
+			if h.StatusHash == "" {
+				t.Errorf("event %d: resource %s has empty hash", i, h.ResourceID)
+			}
+		}
+		totalEntries += len(list.Hashes)
 	}
 
-	if realCount != statusHashBatchSize {
-		t.Errorf("expected %d real hashes, got %d", statusHashBatchSize, realCount)
+	if totalEntries != count {
+		t.Errorf("expected %d total entries, got %d", count, totalEntries)
 	}
-	if emptyCount != count-statusHashBatchSize {
-		t.Errorf("expected %d empty hashes, got %d", count-statusHashBatchSize, emptyCount)
-	}
-
-	evt := transport.sentEvents[0]
-
-	hashJSONSize := len(evt.Data())
-	t.Logf("hash JSON size:          %d bytes (%.1f KB)", hashJSONSize, float64(hashJSONSize)/1024)
-
-	fullEvent, err := evt.MarshalJSON()
-	if err != nil {
-		t.Fatalf("failed to marshal full CloudEvent: %v", err)
-	}
-	fullEventSize := len(fullEvent)
-	t.Logf("full CloudEvent size:    %d bytes (%.1f KB)", fullEventSize, float64(fullEventSize)/1024)
-	t.Logf("envelope overhead:       %d bytes", fullEventSize-hashJSONSize)
 }
 
-// TestResyncConsumerEventStructure verifies that resyncConsumer sends a correctly
-// formed CloudEvent — right type, source, and cluster name — regardless of whether
-// the hash list contains real or empty hashes.
+// TestResyncConsumerEventStructure verifies that every batch CloudEvent has the correct
+// source, type, and clusterName extension, and that no entry carries a blank hash.
 func TestResyncConsumerEventStructure(t *testing.T) {
 	const consumer = "cluster-abc"
+	const resourceCount = statusHashBatchSize + 1 // forces exactly 2 events
 
 	transport := &mockTransport{}
-	client := newTestSourceClient(transport, makeResources(statusHashBatchSize+1))
+	client := newTestSourceClient(transport, makeResources(resourceCount))
 
 	if err := client.resyncConsumer(context.Background(), consumer); err != nil {
 		t.Fatalf("resyncConsumer returned unexpected error: %v", err)
 	}
 
-	if len(transport.sentEvents) != 1 {
-		t.Fatalf("expected 1 sent event, got %d", len(transport.sentEvents))
-	}
-
-	evt := transport.sentEvents[0]
-
-	if evt.Source() != "test-source" {
-		t.Errorf("expected source 'test-source', got %q", evt.Source())
+	if len(transport.sentEvents) != 2 {
+		t.Fatalf("expected 2 sent events, got %d", len(transport.sentEvents))
 	}
 
 	wantType := cetypes.CloudEventsType{
@@ -234,22 +229,35 @@ func TestResyncConsumerEventStructure(t *testing.T) {
 		SubResource:         cetypes.SubResourceStatus,
 		Action:              cetypes.ResyncRequestAction,
 	}
-	if evt.Type() != wantType.String() {
-		t.Errorf("expected event type %q, got %q", wantType.String(), evt.Type())
+
+	for i, evt := range transport.sentEvents {
+		if evt.Source() != "test-source" {
+			t.Errorf("event %d: expected source 'test-source', got %q", i, evt.Source())
+		}
+		if evt.Type() != wantType.String() {
+			t.Errorf("event %d: expected type %q, got %q", i, wantType.String(), evt.Type())
+		}
+		gotCluster, err := evt.Context.GetExtension(cetypes.ExtensionClusterName)
+		if err != nil {
+			t.Fatalf("event %d: missing clusterName extension: %v", i, err)
+		}
+		if gotCluster != consumer {
+			t.Errorf("event %d: expected clusterName %q, got %q", i, consumer, gotCluster)
+		}
 	}
 
-	gotCluster, err := evt.Context.GetExtension(cetypes.ExtensionClusterName)
-	if err != nil {
-		t.Fatalf("missing clusterName extension: %v", err)
-	}
-	if gotCluster != consumer {
-		t.Errorf("expected clusterName %q, got %q", consumer, gotCluster)
+	// First event: full batch
+	list1 := decodeHashList(t, transport.sentEvents[0])
+	if len(list1.Hashes) != statusHashBatchSize {
+		t.Errorf("first event: expected %d entries, got %d", statusHashBatchSize, len(list1.Hashes))
 	}
 
-	// Confirm the last entry (beyond the batch) has an empty hash.
-	list := decodeHashList(t, transport)
-	last := list.Hashes[len(list.Hashes)-1]
-	if last.StatusHash != "" {
-		t.Errorf("expected last entry (beyond batch) to have empty StatusHash, got %q", last.StatusHash)
+	// Second event: remainder
+	list2 := decodeHashList(t, transport.sentEvents[1])
+	if len(list2.Hashes) != 1 {
+		t.Errorf("second event: expected 1 entry, got %d", len(list2.Hashes))
+	}
+	if list2.Hashes[0].StatusHash == "" {
+		t.Error("second event: entry should have a real hash, got empty")
 	}
 }

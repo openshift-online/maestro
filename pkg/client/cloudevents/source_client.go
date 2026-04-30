@@ -171,15 +171,14 @@ func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error
 	return nil
 }
 
-// statusHashBatchSize is the maximum number of resources for which real status hashes are computed
-// during a resync. Resources beyond this limit are included in the payload with an empty hash,
-// which causes the agent to treat them as mismatched and re-publish their status unconditionally.
-// This bounds hash computation cost and message size for consumers with many resources.
-const statusHashBatchSize = 2000
+// statusHashBatchSize is the maximum number of resources per resync CloudEvent.
+// Keeping batches at this size ensures each MQTT packet stays within the 512 KB broker limit.
+const statusHashBatchSize = 1000
 
-// resyncConsumer sends a status resync request to the consumer. Real hashes are computed for the
-// first statusHashBatchSize resources; remaining resources are included with an empty hash so the
-// agent re-publishes their status without the server needing to compute all hashes upfront.
+// resyncConsumer sends status resync requests to the consumer in batches of statusHashBatchSize.
+// Each batch is a separate CloudEvent containing real status hashes for its slice of resources.
+// The OCM SDK agent ignores resources absent from a batch's hash list, so sequential partial-list
+// events are safe: each batch reconciles only its resources, and together they cover all resources.
 func (s *SourceClientImpl) resyncConsumer(ctx context.Context, consumer string) error {
 	objs, err := s.ResourceService.List(ctx, cetypes.ListOptions{
 		Source:              s.sourceID,
@@ -191,36 +190,46 @@ func (s *SourceClientImpl) resyncConsumer(ctx context.Context, consumer string) 
 	}
 
 	hashes := make([]cepayload.ResourceStatusHash, 0, len(objs))
-	hashIdx := 0
 	for _, obj := range objs {
-		if !obj.GetDeletionTimestamp().IsZero() {
-			continue
-		}
-		statusHash := ""
-		if hashIdx < statusHashBatchSize {
-			statusHash, err = ResourceStatusHashGetter(obj)
-			if err != nil {
-				return err
-			}
+		statusHash, err := ResourceStatusHashGetter(obj)
+		if err != nil {
+			return err
 		}
 		hashes = append(hashes, cepayload.ResourceStatusHash{
 			ResourceID: string(obj.GetUID()),
 			StatusHash: statusHash,
 		})
-		hashIdx++
 	}
 
+	totalBatches := (len(hashes) + statusHashBatchSize - 1) / statusHashBatchSize
+	for i := 0; i < len(hashes); i += statusHashBatchSize {
+		end := i + statusHashBatchSize
+		if end > len(hashes) {
+			end = len(hashes)
+		}
+		batchNum := i/statusHashBatchSize + 1
+		if err := s.sendResyncBatch(ctx, consumer, hashes[i:end], batchNum, totalBatches); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SourceClientImpl) sendResyncBatch(ctx context.Context, consumer string, hashes []cepayload.ResourceStatusHash, batchNum, totalBatches int) error {
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
 		SubResource:         cetypes.SubResourceStatus,
 		Action:              cetypes.ResyncRequestAction,
 	}
-
 	evt := cetypes.NewEventBuilder(s.sourceID, eventType).WithClusterName(consumer).NewEvent()
 	if err := evt.SetData(cloudevents.ApplicationJSON, &cepayload.ResourceStatusHashList{Hashes: hashes}); err != nil {
 		return fmt.Errorf("failed to set resync event data: %v", err)
 	}
-
+	evtBytes, err := evt.MarshalJSON()
+	if err != nil {
+		return fmt.Errorf("failed to marshal resync event: %v", err)
+	}
+	klog.FromContext(ctx).V(2).Info("Sending status resync batch", "consumer", consumer, "batch", fmt.Sprintf("%d/%d", batchNum, totalBatches), "resources", len(hashes), "bytes", len(evtBytes))
 	return s.transport.Send(ctx, evt)
 }
 
