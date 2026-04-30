@@ -20,7 +20,7 @@ func (m *mockTransport) Connect(_ context.Context) error                        
 func (m *mockTransport) Subscribe(_ context.Context) error                             { return nil }
 func (m *mockTransport) Receive(_ context.Context, _ ceoptions.ReceiveHandlerFn) error { return nil }
 func (m *mockTransport) Close(_ context.Context) error                                 { return nil }
-func (m *mockTransport) ErrorChan() <-chan error                                        { return nil }
+func (m *mockTransport) ErrorChan() <-chan error                                       { return nil }
 func (m *mockTransport) Send(_ context.Context, evt cloudevents.Event) error {
 	m.sentEvents = append(m.sentEvents, evt)
 	return nil
