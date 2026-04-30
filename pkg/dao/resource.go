@@ -113,7 +113,7 @@ func (d *sqlResourceDao) FindBySource(ctx context.Context, source string) (api.R
 func (d *sqlResourceDao) FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
-	if err := g2.Unscoped().Where("consumer_name = ?", consumerName).Find(&resources).Error; err != nil {
+	if err := g2.Where("consumer_name = ?", consumerName).Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil
