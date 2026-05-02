@@ -278,10 +278,6 @@ github.com/ianlancetaylor/demangle v0.0.0-20210905161508-09a460cdf81d/go.mod h1:
 github.com/ianlancetaylor/demangle v0.0.0-20230524184225-eabc099b10ab/go.mod h1:gx7rwoVhcfuVKG5uya9Hs3Sxj7EIvldVofAWIUtGouw=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/itchyny/gojq v0.12.18 h1:gFGHyt/MLbG9n6dqnvlliiya2TaMMh6FFaR2b1H6Drc=
-github.com/itchyny/gojq v0.12.18/go.mod h1:4hPoZ/3lN9fDL1D+aK7DY1f39XZpY9+1Xpjz8atrEkg=
-github.com/itchyny/timefmt-go v0.1.7 h1:xyftit9Tbw+Dc/huSSPJaEmX1TVL8lw5vxjJLK4GMMA=
-github.com/itchyny/timefmt-go v0.1.7/go.mod h1:5E46Q+zj7vbTgWY8o5YkMeYb4I6GeWLFnetPy5oBrAI=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
 github.com/jackc/pgpassfile v1.0.0/go.mod h1:CEx0iS5ambNFdcRtxPj5JhEz+xB6uRky5eyVu/W2HEg=
 github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 h1:iCEnooe7UlwOQYpKFhBabPMi4aNAfoODPEFNiAnClxo=
@@ -794,10 +790,8 @@ k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 h1:SjGebBtkBqHFOli+05xYbK8YF1Dzk
 k8s.io/utils v0.0.0-20251002143259-bc988d571ff4/go.mod h1:OLgZIPagt7ERELqWJFomSt595RzquPNLL48iOWgYOg0=
 open-cluster-management.io/api v1.2.1-0.20260305152611-5bfebdbc3fdf h1:SnLaZD2QHz+Ep2SfVKx9y5WIMmyLnQcEv/ySW8k/NXc=
 open-cluster-management.io/api v1.2.1-0.20260305152611-5bfebdbc3fdf/go.mod h1:ZpXs1bFTIIqKstMHdLO9IY0NFlbCvZgEtByvvNSmab0=
-open-cluster-management.io/ocm v1.2.1-0.20260310135001-19a386c0609b h1:ql7DNK7xoWYJTFhyUy/3KG64fjwj/TZBLCc9U1xyK9I=
-open-cluster-management.io/ocm v1.2.1-0.20260310135001-19a386c0609b/go.mod h1:NeXII90YZphP4T2jTPgt7uvrnQEnw5vcmmXmSQHVZms=
-open-cluster-management.io/sdk-go v1.2.1-0.20260310072111-3041045c0177 h1:8YzKbl+PuWIvTyU7C1pVuPUIY4cdbccv5BXZySQfDYI=
-open-cluster-management.io/sdk-go v1.2.1-0.20260310072111-3041045c0177/go.mod h1:lDef+5BvifXww0S7cseux+Wi8melkH29bAf33OZ0ZVg=
+open-cluster-management.io/ocm v1.2.1 h1:JC1mrIkaNjJ+AmLjiQ/sIhUE6Uzb3JVXFlFbaZF5+VY=
+open-cluster-management.io/ocm v1.2.1/go.mod h1:7jQB00gs+BxpvPTWvEWZ7x6RrkgqxLkVpqLpaCLmG8c=
 open-cluster-management.io/sdk-go v1.2.1-0.20260323031834-e885ccee3f1b h1:C919NhpIzPJO8iKzvej5gRhZV5S5rapa/YCznkjUPcU=
 open-cluster-management.io/sdk-go v1.2.1-0.20260323031834-e885ccee3f1b/go.mod h1:lDef+5BvifXww0S7cseux+Wi8melkH29bAf33OZ0ZVg=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 h1:jpcvIRr3GLoUoEKRkHKSmGjxb6lWwrBlJsXc+eUYQHM=
