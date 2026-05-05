@@ -16,6 +16,9 @@ import (
 
 const StatusEventID ControllerHandlerContextKey = "status_event"
 
+// DefaultStatusControllerWorkers is the default number of concurrent workers for the status controller
+const DefaultStatusControllerWorkers = 10
+
 type StatusHandlerFunc func(ctx context.Context, eventID, sourceID string) error
 
 type StatusController struct {
@@ -24,16 +27,22 @@ type StatusController struct {
 	instanceDao      dao.InstanceDao
 	eventInstanceDao dao.EventInstanceDao
 	eventsQueue      workqueue.TypedRateLimitingInterface[string]
+	workers          int
 }
 
 func NewStatusController(statusEvents services.StatusEventService,
 	instanceDao dao.InstanceDao,
-	eventInstanceDao dao.EventInstanceDao) *StatusController {
+	eventInstanceDao dao.EventInstanceDao,
+	workers int) *StatusController {
+	if workers == 0 {
+		workers = DefaultStatusControllerWorkers
+	}
 	return &StatusController{
 		controllers:      map[api.StatusEventType][]StatusHandlerFunc{},
 		statusEvents:     statusEvents,
 		instanceDao:      instanceDao,
 		eventInstanceDao: eventInstanceDao,
+		workers:          workers,
 		eventsQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
 			workqueue.DefaultTypedControllerRateLimiter[string](),
 			workqueue.TypedRateLimitingQueueConfig[string]{
@@ -51,15 +60,17 @@ func (sc *StatusController) AddStatusEvent(id string) {
 
 func (sc *StatusController) Run(ctx context.Context) {
 	logger := klog.FromContext(ctx)
-	logger.Info("Starting status event controller")
+	logger.Info("Starting status event controller", "workers", sc.workers)
 	defer sc.eventsQueue.ShutDown()
 
 	// use a jitter to avoid multiple instances syncing the events at the same time
 	go wait.JitterUntilWithContext(ctx, sc.syncStatusEvents, defaultEventsSyncPeriod, 0.25, true)
 
-	// start a goroutine to handle the status event from the event queue
+	// start multiple worker goroutines to handle status events from the event queue
 	// the .Until will re-kick the runWorker one second after the runWorker completes
-	go wait.UntilWithContext(ctx, sc.runWorker, time.Second)
+	for i := 0; i < sc.workers; i++ {
+		go wait.UntilWithContext(ctx, sc.runWorker, time.Second)
+	}
 
 	// wait until we're told to stop
 	<-ctx.Done()

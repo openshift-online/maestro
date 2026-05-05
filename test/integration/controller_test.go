@@ -106,6 +106,7 @@ func TestControllerRacing(t *testing.T) {
 					h.Env().Services.StatusEvents(),
 					dao.NewInstanceDao(&h.Env().Database.SessionFactory),
 					dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
+					1, // use 1 worker for tests
 				),
 			}
 
@@ -207,6 +208,7 @@ func TestControllerReconcile(t *testing.T) {
 				h.Env().Services.StatusEvents(),
 				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
 				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
+				1, // use 1 worker for tests
 			),
 		}
 
@@ -366,6 +368,7 @@ func TestControllerSync(t *testing.T) {
 				h.Env().Services.StatusEvents(),
 				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
 				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
+				1, // use 1 worker for tests
 			),
 		}
 
@@ -511,6 +514,7 @@ func TestStatusControllerSync(t *testing.T) {
 				h.Env().Services.StatusEvents(),
 				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
 				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
+				1, // use 1 worker for tests
 			),
 		}
 
@@ -590,6 +594,7 @@ func TestMultipleControllers(t *testing.T) {
 		h.Env().Services.StatusEvents(),
 		dao.NewInstanceDao(&h.Env().Database.SessionFactory),
 		dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
+		1, // use 1 worker for tests
 	)
 	statusCtrl.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
 		api.StatusUpdateEventType: {func(ctx context.Context, eventID, sourceID string) error { return nil }},

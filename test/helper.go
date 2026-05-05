@@ -260,6 +260,7 @@ func (helper *Helper) StartControllerManager(ctx context.Context) {
 			helper.Env().Services.StatusEvents(),
 			dao.NewInstanceDao(&helper.Env().Database.SessionFactory),
 			dao.NewEventInstanceDao(&helper.Env().Database.SessionFactory),
+			1, // use 1 worker for tests
 		),
 	}
 
