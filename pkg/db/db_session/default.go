@@ -149,6 +149,13 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 			if n != nil {
 				logger.V(4).Info("Received event from channel", "channel", n.Channel, "extra", n.Extra)
 				callback(n.Extra)
+				// Record notify channel depth metric
+				depth := len(l.Notify) + 1 // +1 accounts for the just-dequeued notification
+				notifyChannelDepthGauge.WithLabelValues(channel).Set(float64(depth))
+				if depth == notifyChannelCapacity {
+					logger.Info("Postgres NOTIFY channel buffer at capacity", "channel", channel, "capacity", notifyChannelCapacity)
+					notifyChannelFullCounter.WithLabelValues(channel).Inc()
+				}
 			} else {
 				// nil notification means the connection was closed
 				logger.Info("recreate the listener for channel due to the connection loss", "channel", channel)
