@@ -7,6 +7,7 @@ import (
 
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/google/uuid"
+	. "github.com/onsi/gomega"
 	ceoptions "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options"
 	cepayload "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/payload"
 	cetypes "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -92,12 +93,9 @@ func newTestSourceClient(transport *mockTransport, resources []*api.Resource) *S
 	}
 }
 
-func decodeHashList(t *testing.T, evt cloudevents.Event) *cepayload.ResourceStatusHashList {
-	t.Helper()
+func decodeHashList(evt cloudevents.Event) *cepayload.ResourceStatusHashList {
 	list := &cepayload.ResourceStatusHashList{}
-	if err := json.Unmarshal(evt.Data(), list); err != nil {
-		t.Fatalf("failed to decode ResourceStatusHashList: %v", err)
-	}
+	Expect(json.Unmarshal(evt.Data(), list)).To(Succeed())
 	return list
 }
 
@@ -116,113 +114,85 @@ func TestResyncConsumerHashList(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
+			RegisterTestingT(t)
 			transport := &mockTransport{}
 			client := newTestSourceClient(transport, makeResources(c.resourceCount))
 
-			if err := client.resyncConsumer(context.Background(), "consumer-1"); err != nil {
-				t.Fatalf("resyncConsumer returned unexpected error: %v", err)
-			}
-
-			if len(transport.sentEvents) != c.wantEvents {
-				t.Fatalf("expected %d events, got %d", c.wantEvents, len(transport.sentEvents))
-			}
+			Expect(client.resyncConsumer(context.Background(), "consumer-1")).To(Succeed())
+			Expect(transport.sentEvents).To(HaveLen(c.wantEvents))
 
 			totalEntries := 0
-			for i, evt := range transport.sentEvents {
-				list := decodeHashList(t, evt)
-				if len(list.Hashes) > statusHashBatchSize {
-					t.Errorf("event %d: %d entries exceeds batch limit of %d", i, len(list.Hashes), statusHashBatchSize)
-				}
+			for _, evt := range transport.sentEvents {
+				list := decodeHashList(evt)
+				Expect(len(list.Hashes)).To(BeNumerically("<=", statusHashBatchSize))
 				for _, h := range list.Hashes {
-					if h.ResourceID == "" {
-						t.Errorf("event %d: found entry with empty ResourceID", i)
-					}
-					if h.StatusHash == "" {
-						t.Errorf("event %d: resource %s has empty hash — all hashes should be real", i, h.ResourceID)
-					}
+					Expect(h.ResourceID).NotTo(BeEmpty())
+					Expect(h.StatusHash).NotTo(BeEmpty(), "all hashes should be real, not blank")
 				}
 				totalEntries += len(list.Hashes)
 			}
-
-			if totalEntries != c.resourceCount {
-				t.Errorf("expected %d total entries across all events, got %d", c.resourceCount, totalEntries)
-			}
+			Expect(totalEntries).To(Equal(c.resourceCount))
 		})
 	}
 }
 
-// TestResyncConsumerEmpty verifies that no events are sent when the consumer has no resources.
+// TestResyncConsumerEmpty verifies that one empty event is sent when the consumer has no resources.
 func TestResyncConsumerEmpty(t *testing.T) {
+	RegisterTestingT(t)
 	transport := &mockTransport{}
 	client := newTestSourceClient(transport, makeResources(0))
 
-	if err := client.resyncConsumer(context.Background(), "consumer-1"); err != nil {
-		t.Fatalf("resyncConsumer returned unexpected error: %v", err)
-	}
+	Expect(client.resyncConsumer(context.Background(), "consumer-1")).To(Succeed())
+	Expect(transport.sentEvents).To(HaveLen(1))
 
-	if len(transport.sentEvents) != 0 {
-		t.Errorf("expected 0 events for empty resource list, got %d", len(transport.sentEvents))
-	}
+	list := decodeHashList(transport.sentEvents[0])
+	Expect(list.Hashes).To(BeEmpty())
 }
 
 // TestResyncConsumer5000Resources verifies batch counts and logs payload sizes for a large consumer.
 func TestResyncConsumer5000Resources(t *testing.T) {
+	RegisterTestingT(t)
 	const count = 5000
-	wantEvents := (count + statusHashBatchSize - 1) / statusHashBatchSize // ceiling division
+	wantEvents := (count + statusHashBatchSize - 1) / statusHashBatchSize
 
 	transport := &mockTransport{}
 	client := newTestSourceClient(transport, makeResources(count))
 
-	if err := client.resyncConsumer(context.Background(), "consumer-1"); err != nil {
-		t.Fatalf("resyncConsumer returned unexpected error: %v", err)
-	}
-
-	if len(transport.sentEvents) != wantEvents {
-		t.Fatalf("expected %d events for %d resources, got %d", wantEvents, count, len(transport.sentEvents))
-	}
+	Expect(client.resyncConsumer(context.Background(), "consumer-1")).To(Succeed())
+	Expect(transport.sentEvents).To(HaveLen(wantEvents))
 
 	totalEntries := 0
 	for i, evt := range transport.sentEvents {
-		list := decodeHashList(t, evt)
+		list := decodeHashList(evt)
 
 		hashJSONSize := len(evt.Data())
 		fullEvent, err := evt.MarshalJSON()
-		if err != nil {
-			t.Fatalf("event %d: failed to marshal CloudEvent: %v", i, err)
-		}
+		Expect(err).NotTo(HaveOccurred())
 		t.Logf("event %d: %d entries, hash JSON: %d bytes (%.1f KB), full event: %d bytes (%.1f KB)",
 			i, len(list.Hashes), hashJSONSize, float64(hashJSONSize)/1024,
 			len(fullEvent), float64(len(fullEvent))/1024)
 
 		for _, h := range list.Hashes {
-			if h.StatusHash == "" {
-				t.Errorf("event %d: resource %s has empty hash", i, h.ResourceID)
-			}
+			Expect(h.StatusHash).NotTo(BeEmpty())
 		}
 		totalEntries += len(list.Hashes)
 	}
 
-	if totalEntries != count {
-		t.Errorf("expected %d total entries, got %d", count, totalEntries)
-	}
+	Expect(totalEntries).To(Equal(count))
 }
 
 // TestResyncConsumerEventStructure verifies that every batch CloudEvent has the correct
 // source, type, and clusterName extension, and that no entry carries a blank hash.
 func TestResyncConsumerEventStructure(t *testing.T) {
+	RegisterTestingT(t)
 	const consumer = "cluster-abc"
 	const resourceCount = statusHashBatchSize + 1 // forces exactly 2 events
 
 	transport := &mockTransport{}
 	client := newTestSourceClient(transport, makeResources(resourceCount))
 
-	if err := client.resyncConsumer(context.Background(), consumer); err != nil {
-		t.Fatalf("resyncConsumer returned unexpected error: %v", err)
-	}
-
-	if len(transport.sentEvents) != 2 {
-		t.Fatalf("expected 2 sent events, got %d", len(transport.sentEvents))
-	}
+	Expect(client.resyncConsumer(context.Background(), consumer)).To(Succeed())
+	Expect(transport.sentEvents).To(HaveLen(2))
 
 	wantType := cetypes.CloudEventsType{
 		CloudEventsDataType: NewCodec("test-source").EventDataType(),
@@ -230,34 +200,20 @@ func TestResyncConsumerEventStructure(t *testing.T) {
 		Action:              cetypes.ResyncRequestAction,
 	}
 
-	for i, evt := range transport.sentEvents {
-		if evt.Source() != "test-source" {
-			t.Errorf("event %d: expected source 'test-source', got %q", i, evt.Source())
-		}
-		if evt.Type() != wantType.String() {
-			t.Errorf("event %d: expected type %q, got %q", i, wantType.String(), evt.Type())
-		}
+	for _, evt := range transport.sentEvents {
+		Expect(evt.Source()).To(Equal("test-source"))
+		Expect(evt.Type()).To(Equal(wantType.String()))
 		gotCluster, err := evt.Context.GetExtension(cetypes.ExtensionClusterName)
-		if err != nil {
-			t.Fatalf("event %d: missing clusterName extension: %v", i, err)
-		}
-		if gotCluster != consumer {
-			t.Errorf("event %d: expected clusterName %q, got %q", i, consumer, gotCluster)
-		}
+		Expect(err).NotTo(HaveOccurred())
+		Expect(gotCluster).To(Equal(consumer))
 	}
 
 	// First event: full batch
-	list1 := decodeHashList(t, transport.sentEvents[0])
-	if len(list1.Hashes) != statusHashBatchSize {
-		t.Errorf("first event: expected %d entries, got %d", statusHashBatchSize, len(list1.Hashes))
-	}
+	list1 := decodeHashList(transport.sentEvents[0])
+	Expect(list1.Hashes).To(HaveLen(statusHashBatchSize))
 
 	// Second event: remainder
-	list2 := decodeHashList(t, transport.sentEvents[1])
-	if len(list2.Hashes) != 1 {
-		t.Errorf("second event: expected 1 entry, got %d", len(list2.Hashes))
-	}
-	if list2.Hashes[0].StatusHash == "" {
-		t.Error("second event: entry should have a real hash, got empty")
-	}
+	list2 := decodeHashList(transport.sentEvents[1])
+	Expect(list2.Hashes).To(HaveLen(1))
+	Expect(list2.Hashes[0].StatusHash).NotTo(BeEmpty())
 }

@@ -175,6 +175,9 @@ func (s *SourceClientImpl) Resync(ctx context.Context, consumers []string) error
 // Keeping batches at this size ensures each MQTT packet stays within the 512 KB broker limit.
 const statusHashBatchSize = 1000
 
+// maxMQTTPacketSize is the MQTT broker's maximum packet size in bytes.
+const maxMQTTPacketSize = 512 * 1024
+
 // resyncConsumer sends status resync requests to the consumer in batches of statusHashBatchSize.
 // Each batch is a separate CloudEvent containing real status hashes for its slice of resources.
 // The OCM SDK agent ignores resources absent from a batch's hash list, so sequential partial-list
@@ -199,6 +202,12 @@ func (s *SourceClientImpl) resyncConsumer(ctx context.Context, consumer string) 
 			ResourceID: string(obj.GetUID()),
 			StatusHash: statusHash,
 		})
+	}
+
+	// Always send at least one event, even when empty, so the agent learns there are no
+	// resources for this consumer (matching OCM SDK source client behaviour).
+	if len(hashes) == 0 {
+		return s.sendResyncBatch(ctx, consumer, hashes, 1, 1)
 	}
 
 	totalBatches := (len(hashes) + statusHashBatchSize - 1) / statusHashBatchSize
@@ -229,8 +238,23 @@ func (s *SourceClientImpl) sendResyncBatch(ctx context.Context, consumer string,
 	if err != nil {
 		return fmt.Errorf("failed to marshal resync event: %v", err)
 	}
+	if len(evtBytes) > maxMQTTPacketSize {
+		return fmt.Errorf(
+			"resync batch %d/%d for consumer %s is %d bytes, exceeds MQTT max_packet_size %d",
+			batchNum, totalBatches, consumer, len(evtBytes), maxMQTTPacketSize,
+		)
+	}
 	klog.FromContext(ctx).V(2).Info("Sending status resync batch", "consumer", consumer, "batch", fmt.Sprintf("%d/%d", batchNum, totalBatches), "resources", len(hashes), "bytes", len(evtBytes))
-	return s.transport.Send(ctx, evt)
+	if err := s.transport.Send(ctx, evt); err != nil {
+		return err
+	}
+	cemetrics.IncreaseCloudEventsSentFromSourceCounter(
+		s.sourceID, consumer,
+		s.Codec.EventDataType().String(),
+		string(cetypes.SubResourceStatus),
+		string(cetypes.ResyncRequestAction),
+	)
+	return nil
 }
 
 func (s *SourceClientImpl) SubscribedChan() <-chan struct{} {
