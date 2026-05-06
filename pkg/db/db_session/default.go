@@ -149,6 +149,13 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 			if n != nil {
 				logger.V(4).Info("Received event from channel", "channel", n.Channel, "extra", n.Extra)
 				callback(n.Extra)
+				// Record notify channel depth metric
+				depth := len(l.Notify) + 1 // +1 accounts for the just-dequeued notification
+				notifyChannelDepthGauge.WithLabelValues(channel).Set(float64(depth))
+				if depth > notifyChannelThreshold {
+					logger.Info("NOTIFY channel buffer near capacity", "channel", channel, "depth", depth, "capacity", notifyChannelCapacity)
+					notifyChannelNearFullCounter.WithLabelValues(channel).Inc()
+				}
 			} else {
 				// nil notification means the connection was closed
 				logger.Info("recreate the listener for channel due to the connection loss", "channel", channel)
@@ -157,6 +164,14 @@ func waitForNotification(ctx context.Context, l *pq.Listener, dbConfig *config.D
 				l = newListener(ctx, dbConfig, channel)
 			}
 		case <-time.After(10 * time.Second):
+			// Record notify channel depth metric during periodic check
+			depth := len(l.Notify)
+			notifyChannelDepthGauge.WithLabelValues(channel).Set(float64(depth))
+			if depth > notifyChannelThreshold {
+				logger.Info("NOTIFY channel buffer near capacity", "channel", channel, "depth", depth, "capacity", notifyChannelCapacity)
+				notifyChannelNearFullCounter.WithLabelValues(channel).Inc()
+			}
+
 			if err := l.Ping(); err != nil {
 				logger.Info("recreate the listener due to ping failed", "error", err)
 				l.Close()
