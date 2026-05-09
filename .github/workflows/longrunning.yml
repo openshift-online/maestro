@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # Login to Azure using OIDC (no secret needed if federated identity is set up)
       - name: Azure Login
