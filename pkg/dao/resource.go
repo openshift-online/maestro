@@ -2,6 +2,7 @@ package dao
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm/clause"
 
@@ -18,6 +19,7 @@ type ResourceDao interface {
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
+	FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
 	FirstByConsumerName(ctx context.Context, name string, unscoped bool) (api.Resource, error)
 }
@@ -123,6 +125,22 @@ func (d *sqlResourceDao) All(ctx context.Context) (api.ResourceList, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	resources := api.ResourceList{}
 	if err := g2.Unscoped().Find(&resources).Error; err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
+// FindUndelivered returns resources that have no status feedback and were created before
+// the cutoff time, but only if the resource's consumer still exists (not deleted).
+func (d *sqlResourceDao) FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	resources := api.ResourceList{}
+	cutoff := time.Now().Add(-threshold)
+	if err := g2.Unscoped().
+		Joins("JOIN consumers ON consumers.name = resources.consumer_name AND consumers.deleted_at IS NULL").
+		Where("resources.deleted_at IS NULL AND resources.status IS NULL AND resources.created_at < ?", cutoff).
+		Where("NOT EXISTS (SELECT 1 FROM events WHERE events.source_id = resources.id AND events.source = 'Resources' AND events.reconciled_date IS NULL)").
+		Find(&resources).Error; err != nil {
 		return nil, err
 	}
 	return resources, nil

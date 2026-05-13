@@ -81,6 +81,7 @@ maestro server [flags]
 | `--message-broker-type` | `mqtt` | Broker type: `mqtt`, `grpc`, or `pubsub` |
 | `--message-broker-config-file` | `secrets/mqtt.config` | Broker config file path |
 | `--subscription-type` | `shared` | Subscription type: `shared` or `broadcast` |
+| `--undelivered-resource-threshold` | `600` | Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to `0` to disable |
 
 ### HTTP/REST API Configuration
 

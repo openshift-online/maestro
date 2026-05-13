@@ -33,6 +33,7 @@ type ResourceService interface {
 
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
+	FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, *errors.ServiceError)
 	List(ctx context.Context, listOpts cetypes.ListOptions) ([]*api.Resource, error)
 	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
@@ -307,6 +308,14 @@ func (s *sqlResourceService) FindBySource(ctx context.Context, source string) (a
 	resources, err := s.resourceDao.FindBySource(ctx, source)
 	if err != nil {
 		return nil, handleGetError("Resource", "source", source, err)
+	}
+	return resources, nil
+}
+
+func (s *sqlResourceService) FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, *errors.ServiceError) {
+	resources, err := s.resourceDao.FindUndelivered(ctx, threshold)
+	if err != nil {
+		return nil, errors.GeneralError("unable to find undelivered resources: %s", err)
 	}
 	return resources, nil
 }
