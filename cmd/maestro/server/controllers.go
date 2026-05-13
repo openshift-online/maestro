@@ -2,7 +2,9 @@ package server
 
 import (
 	"context"
+	"time"
 
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -38,6 +40,16 @@ func NewControllersServer(ctx context.Context, eventServer EventServer, eventFil
 				api.DeleteEventType: {eventServer.OnDelete},
 			},
 		})
+
+		threshold := env().Config.EventServer.UndeliveredResourceThreshold
+		if threshold > 0 {
+			s.UndeliveredDetector = controllers.NewUndeliveredDetector(
+				env().Services.Resources(),
+				env().Services.Events(),
+				db.NewAdvisoryLockFactory(env().Database.SessionFactory),
+				threshold,
+			)
+		}
 	}
 
 	s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
@@ -51,6 +63,7 @@ func NewControllersServer(ctx context.Context, eventServer EventServer, eventFil
 type ControllersServer struct {
 	KindControllerManager *controllers.KindControllerManager
 	StatusController      *controllers.StatusController
+	UndeliveredDetector   *controllers.UndeliveredDetector
 
 	DB db.SessionFactory
 }
@@ -65,6 +78,11 @@ func (s ControllersServer) Start(ctx context.Context) {
 
 		logger.Info("Kind controller listening for events")
 		go env().Database.SessionFactory.NewListener(ctx, "events", s.KindControllerManager.AddEvent)
+	}
+
+	if s.UndeliveredDetector != nil {
+		logger.Info("Starting undelivered resource detector")
+		go wait.JitterUntilWithContext(ctx, s.UndeliveredDetector.Run, 2*time.Minute, 0.25, true)
 	}
 
 	logger.Info("Status controller handling events")

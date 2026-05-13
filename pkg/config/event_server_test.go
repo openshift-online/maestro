@@ -23,6 +23,7 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
+				UndeliveredResourceThreshold: 600,
 			},
 		},
 		{
@@ -37,6 +38,7 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
+				UndeliveredResourceThreshold: 600,
 			},
 		},
 		{
@@ -54,6 +56,7 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 30,
 					Load:              1.5,
 				},
+				UndeliveredResourceThreshold: 600,
 			},
 		},
 	}

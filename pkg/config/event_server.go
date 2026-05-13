@@ -13,8 +13,9 @@ const (
 
 // EventServerConfig contains the configuration for the message queue event server.
 type EventServerConfig struct {
-	SubscriptionType     string                `json:"subscription_type"`
-	ConsistentHashConfig *ConsistentHashConfig `json:"consistent_hash_config"`
+	SubscriptionType             string                `json:"subscription_type"`
+	ConsistentHashConfig         *ConsistentHashConfig `json:"consistent_hash_config"`
+	UndeliveredResourceThreshold int                   `json:"undelivered_resource_threshold"`
 }
 
 // ConsistentHashConfig contains the configuration for the consistent hashing algorithm.
@@ -27,8 +28,9 @@ type ConsistentHashConfig struct {
 // NewEventServerConfig creates a new EventServerConfig with default settings.
 func NewEventServerConfig() *EventServerConfig {
 	return &EventServerConfig{
-		SubscriptionType:     "shared",
-		ConsistentHashConfig: NewConsistentHashConfig(),
+		SubscriptionType:             "shared",
+		ConsistentHashConfig:         NewConsistentHashConfig(),
+		UndeliveredResourceThreshold: 600,
 	}
 }
 
@@ -52,6 +54,7 @@ func NewConsistentHashConfig() *ConsistentHashConfig {
 //     If subscription type is "broadcast", ConsistentHashConfig settings can be configured for the hashing algorithm.
 func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.SubscriptionType, "subscription-type", c.SubscriptionType, "Sets the subscription type for resource status updates from message broker, Options: \"shared\" (only one instance receives resource status message, MQTT feature ensures exclusivity) or \"broadcast\" (all instances receive messages, hashed to determine processing instance)")
+	fs.IntVar(&c.UndeliveredResourceThreshold, "undelivered-resource-threshold", c.UndeliveredResourceThreshold, "Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to 0 to disable. Default: 600 (10 minutes)")
 	c.ConsistentHashConfig.AddFlags(fs)
 }
 

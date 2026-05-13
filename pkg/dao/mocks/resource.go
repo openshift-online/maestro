@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 
@@ -70,6 +71,21 @@ func (d *resourceDaoMock) FindBySource(ctx context.Context, source string) (api.
 	var resources api.ResourceList
 	for _, resource := range d.resources {
 		if resource.Source == source {
+			resources = append(resources, resource)
+		}
+	}
+	return resources, nil
+}
+
+// FindUndelivered returns resources with empty status older than threshold.
+// Unlike the production implementation, this mock does not validate consumer
+// existence/deletion or check for in-flight events - those are tested via
+// integration tests.
+func (d *resourceDaoMock) FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, error) {
+	var resources api.ResourceList
+	cutoff := time.Now().Add(-threshold)
+	for _, resource := range d.resources {
+		if len(resource.Status) == 0 && resource.DeletedAt.Time.IsZero() && resource.CreatedAt.Before(cutoff) {
 			resources = append(resources, resource)
 		}
 	}
