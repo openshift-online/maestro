@@ -21,6 +21,7 @@ func NewControllersServer(ctx context.Context, eventServer EventServer, eventFil
 			env().Services.StatusEvents(),
 			dao.NewInstanceDao(&env().Database.SessionFactory),
 			dao.NewEventInstanceDao(&env().Database.SessionFactory),
+			controllers.DefaultStatusControllerWorkers,
 		),
 	}
 
