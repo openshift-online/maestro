@@ -52,7 +52,14 @@ spec:
     metadata:
       labels:
         name: {{ .Values.postgresql.service.name }}
+      {{- with .Values.postgresql.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- if .Values.postgresql.priorityClassName }}
+      priorityClassName: {{ .Values.postgresql.priorityClassName }}
+      {{- end }}
       containers:
         - name: postgresql
           image: {{ .Values.postgresql.image }}

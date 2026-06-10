@@ -17,6 +17,12 @@ cloudeventsClientId: cluster1-work-agent
 # default client certificate refresh/reload duration for message broker
 clientCertRefreshDuration: 5m
 
+# Pod annotations (e.g., cluster-autoscaler.kubernetes.io/safe-to-evict: "false")
+podAnnotations: {}
+
+# Priority class name for the agent pod
+priorityClassName: ""
+
 # Service Account configuration
 serviceAccount:
   name: maestro-agent-sa
