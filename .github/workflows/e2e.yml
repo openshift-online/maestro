@@ -57,7 +57,7 @@ jobs:
         run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-logs
           path: /tmp/maestro-logs/
@@ -93,7 +93,7 @@ jobs:
         run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-broadcast-subscription-logs
           path: /tmp/maestro-logs/
@@ -126,7 +126,7 @@ jobs:
         run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-istio-logs
           path: /tmp/maestro-logs/
@@ -163,7 +163,7 @@ jobs:
         run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-grpc-broker-logs
           path: /tmp/maestro-logs/
@@ -200,7 +200,7 @@ jobs:
         run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-pubsub-logs
           path: /tmp/maestro-logs/
@@ -235,7 +235,7 @@ jobs:
         run: ./test/e2e/scripts/collect_logs.sh /tmp/maestro-logs
       - name: Upload logs on failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: upgrade-logs
           path: /tmp/maestro-logs/
