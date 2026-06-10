@@ -16,7 +16,7 @@ permissions:
 jobs:
   verify:
     name: verify
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: checkout code
         uses: actions/checkout@v6
@@ -27,7 +27,7 @@ jobs:
       - name: verify
         run: make verify
   e2e:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check initial disk usage
         run: df -h /
@@ -63,7 +63,7 @@ jobs:
           path: /tmp/maestro-logs/
           retention-days: 7
   e2e-broadcast-subscription:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check initial disk usage
         run: df -h /
@@ -99,7 +99,7 @@ jobs:
           path: /tmp/maestro-logs/
           retention-days: 7
   e2e-with-istio:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check initial disk usage
         run: df -h /
@@ -132,7 +132,7 @@ jobs:
           path: /tmp/maestro-logs/
           retention-days: 7
   e2e-grpc-broker:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check initial disk usage
         run: df -h /
@@ -169,7 +169,7 @@ jobs:
           path: /tmp/maestro-logs/
           retention-days: 7
   e2e-pubsub:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check initial disk usage
         run: df -h /
@@ -206,7 +206,7 @@ jobs:
           path: /tmp/maestro-logs/
           retention-days: 7
   upgrade:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - name: Check initial disk usage
         run: df -h /
