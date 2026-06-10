@@ -10,6 +10,6 @@ repos:
         args: ['--maxkb=500']
       - id: check-merge-conflict
   - repo: https://github.com/golangci/golangci-lint
-    rev: v2.1.2
+    rev: v2.12.2
     hooks:
       - id: golangci-lint
