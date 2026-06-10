@@ -114,7 +114,7 @@ help:
 
 # Encourage consistent tool versions
 OPENAPI_GENERATOR_VERSION:=5.4.0
-GO_VERSION:=go1.25.
+GO_VERSION:=go1.25.11
 
 ### Constants:
 version:=$(shell date +%s)
