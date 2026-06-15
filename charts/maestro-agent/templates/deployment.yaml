@@ -13,7 +13,14 @@ spec:
     metadata:
       labels:
         {{- include "maestro-agent.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- if .Values.priorityClassName }}
+      priorityClassName: {{ .Values.priorityClassName }}
+      {{- end }}
       serviceAccountName: {{ include "maestro-agent.serviceAccountName" . }}
       containers:
       - name: maestro-agent
