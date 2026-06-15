@@ -35,7 +35,14 @@ spec:
     metadata:
       labels:
         name: {{ .Values.mosquitto.service.name }}
+      {{- with .Values.mosquitto.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     spec:
+      {{- if .Values.mosquitto.priorityClassName }}
+      priorityClassName: {{ .Values.mosquitto.priorityClassName }}
+      {{- end }}
       serviceAccountName: {{ include "maestro-server.serviceAccountName" . }}
       containers:
       - image: {{ .Values.mosquitto.image }}

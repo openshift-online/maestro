@@ -109,6 +109,7 @@ pubsubEmulator:
 # Server configuration
 server:
   annotations: {}
+  priorityClassName: ""
   https:
     enabled: false
   hostname: ""
@@ -178,6 +179,8 @@ postgresql:
     enabled: true
     size: 512Mi
   secretName: maestro-db
+  podAnnotations: {}
+  priorityClassName: ""
 
 # MQTT broker deployment (optional, for development)
 mosquitto:
@@ -195,3 +198,5 @@ mosquitto:
     clientCertFile: /secrets/mqtt-certs/client.crt
     # Path to client key file (inside the maestro-server-certs secret)
     clientKeyFile: /secrets/mqtt-certs/client.key
+  podAnnotations: {}
+  priorityClassName: ""
