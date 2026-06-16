@@ -18,6 +18,7 @@ type EventService interface {
 	FindByIDs(ctx context.Context, ids []string) (api.EventList, *errors.ServiceError)
 
 	FindAllUnreconciledEvents(ctx context.Context) (api.EventList, *errors.ServiceError)
+	FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*float64, *errors.ServiceError)
 	DeleteAllReconciledEvents(ctx context.Context) *errors.ServiceError
 }
 
@@ -93,4 +94,12 @@ func (s *sqlEventService) DeleteAllReconciledEvents(ctx context.Context) *errors
 		return handleDeleteError("Event", errors.GeneralError("Unable to delete reconciled events: %s", err))
 	}
 	return nil
+}
+
+func (s *sqlEventService) FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*float64, *errors.ServiceError) {
+	ageInSeconds, err := s.eventDao.FindAgeOfOldestUnreconciledEvent(ctx)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to get age of oldest unreconciled event: %s", err)
+	}
+	return ageInSeconds, nil
 }
