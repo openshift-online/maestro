@@ -17,6 +17,7 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/db/db_context"
 )
 
 var testOnce sync.Once
@@ -188,20 +189,36 @@ func (f *Test) DirectDB() *sql.DB {
 }
 
 func (f *Test) New(ctx context.Context) *gorm.DB {
+	db, _ := f.NewIsInTx(ctx)
+	return db
+}
+
+func (f *Test) NewIsInTx(ctx context.Context) (*gorm.DB, bool) {
 	if f.wasDisconnected {
 		// Connection was killed in order to reset DB
 		f.db, f.g2 = connectFactory(f.config)
 		f.wasDisconnected = false
 	}
 
-	conn := f.g2.Session(&gorm.Session{
-		Context: ctx,
-		Logger:  f.g2.Logger.LogMode(gormlogger.Silent),
-	})
+	tx, ok := db_context.Transaction(ctx)
+
+	var conn *gorm.DB
+	if ok {
+		conn = tx.Session(&gorm.Session{
+			Context: ctx,
+			Logger:  f.g2.Logger.LogMode(gormlogger.Silent),
+		})
+	} else {
+		conn = f.g2.Session(&gorm.Session{
+			Context: ctx,
+			Logger:  f.g2.Logger.LogMode(gormlogger.Silent),
+		})
+	}
+
 	if f.config.Debug {
 		conn = conn.Debug()
 	}
-	return conn
+	return conn, ok
 }
 
 // CheckConnection checks to ensure a connection is present

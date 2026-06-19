@@ -158,7 +158,7 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // 2. Retrieves the resource from Maestro and fills back the work metadata from the spec event to the status event.
 // 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
 // otherwise, updates the resource status and creates a status event.
-func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
+func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) (err error) {
 	logger := klog.FromContext(ctx)
 	logger.Info("handle resource status update by the current instance")
 
@@ -230,6 +230,15 @@ func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	if err := statusEvent.DataAs(statusPayload); err != nil {
 		return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
 	}
+
+	// Create a new Context with the transaction stored in it.
+	ctx, err = db.NewContext(ctx, env().Database.SessionFactory)
+	if err != nil {
+		return fmt.Errorf("error creating transaction: %v", err)
+	}
+
+	// Resolve transaction once work is complete
+	defer db.FinalizeTransaction(ctx, &err)
 
 	// if the resource has been deleted from agent, create status event and delete it from maestro
 	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ResourceDeleted) {
