@@ -736,7 +736,7 @@ func TestSpecEventAgeMetric(t *testing.T) {
 					return fmt.Errorf("metric has no samples yet")
 				}
 				age = metrics[0].GetGauge().GetValue()
-				if (age == 0) {
+				if age == 0 {
 					return fmt.Errorf("metric sample is zero")
 				}
 				return nil

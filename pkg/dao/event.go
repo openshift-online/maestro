@@ -124,4 +124,3 @@ func (d *sqlEventDao) FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*fl
 
 	return ageSeconds, nil
 }
-

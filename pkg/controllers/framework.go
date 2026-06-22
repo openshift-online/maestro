@@ -276,7 +276,7 @@ func (km *KindControllerManager) reportOldestEvent(ctx context.Context) {
 		return
 	}
 	if ageSeconds != nil {
-		age = *ageSeconds
+		age = max(*ageSeconds, 0.0)
 	}
 
 	specControllerEventOldestUnreconciledAge.Set(age)
