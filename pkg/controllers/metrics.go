@@ -17,6 +17,7 @@ const (
 	eventReconcileTotalMetric     = "event_reconcile_total"
 	eventReconcileDurationMetric  = "event_reconcile_duration_seconds"
 	eventSyncOperationTotalMetric = "event_sync_operation_total"
+	NotificationQueueUsageMetric  = "postgres_notification_queue_usage"
 	DepthMetric                   = "depth"
 	AddsTotalMetric               = "adds_total"
 	QueueDurationMetric           = "queue_duration_seconds"
@@ -119,6 +120,15 @@ var (
 		[]string{controllerMetricsStatusLabel},
 	)
 
+	// notificationQueueUsage is a gauge of the current postgres notification queue usage:
+	notificationQueueUsage = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Subsystem: workqueueMetricsSubsystem,
+			Name:      NotificationQueueUsageMetric,
+			Help:      "Current usage of postgres notification queue",
+		},
+	)
+
 	// workqueueDepth is a gauge of the current depth of workqueues, labeled by name:
 	workqueueDepth = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -199,6 +209,7 @@ var (
 
 	// workqueueMetrics is the list of all the workqueue metrics defined in this package:
 	workqueueMetrics = []prometheus.Collector{
+		notificationQueueUsage,
 		workqueueDepth,
 		workqueueAdds,
 		workqueueLatency,
