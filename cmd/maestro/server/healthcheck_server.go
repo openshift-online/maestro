@@ -46,6 +46,7 @@ func NewHealthCheckServer(ctx context.Context) *HealthCheckServer {
 	}
 
 	router.HandleFunc("/healthcheck", server.healthCheckHandler).Methods(http.MethodGet)
+	router.HandleFunc("/livez", server.livenessHandler).Methods(http.MethodGet)
 
 	return server
 }
@@ -201,5 +202,19 @@ func (s *HealthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Re
 	_, err = w.Write([]byte(`{"status": "not ready"}`))
 	if err != nil {
 		logger.Error(err, "Error writing healthcheck response")
+	}
+}
+
+// livenessHandler always returns 200 OK as long as the process can serve HTTP.
+// It deliberately does NOT touch Postgres (unlike healthCheckHandler), so that a
+// transient database slowdown removes the pod from Service endpoints via the
+// readiness probe (/healthcheck) instead of triggering a kubelet restart of the
+// process. Pointing the liveness probe at this endpoint prevents a recoverable
+// DB blip from escalating into a restart/reconnect storm.
+func (s *HealthCheckServer) livenessHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	if _, err := w.Write([]byte(`{"status": "ok"}`)); err != nil {
+		logger := klog.FromContext(r.Context()).WithValues("instanceID", s.instanceID)
+		logger.Error(err, "Error writing liveness response")
 	}
 }

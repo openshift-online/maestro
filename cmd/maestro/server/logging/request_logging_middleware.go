@@ -28,6 +28,10 @@ func RegisterLoggerMiddleware(ctx context.Context, router *mux.Router) {
 					logLevel = 4
 				}
 
+				if path == "/livez" {
+					logLevel = 4
+				}
+
 				reqCtx := r.Context()
 				logger := klog.FromContext(reqCtx)
 				loggingWriter := NewLoggingWriter(logger, w, r, NewJSONLogFormatter())
