@@ -696,6 +696,7 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 	// The slow listener can only drain one notification every 10s, so the
 	// postgres NOTIFY queue usage will increase.
 	payload := strings.Repeat("x", 7000)
+	var last_notify_err error 
 	go func() {
 		notifyDB := h.Env().Database.SessionFactory.New(ctx)
 		for {
@@ -703,7 +704,7 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 			case <-ctx.Done():
 				return
 			default:
-				notifyDB.Exec(fmt.Sprintf("NOTIFY %s, '%s'", channel, payload))
+				last_notify_err = notifyDB.Exec(fmt.Sprintf("NOTIFY %s, '%s'", channel, payload)).Error
 			}
 		}
 	}()
@@ -752,5 +753,5 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 			}
 		}
 		return fmt.Errorf("metric %s not found", metricName)
-	}, 10*time.Second, 1*time.Second).Should(Succeed())
+	}, 10*time.Second, 1*time.Second).Should(Succeed(), "Last NOTIFY error: %v", last_notify_err)
 }

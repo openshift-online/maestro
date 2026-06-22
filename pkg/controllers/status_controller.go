@@ -204,6 +204,7 @@ func batchStatusEventIDs(statusEventIDs []string, batchSize int) [][]string {
 	return batches
 }
 
+// reportNotificationQueueUsage reports the the usage of the postgres NOTIFY queue.
 func (sc *StatusController) reportNotificationQueueUsage(ctx context.Context) {
 	logger := klog.FromContext(ctx)
 	usage, err := sc.statusEvents.GetNotificationQueueUsage(ctx)
