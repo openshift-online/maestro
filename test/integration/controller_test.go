@@ -704,7 +704,7 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 			case <-ctx.Done():
 				return
 			default:
-				last_notify_err = notifyDB.Exec(fmt.Sprintf("NOTIFY %s, '%s'", channel, payload)).Error
+				last_notify_err = notifyDB.Exec("SELECT pg_notify(?, ?)", channel, payload).Error
 			}
 		}
 	}()
