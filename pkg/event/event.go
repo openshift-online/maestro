@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/google/uuid"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -38,14 +37,16 @@ func NewEventBroadcaster() *EventBroadcaster {
 	}
 }
 
-// Register registers a client and return client id and error channel.
-func (h *EventBroadcaster) Register(ctx context.Context, source string, handler resourceHandler) string {
+// Register registers a client with its ID.
+func (h *EventBroadcaster) Register(ctx context.Context,
+	id string,
+	source string,
+	handler resourceHandler) {
 	logger := klog.FromContext(ctx)
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
-	id := uuid.NewString()
 	h.clients[id] = &eventClient{
 		source:  source,
 		handler: handler,
@@ -53,11 +54,9 @@ func (h *EventBroadcaster) Register(ctx context.Context, source string, handler 
 
 	logger.Info("registered a broadcaster client", "id", id, "source", source)
 	grpcRegisteredSourceClientsGaugeMetric.WithLabelValues(source).Inc()
-
-	return id
 }
 
-// Unregister unregisters a client by id
+// Unregister unregisters a client by its ID.
 func (h *EventBroadcaster) Unregister(ctx context.Context, id string) {
 	logger := klog.FromContext(ctx).WithValues("id", id)
 	h.mu.Lock()
