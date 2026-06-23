@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -696,7 +697,8 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 	// The slow listener can only drain one notification every 10s, so the
 	// postgres NOTIFY queue usage will increase.
 	payload := strings.Repeat("x", 7000)
-	var last_notify_err error 
+	var mu sync.Mutex
+	var lastNotifyErr error
 	go func() {
 		notifyDB := h.Env().Database.SessionFactory.New(ctx)
 		for {
@@ -704,8 +706,12 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 			case <-ctx.Done():
 				return
 			default:
-				last_notify_err = notifyDB.Exec("SELECT pg_notify(?, ?)", channel, payload).Error
+				err := notifyDB.Exec("SELECT pg_notify(?, ?)", channel, payload).Error
+				mu.Lock()
+				lastNotifyErr = err
+				mu.Unlock()
 			}
+			time.Sleep(time.Millisecond)
 		}
 	}()
 
@@ -734,7 +740,7 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 
 	// Wait for the metric to be reported with a value > 0, indicating
 	// that the notification queue has accumulated undelivered notifications.
-	metricName := "workqueue_postgres_notification_queue_usage"
+	metricName := "postgres_notification_queue_usage"
 	Eventually(func() error {
 		gathered, gatherErr := prometheus.DefaultGatherer.Gather()
 		if gatherErr != nil {
@@ -753,5 +759,9 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 			}
 		}
 		return fmt.Errorf("metric %s not found", metricName)
-	}, 10*time.Second, 1*time.Second).Should(Succeed(), "Last NOTIFY error: %v", last_notify_err)
+	}, 10*time.Second, 1*time.Second).Should(Succeed(), func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return fmt.Sprintf("Last NOTIFY error: %v", lastNotifyErr)
+	})
 }

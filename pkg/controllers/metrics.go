@@ -10,6 +10,7 @@ const (
 	specControllerMetricsSubsystem   = "spec_controller"
 	statusControllerMetricsSubsystem = "status_controller"
 	workqueueMetricsSubsystem        = "workqueue"
+	postgresMetricsSubsystem        = "postgres"
 )
 
 // Names of the metrics:
@@ -17,7 +18,7 @@ const (
 	eventReconcileTotalMetric     = "event_reconcile_total"
 	eventReconcileDurationMetric  = "event_reconcile_duration_seconds"
 	eventSyncOperationTotalMetric = "event_sync_operation_total"
-	NotificationQueueUsageMetric  = "postgres_notification_queue_usage"
+	notificationQueueUsageMetric  = "notification_queue_usage"
 	DepthMetric                   = "depth"
 	AddsTotalMetric               = "adds_total"
 	QueueDurationMetric           = "queue_duration_seconds"
@@ -123,8 +124,8 @@ var (
 	// notificationQueueUsage is a gauge of the current postgres notification queue usage:
 	notificationQueueUsage = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Subsystem: workqueueMetricsSubsystem,
-			Name:      NotificationQueueUsageMetric,
+			Subsystem: postgresMetricsSubsystem,
+			Name:      notificationQueueUsageMetric,
 			Help:      "Current usage of postgres notification queue",
 		},
 	)
@@ -209,7 +210,6 @@ var (
 
 	// workqueueMetrics is the list of all the workqueue metrics defined in this package:
 	workqueueMetrics = []prometheus.Collector{
-		notificationQueueUsage,
 		workqueueDepth,
 		workqueueAdds,
 		workqueueLatency,
@@ -228,6 +228,7 @@ func init() {
 	prometheus.MustRegister(statusEventReconciledTotal)
 	prometheus.MustRegister(statusEventReconcileDuration)
 	prometheus.MustRegister(statusControllerSyncEventOperationsTotal)
+	prometheus.MustRegister(notificationQueueUsage)
 
 	// Register the Prometheus workqueue metrics globally:
 	for _, metric := range workqueueMetrics {
