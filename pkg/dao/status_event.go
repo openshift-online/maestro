@@ -21,6 +21,7 @@ type StatusEventDao interface {
 	DeleteAllReconciledEvents(ctx context.Context) error
 	DeleteAllEvents(ctx context.Context, eventIDs []string) error
 	FindAllUnreconciledEvents(ctx context.Context) (api.StatusEventList, error)
+	GetNotificationQueueUsage(ctx context.Context) (*float64, error)
 }
 
 var _ StatusEventDao = &sqlStatusEventDao{}
@@ -124,4 +125,17 @@ func (d *sqlStatusEventDao) All(ctx context.Context) (api.StatusEventList, error
 		return nil, err
 	}
 	return statusEvents, nil
+}
+
+func (d *sqlStatusEventDao) GetNotificationQueueUsage(ctx context.Context) (*float64, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var usage *float64
+	result := g2.Raw("SELECT pg_notification_queue_usage()").
+		Scan(&usage)
+
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	return usage, nil
 }

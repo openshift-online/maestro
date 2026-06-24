@@ -20,7 +20,7 @@ jobs:
 
       # Login to Azure using OIDC (no secret needed if federated identity is set up)
       - name: Azure Login
-        uses: azure/login@v2
+        uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -52,7 +52,7 @@ jobs:
 
       # Send Slack notification if credentials retrieval failed
       - name: Notify Slack on credentials failure
-        uses: slackapi/slack-github-action@v2.1.1
+        uses: slackapi/slack-github-action@v3.0.3
         if: failure() && steps.get_credentials.outcome == 'failure'
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -234,7 +234,7 @@ jobs:
             bash -x test/upgrade/script/run.sh || exit 1
 
       - name: Post a message in a channel
-        uses: slackapi/slack-github-action@v2.1.1
+        uses: slackapi/slack-github-action@v3.0.3
         if: always()
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}

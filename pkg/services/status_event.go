@@ -19,6 +19,7 @@ type StatusEventService interface {
 	FindAllUnreconciledEvents(ctx context.Context) (api.StatusEventList, *errors.ServiceError)
 	DeleteAllReconciledEvents(ctx context.Context) *errors.ServiceError
 	DeleteAllEvents(ctx context.Context, eventIDs []string) *errors.ServiceError
+	GetNotificationQueueUsage(ctx context.Context) (*float64, *errors.ServiceError)
 }
 
 func NewStatusEventService(statusEventDao dao.StatusEventDao) StatusEventService {
@@ -100,4 +101,12 @@ func (s *sqlStatusEventService) DeleteAllEvents(ctx context.Context, eventIDs []
 		return handleDeleteError("StatusEvent", errors.GeneralError("Unable to delete events %s: %s", eventIDs, err))
 	}
 	return nil
+}
+
+func (s *sqlStatusEventService) GetNotificationQueueUsage(ctx context.Context) (*float64, *errors.ServiceError) {
+	usage, err := s.statusEventDao.GetNotificationQueueUsage(ctx)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to get notification queue usage: %s", err)
+	}
+	return usage, nil
 }

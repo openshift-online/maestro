@@ -46,6 +46,10 @@ var defaultEventsSyncPeriod = 10 * time.Hour
 // defaultOldestEventReportPeriod controls the rate at which we poll the db for unreconciled events to report their age
 var defaultOldestEventReportPeriod = 2 * time.Minute
 
+// defaultNotificationQueueReportPeriod is the default period to report postgres notification queue usage (3 minutes)
+// This is done by running `SELECT pg_notification_queue_usage ()` against the db to retrieve the usage value.
+var defaultNotificationQueueReportPeriod = 3 * time.Minute
+
 type ControllerHandlerFunc func(ctx context.Context, id string) error
 
 type ControllerConfig struct {
