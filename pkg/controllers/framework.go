@@ -42,6 +42,10 @@ const EventID ControllerHandlerContextKey = "event"
 // events sync will help us to handle unexpected errors (e.g. sever restart), it ensures we will not miss any events
 var defaultEventsSyncPeriod = 10 * time.Hour
 
+// defaultNotificationQueueReportPeriod is the default period to report postgres notification queue usage (3 minutes)
+// This is done by running `SELECT pg_notification_queue_usage ()` against the db to retrieve the usage value.
+var defaultNotificationQueueReportPeriod = 3 * time.Minute
+
 type ControllerHandlerFunc func(ctx context.Context, id string) error
 
 type ControllerConfig struct {
