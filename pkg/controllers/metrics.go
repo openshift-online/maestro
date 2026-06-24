@@ -10,7 +10,7 @@ const (
 	specControllerMetricsSubsystem   = "spec_controller"
 	statusControllerMetricsSubsystem = "status_controller"
 	workqueueMetricsSubsystem        = "workqueue"
-	postgresMetricsSubsystem        = "postgres"
+	postgresMetricsSubsystem         = "postgres"
 )
 
 // Names of the metrics:
