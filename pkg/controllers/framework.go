@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -41,6 +42,9 @@ const EventID ControllerHandlerContextKey = "event"
 // given a long period because we have a queue in the controller, it will help us to handle most expected errors, this
 // events sync will help us to handle unexpected errors (e.g. sever restart), it ensures we will not miss any events
 var defaultEventsSyncPeriod = 10 * time.Hour
+
+// defaultOldestEventReportPeriod controls the rate at which we poll the db for unreconciled events to report their age
+var defaultOldestEventReportPeriod = 2 * time.Minute
 
 // defaultNotificationQueueReportPeriod is the default period to report postgres notification queue usage (3 minutes)
 // This is done by running `SELECT pg_notification_queue_usage ()` against the db to retrieve the usage value.
@@ -97,6 +101,10 @@ func (km *KindControllerManager) Run(ctx context.Context) {
 	// start a goroutine to sync all events periodically
 	// use a jitter to avoid multiple instances syncing the events at the same time
 	go wait.JitterUntilWithContext(ctx, km.syncEvents, defaultEventsSyncPeriod, 0.25, true)
+
+	// start a goroutine to emit a gauge of the oldest unreconciled event's age
+	// use a jitter to avoid multiple instances reporting at the same time
+	go wait.JitterUntilWithContext(ctx, km.reportOldestEvent, defaultOldestEventReportPeriod, 0.25, true)
 
 	// start a goroutine to handle the event from the event queue
 	// the .Until will re-kick the runWorker one second after the runWorker completes
@@ -259,4 +267,21 @@ func (km *KindControllerManager) syncEvents(ctx context.Context) {
 	}
 
 	specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusSuccess)).Inc()
+}
+
+func (km *KindControllerManager) reportOldestEvent(ctx context.Context) {
+	logger := klog.FromContext(ctx)
+
+	age := 0.0
+	ageSeconds, err := km.events.FindAgeOfOldestUnreconciledEvent(ctx)
+	if err != nil {
+		logger.Error(err, "Failed to retrieve age of oldest unreconciled event from db")
+		specControllerEventOldestUnreconciledAge.Set(math.NaN())
+		return
+	}
+	if ageSeconds != nil {
+		age = max(*ageSeconds, 0.0)
+	}
+
+	specControllerEventOldestUnreconciledAge.Set(age)
 }

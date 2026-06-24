@@ -680,6 +680,75 @@ func TestMultipleControllers(t *testing.T) {
 
 }
 
+func TestSpecEventAgeMetric(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create an unreconciled event backdated two minutes
+	evt := &api.Event{
+		Meta: api.Meta{
+			CreatedAt: time.Now().Add(-2 * time.Minute),
+		},
+		Source:    "Resources",
+		SourceID:  uuid.NewString(),
+		EventType: api.CreateEventType,
+	}
+	err := h.Env().Database.SessionFactory.New(ctx).Transaction(func(tx *gorm.DB) error {
+		return tx.Omit(clause.Associations).Create(evt).Error
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	eventDao := dao.NewEventDao(&h.Env().Database.SessionFactory)
+	evt, err = eventDao.Get(ctx, evt.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	Expect(time.Since(evt.CreatedAt).Seconds()).Should(BeNumerically(">=", 120))
+
+	// Start the controller. No handlers are registered so the event will remain unreconciled
+	go func() {
+		s := &server.ControllersServer{
+			KindControllerManager: controllers.NewKindControllerManager(
+				h.EventFilter,
+				h.Env().Services.Events(),
+			),
+			StatusController: controllers.NewStatusController(
+				h.Env().Services.StatusEvents(),
+				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
+				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
+			),
+		}
+		s.Start(ctx)
+	}()
+
+	// reportOldestEvent fires immediately on startup, so the age metric should be
+	// populated promptly
+	var age float64
+	Eventually(func() error {
+		families, err := prometheus.DefaultGatherer.Gather()
+		if err != nil {
+			return err
+		}
+		for _, mf := range families {
+			if mf.GetName() == "spec_controller_event_oldest_unreconciled_age_seconds" {
+				metrics := mf.GetMetric()
+				if len(metrics) == 0 {
+					return fmt.Errorf("metric has no samples yet")
+				}
+				age = metrics[0].GetGauge().GetValue()
+				if age == 0 {
+					return fmt.Errorf("metric sample is zero")
+				}
+				return nil
+			}
+		}
+		return fmt.Errorf("metric spec_controller_event_oldest_unreconciled_age_seconds not found")
+	}, 10*time.Second, 1*time.Second).Should(Succeed())
+	Expect(age).Should(BeNumerically(">=", 120))
+}
+
 func TestNotificationQueueUsageMetric(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 

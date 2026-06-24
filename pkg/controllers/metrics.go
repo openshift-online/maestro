@@ -10,13 +10,14 @@ const (
 	specControllerMetricsSubsystem   = "spec_controller"
 	statusControllerMetricsSubsystem = "status_controller"
 	workqueueMetricsSubsystem        = "workqueue"
-	postgresMetricsSubsystem        = "postgres"
+	postgresMetricsSubsystem         = "postgres"
 )
 
 // Names of the metrics:
 const (
 	eventReconcileTotalMetric     = "event_reconcile_total"
 	eventReconcileDurationMetric  = "event_reconcile_duration_seconds"
+	eventOldestUnreconciledMetric = "event_oldest_unreconciled_age_seconds"
 	eventSyncOperationTotalMetric = "event_sync_operation_total"
 	notificationQueueUsageMetric  = "notification_queue_usage"
 	DepthMetric                   = "depth"
@@ -85,6 +86,16 @@ var (
 			Help:      "Total number of sync operations performed by the spec controller",
 		},
 		[]string{controllerMetricsStatusLabel},
+	)
+
+	// specControllerEventOldestUnreconciledAge is a gauge of the oldest
+	// unreconciled spec event's age in seconds
+	specControllerEventOldestUnreconciledAge = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Subsystem: specControllerMetricsSubsystem,
+			Name:      eventOldestUnreconciledMetric,
+			Help:      "Age of the oldest unreconciled spec event in seconds",
+		},
 	)
 
 	// statusEventReconciledTotal is a counter of the total number of events
@@ -226,6 +237,7 @@ func init() {
 	prometheus.MustRegister(specEventReconcileDuration)
 	prometheus.MustRegister(specControllerSyncEventOperationsTotal)
 	prometheus.MustRegister(statusEventReconciledTotal)
+	prometheus.MustRegister(specControllerEventOldestUnreconciledAge)
 	prometheus.MustRegister(statusEventReconcileDuration)
 	prometheus.MustRegister(statusControllerSyncEventOperationsTotal)
 	prometheus.MustRegister(notificationQueueUsage)
