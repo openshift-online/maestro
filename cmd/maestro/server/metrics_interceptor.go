@@ -6,17 +6,36 @@ import (
 	"strings"
 	"time"
 
+	ce "github.com/cloudevents/sdk-go/v2"
 	"github.com/cloudevents/sdk-go/v2/binding"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/status"
 	pbv1 "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protobuf/v1"
 	grpcprotocol "open-cluster-management.io/sdk-go/pkg/cloudevents/generic/options/grpc/protocol"
+	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
 )
 
 func init() {
 	// Register the metrics:
 	RegisterGRPCMetrics()
+}
+
+// extractOperation extracts the operation name from a CloudEvent.
+// Returns the action from the CloudEvent type (e.g., "create", "update", "delete")
+// or "unknown" if the type cannot be parsed.
+func extractOperation(evt *ce.Event) string {
+	eventType, err := types.ParseCloudEventsType(evt.Type())
+	if err != nil {
+		return "unknown"
+	}
+	// Action is an EventAction type, convert to string
+	action := string(eventType.Action)
+	// Extract just the action part before "_request" if present
+	if strings.HasSuffix(action, "_request") {
+		action = strings.TrimSuffix(action, "_request")
+	}
+	return action
 }
 
 // NewMetricsUnaryInterceptor creates a unary server interceptor for server metrics.
@@ -39,19 +58,39 @@ func newMetricsUnaryInterceptor() grpc.UnaryServerInterceptor {
 			return nil, fmt.Errorf("failed to convert to cloudevent: %v", err)
 		}
 		source := evt.Source()
-		grpcCalledCountMetric.WithLabelValues(t, source).Inc()
 
+		// extract operation from CloudEvent type
+		operation := extractOperation(evt)
+
+		// Update existing metrics (backwards compatible)
+		grpcCalledCountMetric.WithLabelValues(t, source).Inc()
 		grpcMessageReceivedCountMetric.WithLabelValues(t, source).Inc()
+
+		// Update new operation-level metrics
+		grpcCalledCountByOperationMetric.WithLabelValues(t, source, operation).Inc()
+		grpcMessageReceivedCountByOperationMetric.WithLabelValues(t, source, operation).Inc()
+
 		startTime := time.Now()
 		resp, err := handler(ctx, req)
 		duration := time.Since(startTime).Seconds()
+
+		// Update existing metrics
 		grpcMessageSentCountMetric.WithLabelValues(t, source).Inc()
+
+		// Update new operation-level metrics
+		grpcMessageSentCountByOperationMetric.WithLabelValues(t, source, operation).Inc()
 
 		// get status code from error
 		status := statusFromError(err)
 		code := status.Code()
+
+		// Update existing metrics
 		grpcProcessedCountMetric.WithLabelValues(t, source, code.String()).Inc()
 		grpcProcessedDurationMetric.WithLabelValues(t, source).Observe(duration)
+
+		// Update new operation-level metrics
+		grpcProcessedCountByOperationMetric.WithLabelValues(t, source, operation, code.String()).Inc()
+		grpcProcessedDurationByOperationMetric.WithLabelValues(t, source, operation).Observe(duration)
 
 		return resp, err
 	}
@@ -75,8 +114,12 @@ func (w *wrappedMetricsStream) RecvMsg(m interface{}) error {
 		return fmt.Errorf("invalid request type for Subscribe method")
 	}
 	*w.source = subReq.Source
+	// Update existing metrics (backwards compatible)
 	grpcCalledCountMetric.WithLabelValues(w.t, subReq.Source).Inc()
 	grpcMessageReceivedCountMetric.WithLabelValues(w.t, subReq.Source).Inc()
+	// Update new operation-level metrics
+	grpcCalledCountByOperationMetric.WithLabelValues(w.t, subReq.Source, "subscribe").Inc()
+	grpcMessageReceivedCountByOperationMetric.WithLabelValues(w.t, subReq.Source, "subscribe").Inc()
 
 	return err
 }
@@ -84,7 +127,10 @@ func (w *wrappedMetricsStream) RecvMsg(m interface{}) error {
 // SendMsg wraps the SendMsg method of the embedded grpc.ServerStream.
 func (w *wrappedMetricsStream) SendMsg(m interface{}) error {
 	err := w.ServerStream.SendMsg(m)
+	// Update existing metrics (backwards compatible)
 	grpcMessageSentCountMetric.WithLabelValues(w.t, *w.source).Inc()
+	// Update new operation-level metrics
+	grpcMessageSentCountByOperationMetric.WithLabelValues(w.t, *w.source, "subscribe").Inc()
 	return err
 }
 
@@ -114,7 +160,10 @@ func newMetricsStreamInterceptor() grpc.StreamServerInterceptor {
 		// get status code from error
 		status := statusFromError(err)
 		code := status.Code()
+		// Update existing metrics (backwards compatible)
 		grpcProcessedCountMetric.WithLabelValues(t, source, code.String()).Inc()
+		// Update new operation-level metrics
+		grpcProcessedCountByOperationMetric.WithLabelValues(t, source, "subscribe", code.String()).Inc()
 
 		return err
 	}
@@ -136,21 +185,37 @@ const grpcMetricsSubsystem = "grpc_server"
 
 // Names of the labels added to metrics:
 const (
-	grpcMetricsTypeLabel   = "type"
-	grpcMetricsSourceLabel = "source"
-	grpcMetricsCodeLabel   = "code"
+	grpcMetricsTypeLabel      = "type"
+	grpcMetricsSourceLabel    = "source"
+	grpcMetricsCodeLabel      = "code"
+	grpcMetricsOperationLabel = "operation"
 )
 
-// grpcMetricsLabels - Array of labels added to metrics:
+// grpcMetricsLabels - Array of labels added to existing metrics:
 var grpcMetricsLabels = []string{
 	grpcMetricsTypeLabel,
 	grpcMetricsSourceLabel,
 }
 
-// grpcMetricsAllLabels - Array of all labels added to metrics:
+// grpcMetricsAllLabels - Array of all labels added to existing metrics:
 var grpcMetricsAllLabels = []string{
 	grpcMetricsTypeLabel,
 	grpcMetricsSourceLabel,
+	grpcMetricsCodeLabel,
+}
+
+// grpcMetricsLabelsWithOperation - Array of labels for new operation-level metrics:
+var grpcMetricsLabelsWithOperation = []string{
+	grpcMetricsTypeLabel,
+	grpcMetricsSourceLabel,
+	grpcMetricsOperationLabel,
+}
+
+// grpcMetricsAllLabelsWithOperation - Array of all labels for new operation-level metrics:
+var grpcMetricsAllLabelsWithOperation = []string{
+	grpcMetricsTypeLabel,
+	grpcMetricsSourceLabel,
+	grpcMetricsOperationLabel,
 	grpcMetricsCodeLabel,
 }
 
@@ -161,15 +226,28 @@ const (
 	processedDurationMetric    = "processed_duration_seconds"
 	messageReceivedCountMetric = "message_received_total"
 	messageSentCountMetric     = "message_sent_total"
+	// New operation-level metrics (non-breaking)
+	calledCountByOperationMetric          = "called_total_by_operation"
+	processedCountByOperationMetric       = "processed_total_by_operation"
+	processedDurationByOperationMetric    = "processed_duration_seconds_by_operation"
+	messageReceivedCountByOperationMetric = "message_received_total_by_operation"
+	messageSentCountByOperationMetric     = "message_sent_total_by_operation"
 )
 
 // Register the metrics:
 func RegisterGRPCMetrics() {
+	// Register existing metrics (backwards compatible)
 	prometheus.MustRegister(grpcCalledCountMetric)
 	prometheus.MustRegister(grpcProcessedCountMetric)
 	prometheus.MustRegister(grpcProcessedDurationMetric)
 	prometheus.MustRegister(grpcMessageReceivedCountMetric)
 	prometheus.MustRegister(grpcMessageSentCountMetric)
+	// Register new operation-level metrics
+	prometheus.MustRegister(grpcCalledCountByOperationMetric)
+	prometheus.MustRegister(grpcProcessedCountByOperationMetric)
+	prometheus.MustRegister(grpcProcessedDurationByOperationMetric)
+	prometheus.MustRegister(grpcMessageReceivedCountByOperationMetric)
+	prometheus.MustRegister(grpcMessageSentCountByOperationMetric)
 }
 
 // Unregister the metrics:
@@ -179,6 +257,11 @@ func UnregisterGRPCMetrics() {
 	prometheus.Unregister(grpcProcessedDurationMetric)
 	prometheus.Unregister(grpcMessageReceivedCountMetric)
 	prometheus.Unregister(grpcMessageSentCountMetric)
+	prometheus.Unregister(grpcCalledCountByOperationMetric)
+	prometheus.Unregister(grpcProcessedCountByOperationMetric)
+	prometheus.Unregister(grpcProcessedDurationByOperationMetric)
+	prometheus.Unregister(grpcMessageReceivedCountByOperationMetric)
+	prometheus.Unregister(grpcMessageSentCountByOperationMetric)
 }
 
 // Reset the metrics:
@@ -188,6 +271,11 @@ func ResetGRPCMetrics() {
 	grpcProcessedDurationMetric.Reset()
 	grpcMessageReceivedCountMetric.Reset()
 	grpcMessageSentCountMetric.Reset()
+	grpcCalledCountByOperationMetric.Reset()
+	grpcProcessedCountByOperationMetric.Reset()
+	grpcProcessedDurationByOperationMetric.Reset()
+	grpcMessageReceivedCountByOperationMetric.Reset()
+	grpcMessageSentCountByOperationMetric.Reset()
 }
 
 // Description of the gRPC called count metric:
@@ -239,4 +327,57 @@ var grpcMessageSentCountMetric = prometheus.NewCounterVec(
 		Help:      "Total number of messages sent by the server to agent and client.",
 	},
 	grpcMetricsLabels,
+)
+
+// New operation-level metrics (non-breaking additions):
+
+// Description of the gRPC called count metric by operation:
+var grpcCalledCountByOperationMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Subsystem: grpcMetricsSubsystem,
+		Name:      calledCountByOperationMetric,
+		Help:      "Total number of RPCs called on the server, by operation type.",
+	},
+	grpcMetricsLabelsWithOperation,
+)
+
+// Description of the gRPC processed count metric by operation:
+var grpcProcessedCountByOperationMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Subsystem: grpcMetricsSubsystem,
+		Name:      processedCountByOperationMetric,
+		Help:      "Total number of RPCs processed on the server by operation type, regardless of success or failure.",
+	},
+	grpcMetricsAllLabelsWithOperation,
+)
+
+// Description of the gRPC processed duration metric by operation:
+var grpcProcessedDurationByOperationMetric = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Subsystem: grpcMetricsSubsystem,
+		Name:      processedDurationByOperationMetric,
+		Help:      "Histogram of the duration of RPCs processed on the server by operation type.",
+		Buckets:   prometheus.DefBuckets,
+	},
+	grpcMetricsLabelsWithOperation,
+)
+
+// Description of the gRPC message received count metric by operation:
+var grpcMessageReceivedCountByOperationMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Subsystem: grpcMetricsSubsystem,
+		Name:      messageReceivedCountByOperationMetric,
+		Help:      "Total number of messages received on the server from agent and client, by operation type.",
+	},
+	grpcMetricsLabelsWithOperation,
+)
+
+// Description of the gRPC message sent count metric by operation:
+var grpcMessageSentCountByOperationMetric = prometheus.NewCounterVec(
+	prometheus.CounterOpts{
+		Subsystem: grpcMetricsSubsystem,
+		Name:      messageSentCountByOperationMetric,
+		Help:      "Total number of messages sent by the server to agent and client, by operation type.",
+	},
+	grpcMetricsLabelsWithOperation,
 )
