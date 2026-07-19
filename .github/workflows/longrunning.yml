@@ -52,7 +52,7 @@ jobs:
 
       # Send Slack notification if credentials retrieval failed
       - name: Notify Slack on credentials failure
-        uses: slackapi/slack-github-action@v3.0.3
+        uses: slackapi/slack-github-action@v4.0.0
         if: failure() && steps.get_credentials.outcome == 'failure'
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -234,7 +234,7 @@ jobs:
             bash -x test/upgrade/script/run.sh || exit 1
 
       - name: Post a message in a channel
-        uses: slackapi/slack-github-action@v3.0.3
+        uses: slackapi/slack-github-action@v4.0.0
         if: always()
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
