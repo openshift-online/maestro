@@ -186,6 +186,7 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 		}
 		connstr += fmt.Sprintf(" password='%s'", token.Token)
 	}
+	connstr += fmt.Sprintf(" application_name=%s_listener", channel)
 
 	listener := pq.NewListener(connstr, 10*time.Second, time.Minute, plog)
 	err := listener.Listen(channel)
