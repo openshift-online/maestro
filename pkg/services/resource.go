@@ -273,6 +273,28 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 		return errors.DatabaseAdvisoryLock(err)
 	}
 
+	// MarkAsDeleting must be idempotent. A source can re-send a delete request for a
+	// resource whose deletion is already in flight (e.g. the agent is gone and never
+	// acknowledged the delete, so the resource stays soft-deleted). Without this guard
+	// every retry soft-deletes again (a no-op) and, crucially, appends another delete
+	// event to the queue. Those duplicate delete events accumulate without bound and can
+	// starve the single spec-event worker, blocking every unrelated create/update event.
+	// If the resource is already soft-deleted, a delete event has already been created and
+	// is pending delivery, so there is nothing more to do here.
+	existing, getErr := s.resourceDao.Get(ctx, id)
+	if getErr != nil {
+		svcErr := handleGetError("Resource", "id", id, getErr)
+		if svcErr.Is404() {
+			// the resource is already fully deleted, nothing to do
+			return nil
+		}
+		return svcErr
+	}
+	if existing.DeletedAt.Valid {
+		// deletion is already in flight, avoid enqueuing a duplicate delete event
+		return nil
+	}
+
 	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
 		return handleDeleteError("Resource", errors.GeneralError("Unable to delete resource: %s", err))
 	}

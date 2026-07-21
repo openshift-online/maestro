@@ -50,6 +50,15 @@ func NewControllersServer(ctx context.Context, eventServer EventServer, eventFil
 				threshold,
 			)
 		}
+
+		staleDeleteThreshold := env().Config.EventServer.StaleDeleteEventThreshold
+		if staleDeleteThreshold > 0 {
+			s.StaleDeleteDetector = controllers.NewStaleDeleteDetector(
+				env().Services.Events(),
+				db.NewAdvisoryLockFactory(env().Database.SessionFactory),
+				staleDeleteThreshold,
+			)
+		}
 	}
 
 	s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
@@ -64,6 +73,7 @@ type ControllersServer struct {
 	KindControllerManager *controllers.KindControllerManager
 	StatusController      *controllers.StatusController
 	UndeliveredDetector   *controllers.UndeliveredDetector
+	StaleDeleteDetector   *controllers.StaleDeleteDetector
 
 	DB db.SessionFactory
 }
@@ -83,6 +93,11 @@ func (s ControllersServer) Start(ctx context.Context) {
 	if s.UndeliveredDetector != nil {
 		logger.Info("Starting undelivered resource detector")
 		go wait.JitterUntilWithContext(ctx, s.UndeliveredDetector.Run, 2*time.Minute, 0.25, true)
+	}
+
+	if s.StaleDeleteDetector != nil {
+		logger.Info("Starting stale delete event detector")
+		go wait.JitterUntilWithContext(ctx, s.StaleDeleteDetector.Run, 2*time.Minute, 0.25, true)
 	}
 
 	logger.Info("Status controller handling events")

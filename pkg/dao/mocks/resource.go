@@ -50,7 +50,22 @@ func (d *resourceDaoMock) UpdateStatus(ctx context.Context, resource *api.Resour
 }
 
 func (d *resourceDaoMock) Delete(ctx context.Context, id string, unscoped bool) error {
-	return errors.NotImplemented("Resource").AsError()
+	for i, resource := range d.resources {
+		if resource.ID == id {
+			if unscoped {
+				// permanently remove the record
+				d.resources = append(d.resources[:i], d.resources[i+1:]...)
+				return nil
+			}
+			// soft delete: mark deleted_at, keeping the record retrievable via the
+			// Unscoped Get the real DAO performs.
+			if !resource.DeletedAt.Valid {
+				resource.DeletedAt = gorm.DeletedAt{Time: time.Now(), Valid: true}
+			}
+			return nil
+		}
+	}
+	return gorm.ErrRecordNotFound
 }
 
 func (d *resourceDaoMock) FindByIDs(ctx context.Context, ids []string) (api.ResourceList, error) {

@@ -3,6 +3,7 @@ package dao
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm/clause"
 
@@ -21,6 +22,7 @@ type EventDao interface {
 	DeleteAllReconciledEvents(ctx context.Context) error
 	FindAllUnreconciledEvents(ctx context.Context) (api.EventList, error)
 	FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*float64, error)
+	ReconcileStaleDeleteEvents(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 var _ EventDao = &sqlEventDao{}
@@ -102,6 +104,45 @@ func (d *sqlEventDao) FindAllUnreconciledEvents(ctx context.Context) (api.EventL
 		return nil, err
 	}
 	return events, nil
+}
+
+// StaleDeleteReconcileBatchSize bounds how many stale delete events a single
+// ReconcileStaleDeleteEvents call retires, so one periodic tick can never issue an
+// unbounded UPDATE (a backlog can reach hundreds of thousands of rows). Any remainder
+// is drained by subsequent ticks of the periodic detector.
+const StaleDeleteReconcileBatchSize = 10000
+
+// ReconcileStaleDeleteEvents marks as reconciled every unreconciled delete event whose
+// resource has been soft-deleted before the given cutoff. Such delete events are stuck:
+// the resource is soft-deleted (so PredicateEvent finds it via the Unscoped read and never
+// takes the 404 mark-reconciled fast path) but its agent is gone (never acknowledged the
+// delete), so the spec-event worker skips the event on every pass and the periodic sync
+// re-enqueues it forever. Retiring them stops that starvation loop. Each call retires at
+// most StaleDeleteReconcileBatchSize events to keep a single tick bounded, and returns the
+// number of events reconciled.
+func (d *sqlEventDao) ReconcileStaleDeleteEvents(ctx context.Context, cutoff time.Time) (int64, error) {
+	staleResourceIDs := (*d.sessionFactory).New(ctx).
+		Unscoped().
+		Model(&api.Resource{}).
+		Select("id").
+		Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoff)
+
+	staleEventIDs := (*d.sessionFactory).New(ctx).
+		Model(&api.Event{}).
+		Select("id").
+		Where("source = ? AND event_type = ? AND reconciled_date IS NULL", "Resources", api.DeleteEventType).
+		Where("source_id IN (?)", staleResourceIDs).
+		Limit(StaleDeleteReconcileBatchSize)
+
+	result := (*d.sessionFactory).New(ctx).
+		Model(&api.Event{}).
+		Where("id IN (?) AND reconciled_date IS NULL", staleEventIDs).
+		Update("reconciled_date", time.Now())
+	if result.Error != nil {
+		db.MarkForRollback(ctx, result.Error)
+		return 0, result.Error
+	}
+	return result.RowsAffected, nil
 }
 
 func (d *sqlEventDao) All(ctx context.Context) (api.EventList, error) {

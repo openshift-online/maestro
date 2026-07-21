@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"time"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -20,6 +21,7 @@ type EventService interface {
 	FindAllUnreconciledEvents(ctx context.Context) (api.EventList, *errors.ServiceError)
 	FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*float64, *errors.ServiceError)
 	DeleteAllReconciledEvents(ctx context.Context) *errors.ServiceError
+	ReconcileStaleDeleteEvents(ctx context.Context, threshold time.Duration) (int64, *errors.ServiceError)
 }
 
 func NewEventService(eventDao dao.EventDao) EventService {
@@ -102,4 +104,12 @@ func (s *sqlEventService) FindAgeOfOldestUnreconciledEvent(ctx context.Context) 
 		return nil, errors.GeneralError("Unable to get age of oldest unreconciled event: %s", err)
 	}
 	return ageInSeconds, nil
+}
+
+func (s *sqlEventService) ReconcileStaleDeleteEvents(ctx context.Context, threshold time.Duration) (int64, *errors.ServiceError) {
+	count, err := s.eventDao.ReconcileStaleDeleteEvents(ctx, time.Now().Add(-threshold))
+	if err != nil {
+		return 0, errors.GeneralError("Unable to reconcile stale delete events: %s", err)
+	}
+	return count, nil
 }

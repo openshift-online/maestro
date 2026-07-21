@@ -535,6 +535,55 @@ func TestOnCreateDoesNotOrphanResourceMarkedAsDeleting(t *testing.T) {
 	Expect(h.EventServer.OnDelete(ctx, resource.ID)).To(Succeed())
 }
 
+// TestReconcileStaleDeleteEvents verifies the stale-delete finalizer: a resource that has
+// been soft-deleted longer than the threshold, whose agent never acknowledged the delete,
+// has its stuck (unreconciled) delete event retired so it stops starving the spec-event
+// worker (see AROSLSRE-1547).
+func TestReconcileStaleDeleteEvents(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	ctx := context.Background()
+
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
+	Expect(err).NotTo(HaveOccurred())
+
+	resourceService := h.Env().Services.Resources()
+	eventService := h.Env().Services.Events()
+
+	// mark the resource for deletion: soft-deletes it and enqueues a delete event that,
+	// with no agent to acknowledge it, would otherwise stay pending forever
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+
+	pendingDeletes := func() int {
+		unreconciled, svcErr := eventService.FindAllUnreconciledEvents(ctx)
+		Expect(svcErr).NotTo(HaveOccurred())
+		count := 0
+		for _, e := range unreconciled {
+			if e.SourceID == resource.ID && e.EventType == api.DeleteEventType {
+				count++
+			}
+		}
+		return count
+	}
+	Expect(pendingDeletes()).To(Equal(1))
+
+	// with a threshold longer than the soft-delete age, nothing is retired yet
+	count, svcErr := eventService.ReconcileStaleDeleteEvents(ctx, time.Hour)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(count).To(Equal(int64(0)))
+	Expect(pendingDeletes()).To(Equal(1))
+
+	// a negative threshold puts the cutoff in the future, so the just soft-deleted
+	// resource qualifies and its stuck delete event is retired
+	count, svcErr = eventService.ReconcileStaleDeleteEvents(ctx, -time.Hour)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(count).To(Equal(int64(1)))
+	Expect(pendingDeletes()).To(Equal(0))
+}
+
 func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkInterface, work *workv1.ManifestWork, newStatus workv1.ManifestWorkStatus) error {
 	// update the work status
 	newWork := work.DeepCopy()

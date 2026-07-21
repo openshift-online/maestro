@@ -24,6 +24,7 @@ func TestEventServerConfig(t *testing.T) {
 					Load:              1.25,
 				},
 				UndeliveredResourceThreshold: 600,
+				StaleDeleteEventThreshold:    3600,
 			},
 		},
 		{
@@ -39,6 +40,7 @@ func TestEventServerConfig(t *testing.T) {
 					Load:              1.25,
 				},
 				UndeliveredResourceThreshold: 600,
+				StaleDeleteEventThreshold:    3600,
 			},
 		},
 		{
@@ -57,6 +59,7 @@ func TestEventServerConfig(t *testing.T) {
 					Load:              1.5,
 				},
 				UndeliveredResourceThreshold: 600,
+				StaleDeleteEventThreshold:    3600,
 			},
 		},
 	}

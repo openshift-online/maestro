@@ -116,3 +116,18 @@ func (d *eventDaoMock) FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*f
 	}
 	return &oldest, nil
 }
+
+func (d *eventDaoMock) ReconcileStaleDeleteEvents(ctx context.Context, cutoff time.Time) (int64, error) {
+	// TODO: the mock has no resource state, so it cannot evaluate the soft-deleted cutoff and
+	// ignores it, retiring every unreconciled Resources delete event. Tests that need to assert
+	// threshold/cutoff filtering must use the integration test (TestReconcileStaleDeleteEvents).
+	now := time.Now()
+	var count int64
+	for _, e := range d.events {
+		if e.ReconciledDate == nil && e.Source == "Resources" && e.EventType == api.DeleteEventType {
+			e.ReconciledDate = &now
+			count++
+		}
+	}
+	return count, nil
+}

@@ -69,6 +69,47 @@ func TestCreateInvalidResource(t *testing.T) {
 	gm.Expect(len(invalidations)).To(gm.Equal(0))
 }
 
+// TestMarkAsDeletingIsIdempotent ensures a repeated delete request for a resource whose
+// deletion is already in flight does not append duplicate delete events. Sources retry
+// delete requests, and without this guard every retry enqueued another delete event,
+// letting them accumulate without bound and starve the single spec-event worker
+// (see AROSLSRE-1547).
+func TestMarkAsDeletingIsIdempotent(t *testing.T) {
+	gm.RegisterTestingT(t)
+
+	ctx := context.Background()
+	resourceDAO := mocks.NewResourceDao()
+	events := NewEventService(mocks.NewEventDao())
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil)
+
+	resource, svcErr := resourceService.Create(ctx, &api.Resource{
+		ConsumerName: Fukuisaurus,
+		Payload:      newPayload(t, "{\"id\":\"266a8cd2-2fab-4e89-9bf0-a56425ebcdf8\",\"time\":\"2024-02-05T17:31:05Z\",\"type\":\"io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request\",\"source\":\"grpc\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"resourceid\":\"c4df9ff0-bfeb-5bc6-a0ab-4c9128d698b4\",\"clustername\":\"b288a9da-8bfe-4c82-94cc-2b48e773fc46\",\"resourceversion\":1,\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}]}}"),
+	})
+	gm.Expect(svcErr).To(gm.BeNil())
+
+	countDeleteEvents := func() int {
+		unreconciled, err := events.FindAllUnreconciledEvents(ctx)
+		gm.Expect(err).To(gm.BeNil())
+		count := 0
+		for _, e := range unreconciled {
+			if e.SourceID == resource.ID && e.EventType == api.DeleteEventType {
+				count++
+			}
+		}
+		return count
+	}
+
+	// first delete request soft-deletes the resource and enqueues a single delete event
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(countDeleteEvents()).To(gm.Equal(1))
+
+	// subsequent delete requests for the already-deleting resource are no-ops
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(countDeleteEvents()).To(gm.Equal(1))
+}
+
 func TestResourceList(t *testing.T) {
 	gm.RegisterTestingT(t)
 
