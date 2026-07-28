@@ -174,6 +174,55 @@ func TestGRPCBrokerOnUpdateSkipsWhenResourceNotFound(t *testing.T) {
 	Expect(fakeEventServer.handledEvents).To(BeEmpty())
 }
 
+// TestGRPCBrokerOnUpdateSkipsResourceMarkedAsDeleting verifies that OnUpdate does not publish an
+// update_request to the agent for a resource that is already marked as deleting. Re-publishing the
+// spec here re-creates a ManifestWork whose delete the agent has already processed, which keeps the
+// bundle non-empty so its delete never completes (observed in stg/int). Mirrors the OnCreate guard.
+func TestGRPCBrokerOnUpdateSkipsResourceMarkedAsDeleting(t *testing.T) {
+	RegisterTestingT(t)
+
+	resource := &api.Resource{
+		Meta: api.Meta{
+			ID:        "res-4",
+			DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true},
+		},
+		ConsumerName: "cluster1",
+		Payload:      testPayload(t),
+	}
+	fakeSvc := &fakeResourceService{resource: resource}
+	fakeEventServer := &fakeAgentEventServer{}
+	broker := &GRPCBroker{
+		resourceService: fakeSvc,
+		eventServer:     fakeEventServer,
+	}
+
+	err := broker.OnUpdate(context.Background(), resource.ID)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(fakeEventServer.handledEvents).To(BeEmpty(), "OnUpdate must not publish update_request for a resource marked as deleting")
+}
+
+// TestGRPCBrokerOnUpdatePublishesForNormalResource verifies OnUpdate publishes an update_request
+// for a resource that is not marked as deleting.
+func TestGRPCBrokerOnUpdatePublishesForNormalResource(t *testing.T) {
+	RegisterTestingT(t)
+
+	resource := &api.Resource{
+		Meta:         api.Meta{ID: "res-5"},
+		ConsumerName: "cluster1",
+		Payload:      testPayload(t),
+	}
+	fakeSvc := &fakeResourceService{resource: resource}
+	fakeEventServer := &fakeAgentEventServer{}
+	broker := &GRPCBroker{
+		resourceService: fakeSvc,
+		eventServer:     fakeEventServer,
+	}
+
+	err := broker.OnUpdate(context.Background(), resource.ID)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(fakeEventServer.handledEvents).To(HaveLen(1))
+}
+
 // TestGRPCBrokerOnDeletePublishesForExistingResource verifies OnDelete publishes a
 // delete_request for a resource that still exists and is marked as deleting.
 func TestGRPCBrokerOnDeletePublishesForExistingResource(t *testing.T) {

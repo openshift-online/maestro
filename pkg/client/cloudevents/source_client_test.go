@@ -161,6 +161,54 @@ func TestOnCreateSkipsWhenResourceNotFound(t *testing.T) {
 	Expect(mockSvc.deleteCalled).To(BeFalse())
 }
 
+// TestOnUpdateSkipsPublishForResourceMarkedAsDeleting verifies that OnUpdate does NOT publish an
+// update_request for a resource that is already marked as deleting (DeletedAt set). Re-publishing
+// the spec re-creates a ManifestWork whose delete the agent has already processed, keeping the
+// bundle non-empty so its delete never completes (observed in stg/int). Mirrors the OnCreate guard.
+func TestOnUpdateSkipsPublishForResourceMarkedAsDeleting(t *testing.T) {
+	RegisterTestingT(t)
+
+	resource := &api.Resource{
+		Meta: api.Meta{
+			ID:        uuid.New().String(),
+			DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true},
+		},
+	}
+	mockSvc := &getDeleteMockResourceService{resource: resource}
+	transport := &mockTransport{}
+	client := &SourceClientImpl{
+		Codec:           NewCodec("test-source"),
+		ResourceService: mockSvc,
+		sourceID:        "test-source",
+		transport:       transport,
+	}
+
+	// CloudEventSourceClient is intentionally nil: the guard must return before any publish, so
+	// reaching the publish path would panic and fail the test.
+	err := client.OnUpdate(context.Background(), resource.ID)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(transport.sentEvents).To(BeEmpty(), "OnUpdate must not publish update_request for a resource marked as deleting")
+}
+
+// TestOnUpdateSkipsWhenResourceNotFound verifies OnUpdate is a no-op when the resource has already
+// been hard-deleted (404).
+func TestOnUpdateSkipsWhenResourceNotFound(t *testing.T) {
+	RegisterTestingT(t)
+
+	mockSvc := &getDeleteMockResourceService{getErr: errors.NotFound("resource not found")}
+	transport := &mockTransport{}
+	client := &SourceClientImpl{
+		Codec:           NewCodec("test-source"),
+		ResourceService: mockSvc,
+		sourceID:        "test-source",
+		transport:       transport,
+	}
+
+	err := client.OnUpdate(context.Background(), uuid.New().String())
+	Expect(err).NotTo(HaveOccurred())
+	Expect(transport.sentEvents).To(BeEmpty())
+}
+
 func decodeHashList(evt cloudevents.Event) *cepayload.ResourceStatusHashList {
 	list := &cepayload.ResourceStatusHashList{}
 	Expect(json.Unmarshal(evt.Data(), list)).To(Succeed())

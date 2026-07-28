@@ -246,13 +246,28 @@ func (s *GRPCBroker) OnCreate(ctx context.Context, resourceID string) error {
 func (s *GRPCBroker) OnUpdate(ctx context.Context, resourceID string) error {
 	logger := klog.FromContext(ctx).WithValues("resourceID", resourceID)
 
-	evt, err := s.Get(ctx, resourceID, types.UpdateRequestAction)
-	if err != nil {
-		if kubeerrors.IsNotFound(err) {
+	resource, svcErr := s.resourceService.Get(ctx, resourceID)
+	if svcErr != nil {
+		if svcErr.Is404() {
 			logger.Info("skipping to publish update request for resource as it is not found")
 			return nil
 		}
-		return err
+		return kubeerrors.NewInternalError(svcErr)
+	}
+
+	if !resource.Meta.DeletedAt.Time.IsZero() {
+		// The resource is already marked as deleting. Publishing an update_request here would
+		// re-assert the resource spec to the agent and re-create a ManifestWork whose delete the
+		// agent has already processed, leaving the bundle non-empty so its delete never completes.
+		// Skip this update; the corresponding delete event will propagate the delete_request. This
+		// mirrors the OnCreate guard (ARO-28432).
+		logger.Info("skipping update for resource that is marked as deleting; the delete event will propagate the delete")
+		return nil
+	}
+
+	evt, err := EncodeResourceSpec(resource, types.UpdateRequestAction)
+	if err != nil {
+		return kubeerrors.NewInternalError(err)
 	}
 	return s.eventServer.HandleEvent(ctx, evt)
 }
