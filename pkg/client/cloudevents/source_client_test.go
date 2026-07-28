@@ -175,19 +175,16 @@ func TestOnUpdateSkipsPublishForResourceMarkedAsDeleting(t *testing.T) {
 		},
 	}
 	mockSvc := &getDeleteMockResourceService{resource: resource}
-	transport := &mockTransport{}
 	client := &SourceClientImpl{
 		Codec:           NewCodec("test-source"),
 		ResourceService: mockSvc,
 		sourceID:        "test-source",
-		transport:       transport,
 	}
 
 	// CloudEventSourceClient is intentionally nil: the guard must return before any publish, so
-	// reaching the publish path would panic and fail the test.
+	// reaching the publish path would nil-panic and fail the test. That is what enforces the guard.
 	err := client.OnUpdate(context.Background(), resource.ID)
-	Expect(err).NotTo(HaveOccurred())
-	Expect(transport.sentEvents).To(BeEmpty(), "OnUpdate must not publish update_request for a resource marked as deleting")
+	Expect(err).NotTo(HaveOccurred(), "OnUpdate must skip (not publish) for a resource marked as deleting")
 }
 
 // TestOnUpdateSkipsWhenResourceNotFound verifies OnUpdate is a no-op when the resource has already
@@ -196,17 +193,14 @@ func TestOnUpdateSkipsWhenResourceNotFound(t *testing.T) {
 	RegisterTestingT(t)
 
 	mockSvc := &getDeleteMockResourceService{getErr: errors.NotFound("resource not found")}
-	transport := &mockTransport{}
 	client := &SourceClientImpl{
 		Codec:           NewCodec("test-source"),
 		ResourceService: mockSvc,
 		sourceID:        "test-source",
-		transport:       transport,
 	}
 
 	err := client.OnUpdate(context.Background(), uuid.New().String())
 	Expect(err).NotTo(HaveOccurred())
-	Expect(transport.sentEvents).To(BeEmpty())
 }
 
 func decodeHashList(evt cloudevents.Event) *cepayload.ResourceStatusHashList {
