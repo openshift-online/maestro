@@ -116,6 +116,16 @@ func (s *SourceClientImpl) OnUpdate(ctx context.Context, id string) error {
 		return err
 	}
 
+	if !resource.Meta.DeletedAt.Time.IsZero() {
+		// The resource is already marked as deleting. Publishing an update_request here would
+		// re-assert the resource spec to the agent and re-create a ManifestWork whose delete the
+		// agent has already processed, leaving the bundle non-empty so its delete never completes.
+		// Skip this update; the corresponding delete event will publish the delete_request. This
+		// mirrors the OnCreate guard (ARO-28432).
+		logger.Info("skipping update for resource that is marked as deleting; the delete event will propagate the delete")
+		return nil
+	}
+
 	logger.Info("Publishing resource for db row update")
 	eventType := cetypes.CloudEventsType{
 		CloudEventsDataType: s.Codec.EventDataType(),
