@@ -20,7 +20,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/handlers v1.5.2
 	github.com/gorilla/mux v1.8.1
-	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/pgx/v5 v5.10.0
 	github.com/jinzhu/inflection v1.0.0
 	github.com/lib/pq v1.10.9
 	github.com/mendsley/gojwk v0.0.0-20141217222730-4d5ec6e58103
@@ -46,7 +46,7 @@ require (
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/resty.v1 v1.12.0
 	gorm.io/datatypes v1.2.7
-	gorm.io/driver/postgres v1.6.0
+	gorm.io/driver/postgres v1.6.1
 	gorm.io/gorm v1.30.0
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
