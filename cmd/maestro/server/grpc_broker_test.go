@@ -63,8 +63,9 @@ func (f *fakeAgentEventServer) Subscribers() sets.Set[string] {
 // GRPCBroker's OnCreate/OnUpdate/OnDelete handlers in isolation.
 type fakeResourceService struct {
 	services.ResourceService
-	resource *api.Resource
-	getErr   *errors.ServiceError
+	resource  *api.Resource
+	resources []*api.Resource
+	getErr    *errors.ServiceError
 }
 
 func (m *fakeResourceService) Get(_ context.Context, _ string) (*api.Resource, *errors.ServiceError) {
@@ -72,6 +73,10 @@ func (m *fakeResourceService) Get(_ context.Context, _ string) (*api.Resource, *
 		return nil, m.getErr
 	}
 	return m.resource, nil
+}
+
+func (m *fakeResourceService) List(_ context.Context, _ types.ListOptions) ([]*api.Resource, error) {
+	return m.resources, nil
 }
 
 // TestGRPCBrokerOnCreateSkipsResourceMarkedAsDeleting verifies that OnCreate does not publish a
@@ -246,4 +251,57 @@ func TestGRPCBrokerOnDeletePublishesForExistingResource(t *testing.T) {
 	err := broker.OnDelete(context.Background(), resource.ID)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(fakeEventServer.handledEvents).To(HaveLen(1))
+}
+
+// TestGRPCBrokerServiceListExcludesDeletingResources verifies that List does not return
+// CloudEvents for resources marked as deleting. Including them causes the agent to re-apply
+// a ManifestWork that it already deleted, creating an infinite delete-then-recreate loop.
+// The sdk-go source client handles the missing resource correctly during resync: it detects
+// that the resource exists on the agent but not in the server's response, and sends a
+// delete_request to the agent.
+func TestGRPCBrokerServiceListExcludesDeletingResources(t *testing.T) {
+	RegisterTestingT(t)
+
+	live := &api.Resource{
+		Meta:         api.Meta{ID: "live-1"},
+		ConsumerName: "cluster1",
+		Payload:      testPayload(t),
+	}
+	deleting := &api.Resource{
+		Meta: api.Meta{
+			ID:        "deleting-1",
+			DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true},
+		},
+		ConsumerName: "cluster1",
+		Payload:      testPayload(t),
+	}
+	fakeSvc := &fakeResourceService{resources: []*api.Resource{live, deleting}}
+	svc := &GRPCBrokerService{resourceService: fakeSvc}
+
+	evts, err := svc.List(context.Background(), types.ListOptions{ClusterName: "cluster1"})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(evts).To(HaveLen(1), "List must exclude resources marked as deleting")
+}
+
+// TestGRPCBrokerServiceListIncludesLiveResources verifies that List returns
+// CloudEvents for live (non-deleting) resources.
+func TestGRPCBrokerServiceListIncludesLiveResources(t *testing.T) {
+	RegisterTestingT(t)
+
+	r1 := &api.Resource{
+		Meta:         api.Meta{ID: "res-1"},
+		ConsumerName: "cluster1",
+		Payload:      testPayload(t),
+	}
+	r2 := &api.Resource{
+		Meta:         api.Meta{ID: "res-2"},
+		ConsumerName: "cluster1",
+		Payload:      testPayload(t),
+	}
+	fakeSvc := &fakeResourceService{resources: []*api.Resource{r1, r2}}
+	svc := &GRPCBrokerService{resourceService: fakeSvc}
+
+	evts, err := svc.List(context.Background(), types.ListOptions{ClusterName: "cluster1"})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(evts).To(HaveLen(2), "List must include all live resources")
 }
