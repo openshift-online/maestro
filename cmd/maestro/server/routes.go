@@ -9,7 +9,6 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/server/logging"
 	"github.com/openshift-online/maestro/pkg/api"
-	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/handlers"
 	"github.com/openshift-online/maestro/pkg/logger"
 )
@@ -22,8 +21,8 @@ func (s *apiServer) routes(ctx context.Context) *mux.Router {
 		check(ctx, err, "Can't load OpenAPI specification")
 	}
 
-	resourceBundleHandler := handlers.NewResourceBundleHandler(services.Resources(), services.Generic())
-	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Resources(), services.Generic())
+	resourceBundleHandler := handlers.NewResourceBundleHandler(services.Resources(), services.Generic(), env().Database.SessionFactory)
+	consumerHandler := handlers.NewConsumerHandler(services.Consumers(), services.Resources(), services.Generic(), env().Database.SessionFactory)
 	errorsHandler := handlers.NewErrorsHandler()
 
 	// mainRouter is top level "/"
@@ -73,12 +72,5 @@ func (s *apiServer) routes(ctx context.Context) *mux.Router {
 
 func registerApiMiddleware(router *mux.Router) {
 	router.Use(MetricsMiddleware)
-
-	router.Use(
-		func(next http.Handler) http.Handler {
-			return db.TransactionMiddleware(next, env().Database.SessionFactory)
-		},
-	)
-
 	router.Use(gorillahandlers.CompressHandler)
 }
