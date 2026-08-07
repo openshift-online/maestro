@@ -75,7 +75,7 @@ func (d *resourceDaoMock) FindByIDs(ctx context.Context, ids []string) (api.Reso
 func (d *resourceDaoMock) FindByConsumerName(ctx context.Context, consumerID string) (api.ResourceList, error) {
 	var resources api.ResourceList
 	for _, resource := range d.resources {
-		if resource.ConsumerName == consumerID {
+		if resource.ConsumerName == consumerID && resource.Meta.DeletedAt.Time.IsZero() {
 			resources = append(resources, resource)
 		}
 	}

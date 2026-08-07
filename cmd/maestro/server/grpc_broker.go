@@ -55,6 +55,14 @@ func (s *GRPCBrokerService) List(ctx context.Context, listOpts types.ListOptions
 
 	evts := []*ce.Event{}
 	for _, res := range resources {
+		if !res.Meta.DeletedAt.Time.IsZero() {
+			// Skip resources marked as deleting. Including them in a spec resync causes the
+			// agent to re-apply a ManifestWork that it already deleted, creating an infinite
+			// delete-then-recreate loop. The sdk-go source client handles the missing resource
+			// correctly: it detects that the resource exists on the agent but not in the
+			// server's response, and sends a delete_request to the agent.
+			continue
+		}
 		evt, err := EncodeResourceSpec(res, types.ResyncResponseAction)
 		if err != nil {
 			return nil, kubeerrors.NewInternalError(err)

@@ -327,3 +327,29 @@ func TestResyncConsumerEventStructure(t *testing.T) {
 	Expect(list2.Hashes).To(HaveLen(1))
 	Expect(list2.Hashes[0].StatusHash).NotTo(BeEmpty())
 }
+
+// TestResyncConsumerExcludesDeletingResources verifies that resyncConsumer does not include
+// resources marked as deleting in the status hash list sent to the agent. Including them
+// causes the agent to re-apply a ManifestWork that it already deleted.
+func TestResyncConsumerExcludesDeletingResources(t *testing.T) {
+	RegisterTestingT(t)
+
+	live := &api.Resource{
+		Meta: api.Meta{ID: uuid.New().String()},
+	}
+	deleting := &api.Resource{
+		Meta: api.Meta{
+			ID:        uuid.New().String(),
+			DeletedAt: gorm.DeletedAt{Time: time.Now(), Valid: true},
+		},
+	}
+	transport := &mockTransport{}
+	client := newTestSourceClient(transport, []*api.Resource{live, deleting})
+
+	Expect(client.resyncConsumer(context.Background(), "consumer-1")).To(Succeed())
+	Expect(transport.sentEvents).To(HaveLen(1))
+
+	list := decodeHashList(transport.sentEvents[0])
+	Expect(list.Hashes).To(HaveLen(1), "resyncConsumer must exclude resources marked as deleting")
+	Expect(list.Hashes[0].ResourceID).To(Equal(live.ID))
+}
