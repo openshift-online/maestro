@@ -46,8 +46,8 @@ require (
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/resty.v1 v1.12.0
 	gorm.io/datatypes v1.2.7
-	gorm.io/driver/postgres v1.6.1
-	gorm.io/gorm v1.30.0
+	gorm.io/driver/postgres v1.6.2
+	gorm.io/gorm v1.31.2
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
 	k8s.io/apiserver v0.35.3
@@ -121,7 +121,6 @@ require (
 	github.com/lann/builder v0.0.0-20180802200727-47ae307949d0 // indirect
 	github.com/lann/ps v0.0.0-20150810152359-62de8c46ede0 // indirect
 	github.com/mailru/easyjson v0.9.0 // indirect
-	github.com/mattn/go-sqlite3 v1.14.22 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
