@@ -30,6 +30,11 @@ func (d *eventDaoMock) Get(ctx context.Context, id string) (*api.Event, error) {
 }
 
 func (d *eventDaoMock) Create(ctx context.Context, event *api.Event) (*api.Event, error) {
+	// mirror gorm's autoCreateTime so age-based logic (e.g. the delete-event republish
+	// throttle) sees a realistic creation time instead of the zero value
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now()
+	}
 	d.events = append(d.events, event)
 	return event, nil
 }
@@ -118,16 +123,31 @@ func (d *eventDaoMock) FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*f
 }
 
 func (d *eventDaoMock) ReconcileStaleDeleteEvents(ctx context.Context, cutoff time.Time) (int64, error) {
-	// TODO: the mock has no resource state, so it cannot evaluate the soft-deleted cutoff and
-	// ignores it, retiring every unreconciled Resources delete event. Tests that need to assert
-	// threshold/cutoff filtering must use the integration test (TestReconcileStaleDeleteEvents).
+	// TODO: the mock has no resource state, so it cannot evaluate the resource soft-deleted
+	// cutoff and ignores that half of the predicate. The event-age half is applied. Tests
+	// that need to assert resource-cutoff filtering must use the integration test
+	// (TestReconcileStaleDeleteEvents).
 	now := time.Now()
 	var count int64
 	for _, e := range d.events {
-		if e.ReconciledDate == nil && e.Source == "Resources" && e.EventType == api.DeleteEventType {
+		if e.ReconciledDate == nil && e.Source == "Resources" && e.EventType == api.DeleteEventType &&
+			e.CreatedAt.Before(cutoff) {
 			e.ReconciledDate = &now
 			count++
 		}
 	}
 	return count, nil
+}
+
+func (d *eventDaoMock) FindLatestDeleteEvent(ctx context.Context, sourceID string) (*api.Event, error) {
+	var latest *api.Event
+	for _, e := range d.events {
+		if e.Source != "Resources" || e.SourceID != sourceID || e.EventType != api.DeleteEventType {
+			continue
+		}
+		if latest == nil || e.CreatedAt.After(latest.CreatedAt) {
+			latest = e
+		}
+	}
+	return latest, nil
 }

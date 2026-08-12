@@ -17,6 +17,7 @@ type EventServerConfig struct {
 	ConsistentHashConfig         *ConsistentHashConfig `json:"consistent_hash_config"`
 	UndeliveredResourceThreshold int                   `json:"undelivered_resource_threshold"`
 	StaleDeleteEventThreshold    int                   `json:"stale_delete_event_threshold"`
+	DeleteEventRepublishInterval int                   `json:"delete_event_republish_interval"`
 }
 
 // ConsistentHashConfig contains the configuration for the consistent hashing algorithm.
@@ -33,6 +34,7 @@ func NewEventServerConfig() *EventServerConfig {
 		ConsistentHashConfig:         NewConsistentHashConfig(),
 		UndeliveredResourceThreshold: 600,
 		StaleDeleteEventThreshold:    3600,
+		DeleteEventRepublishInterval: 60,
 	}
 }
 
@@ -58,6 +60,7 @@ func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.SubscriptionType, "subscription-type", c.SubscriptionType, "Sets the subscription type for resource status updates from message broker, Options: \"shared\" (only one instance receives resource status message, MQTT feature ensures exclusivity) or \"broadcast\" (all instances receive messages, hashed to determine processing instance)")
 	fs.IntVar(&c.UndeliveredResourceThreshold, "undelivered-resource-threshold", c.UndeliveredResourceThreshold, "Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to 0 to disable. Default: 600 (10 minutes)")
 	fs.IntVar(&c.StaleDeleteEventThreshold, "stale-delete-event-threshold", c.StaleDeleteEventThreshold, "Seconds a resource can remain soft-deleted with an unreconciled delete event before that event is retired (the agent is assumed gone). Set to 0 to disable. Default: 3600 (1 hour)")
+	fs.IntVar(&c.DeleteEventRepublishInterval, "delete-event-republish-interval", c.DeleteEventRepublishInterval, "Seconds before a delete event is re-published for a resource that remains soft-deleted when another delete request arrives, healing agents that lost the deletion state. Raising it trades healing latency for fewer queued events per stuck resource. Set to 0 to disable republishing. Default: 60 (1 minute)")
 	c.ConsistentHashConfig.AddFlags(fs)
 }
 

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"testing"
+	"time"
 
 	gm "github.com/onsi/gomega"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
@@ -25,7 +26,7 @@ func TestResourceFindByConsumerID(t *testing.T) {
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
 
-	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil)
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60)
 
 	resources := api.ResourceList{
 		&api.Resource{ConsumerName: Fukuisaurus, Payload: newPayload(t, "{\"id\":\"266a8cd2-2fab-4e89-9bf0-a56425ebcdf8\",\"time\":\"2024-02-05T17:31:05Z\",\"type\":\"io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request\",\"source\":\"grpc\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"resourceid\":\"c4df9ff0-bfeb-5bc6-a0ab-4c9128d698b4\",\"clustername\":\"b288a9da-8bfe-4c82-94cc-2b48e773fc46\",\"resourceversion\":1,\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"quay.io/nginx/nginx-unprivileged:latest\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}")},
@@ -57,7 +58,7 @@ func TestCreateInvalidResource(t *testing.T) {
 
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
-	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil)
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60)
 
 	resource := &api.Resource{ConsumerName: "invalidation", Payload: newPayload(t, "{}")}
 
@@ -80,7 +81,7 @@ func TestMarkAsDeletingIsIdempotent(t *testing.T) {
 	ctx := context.Background()
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
-	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil)
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60)
 
 	resource, svcErr := resourceService.Create(ctx, &api.Resource{
 		ConsumerName: Fukuisaurus,
@@ -110,13 +111,99 @@ func TestMarkAsDeletingIsIdempotent(t *testing.T) {
 	gm.Expect(countDeleteEvents()).To(gm.Equal(1))
 }
 
+// TestMarkAsDeletingRepublishesStaleDeleteEvent ensures a retried delete request for a
+// resource stuck soft-deleted re-publishes the delete event once the latest delete event
+// is older than the republish interval. A re-delivered delete event re-stamps the deletion
+// state on an agent that lost it, healing deletions that would otherwise hang forever.
+func TestMarkAsDeletingRepublishesStaleDeleteEvent(t *testing.T) {
+	gm.RegisterTestingT(t)
+
+	ctx := context.Background()
+	resourceDAO := mocks.NewResourceDao()
+	events := NewEventService(mocks.NewEventDao())
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60)
+
+	resource, svcErr := resourceService.Create(ctx, &api.Resource{
+		ConsumerName: Fukuisaurus,
+		Payload:      newPayload(t, "{\"id\":\"266a8cd2-2fab-4e89-9bf0-a56425ebcdf8\",\"time\":\"2024-02-05T17:31:05Z\",\"type\":\"io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request\",\"source\":\"grpc\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"resourceid\":\"c4df9ff0-bfeb-5bc6-a0ab-4c9128d698b4\",\"clustername\":\"b288a9da-8bfe-4c82-94cc-2b48e773fc46\",\"resourceversion\":1,\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}]}}"),
+	})
+	gm.Expect(svcErr).To(gm.BeNil())
+
+	countDeleteEvents := func() int {
+		unreconciled, err := events.FindAllUnreconciledEvents(ctx)
+		gm.Expect(err).To(gm.BeNil())
+		count := 0
+		for _, e := range unreconciled {
+			if e.SourceID == resource.ID && e.EventType == api.DeleteEventType {
+				count++
+			}
+		}
+		return count
+	}
+
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(countDeleteEvents()).To(gm.Equal(1))
+
+	// age the latest delete event past the republish interval (the mock returns pointers,
+	// so the mutation is visible to the service)
+	latest, svcErr := events.FindLatestDeleteEvent(ctx, resource.ID)
+	gm.Expect(svcErr).To(gm.BeNil())
+	gm.Expect(latest).ShouldNot(gm.BeNil())
+	latest.CreatedAt = time.Now().Add(-2 * time.Minute)
+
+	// the next retried delete republishes exactly one event
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(countDeleteEvents()).To(gm.Equal(2))
+
+	// an immediate retry is throttled by the fresh event
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(countDeleteEvents()).To(gm.Equal(2))
+}
+
+// TestMarkAsDeletingRepublishDisabled ensures a republish interval of 0 preserves the
+// pure early-return behaviour: retried deletes never enqueue another event, no matter
+// how old the latest delete event is.
+func TestMarkAsDeletingRepublishDisabled(t *testing.T) {
+	gm.RegisterTestingT(t)
+
+	ctx := context.Background()
+	resourceDAO := mocks.NewResourceDao()
+	events := NewEventService(mocks.NewEventDao())
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 0)
+
+	resource, svcErr := resourceService.Create(ctx, &api.Resource{
+		ConsumerName: Fukuisaurus,
+		Payload:      newPayload(t, "{\"id\":\"266a8cd2-2fab-4e89-9bf0-a56425ebcdf8\",\"time\":\"2024-02-05T17:31:05Z\",\"type\":\"io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request\",\"source\":\"grpc\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"resourceid\":\"c4df9ff0-bfeb-5bc6-a0ab-4c9128d698b4\",\"clustername\":\"b288a9da-8bfe-4c82-94cc-2b48e773fc46\",\"resourceversion\":1,\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}}]}}"),
+	})
+	gm.Expect(svcErr).To(gm.BeNil())
+
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+
+	latest, svcErr := events.FindLatestDeleteEvent(ctx, resource.ID)
+	gm.Expect(svcErr).To(gm.BeNil())
+	gm.Expect(latest).ShouldNot(gm.BeNil())
+	latest.CreatedAt = time.Now().Add(-2 * time.Hour)
+
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+
+	unreconciled, err := events.FindAllUnreconciledEvents(ctx)
+	gm.Expect(err).To(gm.BeNil())
+	count := 0
+	for _, e := range unreconciled {
+		if e.SourceID == resource.ID && e.EventType == api.DeleteEventType {
+			count++
+		}
+	}
+	gm.Expect(count).To(gm.Equal(1))
+}
+
 func TestResourceList(t *testing.T) {
 	gm.RegisterTestingT(t)
 
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
 
-	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil)
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60)
 	resources := api.ResourceList{
 		&api.Resource{ConsumerName: Fukuisaurus, Payload: newPayload(t, "{\"id\":\"266a8cd2-2fab-4e89-9bf0-a56425ebcdf8\",\"time\":\"2024-02-05T17:31:05Z\",\"type\":\"io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request\",\"source\":\"grpc\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"resourceid\":\"c4df9ff0-bfeb-5bc6-a0ab-4c9128d698b4\",\"clustername\":\"b288a9da-8bfe-4c82-94cc-2b48e773fc46\",\"resourceversion\":1,\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"quay.io/nginx/nginx-unprivileged:latest\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}")},
 		&api.Resource{ConsumerName: Fukuisaurus, Payload: newPayload(t, "{\"id\":\"266a8cd2-2fab-4e89-9bf0-a56425ebcdf8\",\"time\":\"2024-02-05T17:31:05Z\",\"type\":\"io.open-cluster-management.works.v1alpha1.manifestbundles.spec.create_request\",\"source\":\"grpc\",\"specversion\":\"1.0\",\"datacontenttype\":\"application/json\",\"resourceid\":\"c4df9ff0-bfeb-5bc6-a0ab-4c9128d698b4\",\"clustername\":\"b288a9da-8bfe-4c82-94cc-2b48e773fc46\",\"resourceversion\":1,\"data\":{\"manifests\":[{\"apiVersion\":\"v1\",\"kind\":\"ConfigMap\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"}},{\"apiVersion\":\"apps/v1\",\"kind\":\"Deployment\",\"metadata\":{\"name\":\"nginx\",\"namespace\":\"default\"},\"spec\":{\"replicas\":1,\"selector\":{\"matchLabels\":{\"app\":\"nginx\"}},\"template\":{\"spec\":{\"containers\":[{\"name\":\"nginx\",\"image\":\"quay.io/nginx/nginx-unprivileged:latest\"}]},\"metadata\":{\"labels\":{\"app\":\"nginx\"}}}}}],\"deleteOption\":{\"propagationPolicy\":\"Foreground\"},\"manifestConfigs\":[{\"updateStrategy\":{\"type\":\"ServerSideApply\"},\"resourceIdentifier\":{\"name\":\"nginx\",\"group\":\"apps\",\"resource\":\"deployments\",\"namespace\":\"default\"}}]}}")},

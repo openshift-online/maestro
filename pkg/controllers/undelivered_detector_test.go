@@ -19,7 +19,7 @@ func TestUndeliveredDetector(t *testing.T) {
 	ctx := context.Background()
 	resourcesDao := mocks.NewResourceDao()
 	eventsDao := mocks.NewEventDao()
-	resourceService := services.NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourcesDao, services.NewEventService(eventsDao), nil)
+	resourceService := services.NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourcesDao, services.NewEventService(eventsDao), nil, 60)
 	eventService := services.NewEventService(eventsDao)
 
 	threshold := 5 * time.Minute
