@@ -185,7 +185,6 @@ func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 		timeToFirstStatusReceived := time.Since(found.CreatedAt)
 
 		services.RecordResourceFirstStatusLatencyMetric(
-			found.ID,
 			found.ConsumerName,
 			found.Source,
 			timeToFirstStatusReceived,
@@ -330,7 +329,6 @@ func broadcastStatusEvent(ctx context.Context,
 			consumerName = "unknown"
 		}
 		services.RecordResourceTimeToStatusProcessed(
-			resource.ID,
 			consumerName,
 			resource.Source,
 			instanceID,
