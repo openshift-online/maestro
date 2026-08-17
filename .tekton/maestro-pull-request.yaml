@@ -32,39 +32,6 @@ spec:
   - name: build-args
     value: ["GIT_COMMIT={{revision}}"]
   pipelineSpec:
-    finally:
-    - name: show-sbom
-      params:
-      - name: IMAGE_URL
-        value: $(tasks.build-container.results.IMAGE_URL)
-      taskRef:
-        params:
-        - name: name
-          value: show-sbom
-        - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-show-sbom:0.2@sha256:5fe387642611a8193395adb083df203534c30fef88a032ba0c074b8280c4b135
-        - name: kind
-          value: task
-        resolver: bundles
-    - name: show-summary
-      params:
-      - name: pipelinerun-name
-        value: $(context.pipelineRun.name)
-      - name: git-url
-        value: $(tasks.clone-repository.results.url)?rev=$(tasks.clone-repository.results.commit)
-      - name: image-url
-        value: $(params.output-image)
-      - name: build-task-status
-        value: $(tasks.build-container.status)
-      taskRef:
-        params:
-        - name: name
-          value: summary
-        - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-summary:0.3@sha256:8012a7eb3ef9d8810051798ef10653bae9e0f854bfd65a7feddf141645c844ac
-        - name: kind
-          value: task
-        resolver: bundles
     params:
     - description: Source Repository URL
       name: git-url
@@ -172,7 +139,7 @@ spec:
         - name: name
           value: init
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-init:0.4.3@sha256:b8465d543589b1238f6911626657f5766e279a0f33a5f70de68073401e031184
+          value: quay.io/konflux-ci/tekton-catalog/task-init:0.4.3@sha256:4dbbfedc4edb21884fa2ad84521408d2fad090d4d34eb6c555992f8444eba40d
         - name: kind
           value: task
         resolver: bundles
@@ -189,7 +156,7 @@ spec:
         - name: name
           value: git-clone
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.5@sha256:dc8f71a192e51bcdcd9160efcd1c65a091cf37394106b1332c6886c66767deee
+          value: quay.io/konflux-ci/tekton-catalog/task-git-clone:0.2.5@sha256:99cf4a402dd48db75df29f0c80150a4c30ed98e8e6e688e2d7f64d9b88721632
         - name: kind
           value: task
         resolver: bundles
@@ -211,7 +178,7 @@ spec:
         - name: name
           value: prefetch-dependencies
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-prefetch-dependencies:0.6.0@sha256:278c47d3bf6d55eaef26453182356a819cb376ba7f55f6e8db01d9e79c98b702
+          value: quay.io/konflux-ci/tekton-catalog/task-prefetch-dependencies:0.9.0@sha256:c2903df1e6f768865229bdc3e81ecc72cd94aba5b88c3f8d59b8241d6d3974f7
         - name: kind
           value: task
         resolver: bundles
@@ -261,7 +228,7 @@ spec:
         - name: name
           value: buildah
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-buildah:0.10.7@sha256:aec102623c7948379d9c13c0223ac6fcbc592fed318ef1e9fa5e2898a88a2943
+          value: quay.io/konflux-ci/tekton-catalog/task-buildah:0.12.0@sha256:4a4237129a4c8c6ba415b17793852a6764479b2657fa3af70a5615c241e3919b
         - name: kind
           value: task
         resolver: bundles
@@ -281,7 +248,7 @@ spec:
         - name: name
           value: source-build
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-source-build:0.3@sha256:0509d3063d36238c1d94d31625ea517707d52bf0ca6342c8c4571459ba7dba1c
+          value: quay.io/konflux-ci/tekton-catalog/task-source-build:0.3@sha256:2cedad4914cb07bd6f9edde752d2dab739128fe3df619e72d1ac351022cc27f6
         - name: kind
           value: task
         resolver: bundles
@@ -352,7 +319,7 @@ spec:
         - name: name
           value: sast-snyk-check
         - name: bundle
-          value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.5@sha256:73ddc5e7bce4d42f3aac70588c66a30fd9f62a06eea7bb368baac2e2bbaf7d7a
+          value: quay.io/konflux-ci/tekton-catalog/task-sast-snyk-check:0.5@sha256:2dc0d6daaf04eb3ae223be8b9eb82b035963a1e5548425f7828dc332c3d65a2b
         - name: kind
           value: task
         resolver: bundles
