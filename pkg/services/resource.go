@@ -148,14 +148,9 @@ func (s *sqlResourceService) Update(ctx context.Context, resource *api.Resource)
 		return nil, handleUpdateError("Resource", err)
 	}
 
-	// Create the set of labels that we will add to all the resource process:
-	labels := prometheus.Labels{
-		metricsIDLabel:     updated.ID,
+	resourceProcessedCountMetric.With(prometheus.Labels{
 		metricsActionLabel: "update",
-	}
-
-	// Update the metric containing the number of processed resources:
-	resourceProcessedCountMetric.With(labels).Inc()
+	}).Inc()
 
 	return updated, nil
 }
@@ -244,14 +239,9 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 		return nil, false, handleUpdateError("Resource", err)
 	}
 
-	// Create the set of labels that we will add to all the resource process:
-	labels := prometheus.Labels{
-		metricsIDLabel:     updated.ID,
+	resourceProcessedCountMetric.With(prometheus.Labels{
 		metricsActionLabel: "update",
-	}
-
-	// Update the metric containing the number of processed resources:
-	resourceProcessedCountMetric.With(labels).Inc()
+	}).Inc()
 
 	return updated, true, nil
 }
@@ -398,7 +388,6 @@ const metricsSubsystem = "resource"
 
 // Names of the labels added to metrics:
 const (
-	metricsIDLabel       = "id"
 	metricsActionLabel   = "action"
 	metricsConsumerLabel = "consumer"
 	metricsSourceLabel   = "source"
@@ -439,7 +428,7 @@ var resourceProcessedCountMetric = prometheus.NewCounterVec(
 		Name:      processedCountMetric,
 		Help:      "Number of processed resources.",
 	},
-	[]string{metricsIDLabel, metricsActionLabel},
+	[]string{metricsActionLabel},
 )
 
 // resourceFirstStatusLatencyMetric tracks when the server first receives a status update from the agent.
@@ -451,15 +440,14 @@ var resourceFirstStatusLatencyMetric = prometheus.NewHistogramVec(
 		Help:      "Time in seconds from resource creation to when the server first receives a status update from the agent. Represents agent responsiveness and network latency.",
 		Buckets:   []float64{5.0, 30.0, 120.0, 600.0},
 	},
-	[]string{metricsIDLabel, metricsConsumerLabel, metricsSourceLabel},
+	[]string{metricsConsumerLabel, metricsSourceLabel},
 )
 
 // RecordResourceFirstStatusLatencyMetric records the latency from resource creation
 // to when the server first receives a status update from the agent.
 // This should only be called once per resource (on first status transition from empty to non-empty).
-func RecordResourceFirstStatusLatencyMetric(resourceID, consumerName, source string, latency time.Duration) {
+func RecordResourceFirstStatusLatencyMetric(consumerName, source string, latency time.Duration) {
 	labels := prometheus.Labels{
-		metricsIDLabel:       resourceID,
 		metricsConsumerLabel: consumerName,
 		metricsSourceLabel:   source,
 	}
@@ -474,10 +462,10 @@ var statusEventProcessingLatencyMetric = prometheus.NewHistogramVec(
 		Help:      "Latency in seconds from status event creation to it is processed by a server instance.",
 		Buckets:   []float64{0.05, 0.1, 0.5, 1, 5},
 	},
-	[]string{"id", "consumer", "source", "server_instance_id"},
+	[]string{"consumer", "source", "server_instance_id"},
 )
 
 // RecordResourceTimeToStatusProcessed records the time from status event creation to processing
-func RecordResourceTimeToStatusProcessed(resourceID, consumer, source, serverInstanceID string, durationSeconds float64) {
-	statusEventProcessingLatencyMetric.WithLabelValues(resourceID, consumer, source, serverInstanceID).Observe(durationSeconds)
+func RecordResourceTimeToStatusProcessed(consumer, source, serverInstanceID string, durationSeconds float64) {
+	statusEventProcessingLatencyMetric.WithLabelValues(consumer, source, serverInstanceID).Observe(durationSeconds)
 }

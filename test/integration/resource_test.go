@@ -16,6 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
+	dto "github.com/prometheus/client_model/go"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
@@ -763,12 +764,46 @@ func createStatusWithSequenceID(t *testing.T, resourceID, sequenceID string) map
 	return statusMap
 }
 
+// findHistogramSampleCount looks up a metric family by name and returns the sample count of the
+// first metric whose "consumer" and "source" labels match, along with whether it was found.
+// If serverInstanceID is non-empty, the "server_instance_id" label must also match.
+func findHistogramSampleCount(families []*dto.MetricFamily, metricName, consumer, source, serverInstanceID string) (uint64, bool) {
+	for _, mf := range families {
+		if mf.GetName() != metricName {
+			continue
+		}
+		for _, metric := range mf.GetMetric() {
+			hasConsumer, hasSource, hasServerInstanceID := false, false, serverInstanceID == ""
+			for _, label := range metric.GetLabel() {
+				switch {
+				case label.GetName() == "consumer" && label.GetValue() == consumer:
+					hasConsumer = true
+				case label.GetName() == "source" && label.GetValue() == source:
+					hasSource = true
+				case label.GetName() == "server_instance_id" && label.GetValue() == serverInstanceID:
+					hasServerInstanceID = true
+				}
+			}
+			if hasConsumer && hasSource && hasServerInstanceID {
+				if metric.GetHistogram() != nil {
+					return metric.GetHistogram().GetSampleCount(), true
+				}
+				return 0, true
+			}
+		}
+	}
+	return 0, false
+}
+
 // TestFirstStatusLatencyMetric verifies that the first status latency metric
 // is collected when the server first receives a status update from the agent (in HandleStatusUpdate)
 func TestFirstStatusLatencyMetric(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
 	ctx := context.Background()
+
+	// Reset metrics to avoid interference from other tests
+	services.ResetResourceMetrics()
 
 	// Create a consumer and resource
 	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
@@ -807,29 +842,7 @@ func TestFirstStatusLatencyMetric(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 
 	// Check for the metric
-	var foundReceived bool
-	var receivedObservationCount uint64
-	for _, mf := range metricFamily {
-		if *mf.Name == "resource_first_status_latency_seconds" {
-			for _, metric := range mf.Metric {
-				for _, label := range metric.Label {
-					if *label.Name == "id" && *label.Value == resource.ID {
-						foundReceived = true
-						if metric.Histogram != nil {
-							receivedObservationCount = *metric.Histogram.SampleCount
-						}
-						break
-					}
-				}
-				if foundReceived {
-					break
-				}
-			}
-		}
-		if foundReceived {
-			break
-		}
-	}
+	receivedObservationCount, foundReceived := findHistogramSampleCount(metricFamily, "resource_first_status_latency_seconds", consumer.Name, resource.Source, "")
 
 	Expect(foundReceived).To(BeTrue(), "Received metric should be recorded for the resource")
 	Expect(receivedObservationCount).To(Equal(uint64(1)), "Received metric should have exactly 1 observation")
@@ -851,21 +864,7 @@ func TestFirstStatusLatencyMetric(t *testing.T) {
 	metricFamily2, err := prometheus.DefaultGatherer.Gather()
 	Expect(err).NotTo(HaveOccurred())
 
-	var receivedObservationCount2 uint64
-	for _, mf := range metricFamily2 {
-		if *mf.Name == "resource_first_status_latency_seconds" {
-			for _, metric := range mf.Metric {
-				for _, label := range metric.Label {
-					if *label.Name == "id" && *label.Value == resource.ID {
-						if metric.Histogram != nil {
-							receivedObservationCount2 = *metric.Histogram.SampleCount
-						}
-						break
-					}
-				}
-			}
-		}
-	}
+	receivedObservationCount2, _ := findHistogramSampleCount(metricFamily2, "resource_first_status_latency_seconds", consumer.Name, resource.Source, "")
 
 	Expect(receivedObservationCount2).To(Equal(uint64(1)), "Received metric count should remain 1 after second status update")
 }
@@ -916,46 +915,24 @@ func TestStatusEventProcessingLatencyMetric(t *testing.T) {
 	h.ControllerManager.StatusController.AddStatusEvent(statusEvent.ID)
 
 	// Verify the metric was recorded
-	// The metric should have been recorded with labels: id, consumer, source, server_instance_id
+	// The metric should have been recorded with labels: consumer, source, server_instance_id
 	metricName := "resource_status_event_processing_latency_seconds"
 
 	// Wait for the status event to be processed and metric to be recorded
+	serverInstanceID := h.Env().Config.MessageBroker.ClientID
 	Eventually(func() error {
 		families, err := prometheus.DefaultGatherer.Gather()
 		if err != nil {
 			return err
 		}
 
-		for _, mf := range families {
-			if mf.GetName() == metricName {
-				for _, m := range mf.GetMetric() {
-					labels := m.GetLabel()
-					hasCorrectResourceID := false
-					hasCorrectConsumer := false
-					hasCorrectSource := false
-
-					for _, label := range labels {
-						if label.GetName() == "id" && label.GetValue() == resource.ID {
-							hasCorrectResourceID = true
-						}
-						if label.GetName() == "consumer" && label.GetValue() == consumer.Name {
-							hasCorrectConsumer = true
-						}
-						if label.GetName() == "source" && label.GetValue() == resource.Source {
-							hasCorrectSource = true
-						}
-					}
-
-					if hasCorrectResourceID && hasCorrectConsumer && hasCorrectSource {
-						// Verify that at least one observation was recorded
-						if m.Histogram != nil && m.Histogram.GetSampleCount() > 0 {
-							return nil
-						}
-						return fmt.Errorf("metric found with correct labels but no samples recorded")
-					}
-				}
-			}
+		sampleCount, found := findHistogramSampleCount(families, metricName, consumer.Name, resource.Source, serverInstanceID)
+		if !found {
+			return fmt.Errorf("metric %s not found with correct labels (consumer=%s, source=%s, server_instance_id=%s)", metricName, consumer.Name, resource.Source, serverInstanceID)
 		}
-		return fmt.Errorf("metric %s not found with correct labels (id=%s, consumer=%s, source=%s)", metricName, resource.ID, consumer.Name, resource.Source)
+		if sampleCount == 0 {
+			return fmt.Errorf("metric found with correct labels but no samples recorded")
+		}
+		return nil
 	}, 5*time.Second, 100*time.Millisecond).Should(Succeed())
 }
