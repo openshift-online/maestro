@@ -24,6 +24,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - name: verify
         run: make verify
   e2e:
@@ -43,6 +44,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - name: install ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
       - name: Test E2E
@@ -79,6 +81,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - name: install ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
       - name: Test E2E
@@ -115,6 +118,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - name: Test E2E
         run: |
           make e2e-test/istio
@@ -148,6 +152,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - name: install ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
       - name: Test E2E
@@ -185,6 +190,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - name: install ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
       - name: Test E2E
@@ -222,6 +228,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
+          check-latest: true
       - name: install ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@v2.15.0
       - name: Test E2E
