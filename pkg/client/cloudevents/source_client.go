@@ -212,6 +212,10 @@ func (s *SourceClientImpl) resyncConsumer(ctx context.Context, consumer string) 
 
 	hashes := make([]cepayload.ResourceStatusHash, 0, len(objs))
 	for _, obj := range objs {
+		if !obj.GetDeletionTimestamp().IsZero() {
+			// Skip resources marked as deleting — same rationale as GRPCBrokerService.List.
+			continue
+		}
 		statusHash, err := ResourceStatusHashGetter(obj)
 		if err != nil {
 			return err
