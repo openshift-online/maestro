@@ -2,9 +2,11 @@ package dao
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -23,6 +25,7 @@ type EventDao interface {
 	FindAllUnreconciledEvents(ctx context.Context) (api.EventList, error)
 	FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*float64, error)
 	ReconcileStaleDeleteEvents(ctx context.Context, cutoff time.Time) (int64, error)
+	FindLatestDeleteEvent(ctx context.Context, sourceID string) (*api.Event, error)
 }
 
 var _ EventDao = &sqlEventDao{}
@@ -120,6 +123,11 @@ const StaleDeleteReconcileBatchSize = 10000
 // re-enqueues it forever. Retiring them stops that starvation loop. Each call retires at
 // most StaleDeleteReconcileBatchSize events to keep a single tick bounded, and returns the
 // number of events reconciled.
+//
+// Only events that are themselves older than the cutoff are retired: a freshly
+// re-published delete event (see MarkAsDeleting's healing republish) for a long
+// soft-deleted resource must get a full threshold's worth of delivery attempts before
+// it is considered stale.
 func (d *sqlEventDao) ReconcileStaleDeleteEvents(ctx context.Context, cutoff time.Time) (int64, error) {
 	staleResourceIDs := (*d.sessionFactory).New(ctx).
 		Unscoped().
@@ -131,6 +139,7 @@ func (d *sqlEventDao) ReconcileStaleDeleteEvents(ctx context.Context, cutoff tim
 		Model(&api.Event{}).
 		Select("id").
 		Where("source = ? AND event_type = ? AND reconciled_date IS NULL", "Resources", api.DeleteEventType).
+		Where("created_at < ?", cutoff).
 		Where("source_id IN (?)", staleResourceIDs).
 		Limit(StaleDeleteReconcileBatchSize)
 
@@ -143,6 +152,24 @@ func (d *sqlEventDao) ReconcileStaleDeleteEvents(ctx context.Context, cutoff tim
 		return 0, result.Error
 	}
 	return result.RowsAffected, nil
+}
+
+// FindLatestDeleteEvent returns the most recently created delete event for the given
+// resource, or (nil, nil) if the resource has no delete events. It is used to throttle
+// the re-publishing of delete events for resources stuck soft-deleted.
+func (d *sqlEventDao) FindLatestDeleteEvent(ctx context.Context, sourceID string) (*api.Event, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	var event api.Event
+	err := g2.Where("source = ? AND source_id = ? AND event_type = ?", "Resources", sourceID, api.DeleteEventType).
+		Order("created_at DESC").
+		First(&event).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &event, nil
 }
 
 func (d *sqlEventDao) All(ctx context.Context) (api.EventList, error) {

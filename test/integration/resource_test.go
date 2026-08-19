@@ -585,6 +585,106 @@ func TestReconcileStaleDeleteEvents(t *testing.T) {
 	Expect(pendingDeletes()).To(Equal(0))
 }
 
+// TestMarkAsDeletingRepublishThrottle verifies that retried delete requests for a resource
+// stuck soft-deleted re-publish the delete event at most once per republish interval: a
+// re-delivered delete event re-stamps the deletion state on an agent that lost it, while
+// the throttle keeps retries from accumulating events without bound (AROSLSRE-1547).
+func TestMarkAsDeletingRepublishThrottle(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	ctx := context.Background()
+
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
+	Expect(err).NotTo(HaveOccurred())
+
+	resourceService := h.Env().Services.Resources()
+	eventService := h.Env().Services.Events()
+
+	pendingDeletes := func() int {
+		unreconciled, svcErr := eventService.FindAllUnreconciledEvents(ctx)
+		Expect(svcErr).NotTo(HaveOccurred())
+		count := 0
+		for _, e := range unreconciled {
+			if e.SourceID == resource.ID && e.EventType == api.DeleteEventType {
+				count++
+			}
+		}
+		return count
+	}
+
+	// the first delete soft-deletes and enqueues one delete event; an immediate retry is
+	// throttled by that fresh event (default 60s interval)
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+	Expect(pendingDeletes()).To(Equal(1))
+
+	// age the delete event past the republish interval
+	g2 := h.Env().Database.SessionFactory.New(ctx)
+	Expect(g2.Exec("UPDATE events SET created_at = ? WHERE source_id = ? AND event_type = ?",
+		time.Now().Add(-2*time.Minute), resource.ID, api.DeleteEventType).Error).NotTo(HaveOccurred())
+
+	// the next retried delete republishes exactly one event, and another immediate retry
+	// is throttled again
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+	Expect(pendingDeletes()).To(Equal(2))
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+	Expect(pendingDeletes()).To(Equal(2))
+}
+
+// TestReconcileStaleDeleteEventsSparesFreshHealingEvents verifies the stale-delete
+// finalizer only retires delete events that are themselves older than the cutoff: a
+// freshly re-published healing event for a long soft-deleted resource must survive so it
+// can be delivered to the agent, otherwise the healing republish would be swallowed
+// within one detector tick.
+func TestReconcileStaleDeleteEventsSparesFreshHealingEvents(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	ctx := context.Background()
+
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
+	Expect(err).NotTo(HaveOccurred())
+
+	resourceService := h.Env().Services.Resources()
+	eventService := h.Env().Services.Events()
+
+	// soft-delete, then simulate a resource that has been stuck deleting for 2 hours with
+	// its original delete event equally old (raw SQL: gorm scopes hide soft-deleted rows)
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+	twoHoursAgo := time.Now().Add(-2 * time.Hour)
+	g2 := h.Env().Database.SessionFactory.New(ctx)
+	Expect(g2.Exec("UPDATE resources SET deleted_at = ? WHERE id = ?", twoHoursAgo, resource.ID).Error).NotTo(HaveOccurred())
+	Expect(g2.Exec("UPDATE events SET created_at = ? WHERE source_id = ? AND event_type = ?",
+		twoHoursAgo, resource.ID, api.DeleteEventType).Error).NotTo(HaveOccurred())
+
+	// a retried delete now republishes a fresh healing event
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+
+	pendingDeletes := func() int {
+		unreconciled, svcErr := eventService.FindAllUnreconciledEvents(ctx)
+		Expect(svcErr).NotTo(HaveOccurred())
+		count := 0
+		for _, e := range unreconciled {
+			if e.SourceID == resource.ID && e.EventType == api.DeleteEventType {
+				count++
+			}
+		}
+		return count
+	}
+	Expect(pendingDeletes()).To(Equal(2))
+
+	// the detector retires only the 2h-old event; the fresh healing event survives
+	count, svcErr := eventService.ReconcileStaleDeleteEvents(ctx, time.Hour)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(count).To(Equal(int64(1)))
+	Expect(pendingDeletes()).To(Equal(1))
+}
+
 func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkInterface, work *workv1.ManifestWork, newStatus workv1.ManifestWorkStatus) error {
 	// update the work status
 	newWork := work.DeepCopy()

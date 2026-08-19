@@ -38,12 +38,13 @@ type ResourceService interface {
 	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
 
-func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService, generic GenericService) ResourceService {
+func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService, generic GenericService, deleteEventRepublishIntervalSeconds int) ResourceService {
 	return &sqlResourceService{
-		lockFactory: lockFactory,
-		resourceDao: resourceDao,
-		events:      events,
-		generic:     generic,
+		lockFactory:                  lockFactory,
+		resourceDao:                  resourceDao,
+		events:                       events,
+		generic:                      generic,
+		deleteEventRepublishInterval: time.Duration(deleteEventRepublishIntervalSeconds) * time.Second,
 	}
 }
 
@@ -54,6 +55,10 @@ type sqlResourceService struct {
 	resourceDao dao.ResourceDao
 	events      EventService
 	generic     GenericService
+	// deleteEventRepublishInterval throttles how often a delete event is re-published for
+	// a resource that remains soft-deleted when another delete request arrives; 0 disables
+	// republishing entirely.
+	deleteEventRepublishInterval time.Duration
 }
 
 func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
@@ -269,8 +274,14 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 	// every retry soft-deletes again (a no-op) and, crucially, appends another delete
 	// event to the queue. Those duplicate delete events accumulate without bound and can
 	// starve the single spec-event worker, blocking every unrelated create/update event.
-	// If the resource is already soft-deleted, a delete event has already been created and
-	// is pending delivery, so there is nothing more to do here.
+	//
+	// However, a resource stuck soft-deleted can also mean the agent lost the deletion
+	// state (e.g. its in-memory store dropped the DeletionTimestamp) and will never
+	// converge without the delete event being re-delivered. To heal that, a retried
+	// delete re-publishes the delete event, throttled to at most one new event per
+	// deleteEventRepublishInterval per resource, so retries can never accumulate events
+	// without bound. The whole check-then-create runs under the advisory lock above, so
+	// it is serialized across all maestro instances.
 	existing, getErr := s.resourceDao.Get(ctx, id)
 	if getErr != nil {
 		svcErr := handleGetError("Resource", "id", id, getErr)
@@ -281,8 +292,9 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 		return svcErr
 	}
 	if existing.DeletedAt.Valid {
-		// deletion is already in flight, avoid enqueuing a duplicate delete event
-		return nil
+		// deletion is already in flight; re-publish the delete event if the latest one
+		// is older than the republish interval, otherwise do nothing
+		return s.republishDeleteEvent(ctx, id)
 	}
 
 	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
@@ -296,6 +308,49 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 	}); err != nil {
 		return handleDeleteError("Resource", err)
 	}
+
+	return nil
+}
+
+// republishDeleteEvent re-enqueues a delete event for a resource that is stuck
+// soft-deleted, at most once per deleteEventRepublishInterval per resource. A
+// re-delivered delete event re-stamps the deletion state on the agent (healing e.g. an
+// agent whose in-memory store lost the DeletionTimestamp and so never acknowledges the
+// delete), while the throttle keeps retried deletes from accumulating events without
+// bound (the AROSLSRE-1547 starvation concern). Must be called with the resource
+// advisory lock held so the check-then-create is serialized across maestro instances.
+func (s *sqlResourceService) republishDeleteEvent(ctx context.Context, id string) *errors.ServiceError {
+	logger := klog.FromContext(ctx).WithValues("resourceID", id)
+
+	if s.deleteEventRepublishInterval <= 0 {
+		logger.V(4).Info("skipping delete for resource as deletion is already in flight, republishing is disabled")
+		return nil
+	}
+
+	latest, svcErr := s.events.FindLatestDeleteEvent(ctx, id)
+	if svcErr != nil {
+		// best-effort healing: never fail an otherwise idempotent delete retry on the lookup
+		logger.Error(svcErr, "unable to look up the latest delete event for resource, skipping republish")
+		return nil
+	}
+
+	if latest != nil && time.Since(latest.CreatedAt) < s.deleteEventRepublishInterval {
+		logger.V(4).Info("skipping delete for resource as deletion is already in flight, delete event recently published")
+		return nil
+	}
+
+	lastDeleteEventAge := "none"
+	if latest != nil {
+		lastDeleteEventAge = time.Since(latest.CreatedAt).String()
+	}
+	if _, err := s.events.Create(ctx, &api.Event{
+		Source:    "Resources",
+		SourceID:  id,
+		EventType: api.DeleteEventType,
+	}); err != nil {
+		return handleDeleteError("Resource", err)
+	}
+	logger.Info("republishing delete event for resource stuck deleting", "lastDeleteEventAge", lastDeleteEventAge)
 
 	return nil
 }

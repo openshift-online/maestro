@@ -22,6 +22,7 @@ type EventService interface {
 	FindAgeOfOldestUnreconciledEvent(ctx context.Context) (*float64, *errors.ServiceError)
 	DeleteAllReconciledEvents(ctx context.Context) *errors.ServiceError
 	ReconcileStaleDeleteEvents(ctx context.Context, threshold time.Duration) (int64, *errors.ServiceError)
+	FindLatestDeleteEvent(ctx context.Context, sourceID string) (*api.Event, *errors.ServiceError)
 }
 
 func NewEventService(eventDao dao.EventDao) EventService {
@@ -104,6 +105,16 @@ func (s *sqlEventService) FindAgeOfOldestUnreconciledEvent(ctx context.Context) 
 		return nil, errors.GeneralError("Unable to get age of oldest unreconciled event: %s", err)
 	}
 	return ageInSeconds, nil
+}
+
+// FindLatestDeleteEvent returns the most recently created delete event for the given
+// resource, or (nil, nil) if the resource has no delete events.
+func (s *sqlEventService) FindLatestDeleteEvent(ctx context.Context, sourceID string) (*api.Event, *errors.ServiceError) {
+	event, err := s.eventDao.FindLatestDeleteEvent(ctx, sourceID)
+	if err != nil {
+		return nil, errors.GeneralError("Unable to get latest delete event for resource %s: %s", sourceID, err)
+	}
+	return event, nil
 }
 
 func (s *sqlEventService) ReconcileStaleDeleteEvents(ctx context.Context, threshold time.Duration) (int64, *errors.ServiceError) {

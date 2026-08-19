@@ -15,6 +15,7 @@ func NewResourceServiceLocator(env *Env) ResourceServiceLocator {
 			dao.NewResourceDao(&env.Database.SessionFactory),
 			env.Services.Events(),
 			env.Services.Generic(),
+			env.Config.EventServer.DeleteEventRepublishInterval,
 		)
 	}
 }
