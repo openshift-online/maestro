@@ -14,6 +14,7 @@ import (
 
 	"github.com/openshift-online/maestro/cmd/maestro/server/logging"
 	"github.com/openshift-online/maestro/pkg/api"
+	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
 )
@@ -25,6 +26,7 @@ type HealthCheckServer struct {
 	instanceID        string
 	heartbeatInterval int
 	brokerType        string
+	sourceClient      cloudevents.SourceClient
 }
 
 func NewHealthCheckServer(ctx context.Context) *HealthCheckServer {
@@ -43,6 +45,7 @@ func NewHealthCheckServer(ctx context.Context) *HealthCheckServer {
 		instanceID:        env().Config.MessageBroker.ClientID,
 		heartbeatInterval: env().Config.HealthCheck.HeartbeartInterval,
 		brokerType:        env().Config.MessageBroker.MessageBrokerType,
+		sourceClient:      env().Clients.CloudEventsSource,
 	}
 
 	router.HandleFunc("/healthcheck", server.healthCheckHandler).Methods(http.MethodGet)
@@ -90,6 +93,13 @@ func (s *HealthCheckServer) Start(ctx context.Context) {
 
 func (s *HealthCheckServer) pulse(ctx context.Context) {
 	logger := klog.FromContext(ctx)
+
+	// Check CloudEvents source client readiness if configured and broker is enabled
+	if !env().Config.MessageBroker.Disable && s.sourceClient != nil && !s.sourceClient.IsReady() {
+		logger.Info("CloudEvents source client is not ready, skipping heartbeat pulse", "instanceID", s.instanceID)
+		return
+	}
+
 	// If there are multiple requests at the same time, it will cause the race conditions among these
 	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
 	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, s.instanceID, db.Instances)
@@ -179,6 +189,17 @@ func (s *HealthCheckServer) checkInstances(ctx context.Context) {
 // healthCheckHandler returns a 200 OK if the instance is ready, 503 Service Unavailable otherwise.
 func (s *HealthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	logger := klog.FromContext(r.Context()).WithValues("instanceID", s.instanceID)
+
+	if !env().Config.MessageBroker.Disable && s.sourceClient != nil && !s.sourceClient.IsReady() {
+		logger.Info("CloudEvents source client is not ready", "instanceID", s.instanceID)
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, err := w.Write([]byte(`{"status": "cloudevents client not ready"}`))
+		if err != nil {
+			logger.Error(err, "Error writing healthcheck response")
+		}
+		return
+	}
+
 	instance, err := s.instanceDao.Get(r.Context(), s.instanceID)
 	if err != nil {
 		logger.Error(err, "Error getting instance")

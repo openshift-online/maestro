@@ -31,6 +31,7 @@ type SourceClient interface {
 	Subscribe(ctx context.Context, handlers ...cegeneric.ResourceHandler[*api.Resource])
 	Resync(ctx context.Context, consumers []string) error
 	SubscribedChan() <-chan struct{}
+	IsReady() bool
 }
 
 type SourceClientImpl struct {
@@ -277,6 +278,13 @@ func (s *SourceClientImpl) sendResyncBatch(ctx context.Context, consumer string,
 
 func (s *SourceClientImpl) SubscribedChan() <-chan struct{} {
 	return s.CloudEventSourceClient.SubscribedChan()
+}
+
+func (s *SourceClientImpl) IsReady() bool {
+	if s.CloudEventSourceClient == nil {
+		return false
+	}
+	return s.CloudEventSourceClient.IsReady()
 }
 
 // ResourceStatusHashGetter returns a hash of the resource status.

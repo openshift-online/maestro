@@ -33,6 +33,7 @@ type SourceClientMock struct {
 	agent           string
 	resources       api.ResourceList
 	ResourceService services.ResourceService
+	NotReady        bool
 }
 
 var _ SourceClient = &SourceClientMock{}
@@ -177,4 +178,8 @@ func (s *SourceClientMock) Resync(ctx context.Context, consumers []string) error
 
 func (s *SourceClientMock) SubscribedChan() <-chan struct{} {
 	return nil
+}
+
+func (s *SourceClientMock) IsReady() bool {
+	return !s.NotReady
 }
