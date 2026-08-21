@@ -1,6 +1,6 @@
 module github.com/openshift-online/maestro
 
-go 1.25.13
+go 1.26.0
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.3.0
@@ -62,7 +62,7 @@ require (
 	sigs.k8s.io/yaml v1.6.0
 )
 
-replace open-cluster-management.io/sdk-go => ../sdk-go
+replace open-cluster-management.io/sdk-go => github.com/jnpacker/sdk-go v0.0.0-20260821192238-8d84f924bf92
 
 require (
 	cel.dev/expr v0.25.1 // indirect

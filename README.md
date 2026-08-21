@@ -180,7 +180,7 @@ See the [Server Command](./docs/cli/server.md#quick-start) for details.
 
 ### Prerequisites
 
-- Go 1.24.4+
+- Go 1.26.0+
 - PostgreSQL 17.2
 - Container runtime (podman or docker)
 - Eclipse Mosquitto 2.0.18 (for MQTT mode)

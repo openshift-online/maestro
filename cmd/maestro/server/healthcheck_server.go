@@ -91,11 +91,18 @@ func (s *HealthCheckServer) Start(ctx context.Context) {
 	s.httpServer.Shutdown(context.Background())
 }
 
+// cloudEventsNotReady reports whether the CloudEvents source client is expected
+// to be ready but is not. It returns false when the message broker is disabled or
+// no source client is configured, since there is no CloudEvents transport to gate on.
+func (s *HealthCheckServer) cloudEventsNotReady() bool {
+	return !env().Config.MessageBroker.Disable && s.sourceClient != nil && !s.sourceClient.IsReady()
+}
+
 func (s *HealthCheckServer) pulse(ctx context.Context) {
 	logger := klog.FromContext(ctx)
 
 	// Check CloudEvents source client readiness if configured and broker is enabled
-	if !env().Config.MessageBroker.Disable && s.sourceClient != nil && !s.sourceClient.IsReady() {
+	if s.cloudEventsNotReady() {
 		logger.Info("CloudEvents source client is not ready, skipping heartbeat pulse", "instanceID", s.instanceID)
 		return
 	}
@@ -190,8 +197,8 @@ func (s *HealthCheckServer) checkInstances(ctx context.Context) {
 func (s *HealthCheckServer) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	logger := klog.FromContext(r.Context()).WithValues("instanceID", s.instanceID)
 
-	if !env().Config.MessageBroker.Disable && s.sourceClient != nil && !s.sourceClient.IsReady() {
-		logger.Info("CloudEvents source client is not ready", "instanceID", s.instanceID)
+	if s.cloudEventsNotReady() {
+		logger.Info("CloudEvents source client is not ready")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, err := w.Write([]byte(`{"status": "cloudevents client not ready"}`))
 		if err != nil {

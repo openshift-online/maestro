@@ -79,6 +79,12 @@ func (m *mockCEClient) SubscribedChan() <-chan struct{}                      { r
 func (m *mockCEClient) IsReady() bool                                        { return m.ready }
 
 func TestHealthCheckHandler_CloudEventsReadiness(t *testing.T) {
+	origDisable := env().Config.MessageBroker.Disable
+	t.Cleanup(func() {
+		env().Config.MessageBroker.Disable = origDisable
+	})
+	env().Config.MessageBroker.Disable = false
+
 	tests := []struct {
 		name           string
 		instanceReady  bool
@@ -169,6 +175,12 @@ func TestLivenessHandler(t *testing.T) {
 }
 
 func TestPulse_SkipsHeartbeatWhenCloudEventsNotReady(t *testing.T) {
+	origDisable := env().Config.MessageBroker.Disable
+	t.Cleanup(func() {
+		env().Config.MessageBroker.Disable = origDisable
+	})
+	env().Config.MessageBroker.Disable = false
+
 	initialHeartbeat := time.Now().Add(-10 * time.Minute)
 	instanceDao := &mockInstanceDao{
 		instance: &api.ServerInstance{
@@ -205,5 +217,27 @@ func TestPulse_SkipsHeartbeatWhenCloudEventsNotReady(t *testing.T) {
 	}
 	if !instanceDao.instance.LastHeartbeat.After(initialHeartbeat) {
 		t.Errorf("expected LastHeartbeat to be updated, got %v", instanceDao.instance.LastHeartbeat)
+	}
+}
+
+func TestCloudEventsNotReady_SkippedWhenMessageBrokerDisabled(t *testing.T) {
+	origDisable := env().Config.MessageBroker.Disable
+	t.Cleanup(func() {
+		env().Config.MessageBroker.Disable = origDisable
+	})
+
+	server := &HealthCheckServer{
+		instanceID:   "test-instance",
+		sourceClient: &mockCEClient{ready: false},
+	}
+
+	env().Config.MessageBroker.Disable = true
+	if server.cloudEventsNotReady() {
+		t.Errorf("expected cloudEventsNotReady to be false when message broker is disabled, even if source client reports not ready")
+	}
+
+	env().Config.MessageBroker.Disable = false
+	if !server.cloudEventsNotReady() {
+		t.Errorf("expected cloudEventsNotReady to be true when message broker is enabled and source client is not ready")
 	}
 }
