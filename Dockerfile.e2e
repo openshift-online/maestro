@@ -1,4 +1,4 @@
-FROM golang:1.26 AS builder
+FROM golang:1.27 AS builder
 
 ENV SOURCE_DIR=/maestro
 WORKDIR $SOURCE_DIR
