@@ -293,8 +293,6 @@ github.com/jinzhu/inflection v1.0.0/go.mod h1:h+uFLlag+Qp1Va5pdKtLDYj+kHp5pxUVkr
 github.com/jinzhu/now v1.0.0/go.mod h1:oHTiXerJ20+SfYcrdlBO7rzZRJWGwSTQ0iUY2jI6Gfc=
 github.com/jinzhu/now v1.1.5 h1:/o9tlHleP7gOFmsnYNz3RGnqzefHA47wQpKrrdTIwXQ=
 github.com/jinzhu/now v1.1.5/go.mod h1:d3SSVoowX0Lcu0IBviAWJpolVfI5UJVZZ7cO71lE/z8=
-github.com/jnpacker/sdk-go v0.0.0-20260821192238-8d84f924bf92 h1:OyZ3CnTbBQZ8Wpowh8meugNw9FceyLojhdCqmHqpNLE=
-github.com/jnpacker/sdk-go v0.0.0-20260821192238-8d84f924bf92/go.mod h1:j2M5g9Shhgvh9Y79/T7ZI1iyokZKaZ7ricRa9yHrzd8=
 github.com/jonboulle/clockwork v0.5.0 h1:Hyh9A8u51kptdkR+cqRpT1EebBwTn1oK9YfGYbdFz6I=
 github.com/jonboulle/clockwork v0.5.0/go.mod h1:3mZlmanh0g2NDKO5TWZVJAfofYk64M7XN3SzBPjZF60=
 github.com/josharian/intern v1.0.0 h1:vlS4z54oSdjm0bgjRigI+G1HpF+tI+9rE5LLzOg8HmY=
@@ -796,6 +794,8 @@ open-cluster-management.io/api v1.3.1-0.20260709055002-403378b57558 h1:Ny12QGibG
 open-cluster-management.io/api v1.3.1-0.20260709055002-403378b57558/go.mod h1:/qLKuMbMS1+MpirTjaw4BoS3INKG8jV3s5J7iju48tg=
 open-cluster-management.io/ocm v1.2.1 h1:JC1mrIkaNjJ+AmLjiQ/sIhUE6Uzb3JVXFlFbaZF5+VY=
 open-cluster-management.io/ocm v1.2.1/go.mod h1:7jQB00gs+BxpvPTWvEWZ7x6RrkgqxLkVpqLpaCLmG8c=
+open-cluster-management.io/sdk-go v1.3.1-0.20260823160543-f14d74fb98ee h1:jgqbyyI9wz/v/uWjBVO0QazPKVbHHDg/E19aktvbwqU=
+open-cluster-management.io/sdk-go v1.3.1-0.20260823160543-f14d74fb98ee/go.mod h1:j2M5g9Shhgvh9Y79/T7ZI1iyokZKaZ7ricRa9yHrzd8=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2 h1:jpcvIRr3GLoUoEKRkHKSmGjxb6lWwrBlJsXc+eUYQHM=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.31.2/go.mod h1:Ve9uj1L+deCXFrPOk1LpFXqTg7LCFzFso6PA48q/XZw=
 sigs.k8s.io/controller-runtime v0.23.3 h1:VjB/vhoPoA9l1kEKZHBMnQF33tdCLQKJtydy4iqwZ80=
