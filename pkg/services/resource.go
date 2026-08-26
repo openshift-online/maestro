@@ -268,6 +268,8 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 		return errors.DatabaseAdvisoryLock(err)
 	}
 
+	logger := klog.FromContext(ctx).WithValues("resourceID", id)
+
 	// MarkAsDeleting must be idempotent. A source can re-send a delete request for a
 	// resource whose deletion is already in flight (e.g. the agent is gone and never
 	// acknowledged the delete, so the resource stays soft-deleted). Without this guard
@@ -286,7 +288,7 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 	if getErr != nil {
 		svcErr := handleGetError("Resource", "id", id, getErr)
 		if svcErr.Is404() {
-			// the resource is already fully deleted, nothing to do
+			logger.Info("skipping delete for resource as it is already fully deleted")
 			return nil
 		}
 		return svcErr
