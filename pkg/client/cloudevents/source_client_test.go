@@ -327,3 +327,27 @@ func TestResyncConsumerEventStructure(t *testing.T) {
 	Expect(list2.Hashes).To(HaveLen(1))
 	Expect(list2.Hashes[0].StatusHash).NotTo(BeEmpty())
 }
+
+// TestSourceClientImplIsReady verifies that IsReady returns false when the underlying
+// CloudEventSourceClient is nil.
+func TestSourceClientImplIsReady(t *testing.T) {
+	RegisterTestingT(t)
+
+	// When CloudEventSourceClient is nil
+	client := &SourceClientImpl{}
+	Expect(client.IsReady()).To(BeFalse())
+}
+
+// TestSourceClientMockIsReady verifies that SourceClientMock.IsReady reflects the NotReady flag.
+func TestSourceClientMockIsReady(t *testing.T) {
+	RegisterTestingT(t)
+
+	mock := &SourceClientMock{}
+	Expect(mock.IsReady()).To(BeTrue())
+
+	mock.NotReady = true
+	Expect(mock.IsReady()).To(BeFalse())
+
+	mock.NotReady = false
+	Expect(mock.IsReady()).To(BeTrue())
+}

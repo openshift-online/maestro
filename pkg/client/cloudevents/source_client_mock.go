@@ -7,7 +7,6 @@ import (
 	"github.com/bwmarrin/snowflake"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
 	cegeneric "open-cluster-management.io/sdk-go/pkg/cloudevents/generic"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/generic/types"
@@ -33,6 +32,7 @@ type SourceClientMock struct {
 	agent           string
 	resources       api.ResourceList
 	ResourceService services.ResourceService
+	NotReady        bool
 }
 
 var _ SourceClient = &SourceClientMock{}
@@ -63,7 +63,7 @@ func (s *SourceClientMock) OnCreate(ctx context.Context, id string) error {
 		WithOriginalSource("maestro").
 		NewEvent()
 
-	manifestBundleStatus := &payload.ManifestBundleStatus{
+	manifestBundleStatus := &workpayload.ManifestBundleStatus{
 		Conditions: []metav1.Condition{
 			{
 				Type:               "Applied",
@@ -177,4 +177,8 @@ func (s *SourceClientMock) Resync(ctx context.Context, consumers []string) error
 
 func (s *SourceClientMock) SubscribedChan() <-chan struct{} {
 	return nil
+}
+
+func (s *SourceClientMock) IsReady() bool {
+	return !s.NotReady
 }

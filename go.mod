@@ -1,6 +1,6 @@
 module github.com/openshift-online/maestro
 
-go 1.25.13
+go 1.26.0
 
 require (
 	cloud.google.com/go/pubsub/v2 v2.3.0
@@ -56,9 +56,9 @@ require (
 	k8s.io/component-base v0.35.3
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
-	open-cluster-management.io/api v1.2.1-0.20260305152611-5bfebdbc3fdf
+	open-cluster-management.io/api v1.3.1-0.20260709055002-403378b57558
 	open-cluster-management.io/ocm v1.2.1
-	open-cluster-management.io/sdk-go v1.2.1-0.20260323031834-e885ccee3f1b
+	open-cluster-management.io/sdk-go v1.3.1-0.20260823160543-f14d74fb98ee
 	sigs.k8s.io/yaml v1.6.0
 )
 

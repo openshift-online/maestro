@@ -391,7 +391,7 @@ The manual E2E test performs the same upgrade testing sequence as the long runni
 
 ### Prerequisites
 
-- Go 1.24.4+
+- Go 1.26.0+
 - Docker or Podman
 - PostgreSQL (for integration tests)
 - Eclipse Mosquitto (for MQTT tests)

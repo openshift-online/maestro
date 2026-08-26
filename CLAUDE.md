@@ -139,7 +139,7 @@ Supports two message broker types:
 - Performance tests in `test/performance/`
 
 ## Development Environment
-- Go 1.24.4+ required
+- Go 1.26.0+ required
 - PostgreSQL 17.2 for database
 - Eclipse Mosquitto 2.0.18 for MQTT broker (if using MQTT mode)
 - OpenShift CLI (`oc`) for deployment

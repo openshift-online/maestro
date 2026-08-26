@@ -123,7 +123,7 @@ else
     export PERSIST="${PERSIST:-true}"
 fi
 export GITHUB_ACTIONS=true
-export GOTOOLCHAIN=go1.24.4
+export GOTOOLCHAIN=go1.26.7
 
 echo "USER=$USER"
 echo "PERSIST=$PERSIST"
