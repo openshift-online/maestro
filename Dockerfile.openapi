@@ -2,8 +2,8 @@ FROM openapitools/openapi-generator-cli:v7.24.0
 
 RUN apt-get update
 RUN apt-get install -y make sudo git
-RUN wget https://go.dev/dl/go1.26.0.linux-amd64.tar.gz
-RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.26.0.linux-amd64.tar.gz
+RUN wget https://go.dev/dl/go1.26.7.linux-amd64.tar.gz
+RUN rm -rf /usr/local/go && tar -C /usr/local -xzf go1.26.7.linux-amd64.tar.gz
 
 RUN mkdir -p /local
 COPY . /local

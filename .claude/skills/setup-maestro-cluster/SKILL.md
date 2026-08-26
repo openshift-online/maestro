@@ -18,7 +18,7 @@ Sets up a long-running Maestro cluster environment using Azure ARO-HCP infrastru
 - `USER=oasis` (if not already set)
 - `PERSIST=true`
 - `GITHUB_ACTIONS=true`
-- `GOTOOLCHAIN=go1.26.0`
+- `GOTOOLCHAIN=go1.26.7`
 
 **Note:** This deployment typically takes 25-30 minutes to complete.
 

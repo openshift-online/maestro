@@ -144,7 +144,7 @@ func TestHealthCheckHandler_CloudEventsReadiness(t *testing.T) {
 				server.sourceClient = &mockCEClient{ready: tt.ceClientReady}
 			}
 
-			req := httptest.NewRequest(http.MethodGet, "/healthcheck", nil)
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/healthcheck", nil)
 			rec := httptest.NewRecorder()
 
 			server.healthCheckHandler(rec, req)
@@ -161,7 +161,7 @@ func TestHealthCheckHandler_CloudEventsReadiness(t *testing.T) {
 
 func TestLivenessHandler(t *testing.T) {
 	server := &HealthCheckServer{instanceID: "test-instance"}
-	req := httptest.NewRequest(http.MethodGet, "/livez", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/livez", nil)
 	rec := httptest.NewRecorder()
 
 	server.livenessHandler(rec, req)
