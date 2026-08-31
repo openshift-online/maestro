@@ -179,7 +179,7 @@ spec:
           {{- toYaml .Values.resources | nindent 10 }}
         livenessProbe:
           httpGet:
-            path: /healthcheck
+            path: /livez
             port: {{ .Values.server.healthCheck.bindPort }}
             scheme: {{ if .Values.server.https.enabled }}HTTPS{{ else }}HTTP{{ end }}
           initialDelaySeconds: 25
