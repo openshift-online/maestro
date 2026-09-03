@@ -198,6 +198,7 @@ func (f *AdvisoryLockFactory) Unlock(ctx context.Context, uuid string) {
 type AdvisoryLock struct {
 	g2        *gorm.DB
 	txid      int64
+	inTx      bool
 	uuid      *string
 	id        *string
 	lockType  *LockType
@@ -207,12 +208,15 @@ type AdvisoryLock struct {
 // newAdvisoryLock constructs a new AdvisoryLock object.
 func newAdvisoryLock(ctx context.Context, connection SessionFactory) (*AdvisoryLock, error) {
 	// it requires a new DB session to start the advisory lock.
-	g2 := connection.New(ctx)
+	g2, inTx := connection.NewIsInTx(ctx)
 
-	// start a Tx to ensure gorm will obtain/release the lock using a same connection.
-	tx := g2.Begin()
-	if tx.Error != nil {
-		return nil, tx.Error
+	// start a Tx (if one does not already exist in the context) to ensure gorm will obtain/release the lock using a same connection.
+	tx := g2
+	if !inTx {
+		tx = g2.Begin()
+		if tx.Error != nil {
+			return nil, tx.Error
+		}
 	}
 
 	// current transaction ID set by postgres.  these are *not* distinct across time
@@ -222,6 +226,7 @@ func newAdvisoryLock(ctx context.Context, connection SessionFactory) (*AdvisoryL
 
 	return &AdvisoryLock{
 		txid:      txid.ID,
+		inTx:      inTx,
 		g2:        tx,
 		startTime: time.Now(),
 	}, nil
@@ -281,8 +286,11 @@ func (l *AdvisoryLock) unlock() error {
 		return errors.New("AdvisoryLock: transaction is missing")
 	}
 
-	// it ends the Tx and implicitly releases the lock.
-	err := l.g2.Commit().Error
+	// If we are not in a context scoped transaction, end the Tx and implicitly release the lock.
+	var err error
+	if !l.inTx {
+		err = l.g2.Commit().Error
+	}
 	l.g2 = nil
 	l.uuid = nil
 	l.id = nil

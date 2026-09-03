@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"open-cluster-management.io/sdk-go/pkg/cloudevents/clients/common"
 	workpayload "open-cluster-management.io/sdk-go/pkg/cloudevents/clients/work/payload"
@@ -59,6 +61,7 @@ type MessageQueueEventServer struct {
 	statusEventService services.StatusEventService
 	sourceClient       cloudevents.SourceClient
 	statusDispatcher   dispatcher.Dispatcher
+	statusUpdateQueue  workqueue.TypedRateLimitingInterface[*api.Resource]
 }
 
 func NewMessageQueueEventServer(eventBroadcaster *event.EventBroadcaster, statusDispatcher dispatcher.Dispatcher) EventServer {
@@ -72,6 +75,12 @@ func NewMessageQueueEventServer(eventBroadcaster *event.EventBroadcaster, status
 		statusEventService: env().Services.StatusEvents(),
 		sourceClient:       env().Clients.CloudEventsSource,
 		statusDispatcher:   statusDispatcher,
+		statusUpdateQueue: workqueue.NewTypedRateLimitingQueueWithConfig(
+			workqueue.DefaultTypedControllerRateLimiter[*api.Resource](),
+			workqueue.TypedRateLimitingQueueConfig[*api.Resource]{
+				Name: "status-update-controller",
+			},
+		),
 	}
 }
 
@@ -81,10 +90,15 @@ func (s *MessageQueueEventServer) Start(ctx context.Context) {
 	logger := klog.FromContext(ctx)
 	logger.Info("Starting message queue event server")
 
+	defer s.statusUpdateQueue.ShutDown()
+
 	// start subscribing to resource status update messages.
 	s.startSubscription(ctx)
 	// start the status dispatcher
 	go s.statusDispatcher.Start(ctx)
+
+	// start a goroutine to process status updates from the workqueue
+	go wait.UntilWithContext(ctx, s.runStatusUpdateWorker, time.Second)
 
 	// wait until context is canceled
 	<-ctx.Done()
@@ -97,7 +111,6 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 	s.sourceClient.Subscribe(ctx, func(subCtx context.Context, resource *api.Resource) error {
 		logger := klog.FromContext(subCtx).WithValues("resourceID", resource.ID)
 		logger.Info("received status update for resource")
-		subCtx = klog.NewContext(subCtx, logger)
 
 		if !s.statusDispatcher.Dispatch(resource.ConsumerName) {
 			// the resource is not owned by the current instance, skip
@@ -105,13 +118,35 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 			return nil
 		}
 
-		// handle the resource status update according status update type
-		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
-			return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
-		}
-
+		s.statusUpdateQueue.Add(resource)
 		return nil
 	})
+}
+
+func (s *MessageQueueEventServer) runStatusUpdateWorker(ctx context.Context) {
+	for s.processNextStatusUpdate(ctx) {
+	}
+}
+
+func (s *MessageQueueEventServer) processNextStatusUpdate(ctx context.Context) bool {
+	logger := klog.FromContext(ctx)
+	resource, quit := s.statusUpdateQueue.Get()
+	if quit {
+		return false
+	}
+	defer s.statusUpdateQueue.Done(resource)
+
+	resourceLogger := logger.WithValues("resourceID", resource.ID)
+	resourceCtx := klog.NewContext(ctx, resourceLogger)
+
+	if err := HandleStatusUpdate(resourceCtx, resource, s.resourceService, s.statusEventService); err != nil {
+		resourceLogger.Error(err, "Failed to handle resource status update")
+		s.statusUpdateQueue.AddRateLimited(resource)
+		return true
+	}
+
+	s.statusUpdateQueue.Forget(resource)
+	return true
 }
 
 // OnCreate will be called on each new resource creation event inserted into db.
@@ -158,7 +193,7 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // 2. Retrieves the resource from Maestro and fills back the work metadata from the spec event to the status event.
 // 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
 // otherwise, updates the resource status and creates a status event.
-func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
+func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) (err error) {
 	logger := klog.FromContext(ctx)
 	logger.Info("handle resource status update by the current instance")
 
@@ -229,6 +264,15 @@ func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 	if err := statusEvent.DataAs(statusPayload); err != nil {
 		return fmt.Errorf("failed to decode cloudevent data as resource status: %v", err)
 	}
+
+	// Create a new Context with the transaction stored in it.
+	ctx, err = db.NewContext(ctx, env().Database.SessionFactory)
+	if err != nil {
+		return fmt.Errorf("error creating transaction: %v", err)
+	}
+
+	// Resolve transaction once work is complete
+	defer db.FinalizeTransaction(ctx, &err)
 
 	// if the resource has been deleted from agent, create status event and delete it from maestro
 	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ResourceDeleted) {

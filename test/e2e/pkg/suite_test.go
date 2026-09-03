@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -318,6 +319,30 @@ func cleanupResources(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+func e2eImage() string {
+	deploy, err := serverTestOpts.kubeClientSet.AppsV1().Deployments(serverTestOpts.serverNamespace).Get(ctx, "maestro", metav1.GetOptions{})
+	Expect(err).ShouldNot(HaveOccurred())
+
+	for _, c := range deploy.Spec.Template.Spec.Containers {
+		if c.Name == "service" {
+			// e.g. "registry.example.com/maestro/maestro:tag" → "registry.example.com/maestro/maestro-e2e:tag"
+			ref := c.Image
+			lastColon := strings.LastIndex(ref, ":")
+			tag := "latest"
+			repo := ref
+			if lastColon > strings.LastIndex(ref, "/") {
+				tag = ref[lastColon+1:]
+				repo = ref[:lastColon]
+			}
+			lastSlash := strings.LastIndex(repo, "/")
+			return repo[:lastSlash+1] + "maestro-e2e:" + tag
+		}
+	}
+
+	Fail("maestro deployment has no 'service' container")
+	return ""
 }
 
 func contains(s string, list []string) bool {

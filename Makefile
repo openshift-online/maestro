@@ -414,13 +414,16 @@ test-env: test-env/cleanup test-env/setup test-env/deploy-server test-env/deploy
 #
 # Args:
 #   TEST_FOCUS: Flags to pass to `ginkgo run`.
+#   LABEL_FILTER: Pass contents to `--label-filter`
+#   FAIL_FAST: --fail-fast is added by default, set `FAIL_FAST=` to disable
 # The `-v` argument is always passed.
 #
 # Example:
 #   make e2e-test/run
 #   make e2e-test/run TEST_FOCUS="--focus=Resources" run only the Resources tests
+FAIL_FAST?=--fail-fast
 e2e-test/run:
-	ginkgo -v --fail-fast --label-filter='$(LABEL_FILTER)' $(TEST_FOCUS) \
+	ginkgo -v $(FAIL_FAST) --label-filter='$(LABEL_FILTER)' $(TEST_FOCUS) \
 	--output-dir="${PWD}/test/e2e/report" --json-report=report.json --junit-report=report.xml \
 	${PWD}/test/e2e/pkg -- \
 	-api-server=$(shell cat ${PWD}/test/_output/.external_restapi_endpoint) \

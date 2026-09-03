@@ -31,6 +31,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/client/grpcauthorizer"
 	"github.com/openshift-online/maestro/pkg/config"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 )
@@ -169,7 +170,7 @@ func (svr *GRPCServer) Stop() {
 }
 
 // Publish implements the Publish method of the CloudEventServiceServer interface
-func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest) (*emptypb.Empty, error) {
+func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest) (empty *emptypb.Empty, err error) {
 	logger := klog.FromContext(ctx)
 	// WARNING: don't use "evt, err := pb.FromProto(pubReq.Event)" to convert protobuf to cloudevent
 	evt, err := binding.ToEvent(ctx, grpcprotocol.NewMessage(pubReq.Event))
@@ -222,6 +223,15 @@ func (svr *GRPCServer) Publish(ctx context.Context, pubReq *pbv1.PublishRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode cloudevent: %v", err)
 	}
+
+	// Create a new Context with the transaction stored in it.
+	ctx, err = db.NewContext(ctx, env().Database.SessionFactory)
+	if err != nil {
+		return nil, fmt.Errorf("error creating transaction: %v", err)
+	}
+
+	// Resolve transaction once work is complete
+	defer db.FinalizeTransaction(ctx, &err)
 
 	switch eventType.Action {
 	case types.CreateRequestAction:
