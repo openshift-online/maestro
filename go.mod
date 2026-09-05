@@ -30,7 +30,7 @@ require (
 	github.com/openshift-online/ocm-sdk-go v0.1.510
 	github.com/openshift/library-go v0.0.0-20251120164824-14a789e09884
 	github.com/prometheus/client_golang v1.23.2
-	github.com/prometheus/client_model v0.6.2
+	github.com/prometheus/client_model v0.6.3
 	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
