@@ -58,6 +58,12 @@ If it is necessary to delete a record in a migration, be aware of a couple cavea
 
 See the [gorm documentation around deletions](http://gorm.io/docs/delete.html) for more information
 
+## Concurrent index migrations
+
+`Migrate` serializes migration history checks, DDL, and history writes across server replicas with a PostgreSQL session advisory lock on a dedicated connection. Migrations run without a surrounding transaction, so `CREATE INDEX CONCURRENTLY` and `DROP INDEX CONCURRENTLY` can keep normal writes available.
+
+Lock acquisition uses polling. A blocking advisory-lock query can hold a snapshot needed by a concurrent expression-index build and cause a deadlock. An interrupted concurrent build can leave an invalid index, so its migration must handle that index before retrying.
+
 ## Migration tests
 
 In most cases, it shouldn't be necessary to create a test for a migration. However, if the migration is manipulating records and poses a significant risk of completely borking up important data, a test should be written.
