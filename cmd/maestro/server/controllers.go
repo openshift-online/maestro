@@ -55,8 +55,11 @@ func NewControllersServer(ctx context.Context, eventServer EventServer, eventFil
 		if staleDeleteThreshold > 0 {
 			s.StaleDeleteDetector = controllers.NewStaleDeleteDetector(
 				env().Services.Events(),
+				env().Services.Resources(),
+				env().Services.StatusEvents(),
 				db.NewAdvisoryLockFactory(env().Database.SessionFactory),
 				staleDeleteThreshold,
+				env().Config.EventServer.StaleDeleteHardDeleteThreshold,
 			)
 		}
 	}

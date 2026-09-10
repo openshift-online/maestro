@@ -23,9 +23,10 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
+				UndeliveredResourceThreshold:   600,
+				StaleDeleteEventThreshold:      3600,
+				StaleDeleteHardDeleteThreshold: 21600,
+				DeleteEventRepublishInterval:   60,
 			},
 		},
 		{
@@ -40,9 +41,10 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
+				UndeliveredResourceThreshold:   600,
+				StaleDeleteEventThreshold:      3600,
+				StaleDeleteHardDeleteThreshold: 21600,
+				DeleteEventRepublishInterval:   60,
 			},
 		},
 		{
@@ -60,9 +62,10 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 30,
 					Load:              1.5,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
+				UndeliveredResourceThreshold:   600,
+				StaleDeleteEventThreshold:      3600,
+				StaleDeleteHardDeleteThreshold: 21600,
+				DeleteEventRepublishInterval:   60,
 			},
 		},
 	}
@@ -84,6 +87,38 @@ func TestEventServerConfig(t *testing.T) {
 			fs.VisitAll(func(f *pflag.Flag) {
 				fs.Lookup(f.Name).Changed = false
 			})
+		})
+	}
+}
+
+func TestEventServerConfigReadFilesValidatesStaleDeleteThresholds(t *testing.T) {
+	cases := []struct {
+		name                           string
+		staleDeleteEventThreshold      int
+		staleDeleteHardDeleteThreshold int
+		wantErr                        bool
+	}{
+		{name: "hard-delete disabled", staleDeleteEventThreshold: 3600, staleDeleteHardDeleteThreshold: 0, wantErr: false},
+		{name: "hard-delete greater than event threshold", staleDeleteEventThreshold: 3600, staleDeleteHardDeleteThreshold: 21600, wantErr: false},
+		{name: "hard-delete equal to event threshold", staleDeleteEventThreshold: 3600, staleDeleteHardDeleteThreshold: 3600, wantErr: true},
+		{name: "hard-delete less than event threshold", staleDeleteEventThreshold: 3600, staleDeleteHardDeleteThreshold: 600, wantErr: true},
+		{name: "hard-delete enabled while stale-delete detector disabled", staleDeleteEventThreshold: 0, staleDeleteHardDeleteThreshold: 21600, wantErr: true},
+		{name: "both disabled", staleDeleteEventThreshold: 0, staleDeleteHardDeleteThreshold: 0, wantErr: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			config := NewEventServerConfig()
+			config.StaleDeleteEventThreshold = tc.staleDeleteEventThreshold
+			config.StaleDeleteHardDeleteThreshold = tc.staleDeleteHardDeleteThreshold
+
+			err := config.ReadFiles()
+			if tc.wantErr && err == nil {
+				t.Errorf("ReadFiles() = nil; want an error")
+			}
+			if !tc.wantErr && err != nil {
+				t.Errorf("ReadFiles() = %v; want nil", err)
+			}
 		})
 	}
 }

@@ -20,6 +20,7 @@ type ResourceDao interface {
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
 	FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, error)
+	FindStaleDeleting(ctx context.Context, threshold time.Duration) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
 	FirstByConsumerName(ctx context.Context, name string, unscoped bool) (api.Resource, error)
 }
@@ -140,6 +141,30 @@ func (d *sqlResourceDao) FindUndelivered(ctx context.Context, threshold time.Dur
 		Joins("JOIN consumers ON consumers.name = resources.consumer_name AND consumers.deleted_at IS NULL").
 		Where("resources.deleted_at IS NULL AND resources.status IS NULL AND resources.created_at < ?", cutoff).
 		Where("NOT EXISTS (SELECT 1 FROM events WHERE events.source_id = resources.id AND events.source = 'Resources' AND events.reconciled_date IS NULL)").
+		Find(&resources).Error; err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
+// StaleHardDeleteBatchSize bounds how many stale soft-deleted resources a single
+// FindStaleDeleting call returns, so a single detector tick can never trigger an
+// unbounded number of hard-deletes and synthetic status events. Any remainder is
+// drained by subsequent ticks.
+const StaleHardDeleteBatchSize = 500
+
+// FindStaleDeleting returns resources that have been soft-deleted for longer than the
+// given threshold. These are resources whose delete was never acknowledged by their
+// agent, even after the (shorter) stale-delete-event-threshold retired their delete
+// events as unreconcilable. It is used to assume the delete succeeded, hard-delete the
+// resource, and notify watchers.
+func (d *sqlResourceDao) FindStaleDeleting(ctx context.Context, threshold time.Duration) (api.ResourceList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	resources := api.ResourceList{}
+	cutoff := time.Now().Add(-threshold)
+	if err := g2.Unscoped().
+		Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoff).
+		Limit(StaleHardDeleteBatchSize).
 		Find(&resources).Error; err != nil {
 		return nil, err
 	}

@@ -107,6 +107,18 @@ func (d *resourceDaoMock) FindUndelivered(ctx context.Context, threshold time.Du
 	return resources, nil
 }
 
+// FindStaleDeleting returns resources soft-deleted for longer than threshold.
+func (d *resourceDaoMock) FindStaleDeleting(ctx context.Context, threshold time.Duration) (api.ResourceList, error) {
+	var resources api.ResourceList
+	cutoff := time.Now().Add(-threshold)
+	for _, resource := range d.resources {
+		if resource.DeletedAt.Valid && resource.DeletedAt.Time.Before(cutoff) {
+			resources = append(resources, resource)
+		}
+	}
+	return resources, nil
+}
+
 func (d *resourceDaoMock) All(ctx context.Context) (api.ResourceList, error) {
 	return d.resources, nil
 }

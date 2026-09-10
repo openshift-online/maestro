@@ -49,18 +49,28 @@ func TestResourceLabelsIndexMigration(t *testing.T) {
 	Expect(valid).To(BeFalse())
 
 	// Replica init containers must not race the index DDL or migration history.
+	//
+	// Bound each attempt: CREATE INDEX CONCURRENTLY can take much longer than usual under
+	// a slow or contended CI runner. Without a deadline, a slow build here leaks a
+	// goroutine that keeps running db.Migrate to completion long after Eventually gives up
+	// on this test, still holding the migrations advisory lock, and blocks every later
+	// test in the suite that calls db.Migrate as part of its own setup. Cancelling cleanly
+	// releases the lock (see TestResourceLabelsMigrationCancelledWhileWaiting), containing
+	// a slow environment to a failure of this test alone.
+	buildCtx, cancelBuild := context.WithTimeout(h.Ctx, 90*time.Second)
+	defer cancelBuild()
 	results := make(chan error, 2)
 	start := make(chan struct{})
 	for i := 0; i < 2; i++ {
 		go func() {
 			<-start
-			results <- db.Migrate(h.DBFactory.New(h.Ctx))
+			results <- db.Migrate(h.DBFactory.New(buildCtx))
 		}()
 	}
 	close(start)
 	for i := 0; i < 2; i++ {
 		var migrationErr error
-		Eventually(results, "30s").Should(Receive(&migrationErr))
+		Eventually(results, "95s").Should(Receive(&migrationErr))
 		Expect(migrationErr).NotTo(HaveOccurred())
 	}
 	Expect(db.Migrate(conn)).To(Succeed())
@@ -93,7 +103,11 @@ func TestResourceLabelsIndexMigration(t *testing.T) {
 	Expect(conn.Raw(query).Scan(&after).Error).To(Succeed())
 	Expect(after).To(Equal(before))
 
-	Expect(db.Migrate(conn)).To(Succeed())
+	// Rebuilds the index (CREATE INDEX CONCURRENTLY again); bound it for the same reason
+	// as the first build above.
+	rebuildCtx, cancelRebuild := context.WithTimeout(h.Ctx, 90*time.Second)
+	defer cancelRebuild()
+	Expect(db.Migrate(conn.WithContext(rebuildCtx))).To(Succeed())
 }
 
 func TestResourceLabelsMigrationCancelledWhileWaiting(t *testing.T) {
