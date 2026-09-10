@@ -103,11 +103,19 @@ func TestResourceLabelsMigrationCancelledWhileWaiting(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 	holder, err := sqlDB.Conn(h.Ctx)
 	Expect(err).NotTo(HaveOccurred())
-	defer holder.Close()
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := holder.ExecContext(ctx, "SELECT pg_advisory_unlock(hashtext('maestro'), hashtext('migrations'))"); err != nil {
+			t.Errorf("release migration lock: %v", err)
+		}
+		if err := holder.Close(); err != nil {
+			t.Errorf("close migration lock connection: %v", err)
+		}
+	})
 
 	_, err = holder.ExecContext(h.Ctx, "SELECT pg_advisory_lock(hashtext('maestro'), hashtext('migrations'))")
 	Expect(err).NotTo(HaveOccurred())
-	defer holder.ExecContext(context.Background(), "SELECT pg_advisory_unlock(hashtext('maestro'), hashtext('migrations'))")
 
 	ctx, cancel := context.WithTimeout(h.Ctx, 100*time.Millisecond)
 	defer cancel()
