@@ -3,7 +3,6 @@ package dao
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -49,24 +48,59 @@ func (d *sqlEventDao) Get(ctx context.Context, id string) (*api.Event, error) {
 
 func (d *sqlEventDao) Create(ctx context.Context, event *api.Event) (*api.Event, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Omit(clause.Associations).Create(event).Error; err != nil {
+	var err error
+	if event.Source == "Resources" && event.EventType == api.DeleteEventType {
+		err = g2.Transaction(func(tx *gorm.DB) error {
+			_, createErr := createResourceDeleteEvent(tx, event)
+			return createErr
+		})
+	} else {
+		err = createEvent(g2, event)
+	}
+	if err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}
-
-	notify := fmt.Sprintf("select pg_notify('%s', '%s')", "events", event.ID)
-
-	err := g2.Exec(notify).Error
-	if err != nil {
-		return nil, err
-	}
-
 	return event, nil
+}
+
+// Call inside a transaction. The resource row serializes the initial delete,
+// recovery and acknowledgement without blocking unrelated resources. A pending
+// event is outstanding publication work, not an agent acknowledgement.
+func createResourceDeleteEvent(tx *gorm.DB, event *api.Event) (bool, error) {
+	var id string
+	if err := tx.Raw(`SELECT id FROM resources
+		WHERE id = ? AND deleted_at IS NOT NULL FOR UPDATE`, event.SourceID).Scan(&id).Error; err != nil {
+		return false, err
+	}
+	if id == "" {
+		return false, nil
+	}
+	var pending bool
+	if err := tx.Raw(`SELECT EXISTS (SELECT 1 FROM events WHERE source = 'Resources'
+		AND event_type = 'Delete' AND source_id = ? AND reconciled_date IS NULL)`, id).
+		Scan(&pending).Error; err != nil {
+		return false, err
+	}
+	if pending {
+		return false, nil
+	}
+	return true, createEvent(tx, event)
+}
+
+func createEvent(tx *gorm.DB, event *api.Event) error {
+	if err := tx.Omit(clause.Associations).Create(event).Error; err != nil {
+		return err
+	}
+	return tx.Exec("SELECT pg_notify('events', ?)", event.ID).Error
 }
 
 func (d *sqlEventDao) Replace(ctx context.Context, event *api.Event) (*api.Event, error) {
 	g2 := (*d.sessionFactory).New(ctx)
-	if err := g2.Omit(clause.Associations).Save(event).Error; err != nil {
+	// A controller can finish after event retirement and purge. Updates must not
+	// upsert that event back into the queue.
+	if err := g2.Model(&api.Event{}).Where("id = ?", event.ID).
+		Select("*").Omit(clause.Associations).Updates(event).Error; err != nil {
 		db.MarkForRollback(ctx, err)
 		return nil, err
 	}
@@ -125,7 +159,7 @@ const StaleDeleteReconcileBatchSize = 10000
 // number of events reconciled.
 //
 // Only events that are themselves older than the cutoff are retired: a freshly
-// re-published delete event (see MarkAsDeleting's healing republish) for a long
+// re-published delete event from the recovery scheduler for a long
 // soft-deleted resource must get a full threshold's worth of delivery attempts before
 // it is considered stale.
 func (d *sqlEventDao) ReconcileStaleDeleteEvents(ctx context.Context, cutoff time.Time) (int64, error) {

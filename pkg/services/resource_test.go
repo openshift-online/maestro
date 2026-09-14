@@ -111,17 +111,14 @@ func TestMarkAsDeletingIsIdempotent(t *testing.T) {
 	gm.Expect(countDeleteEvents()).To(gm.Equal(1))
 }
 
-// TestMarkAsDeletingRepublishesStaleDeleteEvent ensures a retried delete request for a
-// resource stuck soft-deleted re-publishes the delete event once the latest delete event
-// is older than the republish interval. A re-delivered delete event re-stamps the deletion
-// state on an agent that lost it, healing deletions that would otherwise hang forever.
-func TestMarkAsDeletingRepublishesStaleDeleteEvent(t *testing.T) {
+// Caller retries never bypass the persistent scheduler's fleet budget.
+func TestMarkAsDeletingLeavesRecoveryToScheduler(t *testing.T) {
 	gm.RegisterTestingT(t)
 
 	ctx := context.Background()
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
-	resourceService := NewResourceServiceWithDeleteEventRepublishMaxAge(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60, 300)
+	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60)
 
 	resource, svcErr := resourceService.Create(ctx, &api.Resource{
 		ConsumerName: Fukuisaurus,
@@ -151,29 +148,14 @@ func TestMarkAsDeletingRepublishesStaleDeleteEvent(t *testing.T) {
 	gm.Expect(latest).ShouldNot(gm.BeNil())
 	latest.CreatedAt = time.Now().Add(-2 * time.Minute)
 
-	// the next retried delete republishes exactly one event
+	// Neither an old pending event nor an old tombstone permits caller-driven
+	// recovery. Event purging also cannot turn requests into recovery workers.
 	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
-	gm.Expect(countDeleteEvents()).To(gm.Equal(2))
-
-	// an immediate retry is throttled by the fresh event
+	gm.Expect(countDeleteEvents()).To(gm.Equal(1))
+	resource.DeletedAt.Time = time.Now().Add(-30 * 24 * time.Hour)
+	gm.Expect(events.Delete(ctx, latest.ID)).To(gm.BeNil())
 	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
-	gm.Expect(countDeleteEvents()).To(gm.Equal(2))
-
-	// The recovery window is measured from the original soft delete, not from the
-	// newest event. A stuck resource must not keep extending its own retry budget.
-	resource.DeletedAt.Time = time.Now().Add(-6 * time.Minute)
-	latest, svcErr = events.FindLatestDeleteEvent(ctx, resource.ID)
-	gm.Expect(svcErr).To(gm.BeNil())
-	gm.Expect(latest).ShouldNot(gm.BeNil())
-	latest.CreatedAt = time.Now().Add(-2 * time.Minute)
-	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
-	gm.Expect(countDeleteEvents()).To(gm.Equal(2))
-
-	// A maximum age of 0 explicitly preserves unlimited recovery attempts.
-	unlimitedResourceService := NewResourceServiceWithDeleteEventRepublishMaxAge(
-		dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60, 0)
-	gm.Expect(unlimitedResourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
-	gm.Expect(countDeleteEvents()).To(gm.Equal(3))
+	gm.Expect(countDeleteEvents()).To(gm.Equal(0))
 }
 
 // TestMarkAsDeletingRepublishDisabled ensures a republish interval of 0 preserves the

@@ -513,6 +513,7 @@ func (helper *Helper) CleanDB() error {
 
 	// TODO: this list should not be static or otherwise not hard-coded here.
 	for _, table := range []string{
+		"delete_recovery_consumers",
 		"events",
 		"status_events",
 		"resources",
@@ -527,6 +528,9 @@ func (helper *Helper) CleanDB() error {
 				return err
 			}
 		}
+	}
+	if g2.Migrator().HasTable("delete_recovery_schedule") {
+		return g2.Exec("UPDATE delete_recovery_schedule SET next_at = clock_timestamp() WHERE id = 1").Error
 	}
 	return nil
 }

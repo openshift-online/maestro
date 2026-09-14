@@ -1,11 +1,39 @@
 package config
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
 	"github.com/spf13/pflag"
 )
+
+func TestDeleteRecoveryConfigValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*EventServerConfig)
+		valid  bool
+	}{
+		{"defaults", func(c *EventServerConfig) {}, true},
+		{"disabled", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = 0 }, true},
+		{"negative interval", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = -1 }, false},
+		{"overflow interval", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = math.MaxInt }, false},
+		{"overflow maximum", func(c *EventServerConfig) { c.DeleteEventRepublishMaxInterval = math.MaxInt }, false},
+		{"zero maximum", func(c *EventServerConfig) { c.DeleteEventRepublishMaxInterval = 0 }, false},
+		{"maximum below initial", func(c *EventServerConfig) { c.DeleteEventRepublishMaxInterval = 1 }, false},
+		{"zero batch", func(c *EventServerConfig) { c.DeleteEventRepublishBatchSize = 0 }, false},
+		{"negative batch", func(c *EventServerConfig) { c.DeleteEventRepublishBatchSize = -1 }, false},
+		{"unbounded batch", func(c *EventServerConfig) { c.DeleteEventRepublishBatchSize = 1001 }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewEventServerConfig()
+			tc.change(c)
+			if err := c.ReadFiles(); (err == nil) != tc.valid {
+				t.Fatalf("validation = %v, want valid=%t", err, tc.valid)
+			}
+		})
+	}
+}
 
 func TestEventServerConfig(t *testing.T) {
 	cases := []struct {
@@ -23,10 +51,11 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
-				DeleteEventRepublishMaxAge:   300,
+				UndeliveredResourceThreshold:    600,
+				StaleDeleteEventThreshold:       3600,
+				DeleteEventRepublishInterval:    60,
+				DeleteEventRepublishMaxInterval: 3600,
+				DeleteEventRepublishBatchSize:   100,
 			},
 		},
 		{
@@ -41,10 +70,11 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
-				DeleteEventRepublishMaxAge:   300,
+				UndeliveredResourceThreshold:    600,
+				StaleDeleteEventThreshold:       3600,
+				DeleteEventRepublishInterval:    60,
+				DeleteEventRepublishMaxInterval: 3600,
+				DeleteEventRepublishBatchSize:   100,
 			},
 		},
 		{
@@ -62,10 +92,11 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 30,
 					Load:              1.5,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
-				DeleteEventRepublishMaxAge:   300,
+				UndeliveredResourceThreshold:    600,
+				StaleDeleteEventThreshold:       3600,
+				DeleteEventRepublishInterval:    60,
+				DeleteEventRepublishMaxInterval: 3600,
+				DeleteEventRepublishBatchSize:   100,
 			},
 		},
 	}

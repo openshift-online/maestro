@@ -585,11 +585,7 @@ func TestReconcileStaleDeleteEvents(t *testing.T) {
 	Expect(pendingDeletes()).To(Equal(0))
 }
 
-// TestMarkAsDeletingRepublishThrottle verifies that retried delete requests for a resource
-// stuck soft-deleted re-publish the delete event at most once per republish interval: a
-// re-delivered delete event re-stamps the deletion state on an agent that lost it, while
-// the throttle keeps retries from accumulating events without bound (AROSLSRE-1547).
-func TestMarkAsDeletingRepublishThrottle(t *testing.T) {
+func TestMarkAsDeletingDoesNotBypassRecoveryScheduler(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
 	ctx := context.Background()
@@ -615,8 +611,7 @@ func TestMarkAsDeletingRepublishThrottle(t *testing.T) {
 		return count
 	}
 
-	// the first delete soft-deletes and enqueues one delete event; an immediate retry is
-	// throttled by that fresh event (default 60s interval)
+	// The initial delete is prompt. Retried requests do not enqueue recovery.
 	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
 	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
 	Expect(pendingDeletes()).To(Equal(1))
@@ -626,12 +621,19 @@ func TestMarkAsDeletingRepublishThrottle(t *testing.T) {
 	Expect(g2.Exec("UPDATE events SET created_at = ? WHERE source_id = ? AND event_type = ?",
 		time.Now().Add(-2*time.Minute), resource.ID, api.DeleteEventType).Error).NotTo(HaveOccurred())
 
-	// the next retried delete republishes exactly one event, and another immediate retry
-	// is throttled again
 	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
-	Expect(pendingDeletes()).To(Equal(2))
+	Expect(pendingDeletes()).To(Equal(1))
 	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
-	Expect(pendingDeletes()).To(Equal(2))
+	Expect(pendingDeletes()).To(Equal(1))
+
+	Expect(g2.Exec("UPDATE resources SET deleted_at = ? WHERE id = ?",
+		time.Now().Add(-2*time.Hour), resource.ID).Error).To(Succeed())
+	recovery := recoveryForTest(t, h, 100)
+	result, runErr := recovery.Run(ctx)
+	Expect(runErr).NotTo(HaveOccurred())
+	Expect(result.Initialized).To(Equal(1))
+	Expect(result.Published).To(BeZero(), "pending publication is coalesced")
+	Expect(pendingDeletes()).To(Equal(1))
 }
 
 // TestReconcileStaleDeleteEventsSparesFreshHealingEvents verifies the stale-delete
@@ -662,7 +664,7 @@ func TestReconcileStaleDeleteEventsSparesFreshHealingEvents(t *testing.T) {
 	Expect(g2.Exec("UPDATE events SET created_at = ? WHERE source_id = ? AND event_type = ?",
 		twoHoursAgo, resource.ID, api.DeleteEventType).Error).NotTo(HaveOccurred())
 
-	// a retried delete now republishes a fresh healing event
+	// Caller retries do not append to an outstanding event.
 	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
 
 	pendingDeletes := func() int {
@@ -676,12 +678,20 @@ func TestReconcileStaleDeleteEventsSparesFreshHealingEvents(t *testing.T) {
 		}
 		return count
 	}
-	Expect(pendingDeletes()).To(Equal(2))
+	Expect(pendingDeletes()).To(Equal(1))
 
-	// the detector retires only the 2h-old event; the fresh healing event survives
+	// Retirement frees the coalesced slot. Recovery runs without a new delete
+	// request, even for a tombstone far beyond the initial backoff.
 	count, svcErr := eventService.ReconcileStaleDeleteEvents(ctx, time.Hour)
 	Expect(svcErr).NotTo(HaveOccurred())
 	Expect(count).To(Equal(int64(1)))
+	Expect(pendingDeletes()).To(BeZero())
+	result, runErr := recoveryForTest(t, h, 100).Run(ctx)
+	Expect(runErr).NotTo(HaveOccurred())
+	Expect(result.Published).To(Equal(1))
+	count, svcErr = eventService.ReconcileStaleDeleteEvents(ctx, time.Hour)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(count).To(BeZero(), "fresh recovery gets a full delivery threshold")
 	Expect(pendingDeletes()).To(Equal(1))
 }
 
