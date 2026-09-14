@@ -9,19 +9,23 @@ import (
 	"github.com/openshift-online/maestro/pkg/dao"
 )
 
+// DeleteRecoveryRunner executes one durable, fleet-budgeted recovery round.
 type DeleteRecoveryRunner interface {
 	Run(context.Context) (dao.DeleteRecoveryResult, error)
 }
 
+// DeleteRecoveryController bounds recovery execution time and records round outcomes.
 type DeleteRecoveryController struct {
 	recovery DeleteRecoveryRunner
 	metrics  *deleteRecoveryMetrics
 }
 
+// NewDeleteRecoveryController wraps a recovery runner with shared scheduler metrics.
 func NewDeleteRecoveryController(recovery DeleteRecoveryRunner) *DeleteRecoveryController {
 	return &DeleteRecoveryController{recovery: recovery, metrics: recoveryMetrics}
 }
 
+// Run executes one recovery round with a 30-second deadline and records its outcome.
 func (c *DeleteRecoveryController) Run(ctx context.Context) {
 	// Bound transaction lifetime, including row locks, independently of caller
 	// traffic. Failed rounds roll back their events, schedule and fleet deadline.

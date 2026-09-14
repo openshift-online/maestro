@@ -46,6 +46,7 @@ func (d *sqlEventDao) Get(ctx context.Context, id string) (*api.Event, error) {
 	return &event, nil
 }
 
+// Create persists an event and notifies subscribers, coalescing pending resource deletes.
 func (d *sqlEventDao) Create(ctx context.Context, event *api.Event) (*api.Event, error) {
 	g2 := (*d.sessionFactory).New(ctx)
 	var err error
@@ -64,6 +65,7 @@ func (d *sqlEventDao) Create(ctx context.Context, event *api.Event) (*api.Event,
 	return event, nil
 }
 
+// createResourceDeleteEvent coalesces pending deletes for a locked tombstone.
 // Call inside a transaction. The resource row serializes the initial delete,
 // recovery and acknowledgement without blocking unrelated resources. A pending
 // event is outstanding publication work, not an agent acknowledgement.
@@ -88,6 +90,7 @@ func createResourceDeleteEvent(tx *gorm.DB, event *api.Event) (bool, error) {
 	return true, createEvent(tx, event)
 }
 
+// createEvent inserts an event and queues its PostgreSQL publication notification.
 func createEvent(tx *gorm.DB, event *api.Event) error {
 	if err := tx.Omit(clause.Associations).Create(event).Error; err != nil {
 		return err

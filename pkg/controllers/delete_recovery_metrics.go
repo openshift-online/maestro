@@ -11,6 +11,7 @@ type deleteRecoveryMetrics struct {
 	work     *prometheus.CounterVec
 }
 
+// newDeleteRecoveryMetrics initializes all bounded outcome and committed-work series.
 func newDeleteRecoveryMetrics() *deleteRecoveryMetrics {
 	m := &deleteRecoveryMetrics{
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
@@ -34,6 +35,7 @@ func newDeleteRecoveryMetrics() *deleteRecoveryMetrics {
 	return m
 }
 
+// observe records elapsed runner time and counts work only for successfully committed rounds.
 func (m *deleteRecoveryMetrics) observe(result dao.DeleteRecoveryResult, err error, seconds float64) {
 	outcome := "noop"
 	switch {

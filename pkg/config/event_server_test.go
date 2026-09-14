@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// TestDeleteRecoveryConfigValidation checks retry limits, overflow and disabled recovery.
 func TestDeleteRecoveryConfigValidation(t *testing.T) {
 	for _, tc := range []struct {
 		name   string
@@ -35,6 +36,7 @@ func TestDeleteRecoveryConfigValidation(t *testing.T) {
 	}
 }
 
+// TestEventServerConfig verifies event-server defaults and command-line overrides.
 func TestEventServerConfig(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -122,6 +124,7 @@ func TestEventServerConfig(t *testing.T) {
 	}
 }
 
+// TestDeleteRecoveryBatchFlag checks that the fleet budget flag reaches validated configuration.
 func TestDeleteRecoveryBatchFlag(t *testing.T) {
 	c := NewEventServerConfig()
 	fs := pflag.NewFlagSet("recovery", pflag.ContinueOnError)

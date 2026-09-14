@@ -6,6 +6,7 @@ import (
 	"time"
 )
 
+// TestDeleteRecoveryBackoff checks exponential caps, overflow safety and equal-jitter bounds.
 func TestDeleteRecoveryBackoff(t *testing.T) {
 	for _, tc := range []struct {
 		name                         string

@@ -507,6 +507,7 @@ func (helper *Helper) ClearAllTables() {
 	helper.DeleteAll(&api.Resource{})
 }
 
+// CleanDB clears integration-test state and makes the durable recovery schedule immediately eligible.
 func (helper *Helper) CleanDB() error {
 	logger := klog.FromContext(helper.Ctx)
 	g2 := helper.DBFactory.New(context.Background())

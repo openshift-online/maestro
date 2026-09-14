@@ -5,6 +5,7 @@ import (
 	"gorm.io/gorm"
 )
 
+// addDeleteRecovery adds durable retry scheduling and retryable concurrent indexes.
 func addDeleteRecovery() *gormigrate.Migration {
 	return &gormigrate.Migration{
 		ID: "202609141000",
@@ -32,21 +33,30 @@ func addDeleteRecovery() *gormigrate.Migration {
 			}); err != nil {
 				return err
 			}
-			for _, index := range []struct{ name, definition string }{
-				{"idx_resources_delete_recovery_bootstrap", `ON resources (deleted_at, id)
-					WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL`},
-				{"idx_resources_delete_recovery_due", `ON resources (consumer_name, delete_retry_at, id)
-					WHERE deleted_at IS NOT NULL AND delete_retry_at IS NOT NULL`},
+			for _, index := range []struct{ drop, create string }{
+				{
+					"DROP INDEX CONCURRENTLY IF EXISTS idx_resources_delete_recovery_bootstrap",
+					`CREATE INDEX CONCURRENTLY idx_resources_delete_recovery_bootstrap ON resources (deleted_at, id)
+						WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL`,
+				},
+				{
+					"DROP INDEX CONCURRENTLY IF EXISTS idx_resources_delete_recovery_due",
+					`CREATE INDEX CONCURRENTLY idx_resources_delete_recovery_due ON resources (consumer_name, delete_retry_at, id)
+						WHERE deleted_at IS NOT NULL AND delete_retry_at IS NOT NULL`,
+				},
 				// Non-unique: an upgraded database can contain duplicate legacy
 				// events. Coalescing uses the resource row lock, not a new constraint.
-				{"idx_events_pending_resource_delete", `ON events (source_id)
-					WHERE source = 'Resources' AND event_type = 'Delete' AND reconciled_date IS NULL`},
+				{
+					"DROP INDEX CONCURRENTLY IF EXISTS idx_events_pending_resource_delete",
+					`CREATE INDEX CONCURRENTLY idx_events_pending_resource_delete ON events (source_id)
+						WHERE source = 'Resources' AND event_type = 'Delete' AND reconciled_date IS NULL`,
+				},
 			} {
 				// Retry interrupted concurrent builds, including invalid indexes.
-				if err := tx.Exec("DROP INDEX CONCURRENTLY IF EXISTS " + index.name).Error; err != nil {
+				if err := tx.Exec(index.drop).Error; err != nil {
 					return err
 				}
-				if err := tx.Exec("CREATE INDEX CONCURRENTLY " + index.name + " " + index.definition).Error; err != nil {
+				if err := tx.Exec(index.create).Error; err != nil {
 					return err
 				}
 			}

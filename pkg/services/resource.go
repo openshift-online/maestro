@@ -38,6 +38,7 @@ type ResourceService interface {
 	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
 
+// NewResourceService constructs the resource lifecycle service.
 // The final argument is retained for source compatibility. Recovery is scheduled
 // by the delete recovery controller, not by callers retrying MarkAsDeleting.
 func NewResourceService(

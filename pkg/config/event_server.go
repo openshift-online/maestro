@@ -74,6 +74,7 @@ func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	c.ConsistentHashConfig.AddFlags(fs)
 }
 
+// ReadFiles validates recovery settings before loading consistent-hash configuration.
 func (c *EventServerConfig) ReadFiles() error {
 	if err := c.ValidateDeleteRecovery(); err != nil {
 		return err
@@ -81,6 +82,7 @@ func (c *EventServerConfig) ReadFiles() error {
 	return c.ConsistentHashConfig.ReadFiles()
 }
 
+// ValidateDeleteRecovery checks duration bounds, backoff ordering and the fleet batch limit.
 func (c *EventServerConfig) ValidateDeleteRecovery() error {
 	maxSeconds := int64(math.MaxInt64 / int64(time.Second))
 	if c.DeleteEventRepublishInterval < 0 || int64(c.DeleteEventRepublishInterval) > maxSeconds {

@@ -13,6 +13,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 )
 
+// NewControllersServer wires event processing and broker-enabled delete recovery controllers.
 func NewControllersServer(ctx context.Context, eventServer EventServer, eventFilter controllers.EventFilter) *ControllersServer {
 	logger := klog.FromContext(ctx)
 

@@ -23,6 +23,7 @@ import (
 	"github.com/openshift-online/maestro/test"
 )
 
+// recoveryForTest creates a scheduler with an explicit fleet batch budget.
 func recoveryForTest(t *testing.T, h *test.Helper, batch int) *dao.DeleteRecovery {
 	t.Helper()
 	c := config.NewEventServerConfig()
@@ -32,6 +33,7 @@ func recoveryForTest(t *testing.T, h *test.Helper, batch int) *dao.DeleteRecover
 	return recovery
 }
 
+// recoveryTombstone seeds a consumer and an unscheduled tombstone of the given age.
 func recoveryTombstone(conn *gorm.DB, id, consumer string, age time.Duration) {
 	Expect(conn.Exec("INSERT INTO consumers (id, name) VALUES (?, ?) ON CONFLICT (name) DO NOTHING",
 		consumer, consumer).Error).To(Succeed())
@@ -39,10 +41,12 @@ func recoveryTombstone(conn *gorm.DB, id, consumer string, age time.Duration) {
 		VALUES (?, ?, 1, ?, ?)`, id, id, consumer, time.Now().Add(-age)).Error).To(Succeed())
 }
 
+// advanceRecoveryRound expires the durable fleet deadline without sleeping.
 func advanceRecoveryRound(conn *gorm.DB) {
 	Expect(conn.Exec("UPDATE delete_recovery_schedule SET next_at = clock_timestamp() - interval '1 second'").Error).To(Succeed())
 }
 
+// makeRecoveryDue expires resource, consumer and fleet deadlines for the next round.
 func makeRecoveryDue(conn *gorm.DB) {
 	Expect(conn.Exec(`UPDATE resources SET delete_retry_at = clock_timestamp() - interval '1 second'
 		WHERE delete_retry_at IS NOT NULL`).Error).To(Succeed())
@@ -50,6 +54,8 @@ func makeRecoveryDue(conn *gorm.DB) {
 	advanceRecoveryRound(conn)
 }
 
+// TestDeleteRecoveryMigrationAndBoundedBootstrap verifies concurrent migration retries,
+// invalid-index repair, bounded legacy initialization and tombstone-preserving rollback.
 func TestDeleteRecoveryMigrationAndBoundedBootstrap(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -107,6 +113,7 @@ func TestDeleteRecoveryMigrationAndBoundedBootstrap(t *testing.T) {
 	Expect(db.Migrate(conn)).To(Succeed())
 }
 
+// TestDeleteRecoveryEmptyAndBatchSize checks idle rounds and configured fleet budgets.
 func TestDeleteRecoveryEmptyAndBatchSize(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -129,6 +136,7 @@ func TestDeleteRecoveryEmptyAndBatchSize(t *testing.T) {
 	}
 }
 
+// TestDeleteRecoveryCommitFailure verifies deferred commit errors roll back work and reported counts.
 func TestDeleteRecoveryCommitFailure(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -159,6 +167,7 @@ func TestDeleteRecoveryCommitFailure(t *testing.T) {
 		"commit failure must also roll back the fleet deadline")
 }
 
+// TestDeleteRecoveryConsumerFairnessAndOldestDue checks fair consumer turns and oldest-due selection.
 func TestDeleteRecoveryConsumerFairnessAndOldestDue(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -208,6 +217,8 @@ func TestDeleteRecoveryConsumerFairnessAndOldestDue(t *testing.T) {
 	Expect(count).To(BeZero(), "a newly initialized old tombstone cannot jump ahead of waiting consumers")
 }
 
+// TestDeleteRecoveryPersistentBackoffPurgeAndStaleRetirement checks durable retries
+// across scheduler recreation, publication cleanup and stale-event retirement.
 func TestDeleteRecoveryPersistentBackoffPurgeAndStaleRetirement(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -270,6 +281,7 @@ func TestDeleteRecoveryPersistentBackoffPurgeAndStaleRetirement(t *testing.T) {
 	Expect(result.Published).To(Equal(1), "retiring the only pending event must not stall recovery")
 }
 
+// TestDeleteRecoveryRollbackAndDisabled checks atomic rollback and the zero-interval kill switch.
 func TestDeleteRecoveryRollbackAndDisabled(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -311,6 +323,7 @@ func TestDeleteRecoveryRollbackAndDisabled(t *testing.T) {
 	Expect(result.Published).To(Equal(1), "failed round does not consume the durable fleet deadline")
 }
 
+// TestDeleteRecoveryConcurrentReplicasAndDeleteCallers verifies shared fleet limits and event coalescing.
 func TestDeleteRecoveryConcurrentReplicasAndDeleteCallers(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -369,6 +382,8 @@ func TestDeleteRecoveryConcurrentReplicasAndDeleteCallers(t *testing.T) {
 	Expect(count).To(Equal(int64(1)))
 }
 
+// TestDeleteRecoveryAcknowledgementRaceAndCleanup checks that acknowledgement racing
+// recovery cannot resurrect deletion work or leave consumer scheduling state behind.
 func TestDeleteRecoveryAcknowledgementRaceAndCleanup(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -402,12 +417,18 @@ func TestDeleteRecoveryAcknowledgementRaceAndCleanup(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(result.Published).To(BeZero())
 	var count int64
-	for _, table := range []string{"resources", "events", "delete_recovery_consumers"} {
-		Expect(conn.Raw("SELECT count(*) FROM " + table).Scan(&count).Error).To(Succeed())
-		Expect(count).To(BeZero(), table)
+	for _, query := range []string{
+		"SELECT count(*) FROM resources",
+		"SELECT count(*) FROM events",
+		"SELECT count(*) FROM delete_recovery_consumers",
+	} {
+		Expect(conn.Raw(query).Scan(&count).Error).To(Succeed())
+		Expect(count).To(BeZero(), query)
 	}
 }
 
+// TestDeleteRecoveryConnectedAgentWithoutCallerRetries verifies scheduled publication
+// reaches a connected agent and completes deletion through its acknowledgement.
 func TestDeleteRecoveryConnectedAgentWithoutCallerRetries(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -452,6 +473,8 @@ func TestDeleteRecoveryConnectedAgentWithoutCallerRetries(t *testing.T) {
 	Expect(count).To(Equal(int64(1)))
 }
 
+// TestDeleteRecoveryLocksDoNotGateInitialDeletion checks bounded lock skipping
+// and initial deletion's independence from the fleet scheduler lock.
 func TestDeleteRecoveryLocksDoNotGateInitialDeletion(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -488,6 +511,7 @@ func TestDeleteRecoveryLocksDoNotGateInitialDeletion(t *testing.T) {
 	Expect(deleteErr).NotTo(HaveOccurred(), "initial deletion must not take the fleet lock")
 }
 
+// TestDeleteRecoverySchedulerIndexes checks query plans use the three partial recovery indexes.
 func TestDeleteRecoverySchedulerIndexes(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	conn := h.DBFactory.New(context.Background())
@@ -501,16 +525,16 @@ func TestDeleteRecoverySchedulerIndexes(t *testing.T) {
 			CASE WHEN i > 1 THEN now() END FROM generate_series(1, 2000) i`).Error).To(Succeed())
 	Expect(conn.Exec("ANALYZE resources; ANALYZE events").Error).To(Succeed())
 	for _, query := range []struct{ sql, index string }{
-		{`SELECT id FROM resources WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL
+		{`EXPLAIN SELECT id FROM resources WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL
 			ORDER BY deleted_at, id LIMIT 2`, "idx_resources_delete_recovery_bootstrap"},
-		{`SELECT id FROM resources WHERE consumer_name = 'index-consumer'
+		{`EXPLAIN SELECT id FROM resources WHERE consumer_name = 'index-consumer'
 			AND deleted_at IS NOT NULL AND delete_retry_at IS NOT NULL AND delete_retry_at <= now()
 			ORDER BY delete_retry_at, id LIMIT 1`, "idx_resources_delete_recovery_due"},
-		{`SELECT 1 FROM events WHERE source = 'Resources' AND event_type = 'Delete'
+		{`EXPLAIN SELECT 1 FROM events WHERE source = 'Resources' AND event_type = 'Delete'
 			AND reconciled_date IS NULL AND source_id = 'index-seed'`, "idx_events_pending_resource_delete"},
 	} {
 		var plan []string
-		Expect(conn.Raw("EXPLAIN " + query.sql).Scan(&plan).Error).To(Succeed())
+		Expect(conn.Raw(query.sql).Scan(&plan).Error).To(Succeed())
 		Expect(strings.Join(plan, "\n")).To(ContainSubstring(query.index))
 	}
 }

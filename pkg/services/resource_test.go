@@ -111,7 +111,7 @@ func TestMarkAsDeletingIsIdempotent(t *testing.T) {
 	gm.Expect(countDeleteEvents()).To(gm.Equal(1))
 }
 
-// Caller retries never bypass the persistent scheduler's fleet budget.
+// TestMarkAsDeletingLeavesRecoveryToScheduler checks caller retries cannot bypass the fleet budget.
 func TestMarkAsDeletingLeavesRecoveryToScheduler(t *testing.T) {
 	gm.RegisterTestingT(t)
 

@@ -13,10 +13,12 @@ import (
 
 type recoveryRunnerFunc func(context.Context) (dao.DeleteRecoveryResult, error)
 
+// Run delegates to the test callback so controller outcomes can be injected.
 func (f recoveryRunnerFunc) Run(ctx context.Context) (dao.DeleteRecoveryResult, error) {
 	return f(ctx)
 }
 
+// TestDeleteRecoveryMetrics checks bounded outcome labels, elapsed time and committed-only work counts.
 func TestDeleteRecoveryMetrics(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -98,6 +100,7 @@ func TestDeleteRecoveryMetrics(t *testing.T) {
 	}
 }
 
+// TestDeleteRecoveryController verifies the runner receives a bounded, cancellable context.
 func TestDeleteRecoveryController(t *testing.T) {
 	calls := 0
 	c := NewDeleteRecoveryController(recoveryRunnerFunc(func(ctx context.Context) (dao.DeleteRecoveryResult, error) {

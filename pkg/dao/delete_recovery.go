@@ -16,6 +16,7 @@ import (
 // database deadline. Missed rounds do not accumulate credits.
 const DeleteRecoveryRoundInterval = time.Second
 
+// DeleteRecovery schedules durable deletion retries within a shared fleet budget.
 type DeleteRecovery struct {
 	sessions db.SessionFactory
 	initial  time.Duration
@@ -23,6 +24,7 @@ type DeleteRecovery struct {
 	batch    int
 }
 
+// DeleteRecoveryResult reports only work committed by a recovery round.
 type DeleteRecoveryResult struct {
 	// Claimed is true only when this call claimed and committed the fleet round.
 	// Errors return a zero result, including any work rolled back.
@@ -32,6 +34,7 @@ type DeleteRecoveryResult struct {
 	Published   int
 }
 
+// NewDeleteRecovery validates retry limits and constructs a database-backed scheduler.
 func NewDeleteRecovery(sessions db.SessionFactory, c *config.EventServerConfig) (*DeleteRecovery, error) {
 	if err := c.ValidateDeleteRecovery(); err != nil {
 		return nil, err
@@ -100,6 +103,7 @@ func (d *DeleteRecovery) Run(ctx context.Context) (DeleteRecoveryResult, error) 
 	return result, nil
 }
 
+// initialize schedules a bounded set of oldest tombstones without waiting on locked resources.
 func (d *DeleteRecovery) initialize(tx *gorm.DB, now time.Time, result *DeleteRecoveryResult) error {
 	var ids []string
 	if err := tx.Raw(`SELECT id FROM resources
@@ -139,6 +143,7 @@ func (d *DeleteRecovery) initialize(tx *gorm.DB, now time.Time, result *DeleteRe
 	return nil
 }
 
+// recoverConsumer retries at most one due resource and advances or removes its consumer's queue entry.
 func (d *DeleteRecovery) recoverConsumer(tx *gorm.DB, consumer string, now time.Time, result *DeleteRecoveryResult) error {
 	var ids []string
 	if err := tx.Raw(`SELECT id FROM resources WHERE consumer_name = ?
@@ -190,6 +195,7 @@ func (d *DeleteRecovery) recoverConsumer(tx *gorm.DB, consumer string, now time.
 	return tx.Exec("UPDATE delete_recovery_consumers SET next_at = ? WHERE consumer_name = ?", next, consumer).Error
 }
 
+// nextDeleteRetryDelay doubles the nominal delay up to the cap without overflowing.
 func nextDeleteRetryDelay(previous, initial, maximum time.Duration) time.Duration {
 	if previous < initial {
 		previous = initial
@@ -200,9 +206,8 @@ func nextDeleteRetryDelay(previous, initial, maximum time.Duration) time.Duratio
 	return previous * 2
 }
 
+// jitterDeleteRetryDelay applies equal jitter in [nominal/2, nominal) to a positive delay.
 func jitterDeleteRetryDelay(nominal time.Duration) time.Duration {
-	// Equal jitter, [nominal/2, nominal), retains a positive lower bound and
-	// cannot overflow or exceed the configured maximum.
 	half := nominal / 2
 	return half + time.Duration(rand.Int64N(int64(nominal-half)))
 }

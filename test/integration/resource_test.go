@@ -585,6 +585,8 @@ func TestReconcileStaleDeleteEvents(t *testing.T) {
 	Expect(pendingDeletes()).To(Equal(0))
 }
 
+// TestMarkAsDeletingDoesNotBypassRecoveryScheduler checks caller retries leave recovery
+// to the durable scheduler, including after publication events have been purged.
 func TestMarkAsDeletingDoesNotBypassRecoveryScheduler(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 
