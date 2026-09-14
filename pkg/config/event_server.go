@@ -18,6 +18,7 @@ type EventServerConfig struct {
 	UndeliveredResourceThreshold int                   `json:"undelivered_resource_threshold"`
 	StaleDeleteEventThreshold    int                   `json:"stale_delete_event_threshold"`
 	DeleteEventRepublishInterval int                   `json:"delete_event_republish_interval"`
+	DeleteEventRepublishMaxAge   int                   `json:"delete_event_republish_max_age"`
 }
 
 // ConsistentHashConfig contains the configuration for the consistent hashing algorithm.
@@ -35,6 +36,7 @@ func NewEventServerConfig() *EventServerConfig {
 		UndeliveredResourceThreshold: 600,
 		StaleDeleteEventThreshold:    3600,
 		DeleteEventRepublishInterval: 60,
+		DeleteEventRepublishMaxAge:   300,
 	}
 }
 
@@ -61,6 +63,7 @@ func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.UndeliveredResourceThreshold, "undelivered-resource-threshold", c.UndeliveredResourceThreshold, "Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to 0 to disable. Default: 600 (10 minutes)")
 	fs.IntVar(&c.StaleDeleteEventThreshold, "stale-delete-event-threshold", c.StaleDeleteEventThreshold, "Seconds a resource can remain soft-deleted with an unreconciled delete event before that event is retired (the agent is assumed gone). Set to 0 to disable. Default: 3600 (1 hour)")
 	fs.IntVar(&c.DeleteEventRepublishInterval, "delete-event-republish-interval", c.DeleteEventRepublishInterval, "Seconds before a delete event is re-published for a resource that remains soft-deleted when another delete request arrives, healing agents that lost the deletion state. Raising it trades healing latency for fewer queued events per stuck resource. Set to 0 to disable republishing. Default: 60 (1 minute)")
+	fs.IntVar(&c.DeleteEventRepublishMaxAge, "delete-event-republish-max-age", c.DeleteEventRepublishMaxAge, "Maximum seconds after a resource is first marked for deletion during which retry requests can re-publish delete events. Set to 0 to disable the age limit. Default: 300 (5 minutes)")
 	c.ConsistentHashConfig.AddFlags(fs)
 }
 

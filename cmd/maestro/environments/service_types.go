@@ -10,12 +10,13 @@ type ResourceServiceLocator func() services.ResourceService
 
 func NewResourceServiceLocator(env *Env) ResourceServiceLocator {
 	return func() services.ResourceService {
-		return services.NewResourceService(
+		return services.NewResourceServiceWithDeleteEventRepublishMaxAge(
 			db.NewAdvisoryLockFactory(env.Database.SessionFactory),
 			dao.NewResourceDao(&env.Database.SessionFactory),
 			env.Services.Events(),
 			env.Services.Generic(),
 			env.Config.EventServer.DeleteEventRepublishInterval,
+			env.Config.EventServer.DeleteEventRepublishMaxAge,
 		)
 	}
 }

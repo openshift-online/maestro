@@ -26,6 +26,7 @@ func TestEventServerConfig(t *testing.T) {
 				UndeliveredResourceThreshold: 600,
 				StaleDeleteEventThreshold:    3600,
 				DeleteEventRepublishInterval: 60,
+				DeleteEventRepublishMaxAge:   300,
 			},
 		},
 		{
@@ -43,6 +44,7 @@ func TestEventServerConfig(t *testing.T) {
 				UndeliveredResourceThreshold: 600,
 				StaleDeleteEventThreshold:    3600,
 				DeleteEventRepublishInterval: 60,
+				DeleteEventRepublishMaxAge:   300,
 			},
 		},
 		{
@@ -63,6 +65,7 @@ func TestEventServerConfig(t *testing.T) {
 				UndeliveredResourceThreshold: 600,
 				StaleDeleteEventThreshold:    3600,
 				DeleteEventRepublishInterval: 60,
+				DeleteEventRepublishMaxAge:   300,
 			},
 		},
 	}

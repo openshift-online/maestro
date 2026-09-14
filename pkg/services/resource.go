@@ -38,13 +38,40 @@ type ResourceService interface {
 	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
 
-func NewResourceService(lockFactory db.LockFactory, resourceDao dao.ResourceDao, events EventService, generic GenericService, deleteEventRepublishIntervalSeconds int) ResourceService {
+const defaultDeleteEventRepublishMaxAge = 5 * time.Minute
+
+func NewResourceService(
+	lockFactory db.LockFactory,
+	resourceDao dao.ResourceDao,
+	events EventService,
+	generic GenericService,
+	deleteEventRepublishIntervalSeconds int,
+) ResourceService {
+	return NewResourceServiceWithDeleteEventRepublishMaxAge(
+		lockFactory,
+		resourceDao,
+		events,
+		generic,
+		deleteEventRepublishIntervalSeconds,
+		int(defaultDeleteEventRepublishMaxAge.Seconds()),
+	)
+}
+
+func NewResourceServiceWithDeleteEventRepublishMaxAge(
+	lockFactory db.LockFactory,
+	resourceDao dao.ResourceDao,
+	events EventService,
+	generic GenericService,
+	deleteEventRepublishIntervalSeconds int,
+	deleteEventRepublishMaxAgeSeconds int,
+) ResourceService {
 	return &sqlResourceService{
 		lockFactory:                  lockFactory,
 		resourceDao:                  resourceDao,
 		events:                       events,
 		generic:                      generic,
 		deleteEventRepublishInterval: time.Duration(deleteEventRepublishIntervalSeconds) * time.Second,
+		deleteEventRepublishMaxAge:   time.Duration(deleteEventRepublishMaxAgeSeconds) * time.Second,
 	}
 }
 
@@ -59,6 +86,10 @@ type sqlResourceService struct {
 	// a resource that remains soft-deleted when another delete request arrives; 0 disables
 	// republishing entirely.
 	deleteEventRepublishInterval time.Duration
+	// deleteEventRepublishMaxAge bounds the recovery window from the original deletion.
+	// It prevents a large population of stuck resources from continuously generating
+	// a bounded-per-resource, but unbounded-in-total, event load.
+	deleteEventRepublishMaxAge time.Duration
 }
 
 func (s *sqlResourceService) Get(ctx context.Context, id string) (*api.Resource, *errors.ServiceError) {
@@ -296,7 +327,7 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 	if existing.DeletedAt.Valid {
 		// deletion is already in flight; re-publish the delete event if the latest one
 		// is older than the republish interval, otherwise do nothing
-		return s.republishDeleteEvent(ctx, id)
+		return s.republishDeleteEvent(ctx, existing)
 	}
 
 	if err := s.resourceDao.Delete(ctx, id, false); err != nil {
@@ -321,15 +352,21 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 // delete), while the throttle keeps retried deletes from accumulating events without
 // bound (the AROSLSRE-1547 starvation concern). Must be called with the resource
 // advisory lock held so the check-then-create is serialized across maestro instances.
-func (s *sqlResourceService) republishDeleteEvent(ctx context.Context, id string) *errors.ServiceError {
-	logger := klog.FromContext(ctx).WithValues("resourceID", id)
+func (s *sqlResourceService) republishDeleteEvent(ctx context.Context, resource *api.Resource) *errors.ServiceError {
+	logger := klog.FromContext(ctx).WithValues("resourceID", resource.ID)
 
 	if s.deleteEventRepublishInterval <= 0 {
 		logger.V(4).Info("skipping delete for resource as deletion is already in flight, republishing is disabled")
 		return nil
 	}
+	if s.deleteEventRepublishMaxAge > 0 && time.Since(resource.DeletedAt.Time) >= s.deleteEventRepublishMaxAge {
+		logger.Info("skipping delete event republish because the deletion recovery window has expired",
+			"deletionAge", time.Since(resource.DeletedAt.Time).String(),
+			"recoveryWindow", s.deleteEventRepublishMaxAge.String())
+		return nil
+	}
 
-	latest, svcErr := s.events.FindLatestDeleteEvent(ctx, id)
+	latest, svcErr := s.events.FindLatestDeleteEvent(ctx, resource.ID)
 	if svcErr != nil {
 		// best-effort healing: never fail an otherwise idempotent delete retry on the lookup
 		logger.Error(svcErr, "unable to look up the latest delete event for resource, skipping republish")
@@ -347,7 +384,7 @@ func (s *sqlResourceService) republishDeleteEvent(ctx context.Context, id string
 	}
 	if _, err := s.events.Create(ctx, &api.Event{
 		Source:    "Resources",
-		SourceID:  id,
+		SourceID:  resource.ID,
 		EventType: api.DeleteEventType,
 	}); err != nil {
 		return handleDeleteError("Resource", err)

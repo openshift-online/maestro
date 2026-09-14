@@ -121,7 +121,7 @@ func TestMarkAsDeletingRepublishesStaleDeleteEvent(t *testing.T) {
 	ctx := context.Background()
 	resourceDAO := mocks.NewResourceDao()
 	events := NewEventService(mocks.NewEventDao())
-	resourceService := NewResourceService(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60)
+	resourceService := NewResourceServiceWithDeleteEventRepublishMaxAge(dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60, 300)
 
 	resource, svcErr := resourceService.Create(ctx, &api.Resource{
 		ConsumerName: Fukuisaurus,
@@ -158,6 +158,22 @@ func TestMarkAsDeletingRepublishesStaleDeleteEvent(t *testing.T) {
 	// an immediate retry is throttled by the fresh event
 	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
 	gm.Expect(countDeleteEvents()).To(gm.Equal(2))
+
+	// The recovery window is measured from the original soft delete, not from the
+	// newest event. A stuck resource must not keep extending its own retry budget.
+	resource.DeletedAt.Time = time.Now().Add(-6 * time.Minute)
+	latest, svcErr = events.FindLatestDeleteEvent(ctx, resource.ID)
+	gm.Expect(svcErr).To(gm.BeNil())
+	gm.Expect(latest).ShouldNot(gm.BeNil())
+	latest.CreatedAt = time.Now().Add(-2 * time.Minute)
+	gm.Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(countDeleteEvents()).To(gm.Equal(2))
+
+	// A maximum age of 0 explicitly preserves unlimited recovery attempts.
+	unlimitedResourceService := NewResourceServiceWithDeleteEventRepublishMaxAge(
+		dbmocks.NewMockAdvisoryLockFactory(), resourceDAO, events, nil, 60, 0)
+	gm.Expect(unlimitedResourceService.MarkAsDeleting(ctx, resource.ID)).To(gm.BeNil())
+	gm.Expect(countDeleteEvents()).To(gm.Equal(3))
 }
 
 // TestMarkAsDeletingRepublishDisabled ensures a republish interval of 0 preserves the
