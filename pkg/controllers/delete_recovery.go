@@ -36,7 +36,8 @@ func (c *DeleteRecoveryController) Run(ctx context.Context) {
 	c.metrics.observe(result, err, time.Since(start).Seconds())
 	logger := klog.FromContext(ctx)
 	if err != nil {
-		logger.Error(err, "Delete recovery round failed")
+		// Database errors can contain customer identifiers from constraint details.
+		logger.Error(nil, "Delete recovery round failed")
 		return
 	}
 	if result.Initialized != 0 || result.Consumers != 0 {

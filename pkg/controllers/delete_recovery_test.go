@@ -3,10 +3,13 @@ package controllers
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr/funcr"
 	"github.com/prometheus/client_golang/prometheus"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/dao"
 )
@@ -115,5 +118,24 @@ func TestDeleteRecoveryController(t *testing.T) {
 	c.Run(context.Background())
 	if calls != 2 {
 		t.Fatal("a failed round must not stop subsequent recovery")
+	}
+}
+
+// TestDeleteRecoveryErrorLogging checks database error details never reach controller logs.
+func TestDeleteRecoveryErrorLogging(t *testing.T) {
+	var output strings.Builder
+	logger := funcr.New(func(prefix, args string) {
+		output.WriteString(prefix)
+		output.WriteString(args)
+	}, funcr.Options{})
+	c := NewDeleteRecoveryController(recoveryRunnerFunc(func(context.Context) (dao.DeleteRecoveryResult, error) {
+		return dao.DeleteRecoveryResult{}, errors.New("constraint failed: consumer_name=customer-value")
+	}))
+	c.Run(klog.NewContext(context.Background(), logger))
+	if !strings.Contains(output.String(), "Delete recovery round failed") {
+		t.Fatal("a failed round must emit a generic failure log")
+	}
+	if strings.Contains(output.String(), "constraint failed") || strings.Contains(output.String(), "customer-value") {
+		t.Fatal("recovery logs must not contain database error details")
 	}
 }
