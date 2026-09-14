@@ -139,7 +139,9 @@ func TestDeleteRecoveryCommitFailure(t *testing.T) {
 		CREATE CONSTRAINT TRIGGER fail_recovery_commit_test AFTER INSERT ON events
 		DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_recovery_commit_test()`).Error).To(Succeed())
 	t.Cleanup(func() {
-		conn.Exec("DROP TRIGGER IF EXISTS fail_recovery_commit_test ON events; DROP FUNCTION IF EXISTS fail_recovery_commit_test()")
+		if err := conn.Exec("DROP TRIGGER IF EXISTS fail_recovery_commit_test ON events; DROP FUNCTION IF EXISTS fail_recovery_commit_test()").Error; err != nil {
+			t.Errorf("clean up recovery commit-failure trigger: %v", err)
+		}
 	})
 	recovery := recoveryForTest(t, h, 25)
 	result, err := recovery.Run(ctx)
