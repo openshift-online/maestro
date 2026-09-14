@@ -42,7 +42,7 @@ func NewEventServerConfig() *EventServerConfig {
 		StaleDeleteEventThreshold:       3600,
 		DeleteEventRepublishInterval:    60,
 		DeleteEventRepublishMaxInterval: 3600,
-		DeleteEventRepublishBatchSize:   100,
+		DeleteEventRepublishBatchSize:   25,
 	}
 }
 
@@ -70,7 +70,7 @@ func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.StaleDeleteEventThreshold, "stale-delete-event-threshold", c.StaleDeleteEventThreshold, "Seconds a resource can remain soft-deleted with an unreconciled delete event before that event is retired (the agent is assumed gone). Set to 0 to disable. Default: 3600 (1 hour)")
 	fs.IntVar(&c.DeleteEventRepublishInterval, "delete-event-republish-interval", c.DeleteEventRepublishInterval, "Initial delete recovery backoff in seconds. Recovery runs without incoming requests until agent acknowledgement. Set to 0 to disable the recovery scheduler, not initial deletes. Default: 60")
 	fs.IntVar(&c.DeleteEventRepublishMaxInterval, "delete-event-republish-max-interval", c.DeleteEventRepublishMaxInterval, "Maximum delete recovery backoff in seconds, not a deletion age limit. Default: 3600")
-	fs.IntVar(&c.DeleteEventRepublishBatchSize, "delete-event-republish-batch-size", c.DeleteEventRepublishBatchSize, "Maximum recovery consumers and tombstone initializations per fleet-wide one-second round (1-1000). At most one recovery event per consumer per round. Default: 100")
+	fs.IntVar(&c.DeleteEventRepublishBatchSize, "delete-event-republish-batch-size", c.DeleteEventRepublishBatchSize, "Maximum recovery consumers and tombstone initializations per fleet-wide round (1-1000), with at least one second after each round. At most one recovery event per consumer per round. Default: 25")
 	c.ConsistentHashConfig.AddFlags(fs)
 }
 

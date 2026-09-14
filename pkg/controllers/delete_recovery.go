@@ -15,10 +15,11 @@ type DeleteRecoveryRunner interface {
 
 type DeleteRecoveryController struct {
 	recovery DeleteRecoveryRunner
+	metrics  *deleteRecoveryMetrics
 }
 
 func NewDeleteRecoveryController(recovery DeleteRecoveryRunner) *DeleteRecoveryController {
-	return &DeleteRecoveryController{recovery: recovery}
+	return &DeleteRecoveryController{recovery: recovery, metrics: recoveryMetrics}
 }
 
 func (c *DeleteRecoveryController) Run(ctx context.Context) {
@@ -26,7 +27,9 @@ func (c *DeleteRecoveryController) Run(ctx context.Context) {
 	// traffic. Failed rounds roll back their events, schedule and fleet deadline.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
+	start := time.Now()
 	result, err := c.recovery.Run(ctx)
+	c.metrics.observe(result, err, time.Since(start).Seconds())
 	logger := klog.FromContext(ctx)
 	if err != nil {
 		logger.Error(err, "Delete recovery round failed")

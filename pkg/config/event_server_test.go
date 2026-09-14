@@ -55,7 +55,7 @@ func TestEventServerConfig(t *testing.T) {
 				StaleDeleteEventThreshold:       3600,
 				DeleteEventRepublishInterval:    60,
 				DeleteEventRepublishMaxInterval: 3600,
-				DeleteEventRepublishBatchSize:   100,
+				DeleteEventRepublishBatchSize:   25,
 			},
 		},
 		{
@@ -74,7 +74,7 @@ func TestEventServerConfig(t *testing.T) {
 				StaleDeleteEventThreshold:       3600,
 				DeleteEventRepublishInterval:    60,
 				DeleteEventRepublishMaxInterval: 3600,
-				DeleteEventRepublishBatchSize:   100,
+				DeleteEventRepublishBatchSize:   25,
 			},
 		},
 		{
@@ -96,7 +96,7 @@ func TestEventServerConfig(t *testing.T) {
 				StaleDeleteEventThreshold:       3600,
 				DeleteEventRepublishInterval:    60,
 				DeleteEventRepublishMaxInterval: 3600,
-				DeleteEventRepublishBatchSize:   100,
+				DeleteEventRepublishBatchSize:   25,
 			},
 		},
 	}
@@ -119,5 +119,23 @@ func TestEventServerConfig(t *testing.T) {
 				fs.Lookup(f.Name).Changed = false
 			})
 		})
+	}
+}
+
+func TestDeleteRecoveryBatchFlag(t *testing.T) {
+	c := NewEventServerConfig()
+	fs := pflag.NewFlagSet("recovery", pflag.ContinueOnError)
+	c.AddFlags(fs)
+	if fs.Lookup("delete-event-republish-batch-size").DefValue != "25" {
+		t.Fatal("default recovery batch must be 25")
+	}
+	if err := fs.Parse([]string{"--delete-event-republish-batch-size=100"}); err != nil {
+		t.Fatal(err)
+	}
+	if c.DeleteEventRepublishBatchSize != 100 {
+		t.Fatal("explicit batch size must override the default")
+	}
+	if err := c.ValidateDeleteRecovery(); err != nil {
+		t.Fatal(err)
 	}
 }

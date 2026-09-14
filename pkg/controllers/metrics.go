@@ -232,6 +232,7 @@ var (
 )
 
 func init() {
+	prometheus.MustRegister(recoveryMetrics.duration, recoveryMetrics.work)
 	// Register the metrics for controllers:
 	prometheus.MustRegister(specEventReconciledTotal)
 	prometheus.MustRegister(specEventReconcileDuration)

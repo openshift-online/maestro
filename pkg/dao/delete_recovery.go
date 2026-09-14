@@ -24,6 +24,9 @@ type DeleteRecovery struct {
 }
 
 type DeleteRecoveryResult struct {
+	// Claimed is true only when this call claimed and committed the fleet round.
+	// Errors return a zero result, including any work rolled back.
+	Claimed     bool
 	Initialized int
 	Consumers   int
 	Published   int
@@ -66,6 +69,7 @@ func (d *DeleteRecovery) Run(ctx context.Context) (DeleteRecoveryResult, error) 
 		if len(claimed) == 0 {
 			return nil
 		}
+		result.Claimed = true
 		var now time.Time
 		if err := tx.Raw("SELECT clock_timestamp()").Scan(&now).Error; err != nil {
 			return err

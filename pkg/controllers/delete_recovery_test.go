@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+
 	"github.com/openshift-online/maestro/pkg/dao"
 )
 
@@ -13,6 +15,87 @@ type recoveryRunnerFunc func(context.Context) (dao.DeleteRecoveryResult, error)
 
 func (f recoveryRunnerFunc) Run(ctx context.Context) (dao.DeleteRecoveryResult, error) {
 	return f(ctx)
+}
+
+func TestDeleteRecoveryMetrics(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		result  dao.DeleteRecoveryResult
+		err     error
+		outcome string
+	}{
+		{"published", dao.DeleteRecoveryResult{Claimed: true, Initialized: 2, Consumers: 3, Published: 1}, nil, "committed"},
+		{"pending", dao.DeleteRecoveryResult{Claimed: true, Consumers: 3}, nil, "committed"},
+		{"bootstrap", dao.DeleteRecoveryResult{Claimed: true, Initialized: 2}, nil, "committed"},
+		{"empty claimed round", dao.DeleteRecoveryResult{Claimed: true}, nil, "empty"},
+		{"unclaimed poll", dao.DeleteRecoveryResult{}, nil, "noop"},
+		{"database error", dao.DeleteRecoveryResult{}, errors.New("database unavailable"), "error"},
+		{"rolled back work", dao.DeleteRecoveryResult{Claimed: true, Initialized: 2, Consumers: 3, Published: 1}, errors.New("commit failed"), "error"},
+		{"cancelled", dao.DeleteRecoveryResult{}, context.Canceled, "error"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m := newDeleteRecoveryMetrics()
+			registry := prometheus.NewRegistry()
+			registry.MustRegister(m.duration, m.work)
+			var elapsed time.Duration
+			c := NewDeleteRecoveryController(recoveryRunnerFunc(func(context.Context) (dao.DeleteRecoveryResult, error) {
+				start := time.Now()
+				time.Sleep(time.Millisecond)
+				elapsed = time.Since(start)
+				return tc.result, tc.err
+			}))
+			c.metrics = m
+			c.Run(context.Background())
+			families, err := registry.Gather()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(families) != 2 {
+				t.Fatalf("metric families = %d, want 2", len(families))
+			}
+			for _, family := range families {
+				switch family.GetName() {
+				case "delete_recovery_round_duration_seconds":
+					if len(family.Metric) != 4 {
+						t.Fatal("outcomes must have exactly four bounded label values")
+					}
+					for _, metric := range family.Metric {
+						if len(metric.Label) != 1 || metric.Label[0].GetName() != "outcome" {
+							t.Fatal("only the outcome label is allowed")
+						}
+						want := uint64(0)
+						if metric.Label[0].GetValue() == tc.outcome {
+							want = 1
+							if metric.Histogram.GetSampleSum() < elapsed.Seconds() {
+								t.Fatal("duration must include the entire runner call")
+							}
+						}
+						if metric.Histogram.GetSampleCount() != want {
+							t.Fatalf("outcome %s count = %d, want %d", metric.Label[0].GetValue(), metric.Histogram.GetSampleCount(), want)
+						}
+					}
+				case "delete_recovery_work_total":
+					if len(family.Metric) != 3 {
+						t.Fatal("work must have exactly three bounded label values")
+					}
+					want := map[string]int{"initialized": 0, "consumers": 0, "published": 0}
+					if tc.err == nil && tc.result.Claimed {
+						want = map[string]int{"initialized": tc.result.Initialized, "consumers": tc.result.Consumers, "published": tc.result.Published}
+					}
+					for _, metric := range family.Metric {
+						if len(metric.Label) != 1 || metric.Label[0].GetName() != "kind" {
+							t.Fatal("only the kind label is allowed")
+						}
+						if metric.Counter.GetValue() != float64(want[metric.Label[0].GetValue()]) {
+							t.Fatal("work counters must include committed work only")
+						}
+					}
+				default:
+					t.Fatalf("unexpected metric %s", family.GetName())
+				}
+			}
+		})
+	}
 }
 
 func TestDeleteRecoveryController(t *testing.T) {

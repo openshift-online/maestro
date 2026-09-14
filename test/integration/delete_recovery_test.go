@@ -88,6 +88,7 @@ func TestDeleteRecoveryMigrationAndBoundedBootstrap(t *testing.T) {
 	result, err := recovery.Run(ctx)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(result.Initialized).To(Equal(2))
+	Expect(result.Claimed).To(BeTrue())
 	Expect(result.Published).To(Equal(1), "legacy outstanding events are not duplicated")
 	var ids []string
 	Expect(conn.Raw("SELECT id FROM resources WHERE delete_retry_at IS NOT NULL ORDER BY id").Scan(&ids).Error).To(Succeed())
@@ -104,6 +105,56 @@ func TestDeleteRecoveryMigrationAndBoundedBootstrap(t *testing.T) {
 	Expect(conn.Raw("SELECT count(*) FROM resources WHERE deleted_at IS NOT NULL").Scan(&initialized).Error).To(Succeed())
 	Expect(initialized).To(Equal(int64(5)), "rollback must preserve tombstones")
 	Expect(db.Migrate(conn)).To(Succeed())
+}
+
+func TestDeleteRecoveryEmptyAndBatchSize(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	ctx := context.Background()
+	conn := h.DBFactory.New(ctx)
+	for _, batch := range []int{config.NewEventServerConfig().DeleteEventRepublishBatchSize, 100} {
+		recovery := recoveryForTest(t, h, batch)
+		advanceRecoveryRound(conn)
+		result, err := recovery.Run(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).To(Equal(dao.DeleteRecoveryResult{Claimed: true}), "empty claimed rounds differ from unclaimed polls")
+		for i := range batch + 1 {
+			id := fmt.Sprintf("batch-%d-%03d", batch, i)
+			recoveryTombstone(conn, id, id, time.Hour)
+		}
+		advanceRecoveryRound(conn)
+		result, err = recovery.Run(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).To(Equal(dao.DeleteRecoveryResult{Claimed: true, Initialized: batch, Consumers: batch, Published: batch}))
+		Expect(conn.Exec("TRUNCATE events, resources, delete_recovery_consumers, consumers CASCADE").Error).To(Succeed())
+	}
+}
+
+func TestDeleteRecoveryCommitFailure(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	ctx := context.Background()
+	conn := h.DBFactory.New(ctx)
+	recoveryTombstone(conn, "commit-failure", "consumer", time.Hour)
+	Expect(conn.Exec(`CREATE FUNCTION fail_recovery_commit_test() RETURNS trigger LANGUAGE plpgsql AS $$
+		BEGIN RAISE EXCEPTION 'injected commit failure'; END $$;
+		CREATE CONSTRAINT TRIGGER fail_recovery_commit_test AFTER INSERT ON events
+		DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_recovery_commit_test()`).Error).To(Succeed())
+	t.Cleanup(func() {
+		conn.Exec("DROP TRIGGER IF EXISTS fail_recovery_commit_test ON events; DROP FUNCTION IF EXISTS fail_recovery_commit_test()")
+	})
+	recovery := recoveryForTest(t, h, 25)
+	result, err := recovery.Run(ctx)
+	Expect(err).To(HaveOccurred())
+	Expect(result).To(Equal(dao.DeleteRecoveryResult{}), "commit failure must not report committed work")
+	var count int64
+	Expect(conn.Raw("SELECT count(*) FROM events").Scan(&count).Error).To(Succeed())
+	Expect(count).To(BeZero())
+	Expect(conn.Raw("SELECT count(*) FROM resources WHERE delete_retry_at IS NOT NULL").Scan(&count).Error).To(Succeed())
+	Expect(count).To(BeZero())
+	Expect(conn.Exec("DROP TRIGGER fail_recovery_commit_test ON events; DROP FUNCTION fail_recovery_commit_test()").Error).To(Succeed())
+	result, err = recovery.Run(ctx)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(result).To(Equal(dao.DeleteRecoveryResult{Claimed: true, Initialized: 1, Consumers: 1, Published: 1}),
+		"commit failure must also roll back the fleet deadline")
 }
 
 func TestDeleteRecoveryConsumerFairnessAndOldestDue(t *testing.T) {
