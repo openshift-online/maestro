@@ -220,6 +220,31 @@ attempt is due, another Delete event may therefore be needed. The stale-event
 detector can also retire an outstanding event; the next due turn can replace it.
 New recovery events get the detector's full age threshold even for old tombstones.
 
+Delivery retries and scheduler republication are separate. If an event handler
+returns an error, the event controller requeues the **same database event** with
+rate-limited backoff. An event rejected by the instance's filter is also requeued.
+On controller startup, the first event sync immediately discovers pending events;
+later syncs run on the ten-hour sync period with jitter. Recovery does not have
+to append a new event to retry a failed publication after a controller restart.
+
+With gRPC, the instance's filter waits for the resource's consumer to subscribe
+to that broker. A disconnected consumer leaves the event pending; reconnecting
+allows the queued event to reach `OnDelete`. MQTT uses an advisory-lock filter
+instead, and a successful broker publication does not require the consumer to be
+connected. Neither broker's successful publication proves the agent has processed
+the delete. Reconciliation records handler success, not `ResourceDeleted`.
+The next eligible scheduler turn can append a fresh event after that success
+even when no acknowledgement arrives. Delivery retries are not bounded by the
+scheduler's fleet publication budget.
+
+Setting `--stale-delete-event-threshold=0` disables age-based event retirement,
+not delivery retries, startup sync, scheduler recovery or reconnect/spec resync.
+A pending Delete event continues to coalesce scheduler attempts until publication
+succeeds. Persistent publication errors or a consumer that never reconnects can
+therefore keep that event pending indefinitely; disabling retirement does not
+promise delivery while the underlying failure persists. Tombstones still require
+the agent's acknowledgement for removal.
+
 The next attempt and nominal backoff live on the resource, independent of event
 purging, server restarts and caller retries. The final acknowledgement removes
 the resource and this state together. An empty consumer queue entry is removed
