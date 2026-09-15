@@ -74,13 +74,7 @@ func TestDeleteRecoveryMigrationAndBoundedBootstrap(t *testing.T) {
 	Expect(conn.Exec(`CREATE INDEX CONCURRENTLY idx_events_pending_resource_delete
 		ON events (((id)::integer))`).Error).To(HaveOccurred())
 
-	migrationResults := make(chan error, 2)
-	for range 2 {
-		go func() { migrationResults <- db.Migrate(h.DBFactory.New(ctx)) }()
-	}
-	for range 2 {
-		Expect(<-migrationResults).To(Succeed())
-	}
+	runConcurrentRecoveryMigrations(t, h)
 	var initialized int64
 	Expect(conn.Raw("SELECT count(*) FROM resources WHERE delete_retry_at IS NOT NULL").Scan(&initialized).Error).To(Succeed())
 	Expect(initialized).To(BeZero())

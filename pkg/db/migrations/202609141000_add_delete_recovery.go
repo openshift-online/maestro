@@ -1,6 +1,12 @@
 package migrations
 
 import (
+	"context"
+	"database/sql"
+	"database/sql/driver"
+	"errors"
+	"time"
+
 	"github.com/go-gormigrate/gormigrate/v2"
 	"gorm.io/gorm"
 )
@@ -33,34 +39,7 @@ func addDeleteRecovery() *gormigrate.Migration {
 			}); err != nil {
 				return err
 			}
-			for _, index := range []struct{ drop, create string }{
-				{
-					"DROP INDEX CONCURRENTLY IF EXISTS idx_resources_delete_recovery_bootstrap",
-					`CREATE INDEX CONCURRENTLY idx_resources_delete_recovery_bootstrap ON resources (deleted_at, id)
-						WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL`,
-				},
-				{
-					"DROP INDEX CONCURRENTLY IF EXISTS idx_resources_delete_recovery_due",
-					`CREATE INDEX CONCURRENTLY idx_resources_delete_recovery_due ON resources (consumer_name, delete_retry_at, id)
-						WHERE deleted_at IS NOT NULL AND delete_retry_at IS NOT NULL`,
-				},
-				// Non-unique: an upgraded database can contain duplicate legacy
-				// events. Coalescing uses the resource row lock, not a new constraint.
-				{
-					"DROP INDEX CONCURRENTLY IF EXISTS idx_events_pending_resource_delete",
-					`CREATE INDEX CONCURRENTLY idx_events_pending_resource_delete ON events (source_id)
-						WHERE source = 'Resources' AND event_type = 'Delete' AND reconciled_date IS NULL`,
-				},
-			} {
-				// Retry interrupted concurrent builds, including invalid indexes.
-				if err := tx.Exec(index.drop).Error; err != nil {
-					return err
-				}
-				if err := tx.Exec(index.create).Error; err != nil {
-					return err
-				}
-			}
-			return nil
+			return createDeleteRecoveryIndexes(tx)
 		},
 		Rollback: func(tx *gorm.DB) error {
 			return tx.Transaction(func(tx *gorm.DB) error {
@@ -75,4 +54,70 @@ func addDeleteRecovery() *gormigrate.Migration {
 			})
 		},
 	}
+}
+
+// createDeleteRecoveryIndexes bounds lock waits, not total index build time.
+func createDeleteRecoveryIndexes(tx *gorm.DB) (result error) {
+	conn, pinned := tx.Statement.ConnPool.(*sql.Conn)
+	if !pinned {
+		// Direct gormigrate callers also need one session for SET, DDL and restore.
+		sqlDB, err := tx.DB()
+		if err != nil {
+			return err
+		}
+		conn, err = sqlDB.Conn(tx.Statement.Context)
+		if err != nil {
+			return err
+		}
+		defer func() { result = errors.Join(result, conn.Close()) }()
+	}
+	var previousTimeout string
+	if err := conn.QueryRowContext(tx.Statement.Context, "SHOW lock_timeout").Scan(&previousTimeout); err != nil {
+		return err
+	}
+	defer func() {
+		// Cancellation must not leak a session setting into the connection pool.
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := conn.ExecContext(ctx, "SELECT set_config('lock_timeout', $1, false)", previousTimeout); err != nil {
+			result = errors.Join(result, err)
+			discardErr := conn.Raw(func(any) error { return driver.ErrBadConn })
+			if discardErr != nil && !errors.Is(discardErr, driver.ErrBadConn) {
+				result = errors.Join(result, discardErr)
+			}
+		}
+	}()
+	if _, err := conn.ExecContext(tx.Statement.Context, "SELECT set_config('lock_timeout', $1, false)", "5s"); err != nil {
+		return err
+	}
+	tx = tx.Session(&gorm.Session{NewDB: true, Context: tx.Statement.Context})
+	tx.Statement.ConnPool = conn
+	for _, index := range []struct{ drop, create string }{
+		{
+			"DROP INDEX CONCURRENTLY IF EXISTS idx_resources_delete_recovery_bootstrap",
+			`CREATE INDEX CONCURRENTLY idx_resources_delete_recovery_bootstrap ON resources (deleted_at, id)
+						WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL`,
+		},
+		{
+			"DROP INDEX CONCURRENTLY IF EXISTS idx_resources_delete_recovery_due",
+			`CREATE INDEX CONCURRENTLY idx_resources_delete_recovery_due ON resources (consumer_name, delete_retry_at, id)
+						WHERE deleted_at IS NOT NULL AND delete_retry_at IS NOT NULL`,
+		},
+		// Non-unique: an upgraded database can contain duplicate legacy
+		// events. Coalescing uses the resource row lock, not a new constraint.
+		{
+			"DROP INDEX CONCURRENTLY IF EXISTS idx_events_pending_resource_delete",
+			`CREATE INDEX CONCURRENTLY idx_events_pending_resource_delete ON events (source_id)
+						WHERE source = 'Resources' AND event_type = 'Delete' AND reconciled_date IS NULL`,
+		},
+	} {
+		// Retry interrupted concurrent builds, including invalid indexes.
+		if err := tx.Exec(index.drop).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(index.create).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -194,8 +194,12 @@ still enqueue their own recovery events outside the new fleet budget. Stop the
 new controllers before rolling back this migration. Rollback removes scheduling
 metadata, not resources, their deletion timestamps, or events. Reapplying the
 migration bootstraps surviving tombstones with the configured initial backoff.
-Schema changes use a five-second lock timeout so a blocked migration can be retried
-instead of waiting indefinitely behind application transactions.
+Schema changes, including concurrent index drops and builds, use a five-second
+timeout per lock wait so blocked operations can be retried. This is not a
+five-second limit on the migration or total index build time. The concurrent-index
+phase restores the session's original timeout even on failure, or discards the
+connection if restoration fails. Migrators hold a session advisory lock across
+schema changes and migration history writes, so replicas cannot race the index DDL.
 
 This migration is separate from the resource-label JSON containment index.
 Source cleanup-loop rate limiting is outside Maestro's scope. Bounding recovery
