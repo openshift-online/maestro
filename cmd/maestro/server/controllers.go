@@ -13,6 +13,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 )
 
+// NewControllersServer wires event processing and broker-enabled delete recovery controllers.
 func NewControllersServer(ctx context.Context, eventServer EventServer, eventFilter controllers.EventFilter) *ControllersServer {
 	logger := klog.FromContext(ctx)
 
@@ -59,6 +60,14 @@ func NewControllersServer(ctx context.Context, eventServer EventServer, eventFil
 				staleDeleteThreshold,
 			)
 		}
+		if env().Config.EventServer.DeleteEventRepublishInterval > 0 {
+			recovery, err := dao.NewDeleteRecovery(env().Database.SessionFactory, env().Config.EventServer)
+			if err != nil {
+				// ReadFiles validates these settings before server construction.
+				panic(err)
+			}
+			s.DeleteRecovery = controllers.NewDeleteRecoveryController(recovery)
+		}
 	}
 
 	s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
@@ -74,6 +83,7 @@ type ControllersServer struct {
 	StatusController      *controllers.StatusController
 	UndeliveredDetector   *controllers.UndeliveredDetector
 	StaleDeleteDetector   *controllers.StaleDeleteDetector
+	DeleteRecovery        *controllers.DeleteRecoveryController
 
 	DB db.SessionFactory
 }
@@ -98,6 +108,10 @@ func (s ControllersServer) Start(ctx context.Context) {
 	if s.StaleDeleteDetector != nil {
 		logger.Info("Starting stale delete event detector")
 		go wait.JitterUntilWithContext(ctx, s.StaleDeleteDetector.Run, 2*time.Minute, 0.25, true)
+	}
+	if s.DeleteRecovery != nil {
+		logger.Info("Starting delete recovery scheduler")
+		go wait.UntilWithContext(ctx, s.DeleteRecovery.Run, dao.DeleteRecoveryRoundInterval)
 	}
 
 	logger.Info("Status controller handling events")

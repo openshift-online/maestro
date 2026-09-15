@@ -1,12 +1,42 @@
 package config
 
 import (
+	"math"
 	"reflect"
 	"testing"
 
 	"github.com/spf13/pflag"
 )
 
+// TestDeleteRecoveryConfigValidation checks retry limits, overflow and disabled recovery.
+func TestDeleteRecoveryConfigValidation(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		change func(*EventServerConfig)
+		valid  bool
+	}{
+		{"defaults", func(c *EventServerConfig) {}, true},
+		{"disabled", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = 0 }, true},
+		{"negative interval", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = -1 }, false},
+		{"overflow interval", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = math.MaxInt }, false},
+		{"overflow maximum", func(c *EventServerConfig) { c.DeleteEventRepublishMaxInterval = math.MaxInt }, false},
+		{"zero maximum", func(c *EventServerConfig) { c.DeleteEventRepublishMaxInterval = 0 }, false},
+		{"maximum below initial", func(c *EventServerConfig) { c.DeleteEventRepublishMaxInterval = 1 }, false},
+		{"zero batch", func(c *EventServerConfig) { c.DeleteEventRepublishBatchSize = 0 }, false},
+		{"negative batch", func(c *EventServerConfig) { c.DeleteEventRepublishBatchSize = -1 }, false},
+		{"unbounded batch", func(c *EventServerConfig) { c.DeleteEventRepublishBatchSize = 1001 }, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewEventServerConfig()
+			tc.change(c)
+			if err := c.ReadFiles(); (err == nil) != tc.valid {
+				t.Fatalf("validation = %v, want valid=%t", err, tc.valid)
+			}
+		})
+	}
+}
+
+// TestEventServerConfig verifies event-server defaults and command-line overrides.
 func TestEventServerConfig(t *testing.T) {
 	cases := []struct {
 		name  string
@@ -23,9 +53,11 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
+				UndeliveredResourceThreshold:    600,
+				StaleDeleteEventThreshold:       3600,
+				DeleteEventRepublishInterval:    60,
+				DeleteEventRepublishMaxInterval: 3600,
+				DeleteEventRepublishBatchSize:   25,
 			},
 		},
 		{
@@ -40,9 +72,11 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 20,
 					Load:              1.25,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
+				UndeliveredResourceThreshold:    600,
+				StaleDeleteEventThreshold:       3600,
+				DeleteEventRepublishInterval:    60,
+				DeleteEventRepublishMaxInterval: 3600,
+				DeleteEventRepublishBatchSize:   25,
 			},
 		},
 		{
@@ -60,9 +94,11 @@ func TestEventServerConfig(t *testing.T) {
 					ReplicationFactor: 30,
 					Load:              1.5,
 				},
-				UndeliveredResourceThreshold: 600,
-				StaleDeleteEventThreshold:    3600,
-				DeleteEventRepublishInterval: 60,
+				UndeliveredResourceThreshold:    600,
+				StaleDeleteEventThreshold:       3600,
+				DeleteEventRepublishInterval:    60,
+				DeleteEventRepublishMaxInterval: 3600,
+				DeleteEventRepublishBatchSize:   25,
 			},
 		},
 	}
@@ -85,5 +121,24 @@ func TestEventServerConfig(t *testing.T) {
 				fs.Lookup(f.Name).Changed = false
 			})
 		})
+	}
+}
+
+// TestDeleteRecoveryBatchFlag checks that the fleet budget flag reaches validated configuration.
+func TestDeleteRecoveryBatchFlag(t *testing.T) {
+	c := NewEventServerConfig()
+	fs := pflag.NewFlagSet("recovery", pflag.ContinueOnError)
+	c.AddFlags(fs)
+	if fs.Lookup("delete-event-republish-batch-size").DefValue != "25" {
+		t.Fatal("default recovery batch must be 25")
+	}
+	if err := fs.Parse([]string{"--delete-event-republish-batch-size=100"}); err != nil {
+		t.Fatal(err)
+	}
+	if c.DeleteEventRepublishBatchSize != 100 {
+		t.Fatal("explicit batch size must override the default")
+	}
+	if err := c.ValidateDeleteRecovery(); err != nil {
+		t.Fatal(err)
 	}
 }

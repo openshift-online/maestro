@@ -1,6 +1,10 @@
 package config
 
 import (
+	"fmt"
+	"math"
+	"time"
+
 	"github.com/spf13/pflag"
 )
 
@@ -13,11 +17,13 @@ const (
 
 // EventServerConfig contains the configuration for the message queue event server.
 type EventServerConfig struct {
-	SubscriptionType             string                `json:"subscription_type"`
-	ConsistentHashConfig         *ConsistentHashConfig `json:"consistent_hash_config"`
-	UndeliveredResourceThreshold int                   `json:"undelivered_resource_threshold"`
-	StaleDeleteEventThreshold    int                   `json:"stale_delete_event_threshold"`
-	DeleteEventRepublishInterval int                   `json:"delete_event_republish_interval"`
+	SubscriptionType                string                `json:"subscription_type"`
+	ConsistentHashConfig            *ConsistentHashConfig `json:"consistent_hash_config"`
+	UndeliveredResourceThreshold    int                   `json:"undelivered_resource_threshold"`
+	StaleDeleteEventThreshold       int                   `json:"stale_delete_event_threshold"`
+	DeleteEventRepublishInterval    int                   `json:"delete_event_republish_interval"`
+	DeleteEventRepublishMaxInterval int                   `json:"delete_event_republish_max_interval"`
+	DeleteEventRepublishBatchSize   int                   `json:"delete_event_republish_batch_size"`
 }
 
 // ConsistentHashConfig contains the configuration for the consistent hashing algorithm.
@@ -30,11 +36,13 @@ type ConsistentHashConfig struct {
 // NewEventServerConfig creates a new EventServerConfig with default settings.
 func NewEventServerConfig() *EventServerConfig {
 	return &EventServerConfig{
-		SubscriptionType:             "shared",
-		ConsistentHashConfig:         NewConsistentHashConfig(),
-		UndeliveredResourceThreshold: 600,
-		StaleDeleteEventThreshold:    3600,
-		DeleteEventRepublishInterval: 60,
+		SubscriptionType:                "shared",
+		ConsistentHashConfig:            NewConsistentHashConfig(),
+		UndeliveredResourceThreshold:    600,
+		StaleDeleteEventThreshold:       3600,
+		DeleteEventRepublishInterval:    60,
+		DeleteEventRepublishMaxInterval: 3600,
+		DeleteEventRepublishBatchSize:   25,
 	}
 }
 
@@ -60,12 +68,33 @@ func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.SubscriptionType, "subscription-type", c.SubscriptionType, "Sets the subscription type for resource status updates from message broker, Options: \"shared\" (only one instance receives resource status message, MQTT feature ensures exclusivity) or \"broadcast\" (all instances receive messages, hashed to determine processing instance)")
 	fs.IntVar(&c.UndeliveredResourceThreshold, "undelivered-resource-threshold", c.UndeliveredResourceThreshold, "Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to 0 to disable. Default: 600 (10 minutes)")
 	fs.IntVar(&c.StaleDeleteEventThreshold, "stale-delete-event-threshold", c.StaleDeleteEventThreshold, "Seconds a resource can remain soft-deleted with an unreconciled delete event before that event is retired (the agent is assumed gone). Set to 0 to disable. Default: 3600 (1 hour)")
-	fs.IntVar(&c.DeleteEventRepublishInterval, "delete-event-republish-interval", c.DeleteEventRepublishInterval, "Seconds before a delete event is re-published for a resource that remains soft-deleted when another delete request arrives, healing agents that lost the deletion state. Raising it trades healing latency for fewer queued events per stuck resource. Set to 0 to disable republishing. Default: 60 (1 minute)")
+	fs.IntVar(&c.DeleteEventRepublishInterval, "delete-event-republish-interval", c.DeleteEventRepublishInterval, "Initial delete recovery backoff in seconds. Recovery runs without incoming requests until agent acknowledgement. Set to 0 to disable the recovery scheduler, not initial deletes. Default: 60")
+	fs.IntVar(&c.DeleteEventRepublishMaxInterval, "delete-event-republish-max-interval", c.DeleteEventRepublishMaxInterval, "Maximum delete recovery backoff in seconds, not a deletion age limit. Default: 3600")
+	fs.IntVar(&c.DeleteEventRepublishBatchSize, "delete-event-republish-batch-size", c.DeleteEventRepublishBatchSize, "Maximum recovery consumers and tombstone initializations per fleet-wide round (1-1000), with at least one second after each round. At most one recovery event per consumer per round. Default: 25")
 	c.ConsistentHashConfig.AddFlags(fs)
 }
 
+// ReadFiles validates recovery settings before loading consistent-hash configuration.
 func (c *EventServerConfig) ReadFiles() error {
-	c.ConsistentHashConfig.ReadFiles()
+	if err := c.ValidateDeleteRecovery(); err != nil {
+		return err
+	}
+	return c.ConsistentHashConfig.ReadFiles()
+}
+
+// ValidateDeleteRecovery checks duration bounds, backoff ordering and the fleet batch limit.
+func (c *EventServerConfig) ValidateDeleteRecovery() error {
+	maxSeconds := int64(math.MaxInt64 / int64(time.Second))
+	if c.DeleteEventRepublishInterval < 0 || int64(c.DeleteEventRepublishInterval) > maxSeconds {
+		return fmt.Errorf("delete-event-republish-interval must be between 0 and %d seconds", maxSeconds)
+	}
+	if c.DeleteEventRepublishMaxInterval < 1 || int64(c.DeleteEventRepublishMaxInterval) > maxSeconds ||
+		c.DeleteEventRepublishMaxInterval < c.DeleteEventRepublishInterval {
+		return fmt.Errorf("delete-event-republish-max-interval must be positive, fit a duration and be at least the initial interval")
+	}
+	if c.DeleteEventRepublishBatchSize < 1 || c.DeleteEventRepublishBatchSize > 1000 {
+		return fmt.Errorf("delete-event-republish-batch-size must be between 1 and 1000")
+	}
 	return nil
 }
 
