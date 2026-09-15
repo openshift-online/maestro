@@ -41,9 +41,10 @@ func recoveryTombstone(conn *gorm.DB, id, consumer string, age time.Duration) {
 		VALUES (?, ?, 1, ?, ?)`, id, id, consumer, time.Now().Add(-age)).Error).To(Succeed())
 }
 
-// advanceRecoveryRound expires the durable fleet deadline without sleeping.
+// advanceRecoveryRound bypasses the cooldown handshake and deadline for tests
+// of work selection. Pacing tests must exercise the real handshake instead.
 func advanceRecoveryRound(conn *gorm.DB) {
-	Expect(conn.Exec("UPDATE delete_recovery_schedule SET next_at = clock_timestamp() - interval '1 second'").Error).To(Succeed())
+	Expect(conn.Exec("UPDATE delete_recovery_schedule SET cooldown_pending = false, next_at = clock_timestamp() - interval '1 second'").Error).To(Succeed())
 }
 
 // makeRecoveryDue expires resource, consumer and fleet deadlines for the next round.
@@ -95,7 +96,7 @@ func TestDeleteRecoveryMigrationAndBoundedBootstrap(t *testing.T) {
 	Expect(ids).To(Equal([]string{"legacy-0", "legacy-1"}), "bootstrap starts with the oldest tombstones")
 	result, err = recoveryForTest(t, h, 2).Run(ctx)
 	Expect(err).NotTo(HaveOccurred())
-	Expect(result).To(Equal(dao.DeleteRecoveryResult{}), "a second replica cannot take another immediate burst")
+	Expect(result).To(Equal(dao.DeleteRecoveryResult{Cooldown: true}), "a second replica cannot take another immediate burst")
 	advanceRecoveryRound(conn)
 	result, err = recovery.Run(ctx)
 	Expect(err).NotTo(HaveOccurred())

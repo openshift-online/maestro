@@ -531,7 +531,7 @@ func (helper *Helper) CleanDB() error {
 		}
 	}
 	if g2.Migrator().HasTable("delete_recovery_schedule") {
-		return g2.Exec("UPDATE delete_recovery_schedule SET next_at = clock_timestamp() WHERE id = 1").Error
+		return g2.Exec("UPDATE delete_recovery_schedule SET cooldown_pending = false, next_at = clock_timestamp() WHERE id = 1").Error
 	}
 	return nil
 }

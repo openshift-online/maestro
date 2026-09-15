@@ -17,7 +17,7 @@ func newDeleteRecoveryMetrics() *deleteRecoveryMetrics {
 		duration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Subsystem: "delete_recovery",
 			Name:      "round_duration_seconds",
-			Help:      "Elapsed recovery runner time through transaction completion or error, not row lock wait time",
+			Help:      "Elapsed recovery runner time including internal SQL, lock waits and commit or error return; not a separate acknowledgement latency measurement",
 			Buckets:   []float64{0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10, 20, 30, 60},
 		}, []string{"outcome"}),
 		work: prometheus.NewCounterVec(prometheus.CounterOpts{
@@ -26,7 +26,7 @@ func newDeleteRecoveryMetrics() *deleteRecoveryMetrics {
 			Help:      "Committed recovery work by kind (initialized resources, visited consumers, or published events)",
 		}, []string{"kind"}),
 	}
-	for _, outcome := range []string{"committed", "empty", "noop", "error"} {
+	for _, outcome := range []string{"committed", "empty", "cooldown", "noop", "error"} {
 		m.duration.WithLabelValues(outcome)
 	}
 	for _, kind := range []string{"initialized", "consumers", "published"} {
@@ -41,6 +41,8 @@ func (m *deleteRecoveryMetrics) observe(result dao.DeleteRecoveryResult, err err
 	switch {
 	case err != nil:
 		outcome = "error"
+	case result.Cooldown:
+		outcome = "cooldown"
 	case result.Claimed:
 		outcome = "empty"
 		if result.Initialized != 0 || result.Consumers != 0 {

@@ -33,6 +33,8 @@ func TestDeleteRecoveryMetrics(t *testing.T) {
 		{"pending", dao.DeleteRecoveryResult{Claimed: true, Consumers: 3}, nil, "committed"},
 		{"bootstrap", dao.DeleteRecoveryResult{Claimed: true, Initialized: 2}, nil, "committed"},
 		{"empty claimed round", dao.DeleteRecoveryResult{Claimed: true}, nil, "empty"},
+		{"cooldown handshake", dao.DeleteRecoveryResult{Cooldown: true}, nil, "cooldown"},
+		{"failed cooldown", dao.DeleteRecoveryResult{Cooldown: true}, errors.New("commit failed"), "error"},
 		{"unclaimed poll", dao.DeleteRecoveryResult{}, nil, "noop"},
 		{"database error", dao.DeleteRecoveryResult{}, errors.New("database unavailable"), "error"},
 		{"rolled back work", dao.DeleteRecoveryResult{Claimed: true, Initialized: 2, Consumers: 3, Published: 1}, errors.New("commit failed"), "error"},
@@ -61,8 +63,8 @@ func TestDeleteRecoveryMetrics(t *testing.T) {
 			for _, family := range families {
 				switch family.GetName() {
 				case "delete_recovery_round_duration_seconds":
-					if len(family.Metric) != 4 {
-						t.Fatal("outcomes must have exactly four bounded label values")
+					if len(family.Metric) != 5 {
+						t.Fatal("outcomes must have exactly five bounded label values")
 					}
 					for _, metric := range family.Metric {
 						if len(metric.Label) != 1 || metric.Label[0].GetName() != "outcome" {

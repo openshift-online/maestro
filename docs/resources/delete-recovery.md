@@ -21,9 +21,32 @@ Each fleet-wide round:
 * Appends at most one Delete event per selected consumer, and none if that resource
   already has an unreconciled Delete event.
 
-A durable database deadline permits one round, then waits at least **one second
-from the end of its work** before admitting another. Replicas cannot take sequential
-immediate bursts, and downtime does not accumulate credits. At the defaults this
+A durable two-phase handshake leaves at least **one second after the work
+transaction commits** before admitting another work round:
+
+1. The work transaction commits a `cooldown_pending` marker with its events and retry state.
+2. A later scheduler call observes that committed marker, sets a database deadline
+   one second ahead, clears the marker and returns without touching resources.
+3. A subsequent call can claim work only after that deadline.
+
+The deadline is therefore sampled after the work commit, even when WAL/fsync or
+deferred work makes that commit slow. A slow handshake commit may consume its
+own deadline, but cannot consume the gap after the preceding work commit.
+Each phase uses the singleton row with `FOR UPDATE SKIP LOCKED`; competing replicas
+return without waiting for its lock. No transaction sleeps for the cooldown, and
+the handshake takes no resource locks. There is no postcommit finalization in the
+work call that could turn a successful publication into a failed result.
+
+The marker survives a scheduler crash or cancellation after work commits. Any
+replica can arm it; a failed handshake leaves it pending for retry. A crash after
+the handshake commits leaves its deadline in place. Downtime does not accumulate
+credits or permanently disable recovery. This uses PostgreSQL wall-clock time,
+not a cross-host monotonic clock; forward database clock jumps can shorten a
+time-based deadline.
+
+The controller polls one second after each call returns. With one active replica,
+the separate handshake normally adds another polling interval between work rounds;
+additional replicas may arm it sooner, but cannot bypass the deadline. At the defaults this
 allows at most 25 recovery publications per round and one per consumer per round,
 not a claim about total create/update/delete throughput. Initialization and recovery
 share a transaction but each has its own batch bound.
@@ -41,20 +64,28 @@ a consumer, resources are ordered by their persistent due time and ID. A large
 consumer cannot take the entire batch. This is bounded FIFO rotation among
 **initialized** due consumers, not equal per-resource throughput or a latency SLA.
 A finite bootstrap backlog drains oldest-first; consumers not yet initialized wait
-for that pass. Locked resource candidates are skipped without expanding the scan
-to replace them. Persistent lock contention, publication failures, a backlog beyond
+for that pass. Initialization clamps incoming consumer deadlines to the round's
+database time. Taking the earlier of that deadline and the existing deadline
+preserves an already-due consumer's place, while allowing fresh work to shorten a
+future backoff deadline. Continuous bootstrap for a busy consumer cannot move it
+ahead of consumers with older waiting deadlines. Equal deadlines use consumer name
+as a deterministic tie-breaker. Locked resource candidates are skipped without
+expanding the scan to replace them. Persistent lock contention, publication failures, a backlog beyond
 the configured capacity, or a stopped scheduler can delay recovery.
 
 Only the scheduler takes the fleet deadline lock. Normal resource requests do not
 take it. Candidate queries use partial indexes and bounded limits; point lookups
 and per-consumer minimum-deadline lookups use indexes. Each controller round has a
-30-second deadline. A failed round rolls back events, notifications, retry state
-and the fleet deadline together.
+30-second deadline. A rolled-back work round discards events, notifications, retry
+state and its marker together; a rolled-back handshake preserves the pending marker.
 
 ## Recovery telemetry and lock contention
 
 The batch of 25 is a conservative starting point informed by local measurements,
-not a production-safe latency guarantee. An isolated PostgreSQL 17.10 comparison
+not a production-safe latency guarantee. The archived work-transaction budget
+comparison below measures initialization, consumer visits and commit, not the
+two-phase scheduler's cadence or cooldown handshake. It is not a benchmark of
+end-to-end recovery throughput. An isolated PostgreSQL 17.10 comparison
 on a 16-logical-CPU AMD EPYC WSL host with 47 GiB RAM used 200,000 synthetic
 tombstones across 10,000 consumers, durable writes, 100 unscheduled candidates,
 and 40 measured rounds per batch/scenario (three warmups excluded):
@@ -90,10 +121,26 @@ The p50 is the median; p95 uses nearest rank. Reproduction scripts record the
 local fixture layout and must be adapted to a fresh, isolated local PostgreSQL
 cluster, never pointed at an existing shared database.
 
+The pacing regression tests use isolated PostgreSQL 17.10 with a real deferred
+constraint trigger that adds 1.2 seconds inside COMMIT. Three repeated runs under
+the Go race detector measured 1.0014-1.0061 seconds between the work call's commit
+return and the armed deadline. Twelve competing replicas published no work
+before that deadline. Direct acknowledgement hard deletes completed in
+2.25-3.53 milliseconds during cooldown. These are small, two-tombstone correctness
+fixtures, not representative load percentiles or production latency claims.
+Separate tests block the handshake COMMIT with an advisory lock and exercise
+commit errors, cancellation, timeout, backend termination and a 1.2-second
+handshake delay. Committed publications survive each failure, and a new runner
+recovers without manual state repair. The
+[pacing validation archive](https://redhat.atlassian.net/secure/attachment/1187726/pacing-validation.tar.gz)
+contains the regression tests, harness, baseline failure and passing logs.
+
 `delete_recovery_round_duration_seconds{outcome}` measures elapsed time around the
 recovery runner, including connection acquisition, the transaction and its commit
-or error/rollback return. It is not SQL execution time or PostgreSQL row lock wait
-time. An error observation ends when the runner returns, not proof that a server
+or error/rollback return. SQL execution and any lock waits inside that runner
+are included in the elapsed total, not measured independently. Acknowledgement
+latency outside the runner is not measured by this histogram. An error observation
+ends when the runner returns, not proof that a server
 backend released every lock at that instant.
 
 The bounded outcomes are:
@@ -102,12 +149,19 @@ The bounded outcomes are:
   consumers. A visited consumer can have pending events, locked resources or an
   empty queue; this does not imply a publication.
 * `empty`: the fleet round committed without initializations or consumer visits.
+* `cooldown`: a scheduler-only transaction committed the cooldown handshake. This
+  does not claim a work round or increment work counters. It includes that
+  transaction and commit time, not time sleeping until the deadline.
 * `noop`: no fleet round was claimed (deadline not due, another replica holds it,
   or recovery is disabled when the runner is called directly).
 * `error`: the runner returned an error, including transaction/commit failures.
 
 `delete_recovery_work_total{kind}` counts only committed `initialized` resources,
-visited `consumers`, and `published` events. Failed rounds contribute no work.
+visited `consumers`, and `published` events reported by successful work calls.
+Failed calls and cooldown handshakes contribute no work. These process metrics
+are not an exactly-once database ledger: a process crash or lost COMMIT response
+can prevent reporting durable work. The durable marker still enforces pacing
+when the database committed work whose client did not receive the response.
 Publications are durable event requests, not broker delivery or acknowledgements.
 Neither metric labels resources, consumers, SQL text or error messages.
 
@@ -120,7 +174,7 @@ histogram_quantile(0.95,
 )
 ```
 
-Inspect `empty`, `noop` and `error` counts separately, together with work-counter
+Inspect `empty`, `cooldown`, `noop` and `error` counts separately, together with work-counter
 rates. Do not pool their duration distributions with committed work. The histogram
 includes buckets through 30 and 60 seconds to expose slow/error rounds around the
 controller's cancellation deadline.

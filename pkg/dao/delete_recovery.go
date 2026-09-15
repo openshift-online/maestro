@@ -28,7 +28,10 @@ type DeleteRecovery struct {
 type DeleteRecoveryResult struct {
 	// Claimed is true only when this call claimed and committed the fleet round.
 	// Errors return a zero result, including any work rolled back.
-	Claimed     bool
+	Claimed bool
+	// Cooldown is true only when this call committed a cooldown handshake,
+	// without initializing resources or visiting consumers.
+	Cooldown    bool
 	Initialized int
 	Consumers   int
 	Published   int
@@ -55,22 +58,33 @@ type deletionRetry struct {
 	DeleteRetryDelay time.Duration
 }
 
-// Run commits one bounded fleet-wide round, including publication notifications,
-// resource backoff and the next round deadline. It never deletes a resource.
+// Run commits either one bounded fleet-wide work round or its cooldown handshake.
+// It never deletes a resource or sleeps while holding database locks.
 func (d *DeleteRecovery) Run(ctx context.Context) (DeleteRecoveryResult, error) {
 	result := DeleteRecoveryResult{}
 	if d.initial == 0 {
 		return result, nil
 	}
 	err := d.sessions.New(ctx).Transaction(func(tx *gorm.DB) error {
-		var claimed []int
-		if err := tx.Raw(`SELECT id FROM delete_recovery_schedule
-			WHERE id = 1 AND next_at <= clock_timestamp() FOR UPDATE SKIP LOCKED`).
+		var claimed []struct{ CooldownPending bool }
+		if err := tx.Raw(`SELECT cooldown_pending FROM delete_recovery_schedule
+			WHERE id = 1 AND (cooldown_pending OR next_at <= clock_timestamp())
+			FOR UPDATE SKIP LOCKED`).
 			Scan(&claimed).Error; err != nil {
 			return err
 		}
 		if len(claimed) == 0 {
 			return nil
+		}
+		if claimed[0].CooldownPending {
+			// This marker is visible only after the work transaction committed.
+			// Arm the deadline in a separate, scheduler-only transaction so even
+			// a slow work COMMIT cannot consume the cooldown. A failed handshake
+			// leaves the marker set for any replica to retry after a restart.
+			result.Cooldown = true
+			return tx.Exec(`UPDATE delete_recovery_schedule
+				SET cooldown_pending = false, next_at = clock_timestamp() + interval '1 second'
+				WHERE id = 1`).Error
 		}
 		result.Claimed = true
 		var now time.Time
@@ -92,10 +106,10 @@ func (d *DeleteRecovery) Run(ctx context.Context) (DeleteRecoveryResult, error) 
 				return err
 			}
 		}
-		// Use the end of the round, not its start. Slow rounds or additional
-		// replicas must not permit consecutive catch-up bursts.
+		// Commit the obligation to cool down atomically with the work. There
+		// are no postcommit operations that could lose committed work counts.
 		return tx.Exec(`UPDATE delete_recovery_schedule
-			SET next_at = clock_timestamp() + interval '1 second' WHERE id = 1`).Error
+			SET cooldown_pending = true WHERE id = 1`).Error
 	})
 	if err != nil {
 		return DeleteRecoveryResult{}, err
@@ -129,9 +143,9 @@ func (d *DeleteRecovery) initialize(tx *gorm.DB, now time.Time, result *DeleteRe
 			WHERE id = ?`, due, int64(d.initial), id).Error; err != nil {
 			return err
 		}
-		// Do not move a queued consumer backwards when more of its backlog is
-		// initialized. Newly initialized consumers also join behind those
-		// already waiting, regardless of their original deletion ages.
+		// Incoming deadlines are at least now, so LEAST preserves the place of
+		// already-due consumers. It may shorten a future deadline when fresh
+		// work is due earlier. New consumers join behind older waiting ones.
 		if err := tx.Exec(`INSERT INTO delete_recovery_consumers (consumer_name, next_at)
 			VALUES (?, GREATEST(?::timestamptz, ?::timestamptz)) ON CONFLICT (consumer_name) DO UPDATE
 			SET next_at = LEAST(delete_recovery_consumers.next_at, EXCLUDED.next_at)`,

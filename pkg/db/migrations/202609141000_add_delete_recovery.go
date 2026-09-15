@@ -33,6 +33,8 @@ func addDeleteRecovery() *gormigrate.Migration {
 						id integer PRIMARY KEY CHECK (id = 1),
 						next_at timestamptz NOT NULL
 					);
+					ALTER TABLE delete_recovery_schedule
+						ADD COLUMN IF NOT EXISTS cooldown_pending boolean NOT NULL DEFAULT false;
 					INSERT INTO delete_recovery_schedule (id, next_at)
 						VALUES (1, clock_timestamp()) ON CONFLICT DO NOTHING;
 				`).Error
