@@ -37,6 +37,21 @@ type DeleteRecoveryResult struct {
 	Published   int
 }
 
+// DeleteRecoverySnapshot is an aggregate-only view of durable recovery work.
+// Ages are measured using the database clock at one shared sample instant.
+type DeleteRecoverySnapshot struct {
+	UnscheduledTombstones        int64
+	DueTombstones                int64
+	DelayedTombstones            int64
+	OldestUnscheduledAgeSeconds  float64
+	OldestDueAgeSeconds          float64
+	OldestDelayedAgeSeconds      float64
+	DueConsumers                 int64
+	ScheduledConsumers           int64
+	PendingDeleteEvents          int64
+	OldestPendingEventAgeSeconds float64
+}
+
 // NewDeleteRecovery validates retry limits and constructs a database-backed scheduler.
 func NewDeleteRecovery(sessions db.SessionFactory, c *config.EventServerConfig) (*DeleteRecovery, error) {
 	if err := c.ValidateDeleteRecovery(); err != nil {
@@ -49,6 +64,59 @@ func NewDeleteRecovery(sessions db.SessionFactory, c *config.EventServerConfig) 
 		batch:    c.DeleteEventRepublishBatchSize,
 	}, nil
 }
+
+// Snapshot reads bounded-cardinality operational aggregates without returning resource or consumer identifiers.
+func (d *DeleteRecovery) Snapshot(ctx context.Context) (DeleteRecoverySnapshot, error) {
+	var snapshot DeleteRecoverySnapshot
+	result := d.sessions.New(ctx).Raw(deleteRecoverySnapshotSQL).Scan(&snapshot)
+	if result.Error != nil {
+		return DeleteRecoverySnapshot{}, result.Error
+	}
+	return snapshot, nil
+}
+
+// A materialized database timestamp makes every state and age in a snapshot comparable.
+// Each aggregate is restricted to durable recovery rows and uses the partial indexes
+// created by the delete-recovery migration rather than scanning unrelated rows.
+const deleteRecoverySnapshotSQL = `
+WITH sampled_at AS MATERIALIZED (SELECT clock_timestamp() AS at),
+bootstrap AS MATERIALIZED (
+	SELECT count(*) AS tombstones, min(deleted_at) AS oldest
+	FROM resources
+	WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL
+),
+scheduled AS MATERIALIZED (
+	SELECT
+		count(*) FILTER (WHERE delete_retry_at <= at) AS due_tombstones,
+		count(*) FILTER (WHERE delete_retry_at > at) AS delayed_tombstones,
+		min(deleted_at) FILTER (WHERE delete_retry_at <= at) AS oldest_due,
+		min(deleted_at) FILTER (WHERE delete_retry_at > at) AS oldest_delayed
+	FROM resources CROSS JOIN sampled_at
+	WHERE deleted_at IS NOT NULL AND delete_retry_at IS NOT NULL
+),
+consumer_queue AS MATERIALIZED (
+	SELECT
+		count(*) FILTER (WHERE next_at <= at) AS due_consumers,
+		count(*) FILTER (WHERE next_at > at) AS scheduled_consumers
+	FROM delete_recovery_consumers CROSS JOIN sampled_at
+),
+pending_events AS MATERIALIZED (
+	SELECT count(*) AS events, min(created_at) AS oldest
+	FROM events
+	WHERE source = 'Resources' AND event_type = 'Delete' AND reconciled_date IS NULL
+)
+SELECT
+	bootstrap.tombstones AS unscheduled_tombstones,
+	scheduled.due_tombstones,
+	scheduled.delayed_tombstones,
+	COALESCE(EXTRACT(EPOCH FROM sampled_at.at - bootstrap.oldest), 0) AS oldest_unscheduled_age_seconds,
+	COALESCE(EXTRACT(EPOCH FROM sampled_at.at - scheduled.oldest_due), 0) AS oldest_due_age_seconds,
+	COALESCE(EXTRACT(EPOCH FROM sampled_at.at - scheduled.oldest_delayed), 0) AS oldest_delayed_age_seconds,
+	consumer_queue.due_consumers,
+	consumer_queue.scheduled_consumers,
+	pending_events.events AS pending_delete_events,
+	COALESCE(EXTRACT(EPOCH FROM sampled_at.at - pending_events.oldest), 0) AS oldest_pending_event_age_seconds
+FROM sampled_at CROSS JOIN bootstrap CROSS JOIN scheduled CROSS JOIN consumer_queue CROSS JOIN pending_events`
 
 type deletionRetry struct {
 	ID               string

@@ -7,8 +7,14 @@ import (
 )
 
 type deleteRecoveryMetrics struct {
-	duration *prometheus.HistogramVec
-	work     *prometheus.CounterVec
+	duration              *prometheus.HistogramVec
+	work                  *prometheus.CounterVec
+	tombstoneBacklog      *prometheus.GaugeVec
+	tombstoneOldestAge    *prometheus.GaugeVec
+	consumerQueue         *prometheus.GaugeVec
+	pendingDeleteEvents   prometheus.Gauge
+	pendingDeleteEventAge prometheus.Gauge
+	snapshotErrors        prometheus.Counter
 }
 
 // newDeleteRecoveryMetrics initializes all bounded outcome and committed-work series.
@@ -25,12 +31,49 @@ func newDeleteRecoveryMetrics() *deleteRecoveryMetrics {
 			Name:      "work_total",
 			Help:      "Committed recovery work by kind (initialized resources, visited consumers, or published events)",
 		}, []string{"kind"}),
+		tombstoneBacklog: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Subsystem: "delete_recovery",
+			Name:      "tombstone_backlog",
+			Help:      "Current durable tombstones by delete recovery scheduler state",
+		}, []string{"state"}),
+		tombstoneOldestAge: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Subsystem: "delete_recovery",
+			Name:      "tombstone_oldest_age_seconds",
+			Help:      "Age of the oldest durable tombstone by delete recovery scheduler state",
+		}, []string{"state"}),
+		consumerQueue: prometheus.NewGaugeVec(prometheus.GaugeOpts{
+			Subsystem: "delete_recovery",
+			Name:      "consumer_queue",
+			Help:      "Current durable delete recovery consumer queue entries by scheduler state",
+		}, []string{"state"}),
+		pendingDeleteEvents: prometheus.NewGauge(prometheus.GaugeOpts{
+			Subsystem: "delete_recovery",
+			Name:      "pending_delete_events",
+			Help:      "Current unreconciled Delete events for resources",
+		}),
+		pendingDeleteEventAge: prometheus.NewGauge(prometheus.GaugeOpts{
+			Subsystem: "delete_recovery",
+			Name:      "pending_delete_event_oldest_age_seconds",
+			Help:      "Age of the oldest unreconciled Delete event for a resource",
+		}),
+		snapshotErrors: prometheus.NewCounter(prometheus.CounterOpts{
+			Subsystem: "delete_recovery",
+			Name:      "snapshot_errors_total",
+			Help:      "Total failed durable delete recovery metric snapshots",
+		}),
 	}
 	for _, outcome := range []string{"committed", "empty", "cooldown", "noop", "error"} {
 		m.duration.WithLabelValues(outcome)
 	}
 	for _, kind := range []string{"initialized", "consumers", "published"} {
 		m.work.WithLabelValues(kind)
+	}
+	for _, state := range []string{"unscheduled", "due", "delayed"} {
+		m.tombstoneBacklog.WithLabelValues(state)
+		m.tombstoneOldestAge.WithLabelValues(state)
+	}
+	for _, state := range []string{"due", "scheduled"} {
+		m.consumerQueue.WithLabelValues(state)
 	}
 	return m
 }
@@ -53,6 +96,25 @@ func (m *deleteRecoveryMetrics) observe(result dao.DeleteRecoveryResult, err err
 		m.work.WithLabelValues("published").Add(float64(result.Published))
 	}
 	m.duration.WithLabelValues(outcome).Observe(seconds)
+}
+
+// observeSnapshot maps only the fixed scheduler states to gauges. Call this only
+// after a complete database snapshot so failed reads retain the last good values.
+func (m *deleteRecoveryMetrics) observeSnapshot(snapshot dao.DeleteRecoverySnapshot) {
+	m.tombstoneBacklog.WithLabelValues("unscheduled").Set(float64(snapshot.UnscheduledTombstones))
+	m.tombstoneBacklog.WithLabelValues("due").Set(float64(snapshot.DueTombstones))
+	m.tombstoneBacklog.WithLabelValues("delayed").Set(float64(snapshot.DelayedTombstones))
+	m.tombstoneOldestAge.WithLabelValues("unscheduled").Set(nonNegative(snapshot.OldestUnscheduledAgeSeconds))
+	m.tombstoneOldestAge.WithLabelValues("due").Set(nonNegative(snapshot.OldestDueAgeSeconds))
+	m.tombstoneOldestAge.WithLabelValues("delayed").Set(nonNegative(snapshot.OldestDelayedAgeSeconds))
+	m.consumerQueue.WithLabelValues("due").Set(float64(snapshot.DueConsumers))
+	m.consumerQueue.WithLabelValues("scheduled").Set(float64(snapshot.ScheduledConsumers))
+	m.pendingDeleteEvents.Set(float64(snapshot.PendingDeleteEvents))
+	m.pendingDeleteEventAge.Set(nonNegative(snapshot.OldestPendingEventAgeSeconds))
+}
+
+func nonNegative(value float64) float64 {
+	return max(value, 0)
 }
 
 var recoveryMetrics = newDeleteRecoveryMetrics()

@@ -165,6 +165,58 @@ when the database committed work whose client did not receive the response.
 Publications are durable event requests, not broker delivery or acknowledgements.
 Neither metric labels resources, consumers, SQL text or error messages.
 
+### Durable recovery snapshot metrics
+
+Every server with delete recovery enabled reads one database snapshot immediately
+at controller startup and then once per minute with jitter. Prometheus collection
+only serves the last completed snapshot, so it never starts a database query.
+The snapshot query returns aggregates only and has no resource, consumer, source
+or database-error labels. A failed snapshot leaves the last good gauge values in
+place and increments `delete_recovery_snapshot_errors_total`.
+
+Use these metrics to diagnose the durable state without a manual database query:
+
+* `delete_recovery_tombstone_backlog{state="unscheduled|due|delayed"}` is the
+  count of soft-deleted resources. `unscheduled` has no retry deadline, `due` has
+  a retry deadline at or before the snapshot time, and `delayed` has a future
+  retry deadline.
+* `delete_recovery_tombstone_oldest_age_seconds{state="unscheduled|due|delayed"}`
+  is the deletion age of the oldest tombstone in that state. It is zero when that
+  state is empty.
+* `delete_recovery_consumer_queue{state="due|scheduled"}` is the count of durable
+  recovery consumer entries with a deadline at or before, or after, the snapshot
+  time.
+* `delete_recovery_pending_delete_events` and
+  `delete_recovery_pending_delete_event_oldest_age_seconds` are the count and
+  oldest age of unreconciled `Resources` Delete events. The age is zero when
+  there are no such events.
+
+For example, a recovery scheduler backlog is visible with:
+
+```promql
+sum(delete_recovery_tombstone_backlog)
+```
+
+and a stuck due stage with:
+
+```promql
+delete_recovery_tombstone_oldest_age_seconds{state="due"}
+```
+
+These are durable database-state snapshots, not per-event broker delivery,
+handler-processing, acknowledgement, or end-to-end deletion latency metrics.
+The existing workqueue metrics remain the process-local in-memory queue view.
+The existing recovery round histogram and work counters describe scheduler
+activity, not the number or age of durable rows waiting between rounds.
+
+The snapshot uses one aggregate query with one database clock sample. It reads
+the existing partial bootstrap, scheduled-retry and pending-resource-Delete
+index populations, plus the small consumer scheduler table, rather than
+resource or event rows outside those durable states. No new index is needed:
+the existing indexes were added specifically for these predicates. Counts still
+require reading the matching durable index populations, so the one-minute,
+jittered reporting interval intentionally bounds that database work.
+
 Filter the histogram when examining active rounds, so idle polls and empty rounds
 do not hide transaction latency:
 

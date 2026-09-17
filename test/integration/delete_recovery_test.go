@@ -533,3 +533,39 @@ func TestDeleteRecoverySchedulerIndexes(t *testing.T) {
 		Expect(strings.Join(plan, "\n")).To(ContainSubstring(query.index))
 	}
 }
+
+// TestDeleteRecoverySnapshot verifies aggregate durable scheduler and pending-event telemetry.
+func TestDeleteRecoverySnapshot(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	conn := h.DBFactory.New(context.Background())
+	recovery := recoveryForTest(t, h, 1)
+
+	recoveryTombstone(conn, "snapshot-unscheduled", "snapshot-unscheduled-consumer", 3*time.Hour)
+	recoveryTombstone(conn, "snapshot-due", "snapshot-due-consumer", 4*time.Hour)
+	Expect(conn.Exec(`UPDATE resources SET delete_retry_at = clock_timestamp() - interval '1 minute'
+		WHERE id = 'snapshot-due'`).Error).To(Succeed())
+	recoveryTombstone(conn, "snapshot-delayed", "snapshot-delayed-consumer", 2*time.Hour)
+	Expect(conn.Exec(`UPDATE resources SET delete_retry_at = clock_timestamp() + interval '1 hour'
+		WHERE id = 'snapshot-delayed'`).Error).To(Succeed())
+	Expect(conn.Exec(`INSERT INTO delete_recovery_consumers (consumer_name, next_at)
+		VALUES ('snapshot-due-consumer', clock_timestamp() - interval '1 minute'),
+		       ('snapshot-delayed-consumer', clock_timestamp() + interval '1 hour')`).Error).To(Succeed())
+	Expect(conn.Exec(`INSERT INTO events (id, source, source_id, event_type, created_at)
+		VALUES ('snapshot-pending-delete', 'Resources', 'snapshot-due', 'Delete', clock_timestamp() - interval '5 hours'),
+		       ('snapshot-reconciled-delete', 'Resources', 'snapshot-due', 'Delete', clock_timestamp() - interval '6 hours'),
+		       ('snapshot-other-delete', 'Other', 'snapshot-due', 'Delete', clock_timestamp() - interval '7 hours')`).Error).To(Succeed())
+	Expect(conn.Exec("UPDATE events SET reconciled_date = clock_timestamp() WHERE id = 'snapshot-reconciled-delete'").Error).To(Succeed())
+
+	snapshot, err := recovery.Snapshot(context.Background())
+	Expect(err).NotTo(HaveOccurred())
+	Expect(snapshot.UnscheduledTombstones).To(Equal(int64(1)))
+	Expect(snapshot.DueTombstones).To(Equal(int64(1)))
+	Expect(snapshot.DelayedTombstones).To(Equal(int64(1)))
+	Expect(snapshot.DueConsumers).To(Equal(int64(1)))
+	Expect(snapshot.ScheduledConsumers).To(Equal(int64(1)))
+	Expect(snapshot.PendingDeleteEvents).To(Equal(int64(1)))
+	Expect(snapshot.OldestUnscheduledAgeSeconds).To(BeNumerically(">=", 3*time.Hour.Seconds()))
+	Expect(snapshot.OldestDueAgeSeconds).To(BeNumerically(">=", 4*time.Hour.Seconds()))
+	Expect(snapshot.OldestDelayedAgeSeconds).To(BeNumerically(">=", 2*time.Hour.Seconds()))
+	Expect(snapshot.OldestPendingEventAgeSeconds).To(BeNumerically(">=", 5*time.Hour.Seconds()))
+}
