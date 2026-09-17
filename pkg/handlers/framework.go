@@ -3,11 +3,13 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 
 	"k8s.io/klog/v2"
 
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/errors"
 	loggertracing "github.com/openshift-online/maestro/pkg/logger"
 )
@@ -31,6 +33,39 @@ type validate func() *errors.ServiceError
 type errorHandlerFunc func(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError)
 type httpAction func() (interface{}, *errors.ServiceError)
 
+// actionOutcome is a helper struct for deferring finalizing of transactions.
+type actionOutcome struct {
+	result     any
+	serviceErr *errors.ServiceError
+}
+
+// finalizeTransaction rolls back or commits the transaction stored in ctx and writes the HTTP response.
+//
+// If a panic was raised then the transaction is rolled back and the panic is re-raised.
+// If actionOutcome.serviceErr is not nil then the transaction is rolled back.
+// If the attempt to commit the transaction fails, then actionOutcome.serviceErr is set to the resolve error.
+func finalizeTransaction(ctx context.Context, w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int, outcome *actionOutcome) {
+	if p := recover(); p != nil {
+		db.MarkForRollback(ctx, fmt.Errorf("panic: %v", p))
+		_ = db.Resolve(ctx)
+		panic(p)
+	}
+
+	if outcome.serviceErr != nil {
+		db.MarkForRollback(ctx, outcome.serviceErr)
+	}
+	if resolveErr := db.Resolve(ctx); resolveErr != nil && outcome.serviceErr == nil {
+		outcome.serviceErr = errors.GeneralError("Error committing transaction: %v", resolveErr)
+	}
+
+	switch {
+	case outcome.serviceErr != nil:
+		cfg.ErrorHandler(r.Context(), w, outcome.serviceErr)
+	default:
+		writeJSONResponse(w, httpStatus, outcome.result)
+	}
+}
+
 func handleError(ctx context.Context, w http.ResponseWriter, err *errors.ServiceError) {
 	operationID := loggertracing.GetOperationID(ctx)
 	logger := klog.FromContext(ctx)
@@ -43,7 +78,7 @@ func handleError(ctx context.Context, w http.ResponseWriter, err *errors.Service
 	writeJSONResponse(w, err.HttpCode, err.AsOpenapiError(operationID))
 }
 
-func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int) {
+func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int, session db.SessionFactory) {
 	if cfg.ErrorHandler == nil {
 		cfg.ErrorHandler = handleError
 	}
@@ -68,18 +103,23 @@ func handle(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStat
 		}
 	}
 
-	result, serviceErr := cfg.Action()
-
-	switch {
-	case serviceErr != nil:
-		cfg.ErrorHandler(r.Context(), w, serviceErr)
-	default:
-		writeJSONResponse(w, httpStatus, result)
+	// Create a new Context with the transaction stored in it.
+	ctx, err := db.NewContext(r.Context(), session)
+	if err != nil {
+		cfg.ErrorHandler(r.Context(), w, errors.GeneralError("Could not create database transaction: %v", err))
+		return
 	}
 
+	*r = *r.WithContext(ctx)
+
+	// Resolve transaction once work is complete
+	outcome := &actionOutcome{}
+	defer finalizeTransaction(ctx, w, r, cfg, httpStatus, outcome)
+
+	outcome.result, outcome.serviceErr = cfg.Action()
 }
 
-func handleDelete(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int) {
+func handleDelete(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, httpStatus int, session db.SessionFactory) {
 	if cfg.ErrorHandler == nil {
 		cfg.ErrorHandler = handleError
 	}
@@ -91,15 +131,20 @@ func handleDelete(w http.ResponseWriter, r *http.Request, cfg *handlerConfig, ht
 		}
 	}
 
-	result, serviceErr := cfg.Action()
-
-	switch {
-	case serviceErr != nil:
-		cfg.ErrorHandler(r.Context(), w, serviceErr)
-	default:
-		writeJSONResponse(w, httpStatus, result)
+	// Create a new Context with the transaction stored in it.
+	ctx, err := db.NewContext(r.Context(), session)
+	if err != nil {
+		cfg.ErrorHandler(r.Context(), w, errors.GeneralError("Could not create database transaction: %v", err))
+		return
 	}
 
+	*r = *r.WithContext(ctx)
+
+	// Resolve transaction once work is complete
+	outcome := &actionOutcome{}
+	defer finalizeTransaction(ctx, w, r, cfg, httpStatus, outcome)
+
+	outcome.result, outcome.serviceErr = cfg.Action()
 }
 
 func handleGet(w http.ResponseWriter, r *http.Request, cfg *handlerConfig) {

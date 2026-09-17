@@ -14,6 +14,7 @@ type SessionFactory interface {
 	Init(*config.DatabaseConfig)
 	DirectDB() *sql.DB
 	New(ctx context.Context) *gorm.DB
+	NewIsInTx(ctx context.Context) (*gorm.DB, bool)
 	CheckConnection() error
 	Close() error
 	ResetDB()

@@ -100,7 +100,10 @@ func (km *KindControllerManager) Run(ctx context.Context) {
 
 	// start a goroutine to sync all events periodically
 	// use a jitter to avoid multiple instances syncing the events at the same time
-	go wait.JitterUntilWithContext(ctx, km.syncEvents, defaultEventsSyncPeriod, 0.25, true)
+	go wait.JitterUntilWithContext(ctx, km.purgeAndSyncEvents, defaultEventsSyncPeriod, 0.25, true)
+
+	// start a goroutine to sync all events when the queue is empty
+	go wait.UntilWithContext(ctx, km.syncEventsIfQueueIsEmpty, 1*time.Second)
 
 	// start a goroutine to emit a gauge of the oldest unreconciled event's age
 	// use a jitter to avoid multiple instances reporting at the same time
@@ -241,7 +244,20 @@ func (km *KindControllerManager) processNextEvent(ctx context.Context) bool {
 	return true
 }
 
-func (km *KindControllerManager) syncEvents(ctx context.Context) {
+func (km *KindControllerManager) syncEventsIfQueueIsEmpty(ctx context.Context) {
+	if km.eventsQueue.Len() == 0 {
+		logger := klog.FromContext(ctx)
+		logger.V(4).Info("sync all unreconciled events")
+		if !km.syncEvents(ctx) {
+			select {
+			case <-time.After(4 * time.Second):
+			case <-ctx.Done():
+			}
+		}
+	}
+}
+
+func (km *KindControllerManager) purgeAndSyncEvents(ctx context.Context) {
 	logger := klog.FromContext(ctx)
 	logger.Info("purge all reconciled events")
 	// delete the reconciled events from the database firstly
@@ -254,19 +270,28 @@ func (km *KindControllerManager) syncEvents(ctx context.Context) {
 	}
 
 	logger.Info("sync all unreconciled events")
+	km.syncEvents(ctx)
+
+	specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusSuccess)).Inc()
+}
+
+func (km *KindControllerManager) syncEvents(ctx context.Context) bool {
+	logger := klog.FromContext(ctx)
+	var eventsFound = false
 	unreconciledEvents, err := km.events.FindAllUnreconciledEvents(ctx)
 	if err != nil {
 		logger.Error(err, "Failed to list unreconciled events from db")
 		specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusError)).Inc()
-		return
+		return eventsFound
 	}
 
 	// add the unreconciled events back to the controller queue
 	for _, event := range unreconciledEvents {
 		km.eventsQueue.Add(event.ID)
+		eventsFound = true
 	}
 
-	specControllerSyncEventOperationsTotal.WithLabelValues(string(controllerSyncEventStatusSuccess)).Inc()
+	return eventsFound
 }
 
 func (km *KindControllerManager) reportOldestEvent(ctx context.Context) {

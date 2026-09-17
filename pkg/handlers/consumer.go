@@ -19,13 +19,15 @@ type consumerHandler struct {
 	consumer services.ConsumerService
 	resource services.ResourceService
 	generic  services.GenericService
+	db       db.SessionFactory
 }
 
-func NewConsumerHandler(consumer services.ConsumerService, resource services.ResourceService, generic services.GenericService) *consumerHandler {
+func NewConsumerHandler(consumer services.ConsumerService, resource services.ResourceService, generic services.GenericService, db db.SessionFactory) *consumerHandler {
 	return &consumerHandler{
 		consumer: consumer,
 		resource: resource,
 		generic:  generic,
+		db:       db,
 	}
 }
 
@@ -48,7 +50,7 @@ func (h consumerHandler) Create(w http.ResponseWriter, r *http.Request) {
 		handleError,
 	}
 
-	handle(w, r, cfg, http.StatusCreated)
+	handle(w, r, cfg, http.StatusCreated, h.db)
 }
 
 func (h consumerHandler) Patch(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +79,7 @@ func (h consumerHandler) Patch(w http.ResponseWriter, r *http.Request) {
 		handleError,
 	}
 
-	handle(w, r, cfg, http.StatusOK)
+	handle(w, r, cfg, http.StatusOK, h.db)
 }
 
 func (h consumerHandler) List(w http.ResponseWriter, r *http.Request) {
@@ -144,5 +146,5 @@ func (h consumerHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			return nil, nil
 		},
 	}
-	handleDelete(w, r, cfg, http.StatusNoContent)
+	handleDelete(w, r, cfg, http.StatusNoContent, h.db)
 }

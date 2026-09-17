@@ -8,6 +8,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/api/openapi"
 	"github.com/openshift-online/maestro/pkg/api/presenters"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/errors"
 	"github.com/openshift-online/maestro/pkg/services"
 )
@@ -17,12 +18,14 @@ var _ RestHandler = resourceBundleHandler{}
 type resourceBundleHandler struct {
 	resource services.ResourceService
 	generic  services.GenericService
+	db       db.SessionFactory
 }
 
-func NewResourceBundleHandler(resource services.ResourceService, generic services.GenericService) *resourceBundleHandler {
+func NewResourceBundleHandler(resource services.ResourceService, generic services.GenericService, db db.SessionFactory) *resourceBundleHandler {
 	return &resourceBundleHandler{
 		resource: resource,
 		generic:  generic,
+		db:       db,
 	}
 }
 
@@ -115,5 +118,5 @@ func (h resourceBundleHandler) Delete(w http.ResponseWriter, r *http.Request) {
 			return nil, nil
 		},
 	}
-	handleDelete(w, r, cfg, http.StatusNoContent)
+	handleDelete(w, r, cfg, http.StatusNoContent, h.db)
 }

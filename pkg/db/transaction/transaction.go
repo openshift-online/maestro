@@ -1,8 +1,9 @@
 package transaction
 
 import (
-	"database/sql"
 	"errors"
+
+	"gorm.io/gorm"
 )
 
 // By default do no roll back transaction.
@@ -12,12 +13,12 @@ const defaultRollbackPolicy = false
 // Transaction represents an sql transaction
 type Transaction struct {
 	rollbackFlag bool
-	tx           *sql.Tx
+	tx           *gorm.DB
 	txid         int64
 }
 
 // Build Creates a new transaction object
-func Build(tx *sql.Tx, id int64, rollbackFlag bool) *Transaction {
+func Build(tx *gorm.DB, id int64, rollbackFlag bool) *Transaction {
 	return &Transaction{
 		tx:           tx,
 		txid:         id,
@@ -28,10 +29,6 @@ func Build(tx *sql.Tx, id int64, rollbackFlag bool) *Transaction {
 // MarkedForRollback returns true if a transaction is flagged for rollback and false otherwise.
 func (tx *Transaction) MarkedForRollback() bool {
 	return tx.rollbackFlag
-}
-
-func (tx *Transaction) Tx() *sql.Tx {
-	return tx.tx
 }
 
 func (tx *Transaction) TxID() int64 {
@@ -46,9 +43,9 @@ func (tx *Transaction) Commit() error {
 
 	// must call commit on 'g2' which is Gorm
 	// do *not* call commit on the underlying transaction itself. Gorm does that.
-	err := tx.tx.Commit()
+	db := tx.tx.Commit()
 	tx.tx = nil
-	return err
+	return db.Error
 }
 
 // rollback ends the transaction by rolling back
@@ -57,11 +54,15 @@ func (tx *Transaction) Rollback() error {
 	if tx.tx == nil {
 		return errors.New("db: transaction hasn't been started yet")
 	}
-	err := tx.tx.Rollback()
+	db := tx.tx.Rollback()
 	tx.tx = nil
-	return err
+	return db.Error
 }
 
 func (tx *Transaction) SetRollbackFlag(flag bool) {
 	tx.rollbackFlag = flag
+}
+
+func (tx *Transaction) Session(config *gorm.Session) *gorm.DB {
+	return tx.tx.Session(config)
 }

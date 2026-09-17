@@ -21,6 +21,9 @@ RUN go build -o ./test/mocks/work-server.test ./test/mocks/workserver
 # Build the upgrade test binary
 RUN ginkgo build -o ./test/upgrade/upgrade.test ./test/upgrade/pkg
 
+# Build the pgfailure binary (for failure modes e2e test)
+RUN go build -o ./test/e2e/pgfailure/pgfailure ./test/e2e/pgfailure
+
 FROM registry.access.redhat.com/ubi9/ubi-minimal:latest
 
 RUN microdnf update -y && \
@@ -31,6 +34,7 @@ RUN microdnf update -y && \
 COPY --from=builder /maestro/test/e2e/e2e.test /e2e/e2e.test
 COPY --from=builder /maestro/test/mocks/work-server.test /e2e/work-server.test
 COPY --from=builder /maestro/test/upgrade/upgrade.test /e2e/upgrade.test
+COPY --from=builder /maestro/test/e2e/pgfailure/pgfailure /e2e/pgfailure
 
 # Copy reporter package for generating reports
 WORKDIR /e2e

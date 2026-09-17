@@ -20,6 +20,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/config"
 	"github.com/openshift-online/maestro/pkg/constants"
 	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/db/db_context"
 )
 
 type Default struct {
@@ -186,6 +187,7 @@ func newListener(ctx context.Context, dbConfig *config.DatabaseConfig, channel s
 		}
 		connstr += fmt.Sprintf(" password='%s'", token.Token)
 	}
+	connstr += fmt.Sprintf(" application_name=%s_listener", channel)
 
 	listener := pq.NewListener(connstr, 10*time.Second, time.Minute, plog)
 	err := listener.Listen(channel)
@@ -206,14 +208,30 @@ func (f *Default) NewListener(ctx context.Context, channel string, callback func
 }
 
 func (f *Default) New(ctx context.Context) *gorm.DB {
-	conn := f.g2.Session(&gorm.Session{
-		Context: ctx,
-		Logger:  f.g2.Logger.LogMode(gormlogger.Silent),
-	})
+	db, _ := f.NewIsInTx(ctx)
+	return db
+}
+
+func (f *Default) NewIsInTx(ctx context.Context) (*gorm.DB, bool) {
+	tx, ok := db_context.Transaction(ctx)
+
+	var conn *gorm.DB
+	if ok {
+		conn = tx.Session(&gorm.Session{
+			Context: ctx,
+			Logger:  f.g2.Logger.LogMode(gormlogger.Silent),
+		})
+	} else {
+		conn = f.g2.Session(&gorm.Session{
+			Context: ctx,
+			Logger:  f.g2.Logger.LogMode(gormlogger.Silent),
+		})
+	}
+
 	if f.config.Debug {
 		conn = conn.Debug()
 	}
-	return conn
+	return conn, ok
 }
 
 func (f *Default) CheckConnection() error {

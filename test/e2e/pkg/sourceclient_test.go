@@ -102,6 +102,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			By("start status watching")
 			watcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+			defer watcher.Stop()
 			result := StartWatch(watcherCtx, watcher)
 
 			By("create a work with source work client")
@@ -167,16 +168,19 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 			By("start watching works from all consumers")
 			allConsumerWatcher, err := watcherClient.ManifestWorks(metav1.NamespaceAll).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+			defer allConsumerWatcher.Stop()
 			allConsumerWatcherResult := StartWatch(watcherCtx, allConsumerWatcher)
 
 			By("start watching works from consumer " + agentTestOpts.consumerName)
 			consumerWatcher, err := watcherClient.ManifestWorks(agentTestOpts.consumerName).Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+			defer consumerWatcher.Stop()
 			consumerWatcherResult := StartWatch(watcherCtx, consumerWatcher)
 
 			By("start watching works from an other consumer")
 			otherConsumerWatcher, err := watcherClient.ManifestWorks("other").Watch(watcherCtx, metav1.ListOptions{})
 			Expect(err).ShouldNot(HaveOccurred())
+			defer otherConsumerWatcher.Stop()
 			otherConsumerWatcherResult := StartWatch(watcherCtx, otherConsumerWatcher)
 
 			By("create a work with source work client")
@@ -240,6 +244,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				LabelSelector: "app=test",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
+			defer watcher.Stop()
 			result := StartWatch(watcherCtx, watcher)
 
 			By("create a work with source work client")
@@ -369,6 +374,7 @@ var _ = Describe("SourceWorkClient", Ordered, Label("e2e-tests-source-work-clien
 				LabelSelector: "app=test-create-delete",
 			})
 			Expect(err).ShouldNot(HaveOccurred())
+			defer watcher.Stop()
 			result := StartWatch(watcherCtx, watcher)
 
 			By("create a work")
