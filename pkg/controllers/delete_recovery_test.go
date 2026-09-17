@@ -21,6 +21,18 @@ func (f recoveryRunnerFunc) Run(ctx context.Context) (dao.DeleteRecoveryResult, 
 	return f(ctx)
 }
 
+type recoverySnapshotFunc func(context.Context) (dao.DeleteRecoverySnapshot, error)
+
+// Snapshot delegates to the test callback so durable metric snapshots can be injected.
+func (f recoverySnapshotFunc) Snapshot(ctx context.Context) (dao.DeleteRecoverySnapshot, error) {
+	return f(ctx)
+}
+
+type recoveryWithSnapshot struct {
+	recoveryRunnerFunc
+	recoverySnapshotFunc
+}
+
 // TestDeleteRecoveryMetrics checks bounded outcome labels, elapsed time and committed-only work counts.
 func TestDeleteRecoveryMetrics(t *testing.T) {
 	for _, tc := range []struct {
@@ -130,14 +142,174 @@ func TestDeleteRecoveryErrorLogging(t *testing.T) {
 		output.WriteString(prefix)
 		output.WriteString(args)
 	}, funcr.Options{})
-	c := NewDeleteRecoveryController(recoveryRunnerFunc(func(context.Context) (dao.DeleteRecoveryResult, error) {
-		return dao.DeleteRecoveryResult{}, errors.New("constraint failed: consumer_name=customer-value")
-	}))
-	c.Run(klog.NewContext(context.Background(), logger))
+	c := NewDeleteRecoveryController(recoveryWithSnapshot{
+		recoveryRunnerFunc: func(context.Context) (dao.DeleteRecoveryResult, error) {
+			return dao.DeleteRecoveryResult{}, errors.New("constraint failed: consumer_name=customer-value")
+		},
+		recoverySnapshotFunc: func(context.Context) (dao.DeleteRecoverySnapshot, error) {
+			return dao.DeleteRecoverySnapshot{}, errors.New("constraint failed: consumer_name=customer-value")
+		},
+	})
+	ctx := klog.NewContext(context.Background(), logger)
+	c.Run(ctx)
+	c.Report(ctx)
 	if !strings.Contains(output.String(), "Delete recovery round failed") {
 		t.Fatal("a failed round must emit a generic failure log")
 	}
+	if !strings.Contains(output.String(), "Delete recovery metrics snapshot failed") {
+		t.Fatal("a failed snapshot must emit a generic failure log")
+	}
 	if strings.Contains(output.String(), "constraint failed") || strings.Contains(output.String(), "customer-value") {
 		t.Fatal("recovery logs must not contain database error details")
+	}
+}
+
+// TestDeleteRecoverySnapshotMetrics checks every fixed state is refreshed, including drained states.
+func TestDeleteRecoverySnapshotMetrics(t *testing.T) {
+	snapshot := dao.DeleteRecoverySnapshot{
+		UnscheduledTombstones:        3,
+		DueTombstones:                2,
+		DelayedTombstones:            1,
+		OldestUnscheduledAgeSeconds:  300,
+		OldestDueAgeSeconds:          200,
+		OldestDelayedAgeSeconds:      100,
+		DueConsumers:                 2,
+		ScheduledConsumers:           1,
+		PendingDeleteEvents:          4,
+		OldestPendingEventAgeSeconds: 400,
+	}
+	reporter := recoveryWithSnapshot{
+		recoveryRunnerFunc: func(context.Context) (dao.DeleteRecoveryResult, error) {
+			return dao.DeleteRecoveryResult{}, nil
+		},
+		recoverySnapshotFunc: func(context.Context) (dao.DeleteRecoverySnapshot, error) {
+			return snapshot, nil
+		},
+	}
+	m := newDeleteRecoveryMetrics()
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(
+		m.tombstoneBacklog,
+		m.tombstoneOldestAge,
+		m.consumerQueue,
+		m.pendingDeleteEvents,
+		m.pendingDeleteEventAge,
+		m.snapshotErrors,
+	)
+	c := NewDeleteRecoveryController(reporter)
+	c.metrics = m
+	c.Report(context.Background())
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(families) != 6 {
+		t.Fatalf("snapshot metric families = %d, want 6", len(families))
+	}
+	want := map[string]map[string]float64{
+		"delete_recovery_tombstone_backlog": {
+			"state=unscheduled": 3, "state=due": 2, "state=delayed": 1,
+		},
+		"delete_recovery_tombstone_oldest_age_seconds": {
+			"state=unscheduled": 300, "state=due": 200, "state=delayed": 100,
+		},
+		"delete_recovery_consumer_queue": {
+			"state=due": 2, "state=scheduled": 1,
+		},
+		"delete_recovery_pending_delete_events": {
+			"": 4,
+		},
+		"delete_recovery_pending_delete_event_oldest_age_seconds": {
+			"": 400,
+		},
+		"delete_recovery_snapshot_errors_total": {
+			"": 0,
+		},
+	}
+	for _, family := range families {
+		values, ok := want[family.GetName()]
+		if !ok {
+			t.Fatalf("unexpected metric family %s", family.GetName())
+		}
+		if len(family.Metric) != len(values) {
+			t.Fatalf("%s cardinality = %d, want %d", family.GetName(), len(family.Metric), len(values))
+		}
+		for _, metric := range family.Metric {
+			labels := ""
+			for _, label := range metric.Label {
+				labels += label.GetName() + "=" + label.GetValue()
+			}
+			value := metric.GetGauge().GetValue()
+			if metric.Counter != nil {
+				value = metric.GetCounter().GetValue()
+			}
+			wantValue, ok := values[labels]
+			if !ok {
+				t.Fatalf("unexpected %s{%s}", family.GetName(), labels)
+			}
+			if value != wantValue {
+				t.Fatalf("%s{%s} = %v, want %v", family.GetName(), labels, value, wantValue)
+			}
+		}
+	}
+
+	snapshot = dao.DeleteRecoverySnapshot{}
+	c.Report(context.Background())
+	families, err = registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, family := range families {
+		if family.GetName() == "delete_recovery_tombstone_backlog" {
+			for _, metric := range family.Metric {
+				if metric.GetGauge().GetValue() != 0 {
+					t.Fatal("a drained scheduler state must be reset to zero")
+				}
+			}
+		}
+	}
+}
+
+// TestDeleteRecoverySnapshotErrorRetainsMetrics checks a failed snapshot is safe and observable.
+func TestDeleteRecoverySnapshotErrorRetainsMetrics(t *testing.T) {
+	var fail bool
+	reporter := recoveryWithSnapshot{
+		recoveryRunnerFunc: func(context.Context) (dao.DeleteRecoveryResult, error) {
+			return dao.DeleteRecoveryResult{}, nil
+		},
+		recoverySnapshotFunc: func(context.Context) (dao.DeleteRecoverySnapshot, error) {
+			if fail {
+				return dao.DeleteRecoverySnapshot{}, errors.New("database failed: consumer_name=customer-value")
+			}
+			return dao.DeleteRecoverySnapshot{DueTombstones: 7}, nil
+		},
+	}
+	m := newDeleteRecoveryMetrics()
+	registry := prometheus.NewRegistry()
+	registry.MustRegister(m.tombstoneBacklog, m.tombstoneOldestAge, m.consumerQueue, m.pendingDeleteEvents, m.pendingDeleteEventAge, m.snapshotErrors)
+	c := NewDeleteRecoveryController(reporter)
+	c.metrics = m
+	c.Report(context.Background())
+	fail = true
+	c.Report(context.Background())
+
+	families, err := registry.Gather()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, family := range families {
+		switch family.GetName() {
+		case "delete_recovery_tombstone_backlog":
+			for _, metric := range family.Metric {
+				if metric.Label[0].GetValue() == "due" && metric.GetGauge().GetValue() != 7 {
+					t.Fatal("a failed snapshot must retain the last good values")
+				}
+			}
+		case "delete_recovery_snapshot_errors_total":
+			if family.Metric[0].GetCounter().GetValue() != 1 {
+				t.Fatal("a failed snapshot must increment the bounded error counter")
+			}
+		}
 	}
 }

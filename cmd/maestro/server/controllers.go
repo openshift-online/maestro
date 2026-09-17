@@ -112,6 +112,8 @@ func (s ControllersServer) Start(ctx context.Context) {
 	if s.DeleteRecovery != nil {
 		logger.Info("Starting delete recovery scheduler")
 		go wait.UntilWithContext(ctx, s.DeleteRecovery.Run, dao.DeleteRecoveryRoundInterval)
+		logger.Info("Starting delete recovery metrics reporter")
+		go wait.JitterUntilWithContext(ctx, s.DeleteRecovery.Report, controllers.DeleteRecoverySnapshotReportInterval, 0.25, true)
 	}
 
 	logger.Info("Status controller handling events")

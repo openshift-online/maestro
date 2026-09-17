@@ -2,6 +2,7 @@ package dao
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 )
@@ -31,5 +32,28 @@ func TestDeleteRecoveryBackoff(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestDeleteRecoverySnapshotQuery checks the reporter reads aggregate durable state only.
+func TestDeleteRecoverySnapshotQuery(t *testing.T) {
+	for _, fragment := range []string{
+		"clock_timestamp()",
+		"unscheduled_tombstones",
+		"due_tombstones",
+		"delayed_tombstones",
+		"due_consumers",
+		"scheduled_consumers",
+		"pending_delete_events",
+		"oldest_pending_event_age_seconds",
+	} {
+		if !strings.Contains(deleteRecoverySnapshotSQL, fragment) {
+			t.Fatalf("snapshot query is missing %q", fragment)
+		}
+	}
+	for _, identifier := range []string{"SELECT id", "SELECT consumer_name", "SELECT source_id"} {
+		if strings.Contains(deleteRecoverySnapshotSQL, identifier) {
+			t.Fatalf("snapshot query must not return %s", identifier)
+		}
 	}
 }
