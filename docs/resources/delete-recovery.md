@@ -191,17 +191,31 @@ Use these metrics to diagnose the durable state without a manual database query:
   oldest age of unreconciled `Resources` Delete events. The age is zero when
   there are no such events.
 
+Every replica snapshots the same durable database state. Deduplicate replica
+series before aggregating fleet state. Use `max without(instance, pod)` for
+gauges because replicas can report the same snapshot at slightly different
+times. Keep the remaining labels, including `state`, so each scheduler state
+remains visible.
+
 For example, a recovery scheduler backlog is visible with:
 
 ```promql
-sum(delete_recovery_tombstone_backlog)
+sum(max without(instance, pod) (delete_recovery_tombstone_backlog))
 ```
 
 and a stuck due stage with:
 
 ```promql
-delete_recovery_tombstone_oldest_age_seconds{state="due"}
+max without(instance, pod) (
+  delete_recovery_tombstone_oldest_age_seconds{state="due"}
+)
 ```
+
+Apply the same `max without(instance, pod)` deduplication to
+`delete_recovery_consumer_queue`, `delete_recovery_pending_delete_events`, and
+`delete_recovery_pending_delete_event_oldest_age_seconds`. Do not deduplicate
+`delete_recovery_snapshot_errors_total`: it records each replica's independent
+snapshot failure, so alert on `sum(rate(delete_recovery_snapshot_errors_total[5m]))`.
 
 These are durable database-state snapshots, not per-event broker delivery,
 handler-processing, acknowledgement, or end-to-end deletion latency metrics.
