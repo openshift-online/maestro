@@ -47,7 +47,7 @@ require (
 	google.golang.org/protobuf v1.36.12
 	gopkg.in/resty.v1 v1.12.0
 	gorm.io/datatypes v1.2.7
-	gorm.io/driver/postgres v1.6.2
+	gorm.io/driver/postgres v1.6.3
 	gorm.io/gorm v1.31.2
 	k8s.io/api v0.35.3
 	k8s.io/apimachinery v0.35.3
