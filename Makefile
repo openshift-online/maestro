@@ -118,7 +118,8 @@ GO_VERSION:=go1.26.
 
 ### Constants:
 version:=$(shell date +%s)
-GOLANGCI_LINT_BIN:=$(shell go env GOPATH)/bin/golangci-lint
+GOLANGCI_LINT_VERSION:=$(shell tr -d '[:space:]' < .golangciversion)
+GOLANGCI_LINT_BIN:=$(shell go env GOPATH)/bin/golangci-lint-$(GOLANGCI_LINT_VERSION)/golangci-lint
 
 ### Envrionment-sourced variables with defaults
 # Can be overriden by setting environment var before running
@@ -174,10 +175,16 @@ verify: check-gopath verify-fmt-imports
 .PHONY: verify
 
 # Runs our linter to verify that everything is following best practices
-# Requires golangci-lint (v2, since go.mod requires go >= 1.26 which is only supported by
-# golangci-lint v2) to be installed @ $(go env GOPATH)/bin/golangci-lint
+# Installs and uses the golangci-lint version pinned in .golangciversion.
 # The curated linter set in .golangci.yml omits `unused` because examples are incomplete by definition.
-lint:
+install-golangci-lint:
+	@if [ ! -x "$(GOLANGCI_LINT_BIN)" ]; then \
+		mkdir -p "$(dir $(GOLANGCI_LINT_BIN))"; \
+		GOBIN="$(dir $(GOLANGCI_LINT_BIN))" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION); \
+	fi
+.PHONY: install-golangci-lint
+
+lint: install-golangci-lint
 	$(GOLANGCI_LINT_BIN) run ./cmd/... ./pkg/...
 .PHONY: lint
 
