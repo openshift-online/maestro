@@ -180,7 +180,7 @@ verify: check-gopath verify-fmt-imports
 install-golangci-lint:
 	@if [ ! -x "$(GOLANGCI_LINT_BIN)" ]; then \
 		mkdir -p "$(dir $(GOLANGCI_LINT_BIN))"; \
-		GOBIN="$(dir $(GOLANGCI_LINT_BIN))" go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION); \
+		GOBIN="$(dir $(GOLANGCI_LINT_BIN))" $(GO) install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v$(GOLANGCI_LINT_VERSION); \
 	fi
 .PHONY: install-golangci-lint
 
