@@ -697,6 +697,48 @@ func TestReconcileStaleDeleteEventsSparesFreshHealingEvents(t *testing.T) {
 	Expect(pendingDeletes()).To(Equal(1))
 }
 
+// TestCountAndFindStalledDeletes verifies stalled soft-deletes are visible even when
+// their delete event was reconciled/delivered but the agent has not confirmed deletion.
+func TestCountAndFindStalledDeletes(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+
+	ctx := context.Background()
+
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	Expect(err).NotTo(HaveOccurred())
+	deployName := fmt.Sprintf("nginx-%s", rand.String(5))
+	resource, err := h.CreateResource(uuid.NewString(), consumer.Name, deployName, "default", 1)
+	Expect(err).NotTo(HaveOccurred())
+
+	resourceService := h.Env().Services.Resources()
+	Expect(resourceService.MarkAsDeleting(ctx, resource.ID)).NotTo(HaveOccurred())
+	conn := h.DBFactory.New(ctx)
+	Expect(conn.Exec("UPDATE resources SET deleted_at = ? WHERE id = ?",
+		time.Now().Add(-10*time.Minute), resource.ID).Error).To(Succeed())
+	// Model successful event delivery without the agent's terminal deletion acknowledgement.
+	Expect(conn.Exec(`UPDATE events SET reconciled_date = now()
+		WHERE source_id = ? AND source = 'Resources' AND event_type = 'Delete'`, resource.ID).Error).To(Succeed())
+
+	// The delivered delete remains unacknowledged, but does not exceed this threshold.
+	count, svcErr := resourceService.CountStalledDeletes(ctx, time.Hour)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(count).To(Equal(int64(0)))
+
+	stalled, svcErr := resourceService.FindStalledDeletes(ctx, time.Hour, 10)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(stalled).To(BeEmpty())
+
+	// The tombstone qualifies by age even though its original delete event was reconciled.
+	count, svcErr = resourceService.CountStalledDeletes(ctx, 5*time.Minute)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(count).To(Equal(int64(1)))
+
+	stalled, svcErr = resourceService.FindStalledDeletes(ctx, 5*time.Minute, 10)
+	Expect(svcErr).NotTo(HaveOccurred())
+	Expect(stalled).To(HaveLen(1))
+	Expect(stalled[0].ID).To(Equal(resource.ID))
+}
+
 func updateWorkStatus(ctx context.Context, workClient workv1client.ManifestWorkInterface, work *workv1.ManifestWork, newStatus workv1.ManifestWorkStatus) error {
 	// update the work status
 	newWork := work.DeepCopy()

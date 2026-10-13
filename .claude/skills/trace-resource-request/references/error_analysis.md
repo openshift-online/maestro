@@ -357,6 +357,128 @@ Client → Maestro Server → Message Broker → Maestro Agent → Applied Manif
 
 ---
 
+### 10. Delete Request Received Repeatedly But Never Completes
+
+**Symptoms:**
+- Repeated `"receive the event from client"` / `eventType=...delete_request` log entries for the
+  same `resourceid` at short, regular intervals (the source retrying), with **no other server-side
+  log entries** in between
+- The resource-bundle is never removed; `GET /api/maestro/v1/resource-bundles/<id>` keeps
+  returning it
+- The `stalled_delete_resources` gauge metric (see below) is non-zero and/or growing
+
+**Root cause:** `MarkAsDeleting` is intentionally idempotent: subsequent source `delete_request`
+retries do not enqueue duplicate events. Separately, the `DeleteRecovery` controller republishes
+unacknowledged deletes with persistent, bounded exponential backoff (starting at
+`--delete-event-republish-interval`, capped by `--delete-event-republish-max-interval`). The
+resource remains soft-deleted until the agent reports the `ResourceDeleted` ("Deleted") status
+condition. Thus a repeated-request no-op does not mean Maestro has stopped retrying; it means
+the background recovery scheduler owns retries. `StalledDeleteMonitor` reports old tombstones
+for diagnosis only and does not mutate recovery state.
+
+**Diagnostic Steps:**
+
+1. Confirm Maestro already processed the first delete request (not silently dropping every one):
+   ```bash
+   grep '"resource marked as deleting; initial delete event enqueued for the agent"' maestro*.log
+   grep '"resource is already marked as deleting; skipping duplicate delete event; background recovery remains responsible for retries"' maestro*.log
+   ```
+   Seeing the first line once, followed by the second line on retries, confirms the original
+   request created a delete event and later caller retries were idempotent. It does not prove
+   recovery republication or broker delivery; check the delete-recovery backlog/event metrics and
+   the agent logs as well. If you see the retry line with no matching first line in earlier logs,
+   the resource was already soft-deleted before this log window started; check
+   `resources.deleted_at` in the DB (query below) for how long ago.
+
+2. Check whether the agent is even communicating about this resource:
+   ```bash
+   grep 'resourceid="<resource-id>"' maestro-agent*.log | grep -i 'status.update_request\|Received event'
+   ```
+   - If the agent **is** sending status updates but they keep getting processed as
+     `"Updating resource status"` (not `"resource status delete event was sent"`), the agent's
+     ManifestWork has not yet reported the `Deleted` condition - see agent-side diagnostics below.
+   - If the agent sends **nothing** for this resource, see §3 (Agent Does Not Receive Spec Request)
+     or §6 (Server Does Not Receive Status Update) - the agent may be gone or disconnected.
+     `DeleteRecovery` continues retrying according to its configured backoff. The stale-event
+     detector can retire an old unreconciled event to prevent it from starving the spec-event
+     worker, but a later eligible recovery round can publish a replacement event. The resource
+     itself remains soft-deleted until the agent reconnects and confirms deletion or it is
+     explicitly cleaned up.
+
+3. Check the `stalled_delete_resources` gauge and server logs from `StalledDeleteMonitor` (fires
+   every ~2 minutes once a soft-deleted resource exceeds `--stalled-delete-warning-threshold`,
+   default 300s/5 minutes; purely diagnostic, does not mutate anything). The recovery scheduler
+   also exposes aggregate tombstone backlog and age metrics; see `docs/resources/delete-recovery.md`:
+   ```bash
+   grep '"resource has been soft-deleted longer than the stalled-delete threshold' maestro*.log
+   grep '"Found resources stalled in deletion"' maestro*.log
+   ```
+   These logs include aggregate count/threshold and a bounded sample of deletion timestamps and
+   ages, but intentionally omit resource and consumer identifiers. Use the database query below
+   to identify specific resources when authorized; the sample is not the full backlog.
+
+4. On the agent/spoke cluster, check whether the ManifestWork still carries the cleanup finalizer:
+   ```bash
+   oc get manifestwork <name> -n <cluster-namespace> -o jsonpath='{.metadata.finalizers}{"\n"}{.metadata.deletionTimestamp}{"\n"}'
+   ```
+   If `cluster.open-cluster-management.io/manifest-work-cleanup` is still present, the agent will
+   never report `Deleted=true` (see sdk-go's `ManifestWorkAgentClient.deleteWork`, which gates on
+   `len(work.Finalizers) == 0`). That finalizer is only removed once the ManifestWork's
+   `AppliedManifestWork` is fully gone, which in turn requires every applied resource on the spoke
+   to finish finalizing:
+   ```bash
+   oc get appliedmanifestwork -o wide | grep <manifestwork-uid>
+   oc get appliedmanifestwork <name> -o jsonpath='{.status.appliedResources}' | jq .
+   ```
+   Look for any applied resource stuck in `Terminating` (its own finalizer, a slow controller, or
+   blocked garbage collection) - this is the most common reason a delete never completes.
+
+**Database Queries:**
+
+```sql
+-- How long has this resource been soft-deleted, and is its delete event reconciled
+-- (i.e. was the delete_request successfully handed to the message broker)?
+SELECT
+    r.id,
+    r.consumer_name,
+    r.deleted_at,
+    now() - r.deleted_at AS age,
+    e.id AS delete_event_id,
+    e.reconciled_date
+FROM resources r
+LEFT JOIN events e
+    ON e.source_id = r.id AND e.source = 'Resources' AND e.event_type = 'Delete'
+WHERE r.id = '<resource_id>';
+
+-- List soft-deleted resources, oldest first, for an authorized per-resource investigation:
+SELECT id, consumer_name, deleted_at, now() - deleted_at AS age
+FROM resources
+WHERE deleted_at IS NOT NULL
+ORDER BY deleted_at ASC;
+```
+
+**Common Causes:**
+- An applied Kubernetes resource on the managed cluster stuck `Terminating` (own finalizer, slow
+  controller, or blocked background/foreground garbage collection) - blocks
+  `AppliedManifestWork` cleanup, which blocks the ManifestWork's `manifest-work-cleanup` finalizer,
+  which blocks the agent from ever reporting `Deleted=true`
+- The agent/spoke cluster is unreachable or the work-agent pod is down, so it never processes the
+  deletion at all
+- An orphaned `AppliedManifestWork` (its `ManifestWork` already gone) - handled separately by the
+  agent's `UnManagedAppliedWorkController` with a much longer (default 60 minute) grace period
+
+**Resolution:**
+- Identify and manually resolve the stuck applied resource's finalizer/termination on the spoke
+  cluster (do not force-delete Maestro-side state without understanding why the resource is stuck,
+  or the managed-cluster resource can be orphaned)
+- If the agent is confirmed gone permanently and the managed cluster itself no longer exists, this
+  is a case for manual cleanup rather than waiting on `StaleDeleteDetector`
+- See ARO-28432 / AROSLSRE-1547 / AROSLSRE-1633 for related historical fixes to Maestro's delete
+  handling (none of which cause this specific symptom - they addressed Maestro re-publishing a spec
+  or starving its own event queue during deletion, not the agent-side finalizer deadlock)
+
+---
+
 ## Subscription Type Behavior
 
 ### Broadcast Mode (`--subscription-type=broadcast`)
@@ -386,6 +508,10 @@ This is **normal behavior** and not an error. The status update is still process
 | Status Process | `"Updating resource status"` | Server processing status update |
 | Status Broadcast | `"Broadcast the resource status"` | Status broadcasted to other instances |
 | Status Publish | `"send the event to status subscribers"` | Status sent to gRPC clients |
+| Delete Enqueued | `"resource marked as deleting; initial delete event enqueued for the agent"` | First delete request accepted; background recovery owns later retries |
+| Delete Retry (expected) | `"resource is already marked as deleting; skipping duplicate delete event; background recovery remains responsible for retries"` | Repeated caller request correctly no-op'd; background recovery continues independently, see §10 |
+| Delete Stalled | `"resource has been soft-deleted longer than the stalled-delete threshold"` | `StalledDeleteMonitor` diagnostic: resource has been deleting longer than `--stalled-delete-warning-threshold` (default 5m), see §10 |
+| Delete Complete | `"resource status delete event was sent"` | Agent confirmed `Deleted=true`; resource hard-deleted |
 
 ### Error Patterns
 

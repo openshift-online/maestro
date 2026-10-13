@@ -81,7 +81,12 @@ maestro server [flags]
 | `--message-broker-type` | `mqtt` | Broker type: `mqtt`, `grpc`, or `pubsub` |
 | `--message-broker-config-file` | `secrets/mqtt.config` | Broker config file path |
 | `--subscription-type` | `shared` | Subscription type: `shared` or `broadcast` |
+| `--delete-event-republish-interval` | `60` | Initial delay in seconds before background recovery republishes an unacknowledged delete; `0` disables scheduled recovery |
+| `--delete-event-republish-max-interval` | `3600` | Maximum exponential-backoff delay in seconds for background delete recovery |
+| `--delete-event-republish-batch-size` | `25` | Maximum tombstone initializations and due consumers handled per fleet-wide recovery round (1-1000) |
 | `--undelivered-resource-threshold` | `600` | Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to `0` to disable |
+| `--stale-delete-event-threshold` | `3600` | Seconds an unreconciled delete event can remain before it is retired to prevent event-worker starvation; a later recovery round may publish a replacement. Set to `0` to disable |
+| `--stalled-delete-warning-threshold` | `300` | Seconds a resource can remain soft-deleted without the agent confirming deletion before it is reported (metric + log) as a stalled delete. Purely diagnostic, does not mutate state. Set to `0` to disable |
 
 ### HTTP/REST API Configuration
 

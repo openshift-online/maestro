@@ -34,6 +34,8 @@ type ResourceService interface {
 	FindByIDs(ctx context.Context, ids []string) (api.ResourceList, *errors.ServiceError)
 	FindBySource(ctx context.Context, source string) (api.ResourceList, *errors.ServiceError)
 	FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, *errors.ServiceError)
+	CountStalledDeletes(ctx context.Context, threshold time.Duration) (int64, *errors.ServiceError)
+	FindStalledDeletes(ctx context.Context, threshold time.Duration, limit int) (api.ResourceList, *errors.ServiceError)
 	List(ctx context.Context, listOpts cetypes.ListOptions) ([]*api.Resource, error)
 	ListWithArgs(ctx context.Context, username string, args *ListArguments, resources *[]api.Resource) (*api.PagingMeta, *errors.ServiceError)
 }
@@ -263,6 +265,8 @@ func (s *sqlResourceService) UpdateStatus(ctx context.Context, resource *api.Res
 // 4. Work-agent deletes resource, sends CloudEvent back to Maestro
 // 5. Maestro hard deletes resource from DB
 func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *errors.ServiceError {
+	logger := klog.FromContext(ctx).WithValues("resourceID", id)
+
 	// If there are multiple requests to write the resource at the same time, it will cause the race conditions among these
 	// requests (read–modify–write), the advisory lock is used here to prevent the race conditions.
 	lockOwnerID, err := s.lockFactory.NewAdvisoryLock(ctx, id, db.Resources)
@@ -271,8 +275,6 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 	if err != nil {
 		return errors.DatabaseAdvisoryLock(err)
 	}
-
-	logger := klog.FromContext(ctx).WithValues("resourceID", id)
 
 	// Retried requests do no event-table work. The persistent recovery scheduler
 	// also handles tombstones whose callers never retry.
@@ -286,6 +288,11 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 		return svcErr
 	}
 	if existing.DeletedAt.Valid {
+		// Caller retries do no event-table work. DeleteRecovery independently republishes
+		// unacknowledged deletes with persistent backoff; this log distinguishes an
+		// idempotent retry from a new delete request without implying recovery is stalled.
+		logger.Info("resource is already marked as deleting; skipping duplicate delete event; background recovery remains responsible for retries",
+			"deletedAt", existing.DeletedAt.Time)
 		return nil
 	}
 
@@ -301,6 +308,7 @@ func (s *sqlResourceService) MarkAsDeleting(ctx context.Context, id string) *err
 		return handleDeleteError("Resource", err)
 	}
 
+	logger.Info("resource marked as deleting; initial delete event enqueued for the agent")
 	return nil
 }
 
@@ -332,6 +340,22 @@ func (s *sqlResourceService) FindUndelivered(ctx context.Context, threshold time
 	resources, err := s.resourceDao.FindUndelivered(ctx, threshold)
 	if err != nil {
 		return nil, errors.GeneralError("unable to find undelivered resources: %s", err)
+	}
+	return resources, nil
+}
+
+func (s *sqlResourceService) CountStalledDeletes(ctx context.Context, threshold time.Duration) (int64, *errors.ServiceError) {
+	count, err := s.resourceDao.CountStalledDeletes(ctx, threshold)
+	if err != nil {
+		return 0, errors.GeneralError("unable to count stalled delete resources: %s", err)
+	}
+	return count, nil
+}
+
+func (s *sqlResourceService) FindStalledDeletes(ctx context.Context, threshold time.Duration, limit int) (api.ResourceList, *errors.ServiceError) {
+	resources, err := s.resourceDao.FindStalledDeletes(ctx, threshold, limit)
+	if err != nil {
+		return nil, errors.GeneralError("unable to find stalled delete resources: %s", err)
 	}
 	return resources, nil
 }

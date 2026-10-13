@@ -20,6 +20,8 @@ type ResourceDao interface {
 	FindBySource(ctx context.Context, source string) (api.ResourceList, error)
 	FindByConsumerName(ctx context.Context, consumerName string) (api.ResourceList, error)
 	FindUndelivered(ctx context.Context, threshold time.Duration) (api.ResourceList, error)
+	CountStalledDeletes(ctx context.Context, threshold time.Duration) (int64, error)
+	FindStalledDeletes(ctx context.Context, threshold time.Duration, limit int) (api.ResourceList, error)
 	All(ctx context.Context) (api.ResourceList, error)
 	FirstByConsumerName(ctx context.Context, name string, unscoped bool) (api.Resource, error)
 }
@@ -140,6 +142,42 @@ func (d *sqlResourceDao) FindUndelivered(ctx context.Context, threshold time.Dur
 		Joins("JOIN consumers ON consumers.name = resources.consumer_name AND consumers.deleted_at IS NULL").
 		Where("resources.deleted_at IS NULL AND resources.status IS NULL AND resources.created_at < ?", cutoff).
 		Where("NOT EXISTS (SELECT 1 FROM events WHERE events.source_id = resources.id AND events.source = 'Resources' AND events.reconciled_date IS NULL)").
+		Find(&resources).Error; err != nil {
+		return nil, err
+	}
+	return resources, nil
+}
+
+// CountStalledDeletes returns the number of resources that have been soft-deleted (deletion
+// requested) for longer than the given threshold and have not yet been hard-deleted. A resource
+// stays soft-deleted until the agent confirms the ManifestWork was removed from the managed
+// cluster (see event_server.go's handling of the ResourceDeleted status condition); a non-zero,
+// growing count here means deletes are not completing within a reasonable time, regardless of
+// whether the underlying delete event itself has been reconciled/retired.
+func (d *sqlResourceDao) CountStalledDeletes(ctx context.Context, threshold time.Duration) (int64, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	cutoff := time.Now().Add(-threshold)
+	var count int64
+	if err := g2.Unscoped().
+		Model(&api.Resource{}).
+		Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoff).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// FindStalledDeletes returns up to limit resources that have been soft-deleted for longer than
+// the given threshold, ordered oldest-first. Used for bounded diagnostic logging alongside
+// CountStalledDeletes so on-call can identify affected resources without a manual DB query.
+func (d *sqlResourceDao) FindStalledDeletes(ctx context.Context, threshold time.Duration, limit int) (api.ResourceList, error) {
+	g2 := (*d.sessionFactory).New(ctx)
+	cutoff := time.Now().Add(-threshold)
+	resources := api.ResourceList{}
+	if err := g2.Unscoped().
+		Where("deleted_at IS NOT NULL AND deleted_at < ?", cutoff).
+		Order("deleted_at ASC").
+		Limit(limit).
 		Find(&resources).Error; err != nil {
 		return nil, err
 	}

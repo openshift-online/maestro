@@ -818,5 +818,7 @@ SELECT * FROM resources WHERE payload->'metadata'->>'name' = '<work-name>';
 | `recreate the listener` | PostgreSQL notification issue | §2, §7 |
 | `no clients registered` | Normal in broadcast mode | §9 |
 | `skipping resource status update` | Normal in broadcast mode | §9 |
+| `already marked as deleting; skipping duplicate delete event` | Normal caller-retry no-op; background delete recovery republishes with persistent backoff | §10 |
+| `stalled-delete threshold` / `stalled_delete_resources` metric | Delete has not completed within the warning threshold; likely agent-side finalizer deadlock | §10 |
 
 For detailed explanations, see `references/error_analysis.md`.

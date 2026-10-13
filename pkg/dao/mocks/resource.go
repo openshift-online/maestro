@@ -2,6 +2,7 @@ package mocks
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"gorm.io/gorm"
@@ -103,6 +104,38 @@ func (d *resourceDaoMock) FindUndelivered(ctx context.Context, threshold time.Du
 		if len(resource.Status) == 0 && resource.DeletedAt.Time.IsZero() && resource.CreatedAt.Before(cutoff) {
 			resources = append(resources, resource)
 		}
+	}
+	return resources, nil
+}
+
+// CountStalledDeletes returns the number of soft-deleted resources whose DeletedAt predates the
+// cutoff. Mirrors the production sqlResourceDao implementation but scans the in-memory slice.
+func (d *resourceDaoMock) CountStalledDeletes(ctx context.Context, threshold time.Duration) (int64, error) {
+	cutoff := time.Now().Add(-threshold)
+	var count int64
+	for _, resource := range d.resources {
+		if resource.DeletedAt.Valid && resource.DeletedAt.Time.Before(cutoff) {
+			count++
+		}
+	}
+	return count, nil
+}
+
+// FindStalledDeletes returns up to limit soft-deleted resources whose DeletedAt predates the
+// cutoff, oldest first. Mirrors the production sqlResourceDao implementation.
+func (d *resourceDaoMock) FindStalledDeletes(ctx context.Context, threshold time.Duration, limit int) (api.ResourceList, error) {
+	cutoff := time.Now().Add(-threshold)
+	var resources api.ResourceList
+	for _, resource := range d.resources {
+		if resource.DeletedAt.Valid && resource.DeletedAt.Time.Before(cutoff) {
+			resources = append(resources, resource)
+		}
+	}
+	sort.Slice(resources, func(i, j int) bool {
+		return resources[i].DeletedAt.Time.Before(resources[j].DeletedAt.Time)
+	})
+	if len(resources) > limit {
+		resources = resources[:limit]
 	}
 	return resources, nil
 }

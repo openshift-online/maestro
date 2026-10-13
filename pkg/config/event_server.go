@@ -24,6 +24,7 @@ type EventServerConfig struct {
 	DeleteEventRepublishInterval    int                   `json:"delete_event_republish_interval"`
 	DeleteEventRepublishMaxInterval int                   `json:"delete_event_republish_max_interval"`
 	DeleteEventRepublishBatchSize   int                   `json:"delete_event_republish_batch_size"`
+	StalledDeleteWarningThreshold   int                   `json:"stalled_delete_warning_threshold"`
 }
 
 // ConsistentHashConfig contains the configuration for the consistent hashing algorithm.
@@ -43,6 +44,7 @@ func NewEventServerConfig() *EventServerConfig {
 		DeleteEventRepublishInterval:    60,
 		DeleteEventRepublishMaxInterval: 3600,
 		DeleteEventRepublishBatchSize:   25,
+		StalledDeleteWarningThreshold:   300,
 	}
 }
 
@@ -71,6 +73,7 @@ func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.IntVar(&c.DeleteEventRepublishInterval, "delete-event-republish-interval", c.DeleteEventRepublishInterval, "Initial delete recovery backoff in seconds. Recovery runs without incoming requests until agent acknowledgement. Set to 0 to disable the recovery scheduler, not initial deletes. Default: 60")
 	fs.IntVar(&c.DeleteEventRepublishMaxInterval, "delete-event-republish-max-interval", c.DeleteEventRepublishMaxInterval, "Maximum delete recovery backoff in seconds, not a deletion age limit. Default: 3600")
 	fs.IntVar(&c.DeleteEventRepublishBatchSize, "delete-event-republish-batch-size", c.DeleteEventRepublishBatchSize, "Maximum recovery consumers and tombstone initializations per fleet-wide round (1-1000), with at least one second after each round. At most one recovery event per consumer per round. Default: 25")
+	fs.IntVar(&c.StalledDeleteWarningThreshold, "stalled-delete-warning-threshold", c.StalledDeleteWarningThreshold, "Seconds a resource can remain soft-deleted without the agent confirming deletion before it is reported (metric + log) as a stalled delete. Purely diagnostic, does not mutate state. Set to 0 to disable. Default: 300 (5 minutes)")
 	c.ConsistentHashConfig.AddFlags(fs)
 }
 

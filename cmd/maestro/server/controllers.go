@@ -68,6 +68,15 @@ func NewControllersServer(ctx context.Context, eventServer EventServer, eventFil
 			}
 			s.DeleteRecovery = controllers.NewDeleteRecoveryController(recovery)
 		}
+
+		stalledDeleteThreshold := env().Config.EventServer.StalledDeleteWarningThreshold
+		if stalledDeleteThreshold > 0 {
+			s.StalledDeleteMonitor = controllers.NewStalledDeleteMonitor(
+				env().Services.Resources(),
+				db.NewAdvisoryLockFactory(env().Database.SessionFactory),
+				stalledDeleteThreshold,
+			)
+		}
 	}
 
 	s.StatusController.Add(map[api.StatusEventType][]controllers.StatusHandlerFunc{
@@ -84,6 +93,7 @@ type ControllersServer struct {
 	UndeliveredDetector   *controllers.UndeliveredDetector
 	StaleDeleteDetector   *controllers.StaleDeleteDetector
 	DeleteRecovery        *controllers.DeleteRecoveryController
+	StalledDeleteMonitor  *controllers.StalledDeleteMonitor
 
 	DB db.SessionFactory
 }
@@ -114,6 +124,11 @@ func (s ControllersServer) Start(ctx context.Context) {
 		go wait.UntilWithContext(ctx, s.DeleteRecovery.Run, dao.DeleteRecoveryRoundInterval)
 		logger.Info("Starting delete recovery metrics reporter")
 		go wait.JitterUntilWithContext(ctx, s.DeleteRecovery.Report, controllers.DeleteRecoverySnapshotReportInterval, 0.25, true)
+	}
+
+	if s.StalledDeleteMonitor != nil {
+		logger.Info("Starting stalled delete monitor")
+		go wait.JitterUntilWithContext(ctx, s.StalledDeleteMonitor.Run, 2*time.Minute, 0.25, true)
 	}
 
 	logger.Info("Status controller handling events")

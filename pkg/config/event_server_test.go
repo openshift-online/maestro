@@ -58,6 +58,7 @@ func TestEventServerConfig(t *testing.T) {
 				DeleteEventRepublishInterval:    60,
 				DeleteEventRepublishMaxInterval: 3600,
 				DeleteEventRepublishBatchSize:   25,
+				StalledDeleteWarningThreshold:   300,
 			},
 		},
 		{
@@ -77,6 +78,7 @@ func TestEventServerConfig(t *testing.T) {
 				DeleteEventRepublishInterval:    60,
 				DeleteEventRepublishMaxInterval: 3600,
 				DeleteEventRepublishBatchSize:   25,
+				StalledDeleteWarningThreshold:   300,
 			},
 		},
 		{
@@ -99,6 +101,7 @@ func TestEventServerConfig(t *testing.T) {
 				DeleteEventRepublishInterval:    60,
 				DeleteEventRepublishMaxInterval: 3600,
 				DeleteEventRepublishBatchSize:   25,
+				StalledDeleteWarningThreshold:   300,
 			},
 		},
 	}
