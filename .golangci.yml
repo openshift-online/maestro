@@ -1,0 +1,43 @@
+version: "2"
+
+run:
+  timeout: 5m
+  allow-parallel-runners: true
+  modules-download-mode: readonly
+
+linters:
+  default: none
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - copyloopvar
+    - decorder
+    - durationcheck
+    - errname
+    - exptostd
+    - gocheckcompilerdirectives
+    - goprintffuncname
+    - govet
+    - ineffassign
+    - makezero
+    - misspell
+    - reassign
+    - sloglint
+    - staticcheck
+    - testifylint
+    - usestdlibvars
+  settings:
+    govet:
+      disable:
+        - inline
+    staticcheck:
+      checks:
+        - "SA*"
+        - "-SA1019"
+        - "-SA5011"
+  exclusions:
+    rules:
+      - path: test/
+        linters:
+          - misspell
