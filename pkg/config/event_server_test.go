@@ -4,6 +4,7 @@ import (
 	"math"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/spf13/pflag"
 )
@@ -17,6 +18,23 @@ func TestDeleteRecoveryConfigValidation(t *testing.T) {
 	}{
 		{"defaults", func(c *EventServerConfig) {}, true},
 		{"disabled", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = 0 }, true},
+		{"retirement disabled", func(c *EventServerConfig) { c.StaleDeleteEventThreshold = 0 }, true},
+		{"both disabled", func(c *EventServerConfig) {
+			c.DeleteEventRepublishInterval = 0
+			c.StaleDeleteEventThreshold = 0
+		}, true},
+		{"negative stale threshold", func(c *EventServerConfig) { c.StaleDeleteEventThreshold = -1 }, false},
+		{"overflow stale threshold", func(c *EventServerConfig) { c.StaleDeleteEventThreshold = math.MaxInt }, false},
+		{"maximum stale threshold", func(c *EventServerConfig) {
+			c.StaleDeleteEventThreshold = int(math.MaxInt64 / int64(time.Second))
+		}, true},
+		{"negative stale threshold with recovery disabled", func(c *EventServerConfig) {
+			c.DeleteEventRepublishInterval = 0
+			c.StaleDeleteEventThreshold = -1
+		}, false},
+		{"stale threshold below initial interval", func(c *EventServerConfig) { c.StaleDeleteEventThreshold = 30 }, true},
+		{"stale threshold equals initial interval", func(c *EventServerConfig) { c.StaleDeleteEventThreshold = 60 }, true},
+		{"stale threshold above initial interval", func(c *EventServerConfig) { c.StaleDeleteEventThreshold = 120 }, true},
 		{"negative interval", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = -1 }, false},
 		{"overflow interval", func(c *EventServerConfig) { c.DeleteEventRepublishInterval = math.MaxInt }, false},
 		{"overflow maximum", func(c *EventServerConfig) { c.DeleteEventRepublishMaxInterval = math.MaxInt }, false},

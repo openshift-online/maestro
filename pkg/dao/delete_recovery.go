@@ -18,10 +18,11 @@ const DeleteRecoveryRoundInterval = time.Second
 
 // DeleteRecovery schedules durable deletion retries within a shared fleet budget.
 type DeleteRecovery struct {
-	sessions db.SessionFactory
-	initial  time.Duration
-	maximum  time.Duration
-	batch    int
+	sessions       db.SessionFactory
+	initial        time.Duration
+	maximum        time.Duration
+	batch          int
+	staleThreshold time.Duration
 }
 
 // DeleteRecoveryResult reports only work committed by a recovery round.
@@ -40,6 +41,9 @@ type DeleteRecoveryResult struct {
 // DeleteRecoverySnapshot is an aggregate-only view of durable recovery work.
 // Ages are measured using the database clock at one shared sample instant.
 type DeleteRecoverySnapshot struct {
+	// StuckTombstones uses resource deletion age, not event age.
+	// A disabled stale threshold produces a zero count.
+	StuckTombstones              int64
 	UnscheduledTombstones        int64
 	DueTombstones                int64
 	DelayedTombstones            int64
@@ -58,17 +62,18 @@ func NewDeleteRecovery(sessions db.SessionFactory, c *config.EventServerConfig) 
 		return nil, err
 	}
 	return &DeleteRecovery{
-		sessions: sessions,
-		initial:  time.Duration(c.DeleteEventRepublishInterval) * time.Second,
-		maximum:  time.Duration(c.DeleteEventRepublishMaxInterval) * time.Second,
-		batch:    c.DeleteEventRepublishBatchSize,
+		sessions:       sessions,
+		initial:        time.Duration(c.DeleteEventRepublishInterval) * time.Second,
+		maximum:        time.Duration(c.DeleteEventRepublishMaxInterval) * time.Second,
+		batch:          c.DeleteEventRepublishBatchSize,
+		staleThreshold: time.Duration(c.StaleDeleteEventThreshold) * time.Second,
 	}, nil
 }
 
 // Snapshot reads bounded-cardinality operational aggregates without returning resource or consumer identifiers.
 func (d *DeleteRecovery) Snapshot(ctx context.Context) (DeleteRecoverySnapshot, error) {
 	var snapshot DeleteRecoverySnapshot
-	result := d.sessions.New(ctx).Raw(deleteRecoverySnapshotSQL).Scan(&snapshot)
+	result := d.sessions.New(ctx).Raw(deleteRecoverySnapshotSQL, int64(d.staleThreshold/time.Second)).Scan(&snapshot)
 	if result.Error != nil {
 		return DeleteRecoverySnapshot{}, result.Error
 	}
@@ -79,10 +84,14 @@ func (d *DeleteRecovery) Snapshot(ctx context.Context) (DeleteRecoverySnapshot, 
 // Each aggregate is restricted to durable recovery rows and uses the partial indexes
 // created by the delete-recovery migration rather than scanning unrelated rows.
 const deleteRecoverySnapshotSQL = `
-WITH sampled_at AS MATERIALIZED (SELECT clock_timestamp() AS at),
+WITH sampled_at AS MATERIALIZED (
+	SELECT clock_timestamp() AS at, ?::bigint * interval '1 second' AS stale_threshold
+),
 bootstrap AS MATERIALIZED (
-	SELECT count(*) AS tombstones, min(deleted_at) AS oldest
-	FROM resources
+	SELECT count(*) AS tombstones, min(deleted_at) AS oldest,
+		count(*) FILTER (WHERE stale_threshold > interval '0 seconds'
+			AND deleted_at < at - stale_threshold) AS stuck_tombstones
+	FROM resources CROSS JOIN sampled_at
 	WHERE deleted_at IS NOT NULL AND delete_retry_at IS NULL
 ),
 scheduled AS MATERIALIZED (
@@ -90,7 +99,9 @@ scheduled AS MATERIALIZED (
 		count(*) FILTER (WHERE delete_retry_at <= at) AS due_tombstones,
 		count(*) FILTER (WHERE delete_retry_at > at) AS delayed_tombstones,
 		min(deleted_at) FILTER (WHERE delete_retry_at <= at) AS oldest_due,
-		min(deleted_at) FILTER (WHERE delete_retry_at > at) AS oldest_delayed
+		min(deleted_at) FILTER (WHERE delete_retry_at > at) AS oldest_delayed,
+		count(*) FILTER (WHERE stale_threshold > interval '0 seconds'
+			AND deleted_at < at - stale_threshold) AS stuck_tombstones
 	FROM resources CROSS JOIN sampled_at
 	WHERE deleted_at IS NOT NULL AND delete_retry_at IS NOT NULL
 ),
@@ -106,6 +117,7 @@ pending_events AS MATERIALIZED (
 	WHERE source = 'Resources' AND event_type = 'Delete' AND reconciled_date IS NULL
 )
 SELECT
+	bootstrap.stuck_tombstones + scheduled.stuck_tombstones AS stuck_tombstones,
 	bootstrap.tombstones AS unscheduled_tombstones,
 	scheduled.due_tombstones,
 	scheduled.delayed_tombstones,

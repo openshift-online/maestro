@@ -558,6 +558,7 @@ func TestDeleteRecoverySnapshot(t *testing.T) {
 
 	snapshot, err := recovery.Snapshot(context.Background())
 	Expect(err).NotTo(HaveOccurred())
+	Expect(snapshot.StuckTombstones).To(Equal(int64(3)))
 	Expect(snapshot.UnscheduledTombstones).To(Equal(int64(1)))
 	Expect(snapshot.DueTombstones).To(Equal(int64(1)))
 	Expect(snapshot.DelayedTombstones).To(Equal(int64(1)))

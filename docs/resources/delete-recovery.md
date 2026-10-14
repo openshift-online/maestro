@@ -181,8 +181,14 @@ Use these metrics to diagnose the durable state without a manual database query:
   a retry deadline at or before the snapshot time, and `delayed` has a future
   retry deadline.
 * `delete_recovery_tombstone_oldest_age_seconds{state="unscheduled|due|delayed"}`
-  is the deletion age of the oldest tombstone in that state. It is zero when that
-  state is empty.
+   is the deletion age of the oldest tombstone in that state. It is zero when that
+   state is empty.
+* `delete_recovery_stuck_tombstones` counts soft-deleted resources whose original
+  `deleted_at` is older than `--stale-delete-event-threshold`, across all three
+  scheduler states. Live resources and fresher deletes are excluded, regardless
+  of event age or consumer connectivity. The count is zero when that threshold
+  is disabled (`0`); it is not then evidence that no old tombstones exist. The
+  backlog and oldest-age gauges remain available when the reporter is running.
 * `delete_recovery_consumer_queue{state="due|scheduled"}` is the count of durable
   recovery consumer entries with a deadline at or before, or after, the snapshot
   time.
@@ -212,7 +218,8 @@ max without(instance, pod) (
 ```
 
 Apply the same `max without(instance, pod)` deduplication to
-`delete_recovery_consumer_queue`, `delete_recovery_pending_delete_events`, and
+`delete_recovery_stuck_tombstones`, `delete_recovery_consumer_queue`,
+`delete_recovery_pending_delete_events`, and
 `delete_recovery_pending_delete_event_oldest_age_seconds`. Do not deduplicate
 `delete_recovery_snapshot_errors_total`: it records each replica's independent
 snapshot failure, so alert on `sum(rate(delete_recovery_snapshot_errors_total[5m]))`.
@@ -269,6 +276,46 @@ above its `deadlock_timeout` threshold. That is a censored distribution, not
 all-request acknowledgement latency. Do not enable verbose logging or lower that
 threshold in production without assessing its overhead.
 
+### Stuck-deletion alert inputs
+
+The stuck count is calculated in the existing snapshot query over the disjoint
+unscheduled and scheduled tombstone populations, using the same database clock
+sample as the other gauges. Republishing or reconciling a Delete event cannot
+reset the resource's deletion age. No extra database query runs on a Prometheus
+scrape or on each recovery round. As with the other snapshots, reporting runs
+only on servers with delete recovery enabled; a stopped reporter or a failed
+snapshot must not be interpreted as an empty backlog.
+
+The corresponding signals for ARO-HCP alert rules are:
+
+| Signal | Metric | Labels and aggregation |
+| --- | --- | --- |
+| Soft-deleted resources older than the configured threshold | `delete_recovery_stuck_tombstones` | No metric-specific labels; deduplicate replicas with `max without(instance, pod)` |
+| Oldest soft-deleted resource, including resources waiting in backoff | `delete_recovery_tombstone_oldest_age_seconds` | `state="unscheduled\|due\|delayed"`; take the maximum across states and replicas |
+| Recovery republication rate | `delete_recovery_work_total` | `kind="published"`; sum per-process rates, not replica-deduplicated counters |
+
+For example, the stuck-resource count and oldest deletion age are:
+
+```promql
+max without(instance, pod) (delete_recovery_stuck_tombstones)
+```
+
+```promql
+max without(instance, pod, state) (delete_recovery_tombstone_oldest_age_seconds)
+```
+
+and the rate of committed recovery publications is:
+
+```promql
+sum without(instance, pod) (rate(delete_recovery_work_total{kind="published"}[5m]))
+```
+
+The counter already excludes coalesced attempts, cooldowns and rolled-back work.
+It counts newly committed recovery event requests, not initial deletes, delivery
+retries, successful broker deliveries, or agent acknowledgements. These metrics
+do not authorize hard deletion. Alert rules and their thresholds belong to the
+ARO-HCP deployment, not the Maestro server.
+
 ## Persistent retry state
 
 `--delete-event-republish-interval` defaults to **60 seconds**, the initial backoff.
@@ -310,6 +357,22 @@ succeeds. Persistent publication errors or a consumer that never reconnects can
 therefore keep that event pending indefinitely; disabling retirement does not
 promise delivery while the underlying failure persists. Tombstones still require
 the agent's acknowledgement for removal.
+
+The stale-event threshold defaults to **3600 seconds** and is independent of the
+initial recovery backoff (**60 seconds**). It need not be shorter than that
+backoff: the scheduler coalesces attempts while any Delete event is pending, and
+repeated DELETE requests no longer append recovery events. The older advice to
+order the threshold below the republish interval applied to request-driven
+republishing, not this scheduler. Changing the threshold to 600 seconds and the
+initial backoff to 900 seconds is not required to prevent pending-event
+accumulation and would delay the first recovery attempt from one minute to
+fifteen minutes.
+
+Startup rejects negative stale-event thresholds and values that overflow a Go
+duration. Zero explicitly disables event retirement and the threshold-based stuck
+count, independently of whether recovery is enabled. This validation does not
+couple the threshold to either recovery backoff setting or change the requirement
+that a fresh event for an old tombstone receives a full delivery window.
 
 The next attempt and nominal backoff live on the resource, independent of event
 purging, server restarts and caller retries. The final acknowledgement removes

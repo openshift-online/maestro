@@ -2,14 +2,15 @@ package integration
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	. "github.com/onsi/gomega"
 	"github.com/prometheus/client_golang/prometheus"
 	"gorm.io/gorm"
@@ -755,57 +756,55 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Start a slow listener that deliberately delays notification consumption,
-	// causing notifications to accumulate in the postgres notification queue.
+	// A listening session inside a transaction prevents notification queue cleanup.
+	// This creates a nonzero queue with bounded notifications, without flooding sockets
+	// or leaking a blocked listener into subsequent concurrent-index migrations.
 	channel := "test_queue_usage_" + rand.String(5)
-	h.Env().Database.SessionFactory.NewListener(ctx, channel, func(id string) {
-		time.Sleep(100 * time.Second)
-	})
-
-	// Send NOTIFY's in a loop from a separate goroutine to fill the queue.
-	// The slow listener can only drain one notification every 10s, so the
-	// postgres NOTIFY queue usage will increase.
-	payload := strings.Repeat("x", 7000)
-	var mu sync.Mutex
-	var lastNotifyErr error
-	go func() {
-		notifyDB := h.Env().Database.SessionFactory.New(ctx)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				err := notifyDB.Exec("SELECT pg_notify(?, ?)", channel, payload).Error
-				mu.Lock()
-				lastNotifyErr = err
-				mu.Unlock()
-			}
-			time.Sleep(time.Millisecond)
+	listener, err := h.DBFactory.DirectDB().Conn(ctx)
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		if _, err := listener.ExecContext(cleanupCtx, "UNLISTEN *"); err != nil {
+			t.Errorf("stop queue-usage listener: %v", err)
+		}
+		if err := listener.Close(); err != nil {
+			t.Errorf("close queue-usage listener: %v", err)
 		}
 	}()
-
-	// Allow time for the notification queue to build up
-	time.Sleep(2 * time.Second)
+	_, err = listener.ExecContext(ctx, "LISTEN "+pq.QuoteIdentifier(channel))
+	Expect(err).NotTo(HaveOccurred())
+	tx, err := listener.BeginTx(ctx, nil)
+	Expect(err).NotTo(HaveOccurred())
+	defer func() {
+		if err := tx.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			t.Errorf("release notification queue transaction: %v", err)
+		}
+	}()
+	// Acquire a transaction snapshot before the other connection publishes.
+	_, err = tx.ExecContext(ctx, "SELECT 1")
+	Expect(err).NotTo(HaveOccurred())
+	// Queue usage is measured in pages. Two distinct large notifications cross
+	// a page boundary even when the queue was initially empty.
+	for i := range 2 {
+		payload := fmt.Sprintf("%d:%s", i, strings.Repeat("x", 7000))
+		Expect(h.DBFactory.New(ctx).Exec("SELECT pg_notify(?, ?)", channel, payload).Error).To(Succeed())
+	}
+	Eventually(func() float64 {
+		usage, err := h.Env().Services.StatusEvents().GetNotificationQueueUsage(ctx)
+		Expect(err).NotTo(HaveOccurred())
+		if usage == nil {
+			return 0
+		}
+		return *usage
+	}, 5*time.Second, 10*time.Millisecond).Should(BeNumerically(">", 0),
+		"populate the database queue before starting the metric reporter")
 
 	// Start the StatusController, which calls reportNotificationQueueUsage on start
-	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
-	Expect(err).NotTo(HaveOccurred())
-	h.StartWorkAgent(ctx, consumer.Name)
-
-	go func() {
-		s := &server.ControllersServer{
-			KindControllerManager: controllers.NewKindControllerManager(
-				h.EventFilter,
-				h.Env().Services.Events(),
-			),
-			StatusController: controllers.NewStatusController(
-				h.Env().Services.StatusEvents(),
-				dao.NewInstanceDao(&h.Env().Database.SessionFactory),
-				dao.NewEventInstanceDao(&h.Env().Database.SessionFactory),
-			),
-		}
-		s.Start(ctx)
-	}()
+	controller := controllers.NewStatusController(h.Env().Services.StatusEvents(),
+		dao.NewInstanceDao(&h.Env().Database.SessionFactory),
+		dao.NewEventInstanceDao(&h.Env().Database.SessionFactory))
+	go controller.Run(ctx)
 
 	// Wait for the metric to be reported with a value > 0, indicating
 	// that the notification queue has accumulated undelivered notifications.
@@ -828,9 +827,5 @@ func TestNotificationQueueUsageMetric(t *testing.T) {
 			}
 		}
 		return fmt.Errorf("metric %s not found", metricName)
-	}, 10*time.Second, 1*time.Second).Should(Succeed(), func() string {
-		mu.Lock()
-		defer mu.Unlock()
-		return fmt.Sprintf("Last NOTIFY error: %v", lastNotifyErr)
-	})
+	}, 10*time.Second, 100*time.Millisecond).Should(Succeed())
 }

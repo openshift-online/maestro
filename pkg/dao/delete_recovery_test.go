@@ -39,6 +39,8 @@ func TestDeleteRecoveryBackoff(t *testing.T) {
 func TestDeleteRecoverySnapshotQuery(t *testing.T) {
 	for _, fragment := range []string{
 		"clock_timestamp()",
+		"stuck_tombstones",
+		"deleted_at < at - stale_threshold",
 		"unscheduled_tombstones",
 		"due_tombstones",
 		"delayed_tombstones",

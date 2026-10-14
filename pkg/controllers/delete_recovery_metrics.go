@@ -11,6 +11,7 @@ type deleteRecoveryMetrics struct {
 	work                  *prometheus.CounterVec
 	tombstoneBacklog      *prometheus.GaugeVec
 	tombstoneOldestAge    *prometheus.GaugeVec
+	stuckTombstones       prometheus.Gauge
 	consumerQueue         *prometheus.GaugeVec
 	pendingDeleteEvents   prometheus.Gauge
 	pendingDeleteEventAge prometheus.Gauge
@@ -46,6 +47,11 @@ func newDeleteRecoveryMetrics() *deleteRecoveryMetrics {
 			Name:      "consumer_queue",
 			Help:      "Current durable delete recovery consumer queue entries by scheduler state",
 		}, []string{"state"}),
+		stuckTombstones: prometheus.NewGauge(prometheus.GaugeOpts{
+			Subsystem: "delete_recovery",
+			Name:      "stuck_tombstones",
+			Help:      "Soft-deleted resources older than stale-delete-event-threshold across all scheduler states; zero when the threshold is disabled",
+		}),
 		pendingDeleteEvents: prometheus.NewGauge(prometheus.GaugeOpts{
 			Subsystem: "delete_recovery",
 			Name:      "pending_delete_events",
@@ -101,6 +107,7 @@ func (m *deleteRecoveryMetrics) observe(result dao.DeleteRecoveryResult, err err
 // observeSnapshot maps only the fixed scheduler states to gauges. Call this only
 // after a complete database snapshot so failed reads retain the last good values.
 func (m *deleteRecoveryMetrics) observeSnapshot(snapshot dao.DeleteRecoverySnapshot) {
+	m.stuckTombstones.Set(float64(snapshot.StuckTombstones))
 	m.tombstoneBacklog.WithLabelValues("unscheduled").Set(float64(snapshot.UnscheduledTombstones))
 	m.tombstoneBacklog.WithLabelValues("due").Set(float64(snapshot.DueTombstones))
 	m.tombstoneBacklog.WithLabelValues("delayed").Set(float64(snapshot.DelayedTombstones))
