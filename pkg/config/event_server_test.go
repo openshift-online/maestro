@@ -161,6 +161,7 @@ func TestDeleteRecoveryBatchFlag(t *testing.T) {
 	}
 }
 
+// TestConsumerDeleteCascadeConfig checks opt-in flag parsing and the positive age-guard requirement.
 func TestConsumerDeleteCascadeConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name      string

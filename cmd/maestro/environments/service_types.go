@@ -46,6 +46,7 @@ func NewStatusEventServiceLocator(env *Env) StatusEventServiceLocator {
 
 type ConsumerServiceLocator func() services.ConsumerService
 
+// NewConsumerServiceLocator wires ordinary or cascade-enabled deletion from startup configuration.
 func NewConsumerServiceLocator(env *Env) ConsumerServiceLocator {
 	return func() services.ConsumerService {
 		if env.Config.EventServer.ConsumerDeleteCascade {

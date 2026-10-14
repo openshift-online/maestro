@@ -28,10 +28,12 @@ type sqlConsumerCascadeDao struct {
 	sessions db.SessionFactory
 }
 
+// NewConsumerCascadeDao constructs the atomic consumer/resource finalization store.
 func NewConsumerCascadeDao(sessions db.SessionFactory) ConsumerCascadeDao {
 	return &sqlConsumerCascadeDao{sessions: sessions}
 }
 
+// Delete commits resource finalization, terminal events, notifications and consumer removal together.
 func (d *sqlConsumerCascadeDao) Delete(ctx context.Context, id string, threshold time.Duration,
 	buildEvent ConsumerCascadeEventBuilder) (api.ResourceList, error) {
 	if threshold <= 0 {

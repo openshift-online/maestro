@@ -26,6 +26,7 @@ type ConsumerService interface {
 	FindByNames(ctx context.Context, names []string) (api.ConsumerList, *errors.ServiceError)
 }
 
+// NewConsumerService preserves ordinary consumer deletion with foreign-key protection.
 func NewConsumerService(consumerDao dao.ConsumerDao) ConsumerService {
 	return &sqlConsumerService{
 		consumerDao: consumerDao,
@@ -86,10 +87,8 @@ func (s *sqlConsumerService) Replace(ctx context.Context, consumer *api.Consumer
 	return consumer, nil
 }
 
-// Delete will remove the consumer from the storage:
-// 1. Perform a hard delete on the consumer, the resource creation will be blocked after it.
-// 2. Forbid consumer deletion if there are associated resources(include the marked as deleted resources).
-// TODO: Add deletion options or strategies.
+// Delete hard-deletes the consumer, preserving FK protection unless the opt-in
+// cascade is configured to finalize only its eligible soft-deleted resources.
 func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.ServiceError {
 	if s.cascade != nil {
 		return s.deleteWithCascade(ctx, id)
@@ -100,6 +99,7 @@ func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.Serv
 	return nil
 }
 
+// deleteWithCascade coordinates terminal acknowledgements and records only committed finalizations.
 func (s *sqlConsumerService) deleteWithCascade(ctx context.Context, id string) *errors.ServiceError {
 	if s.staleThreshold <= 0 {
 		return errors.Forbidden("Consumer delete cascade requires a positive stale threshold")

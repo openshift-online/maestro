@@ -40,6 +40,7 @@ type GRPCBrokerService struct {
 	consumerLocks      db.LockFactory
 }
 
+// NewGRPCBrokerService wires agent status handling and optional terminal-acknowledgement coordination.
 func NewGRPCBrokerService(resourceService services.ResourceService,
 	statusEventService services.StatusEventService, consumerLocks ...db.LockFactory) *GRPCBrokerService {
 	svc := &GRPCBrokerService{

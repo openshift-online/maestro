@@ -26,10 +26,12 @@ var consumerCascadedResourcesTotal = prometheus.NewCounter(prometheus.CounterOpt
 	Help:      "Resources finalized in committed explicit consumer deletion cascades",
 })
 
+// init registers the bounded-cardinality counter for committed cascade finalizations.
 func init() {
 	prometheus.MustRegister(consumerCascadedResourcesTotal)
 }
 
+// buildConsumerCascadeEvent preserves the deleted resource's identity and payload in its durable terminal event.
 func buildConsumerCascadeEvent(resource *api.Resource) (*api.StatusEvent, error) {
 	status, err := buildConsumerDeletedStatus(resource)
 	if err != nil {

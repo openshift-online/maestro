@@ -21,6 +21,7 @@ import (
 	dbmocks "github.com/openshift-online/maestro/pkg/db/mocks"
 )
 
+// TestBuildConsumerCascadeEvent verifies the terminal condition and source identity round-trip through the SDK.
 func TestBuildConsumerCascadeEvent(t *testing.T) {
 	resource := &api.Resource{Meta: api.Meta{ID: "bundle-id"}, ConsumerName: "consumer", Source: "test-source", Version: 7}
 	spec := cloudevents.NewEvent()
@@ -62,11 +63,13 @@ func TestBuildConsumerCascadeEvent(t *testing.T) {
 
 type consumerCascadeFunc func(context.Context, string, time.Duration, dao.ConsumerCascadeEventBuilder) (api.ResourceList, error)
 
+// Delete delegates to the test callback to inject cascade results and commit failures.
 func (f consumerCascadeFunc) Delete(ctx context.Context, id string, threshold time.Duration,
 	build dao.ConsumerCascadeEventBuilder) (api.ResourceList, error) {
 	return f(ctx, id, threshold, build)
 }
 
+// TestConsumerCascadeService checks error translation and committed-only resource accounting.
 func TestConsumerCascadeService(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
@@ -107,6 +110,7 @@ func TestConsumerCascadeService(t *testing.T) {
 	}
 }
 
+// TestConsumerCascadeInvalidThresholdFailsClosed ensures invalid inputs cannot reach the destructive DAO.
 func TestConsumerCascadeInvalidThresholdFailsClosed(t *testing.T) {
 	for _, threshold := range []int{0, -1, math.MaxInt, int(math.MaxInt64/int64(time.Second))*2 + 100} {
 		cascade := consumerCascadeFunc(func(context.Context, string, time.Duration, dao.ConsumerCascadeEventBuilder) (api.ResourceList, error) {
@@ -120,6 +124,7 @@ func TestConsumerCascadeInvalidThresholdFailsClosed(t *testing.T) {
 	}
 }
 
+// TestConsumerCascadeRejectsUndecodableStatus prevents finalizing resources whose watchers could not decode deletion.
 func TestConsumerCascadeRejectsUndecodableStatus(t *testing.T) {
 	for _, tc := range []struct {
 		name     string

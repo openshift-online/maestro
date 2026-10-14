@@ -13,7 +13,6 @@ import (
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/lib/pq"
 	. "github.com/onsi/gomega"
 	"github.com/openshift-online/ocm-sdk-go/logging"
 	"github.com/prometheus/client_golang/prometheus"
@@ -36,11 +35,13 @@ import (
 	"github.com/openshift-online/maestro/test"
 )
 
+// cascadeConsumerService enables the real transactional cascade with a one-hour age guard.
 func cascadeConsumerService(h *test.Helper) services.ConsumerService {
 	return services.NewConsumerServiceWithCascade(dao.NewConsumerDao(&h.DBFactory),
 		dao.NewConsumerCascadeDao(h.DBFactory), db.NewAdvisoryLockFactory(h.DBFactory), 3600)
 }
 
+// cascadeResource creates a watchable resource and optionally backdates its soft deletion.
 func cascadeResource(h *test.Helper, consumer string, age time.Duration) *api.Resource {
 	ctx := context.Background()
 	resource, err := h.NewResource(uuid.NewString(), consumer, "work-"+uuid.NewString(), "default", 1, 1)
@@ -65,6 +66,7 @@ func cascadeResource(h *test.Helper, consumer string, age time.Duration) *api.Re
 	return resource
 }
 
+// cascadeMetricValue reads a counter or gauge, optionally selecting its source label.
 func cascadeMetricValue(name string, source string) float64 {
 	families, err := prometheus.DefaultGatherer.Gather()
 	Expect(err).NotTo(HaveOccurred())
@@ -90,6 +92,7 @@ func cascadeMetricValue(name string, source string) float64 {
 	return 0
 }
 
+// TestConsumerCascadeSafety verifies refusals leave every resource and event untouched.
 func TestConsumerCascadeSafety(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
@@ -130,6 +133,7 @@ func TestConsumerCascadeSafety(t *testing.T) {
 	}
 }
 
+// TestConsumerCascadeCommitsAndCleansRecovery checks atomic finalization, recovery cleanup and idempotence.
 func TestConsumerCascadeCommitsAndCleansRecovery(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx := context.Background()
@@ -167,6 +171,7 @@ func TestConsumerCascadeCommitsAndCleansRecovery(t *testing.T) {
 	Expect(cascadeMetricValue("consumer_delete_cascaded_resources_total", "") - before).To(Equal(float64(3)))
 }
 
+// TestConsumerCascadeRollback injects write and deferred commit failures and verifies a clean retry.
 func TestConsumerCascadeRollback(t *testing.T) {
 	for _, phase := range []string{"midway", "commit"} {
 		t.Run(phase, func(t *testing.T) {
@@ -178,16 +183,27 @@ func TestConsumerCascadeRollback(t *testing.T) {
 				cascadeResource(h, consumer.Name, 2*time.Hour).ID}
 			sort.Strings(ids)
 			conn := h.DBFactory.New(ctx)
-			Expect(conn.Exec(`CREATE FUNCTION fail_consumer_cascade_test() RETURNS trigger LANGUAGE plpgsql AS $$
-				BEGIN IF NEW.resource_id = TG_ARGV[0] THEN RAISE EXCEPTION 'injected cascade failure'; END IF; RETURN NEW; END $$`).Error).To(Succeed())
-			trigger := "CREATE TRIGGER fail_consumer_cascade_test BEFORE INSERT ON status_events"
-			if phase == "commit" {
-				trigger = "CREATE CONSTRAINT TRIGGER fail_consumer_cascade_test AFTER INSERT ON status_events DEFERRABLE INITIALLY DEFERRED"
-			}
-			Expect(conn.Exec(trigger + " FOR EACH ROW EXECUTE FUNCTION fail_consumer_cascade_test(" + pq.QuoteLiteral(ids[1]) + ")").Error).To(Succeed())
+			Expect(conn.Exec("CREATE TABLE consumer_cascade_failure_test (resource_id text PRIMARY KEY)").Error).To(Succeed())
 			t.Cleanup(func() {
-				Expect(conn.Exec("DROP TRIGGER IF EXISTS fail_consumer_cascade_test ON status_events; DROP FUNCTION IF EXISTS fail_consumer_cascade_test()").Error).To(Succeed())
+				Expect(conn.Exec(`DROP TRIGGER IF EXISTS fail_consumer_cascade_test ON status_events;
+					DROP FUNCTION IF EXISTS fail_consumer_cascade_test();
+					DROP TABLE IF EXISTS consumer_cascade_failure_test`).Error).To(Succeed())
 			})
+			Expect(conn.Exec("INSERT INTO consumer_cascade_failure_test (resource_id) VALUES (?)", ids[1]).Error).To(Succeed())
+			Expect(conn.Exec(`CREATE FUNCTION fail_consumer_cascade_test() RETURNS trigger LANGUAGE plpgsql AS $$
+				BEGIN
+					IF EXISTS (SELECT 1 FROM consumer_cascade_failure_test WHERE resource_id = NEW.resource_id) THEN
+						RAISE EXCEPTION 'injected cascade failure';
+					END IF;
+					RETURN NEW;
+				END $$`).Error).To(Succeed())
+			if phase == "commit" {
+				Expect(conn.Exec(`CREATE CONSTRAINT TRIGGER fail_consumer_cascade_test AFTER INSERT ON status_events
+					DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION fail_consumer_cascade_test()`).Error).To(Succeed())
+			} else {
+				Expect(conn.Exec(`CREATE TRIGGER fail_consumer_cascade_test BEFORE INSERT ON status_events
+					FOR EACH ROW EXECUTE FUNCTION fail_consumer_cascade_test()`).Error).To(Succeed())
+			}
 			before := cascadeMetricValue("consumer_delete_cascaded_resources_total", "")
 			service := cascadeConsumerService(h)
 			Expect(service.Delete(ctx, consumer.ID)).NotTo(BeNil())
@@ -209,6 +225,7 @@ func TestConsumerCascadeRollback(t *testing.T) {
 	}
 }
 
+// TestConsumerCascadeGRPCWatcher verifies committed finalization reaches the SDK watcher as Deleted.
 func TestConsumerCascadeGRPCWatcher(t *testing.T) {
 	h, client := test.RegisterIntegration(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -258,6 +275,7 @@ func TestConsumerCascadeGRPCWatcher(t *testing.T) {
 	Expect(meta.IsStatusConditionTrue(deletedWork.Status.Conditions, common.ResourceDeleted)).To(BeTrue())
 }
 
+// TestConsumerCascadeAcknowledgementRace checks acknowledgement and cascade emit one terminal event.
 func TestConsumerCascadeAcknowledgementRace(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -307,7 +325,7 @@ func TestConsumerCascadeAcknowledgementRace(t *testing.T) {
 	}
 }
 
-// A new resource may pass its FK check while the consumer is locked NO KEY UPDATE.
+// TestConsumerCascadeConcurrentCreate verifies a new resource can pass its FK check under NO KEY UPDATE.
 // The final consumer DELETE must then refuse and roll back the complete cascade.
 func TestConsumerCascadeConcurrentCreate(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
