@@ -291,7 +291,7 @@ The corresponding signals for ARO-HCP alert rules are:
 | Signal | Metric | Labels and aggregation |
 | --- | --- | --- |
 | Soft-deleted resources older than the configured threshold | `delete_recovery_stuck_tombstones` | No metric-specific labels; deduplicate replicas with `max without(instance, pod)` |
-| Oldest soft-deleted resource, including resources waiting in backoff | `delete_recovery_tombstone_oldest_age_seconds` | `state="unscheduled|due|delayed"`; take the maximum across states and replicas |
+| Oldest soft-deleted resource, including resources waiting in backoff | `delete_recovery_tombstone_oldest_age_seconds` | `state="unscheduled\|due\|delayed"`; take the maximum across states and replicas |
 | Recovery republication rate | `delete_recovery_work_total` | `kind="published"`; sum per-process rates, not replica-deduplicated counters |
 
 For example, the stuck-resource count and oldest deletion age are:
