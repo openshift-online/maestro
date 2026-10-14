@@ -106,7 +106,7 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 		}
 
 		// handle the resource status update according status update type
-		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
+		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService, s.lockFactory); err != nil {
 			return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 		}
 
@@ -158,7 +158,8 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // 2. Retrieves the resource from Maestro and fills back the work metadata from the spec event to the status event.
 // 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
 // otherwise, updates the resource status and creates a status event.
-func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
+func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService,
+	statusEventService services.StatusEventService, consumerLocks ...db.LockFactory) error {
 	logger := klog.FromContext(ctx)
 	logger.Info("handle resource status update by the current instance")
 
@@ -232,6 +233,26 @@ func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 
 	// if the resource has been deleted from agent, create status event and delete it from maestro
 	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ResourceDeleted) {
+		if len(consumerLocks) > 0 {
+			locks := consumerLocks[0]
+			owner, err := locks.NewAdvisoryLock(ctx, resource.ConsumerName, db.Consumers)
+			defer locks.Unlock(ctx, owner)
+			if err != nil {
+				return err
+			}
+			// A cascade (or another ack) may have completed after the initial read.
+			// Recheck under the shared lock before creating a terminal event.
+			found, svcErr = resourceService.Get(ctx, resource.ID)
+			if svcErr != nil {
+				if svcErr.Is404() {
+					return nil
+				}
+				return svcErr
+			}
+			if found.ConsumerName != resource.ConsumerName {
+				return fmt.Errorf("unmatched consumer name for resource %s", resource.ID)
+			}
+		}
 		_, sErr := statusEventService.Create(ctx, &api.StatusEvent{
 			ResourceID:      resource.ID,
 			ResourceSource:  resource.Source,

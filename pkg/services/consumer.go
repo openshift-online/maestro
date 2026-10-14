@@ -2,9 +2,16 @@ package services
 
 import (
 	"context"
+	stderrors "errors"
+	"math"
+	"time"
+
+	"gorm.io/gorm"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 
@@ -25,10 +32,28 @@ func NewConsumerService(consumerDao dao.ConsumerDao) ConsumerService {
 	}
 }
 
+// NewConsumerServiceWithCascade enables explicit finalization for decommissioned consumers.
+func NewConsumerServiceWithCascade(consumerDao dao.ConsumerDao, cascade dao.ConsumerCascadeDao,
+	locks db.LockFactory, thresholdSeconds int) ConsumerService {
+	var threshold time.Duration
+	if thresholdSeconds > 0 && int64(thresholdSeconds) <= math.MaxInt64/int64(time.Second) {
+		threshold = time.Duration(thresholdSeconds) * time.Second
+	}
+	return &sqlConsumerService{
+		consumerDao:    consumerDao,
+		cascade:        cascade,
+		locks:          locks,
+		staleThreshold: threshold,
+	}
+}
+
 var _ ConsumerService = &sqlConsumerService{}
 
 type sqlConsumerService struct {
-	consumerDao dao.ConsumerDao
+	consumerDao    dao.ConsumerDao
+	cascade        dao.ConsumerCascadeDao
+	locks          db.LockFactory
+	staleThreshold time.Duration
 }
 
 func (s *sqlConsumerService) Get(ctx context.Context, id string) (*api.Consumer, *errors.ServiceError) {
@@ -66,8 +91,42 @@ func (s *sqlConsumerService) Replace(ctx context.Context, consumer *api.Consumer
 // 2. Forbid consumer deletion if there are associated resources(include the marked as deleted resources).
 // TODO: Add deletion options or strategies.
 func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.ServiceError {
+	if s.cascade != nil {
+		return s.deleteWithCascade(ctx, id)
+	}
 	if err := s.consumerDao.Delete(ctx, id, true); err != nil {
 		return handleDeleteError("Consumer", err)
+	}
+	return nil
+}
+
+func (s *sqlConsumerService) deleteWithCascade(ctx context.Context, id string) *errors.ServiceError {
+	if s.staleThreshold <= 0 {
+		return errors.Forbidden("Consumer delete cascade requires a positive stale threshold")
+	}
+	consumer, err := s.consumerDao.Get(ctx, id)
+	if stderrors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return handleGetError("Consumer", "id", id, err)
+	}
+	owner, err := s.locks.NewAdvisoryLock(ctx, consumer.Name, db.Consumers)
+	defer s.locks.Unlock(ctx, owner)
+	if err != nil {
+		return errors.DatabaseAdvisoryLock(err)
+	}
+	resources, err := s.cascade.Delete(ctx, id, s.staleThreshold, buildConsumerCascadeEvent)
+	if stderrors.Is(err, dao.ErrConsumerCascadeBlocked) {
+		return errors.Forbidden("Unable to delete consumer: all resources must be soft-deleted longer than the stale threshold")
+	}
+	if err != nil {
+		return handleDeleteError("Consumer", err)
+	}
+	consumerCascadedResourcesTotal.Add(float64(len(resources)))
+	for _, resource := range resources {
+		klog.FromContext(ctx).Info("Finalized soft-deleted resource during explicit consumer deletion",
+			"resourceID", resource.ID, "consumerID", id)
 	}
 	return nil
 }

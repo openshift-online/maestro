@@ -25,6 +25,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
+	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 )
@@ -36,14 +37,19 @@ var _ EventServer = &GRPCBroker{}
 type GRPCBrokerService struct {
 	resourceService    services.ResourceService
 	statusEventService services.StatusEventService
+	consumerLocks      db.LockFactory
 }
 
 func NewGRPCBrokerService(resourceService services.ResourceService,
-	statusEventService services.StatusEventService) *GRPCBrokerService {
-	return &GRPCBrokerService{
+	statusEventService services.StatusEventService, consumerLocks ...db.LockFactory) *GRPCBrokerService {
+	svc := &GRPCBrokerService{
 		resourceService:    resourceService,
 		statusEventService: statusEventService,
 	}
+	if len(consumerLocks) > 0 {
+		svc.consumerLocks = consumerLocks[0]
+	}
+	return svc
 }
 
 // List the cloudEvent from the service
@@ -74,7 +80,11 @@ func (s *GRPCBrokerService) HandleStatusUpdate(ctx context.Context, evt *ce.Even
 	}
 
 	// handle the resource status update according status update type
-	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
+	var locks []db.LockFactory
+	if s.consumerLocks != nil {
+		locks = append(locks, s.consumerLocks)
+	}
+	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService, locks...); err != nil {
 		return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 	}
 
@@ -177,7 +187,7 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 		HeartbeatCheckInterval: config.HeartbeatCheckInterval,
 	})
 	pbv1.RegisterCloudEventServiceServer(grpcServer, eventServer)
-	svc := NewGRPCBrokerService(resourceService, statusEventService)
+	svc := NewGRPCBrokerService(resourceService, statusEventService, db.NewAdvisoryLockFactory(sessionFactory))
 	eventServer.RegisterService(context.Background(), workpayload.ManifestBundleEventDataType, svc)
 
 	return &GRPCBroker{

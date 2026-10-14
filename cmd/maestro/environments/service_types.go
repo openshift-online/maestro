@@ -48,6 +48,14 @@ type ConsumerServiceLocator func() services.ConsumerService
 
 func NewConsumerServiceLocator(env *Env) ConsumerServiceLocator {
 	return func() services.ConsumerService {
+		if env.Config.EventServer.ConsumerDeleteCascade {
+			return services.NewConsumerServiceWithCascade(
+				dao.NewConsumerDao(&env.Database.SessionFactory),
+				dao.NewConsumerCascadeDao(env.Database.SessionFactory),
+				db.NewAdvisoryLockFactory(env.Database.SessionFactory),
+				env.Config.EventServer.StaleDeleteEventThreshold,
+			)
+		}
 		return services.NewConsumerService(
 			dao.NewConsumerDao(&env.Database.SessionFactory),
 		)

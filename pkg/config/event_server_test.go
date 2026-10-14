@@ -160,3 +160,39 @@ func TestDeleteRecoveryBatchFlag(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestConsumerDeleteCascadeConfig(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		enabled   bool
+		threshold int
+		valid     bool
+	}{
+		{"disabled", false, 0, true},
+		{"positive threshold", true, 3600, true},
+		{"disabled threshold", true, 0, false},
+		{"negative threshold", true, -1, false},
+		{"overflow threshold", true, math.MaxInt, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := NewEventServerConfig()
+			if c.ConsumerDeleteCascade {
+				t.Fatal("consumer delete cascade must be opt-in")
+			}
+			fs := pflag.NewFlagSet("cascade", pflag.ContinueOnError)
+			c.AddFlags(fs)
+			if fs.Lookup("consumer-delete-cascade").DefValue != "false" {
+				t.Fatal("cascade flag must default to false")
+			}
+			if tc.enabled {
+				if err := fs.Parse([]string{"--consumer-delete-cascade"}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			c.StaleDeleteEventThreshold = tc.threshold
+			if err := c.ReadFiles(); (err == nil) != tc.valid {
+				t.Fatalf("validation = %v, want valid=%t", err, tc.valid)
+			}
+		})
+	}
+}
