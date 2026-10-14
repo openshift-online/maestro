@@ -167,6 +167,7 @@ func TestDeleteRecoveryErrorLogging(t *testing.T) {
 // TestDeleteRecoverySnapshotMetrics checks every fixed state is refreshed, including drained states.
 func TestDeleteRecoverySnapshotMetrics(t *testing.T) {
 	snapshot := dao.DeleteRecoverySnapshot{
+		StuckTombstones:              2,
 		UnscheduledTombstones:        3,
 		DueTombstones:                2,
 		DelayedTombstones:            1,
@@ -191,6 +192,7 @@ func TestDeleteRecoverySnapshotMetrics(t *testing.T) {
 	registry.MustRegister(
 		m.tombstoneBacklog,
 		m.tombstoneOldestAge,
+		m.stuckTombstones,
 		m.consumerQueue,
 		m.pendingDeleteEvents,
 		m.pendingDeleteEventAge,
@@ -204,10 +206,13 @@ func TestDeleteRecoverySnapshotMetrics(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(families) != 6 {
-		t.Fatalf("snapshot metric families = %d, want 6", len(families))
+	if len(families) != 7 {
+		t.Fatalf("snapshot metric families = %d, want 7", len(families))
 	}
 	want := map[string]map[string]float64{
+		"delete_recovery_stuck_tombstones": {
+			"": 2,
+		},
 		"delete_recovery_tombstone_backlog": {
 			"state=unscheduled": 3, "state=due": 2, "state=delayed": 1,
 		},
@@ -261,6 +266,9 @@ func TestDeleteRecoverySnapshotMetrics(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, family := range families {
+		if family.GetName() == "delete_recovery_stuck_tombstones" && family.Metric[0].GetGauge().GetValue() != 0 {
+			t.Fatal("a drained or disabled stuck-tombstone count must be reset to zero")
+		}
 		if family.GetName() == "delete_recovery_tombstone_backlog" {
 			for _, metric := range family.Metric {
 				if metric.GetGauge().GetValue() != 0 {
@@ -282,12 +290,12 @@ func TestDeleteRecoverySnapshotErrorRetainsMetrics(t *testing.T) {
 			if fail {
 				return dao.DeleteRecoverySnapshot{}, errors.New("database failed: consumer_name=customer-value")
 			}
-			return dao.DeleteRecoverySnapshot{DueTombstones: 7}, nil
+			return dao.DeleteRecoverySnapshot{DueTombstones: 7, StuckTombstones: 5}, nil
 		},
 	}
 	m := newDeleteRecoveryMetrics()
 	registry := prometheus.NewRegistry()
-	registry.MustRegister(m.tombstoneBacklog, m.tombstoneOldestAge, m.consumerQueue, m.pendingDeleteEvents, m.pendingDeleteEventAge, m.snapshotErrors)
+	registry.MustRegister(m.tombstoneBacklog, m.tombstoneOldestAge, m.stuckTombstones, m.consumerQueue, m.pendingDeleteEvents, m.pendingDeleteEventAge, m.snapshotErrors)
 	c := NewDeleteRecoveryController(reporter)
 	c.metrics = m
 	c.Report(context.Background())
@@ -300,6 +308,10 @@ func TestDeleteRecoverySnapshotErrorRetainsMetrics(t *testing.T) {
 	}
 	for _, family := range families {
 		switch family.GetName() {
+		case "delete_recovery_stuck_tombstones":
+			if family.Metric[0].GetGauge().GetValue() != 5 {
+				t.Fatal("a failed snapshot must retain the last good stuck-tombstone count")
+			}
 		case "delete_recovery_tombstone_backlog":
 			for _, metric := range family.Metric {
 				if metric.Label[0].GetValue() == "due" && metric.GetGauge().GetValue() != 7 {

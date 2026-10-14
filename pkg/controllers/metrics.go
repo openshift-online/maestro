@@ -237,6 +237,7 @@ func init() {
 		recoveryMetrics.work,
 		recoveryMetrics.tombstoneBacklog,
 		recoveryMetrics.tombstoneOldestAge,
+		recoveryMetrics.stuckTombstones,
 		recoveryMetrics.consumerQueue,
 		recoveryMetrics.pendingDeleteEvents,
 		recoveryMetrics.pendingDeleteEventAge,

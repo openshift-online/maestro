@@ -67,7 +67,7 @@ func NewConsistentHashConfig() *ConsistentHashConfig {
 func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
 	fs.StringVar(&c.SubscriptionType, "subscription-type", c.SubscriptionType, "Sets the subscription type for resource status updates from message broker, Options: \"shared\" (only one instance receives resource status message, MQTT feature ensures exclusivity) or \"broadcast\" (all instances receive messages, hashed to determine processing instance)")
 	fs.IntVar(&c.UndeliveredResourceThreshold, "undelivered-resource-threshold", c.UndeliveredResourceThreshold, "Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to 0 to disable. Default: 600 (10 minutes)")
-	fs.IntVar(&c.StaleDeleteEventThreshold, "stale-delete-event-threshold", c.StaleDeleteEventThreshold, "Seconds a resource can remain soft-deleted with an unreconciled delete event before that event is retired (the agent is assumed gone). Set to 0 to disable. Default: 3600 (1 hour)")
+	fs.IntVar(&c.StaleDeleteEventThreshold, "stale-delete-event-threshold", c.StaleDeleteEventThreshold, "Minimum age in seconds of both a soft-deleted resource and its pending delete event before the event can be retired. Independent of recovery backoff; never hard-deletes resources. Set to 0 to disable retirement and the stuck-tombstone count. Default: 3600 (1 hour)")
 	fs.IntVar(&c.DeleteEventRepublishInterval, "delete-event-republish-interval", c.DeleteEventRepublishInterval, "Initial delete recovery backoff in seconds. Recovery runs without incoming requests until agent acknowledgement. Set to 0 to disable the recovery scheduler, not initial deletes. Default: 60")
 	fs.IntVar(&c.DeleteEventRepublishMaxInterval, "delete-event-republish-max-interval", c.DeleteEventRepublishMaxInterval, "Maximum delete recovery backoff in seconds, not a deletion age limit. Default: 3600")
 	fs.IntVar(&c.DeleteEventRepublishBatchSize, "delete-event-republish-batch-size", c.DeleteEventRepublishBatchSize, "Maximum recovery consumers and tombstone initializations per fleet-wide round (1-1000), with at least one second after each round. At most one recovery event per consumer per round. Default: 25")
@@ -85,6 +85,9 @@ func (c *EventServerConfig) ReadFiles() error {
 // ValidateDeleteRecovery checks duration bounds, backoff ordering and the fleet batch limit.
 func (c *EventServerConfig) ValidateDeleteRecovery() error {
 	maxSeconds := int64(math.MaxInt64 / int64(time.Second))
+	if c.StaleDeleteEventThreshold < 0 || int64(c.StaleDeleteEventThreshold) > maxSeconds {
+		return fmt.Errorf("stale-delete-event-threshold must be between 0 and %d seconds", maxSeconds)
+	}
 	if c.DeleteEventRepublishInterval < 0 || int64(c.DeleteEventRepublishInterval) > maxSeconds {
 		return fmt.Errorf("delete-event-republish-interval must be between 0 and %d seconds", maxSeconds)
 	}
