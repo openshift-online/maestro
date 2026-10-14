@@ -30,13 +30,13 @@ sequenceDiagram
     participant Watcher as Source gRPC watcher
     Caller->>Maestro: DELETE consumer (cascade flag enabled)
     Maestro->>PostgreSQL: Acquire consumer advisory lock
-    Maestro->>PostgreSQL: Begin transaction; lock consumer and resources
+    Maestro->>PostgreSQL: Begin transaction and lock consumer and resources
     Maestro->>PostgreSQL: Validate every resource against original deleted_at
     alt Any live or recent resource
         Maestro->>PostgreSQL: Roll back
         Maestro-->>Caller: 403 Forbidden
     else All remaining resources are eligible
-        Maestro->>PostgreSQL: Hard-delete resources; reconcile pending Delete events
+        Maestro->>PostgreSQL: Hard-delete resources and reconcile pending Delete events
         Maestro->>PostgreSQL: Insert terminal StatusDelete events and NOTIFY
         Maestro->>PostgreSQL: Delete consumer and commit
         PostgreSQL-->>Maestro: Deliver committed status-event notifications
