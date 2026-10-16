@@ -17,6 +17,7 @@ const (
 
 // EventServerConfig contains the configuration for the message queue event server.
 type EventServerConfig struct {
+	ConsumerDeleteCascade           bool                  `json:"consumer_delete_cascade"`
 	SubscriptionType                string                `json:"subscription_type"`
 	ConsistentHashConfig            *ConsistentHashConfig `json:"consistent_hash_config"`
 	UndeliveredResourceThreshold    int                   `json:"undelivered_resource_threshold"`
@@ -65,6 +66,7 @@ func NewConsistentHashConfig() *ConsistentHashConfig {
 //     "broadcast" subscription type will make all Maestro instances to receive resource status messages and hash the message to determine which instance should process it.
 //     If subscription type is "broadcast", ConsistentHashConfig settings can be configured for the hashing algorithm.
 func (c *EventServerConfig) AddFlags(fs *pflag.FlagSet) {
+	fs.BoolVar(&c.ConsumerDeleteCascade, "consumer-delete-cascade", c.ConsumerDeleteCascade, "Allow explicit consumer deletion to finalize its resources only when all are soft-deleted longer than stale-delete-event-threshold. Requires a positive threshold; disabled by default.")
 	fs.StringVar(&c.SubscriptionType, "subscription-type", c.SubscriptionType, "Sets the subscription type for resource status updates from message broker, Options: \"shared\" (only one instance receives resource status message, MQTT feature ensures exclusivity) or \"broadcast\" (all instances receive messages, hashed to determine processing instance)")
 	fs.IntVar(&c.UndeliveredResourceThreshold, "undelivered-resource-threshold", c.UndeliveredResourceThreshold, "Seconds a resource can have no status (NULL) before being re-published to the message broker. Set to 0 to disable. Default: 600 (10 minutes)")
 	fs.IntVar(&c.StaleDeleteEventThreshold, "stale-delete-event-threshold", c.StaleDeleteEventThreshold, "Minimum age in seconds of both a soft-deleted resource and its pending delete event before the event can be retired. Independent of recovery backoff; never hard-deletes resources. Set to 0 to disable retirement and the stuck-tombstone count. Default: 3600 (1 hour)")
@@ -87,6 +89,9 @@ func (c *EventServerConfig) ValidateDeleteRecovery() error {
 	maxSeconds := int64(math.MaxInt64 / int64(time.Second))
 	if c.StaleDeleteEventThreshold < 0 || int64(c.StaleDeleteEventThreshold) > maxSeconds {
 		return fmt.Errorf("stale-delete-event-threshold must be between 0 and %d seconds", maxSeconds)
+	}
+	if c.ConsumerDeleteCascade && c.StaleDeleteEventThreshold == 0 {
+		return fmt.Errorf("consumer-delete-cascade requires a positive stale-delete-event-threshold")
 	}
 	if c.DeleteEventRepublishInterval < 0 || int64(c.DeleteEventRepublishInterval) > maxSeconds {
 		return fmt.Errorf("delete-event-republish-interval must be between 0 and %d seconds", maxSeconds)
