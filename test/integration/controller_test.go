@@ -695,7 +695,7 @@ func TestSpecEventAgeMetric(t *testing.T) {
 		t.Fatal(err)
 	}
 	resource := &api.Resource{
-		Meta:        api.Meta{ID: uuid.NewString()},
+		Meta:         api.Meta{ID: uuid.NewString()},
 		ConsumerName: consumer.Name,
 	}
 	// Create an unreconciled event backdated two minutes
