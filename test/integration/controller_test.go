@@ -686,16 +686,31 @@ func TestSpecEventAgeMetric(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	// The event's SourceID must reference an existing resource: the gRPC event
+	// predicate marks events for missing resources as reconciled, which would race
+	// the startup metric report and leave the gauge at zero. With a real resource
+	// and no handlers registered, the event deterministically stays unreconciled.
+	consumer, err := h.CreateConsumer("cluster-" + rand.String(5))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resource := &api.Resource{
+		Meta:         api.Meta{ID: uuid.NewString()},
+		ConsumerName: consumer.Name,
+	}
 	// Create an unreconciled event backdated two minutes
 	evt := &api.Event{
 		Meta: api.Meta{
 			CreatedAt: time.Now().Add(-2 * time.Minute),
 		},
 		Source:    "Resources",
-		SourceID:  uuid.NewString(),
+		SourceID:  resource.ID,
 		EventType: api.CreateEventType,
 	}
-	err := h.Env().Database.SessionFactory.New(ctx).Transaction(func(tx *gorm.DB) error {
+	err = h.Env().Database.SessionFactory.New(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Omit(clause.Associations).Create(resource).Error; err != nil {
+			return err
+		}
 		return tx.Omit(clause.Associations).Create(evt).Error
 	})
 	if err != nil {

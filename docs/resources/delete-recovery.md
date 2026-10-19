@@ -386,6 +386,11 @@ event-controller retries, stale-event retirement, or reconnect/spec resync.
 Existing scheduling state is retained; re-enabling resumes it without catch-up
 credits. Configure all replicas consistently.
 
+For permanently decommissioned consumers, the opt-in
+[explicit consumer delete cascade](consumer-delete-cascade.md) can finalize only
+old soft-deleted resources during a consumer DELETE. Recovery itself never
+hard-deletes a resource based on age.
+
 ## Migration and rollout
 
 Run the schema migration before starting servers that use the scheduler. It adds

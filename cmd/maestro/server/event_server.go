@@ -15,7 +15,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/dispatcher"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
@@ -53,7 +52,7 @@ var _ EventServer = &MessageQueueEventServer{}
 type MessageQueueEventServer struct {
 	instanceID         string
 	eventInstanceDao   dao.EventInstanceDao
-	lockFactory        db.LockFactory
+	finalizer          dao.ConsumerCascadeDao
 	eventBroadcaster   *event.EventBroadcaster // event broadcaster to broadcast resource status update events to subscribers
 	resourceService    services.ResourceService
 	statusEventService services.StatusEventService
@@ -63,16 +62,23 @@ type MessageQueueEventServer struct {
 
 func NewMessageQueueEventServer(eventBroadcaster *event.EventBroadcaster, statusDispatcher dispatcher.Dispatcher) EventServer {
 	sessionFactory := env().Database.SessionFactory
-	return &MessageQueueEventServer{
+	eventServer := &MessageQueueEventServer{
 		instanceID:         env().Config.MessageBroker.ClientID,
 		eventInstanceDao:   dao.NewEventInstanceDao(&sessionFactory),
-		lockFactory:        db.NewAdvisoryLockFactory(sessionFactory),
 		eventBroadcaster:   eventBroadcaster,
 		resourceService:    env().Services.Resources(),
 		statusEventService: env().Services.StatusEvents(),
 		sourceClient:       env().Clients.CloudEventsSource,
 		statusDispatcher:   statusDispatcher,
 	}
+	// The per-consumer advisory lock coordinates terminal acknowledgements with
+	// consumer deletion cascades. It is wired only when the cascade is enabled:
+	// with the flag off, acknowledgements keep the pre-cascade behaviour and take
+	// no per-consumer lock at all.
+	if env().Config.EventServer.ConsumerDeleteCascade {
+		eventServer.finalizer = dao.NewConsumerCascadeDao(sessionFactory)
+	}
+	return eventServer
 }
 
 // Start initializes and runs the event server. It starts the subscription
@@ -106,7 +112,11 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 		}
 
 		// handle the resource status update according status update type
-		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService); err != nil {
+		var finalizers []dao.ConsumerCascadeDao
+		if s.finalizer != nil {
+			finalizers = append(finalizers, s.finalizer)
+		}
+		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService, finalizers...); err != nil {
 			return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 		}
 
@@ -158,7 +168,13 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // 2. Retrieves the resource from Maestro and fills back the work metadata from the spec event to the status event.
 // 3. Checks if the resource has been deleted from the agent. If so, creates a status event and deletes the resource from Maestro;
 // otherwise, updates the resource status and creates a status event.
-func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService, statusEventService services.StatusEventService) error {
+// When a finalizer is given, the terminal acknowledgement runs in one database transaction that
+// takes the consumer advisory lock on its own connection, so concurrent acknowledgements and
+// consumer deletion cascades serialize without pinning extra pooled connections. The finalizer is
+// wired only when --consumer-delete-cascade is enabled; without it (or when a nil finalizer is
+// passed), acknowledgements keep the legacy uncoordinated path and take no per-consumer lock.
+func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService,
+	statusEventService services.StatusEventService, finalizers ...dao.ConsumerCascadeDao) error {
 	logger := klog.FromContext(ctx)
 	logger.Info("handle resource status update by the current instance")
 
@@ -232,6 +248,33 @@ func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 
 	// if the resource has been deleted from agent, create status event and delete it from maestro
 	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ResourceDeleted) {
+		// a nil finalizer is treated as absent: passing a nil interface through the
+		// variadic must select the legacy path, not panic on a nil method call.
+		if len(finalizers) > 0 && finalizers[0] != nil {
+			// The recheck, the terminal status event and the resource removal commit in one
+			// transaction that holds the consumer advisory lock on its own connection.
+			finalized, err := finalizers[0].FinalizeTerminalAck(ctx, resource.ID, resource.ConsumerName,
+				func(found *api.Resource) (*api.StatusEvent, error) {
+					return &api.StatusEvent{
+						ResourceID:      resource.ID,
+						ResourceSource:  found.Source,
+						ResourceType:    found.Type,
+						Payload:         found.Payload,
+						Status:          resource.Status,
+						StatusEventType: api.StatusDeleteEventType,
+					}, nil
+				})
+			if err != nil {
+				return err
+			}
+			if !finalized {
+				// a cascade or another acknowledgement finalized the resource first
+				logger.Info("skipping resource as it is not found")
+				return nil
+			}
+			logger.Info("resource status delete event was sent")
+			return nil
+		}
 		_, sErr := statusEventService.Create(ctx, &api.StatusEvent{
 			ResourceID:      resource.ID,
 			ResourceSource:  resource.Source,

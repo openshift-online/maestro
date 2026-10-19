@@ -21,6 +21,7 @@ const (
 	Migrations     LockType = "migrations"
 	Resources      LockType = "resources"
 	ResourceStatus LockType = "resource_status"
+	Consumers      LockType = "consumers"
 	Events         LockType = "events"
 	Instances      LockType = "instances"
 )
@@ -204,6 +205,30 @@ type AdvisoryLock struct {
 	startTime time.Time
 }
 
+// advisoryLockKeys returns the hashed pg_advisory_xact_lock arguments for (id, lockType).
+// Every acquisition form must use these keys so they exclude each other.
+func advisoryLockKeys(id string, lockType LockType) (int32, int32) {
+	return hash(id), hash(string(lockType))
+}
+
+// LockInTx acquires the blocking advisory lock (id, lockType) on the given transaction.
+// The lock is held by the transaction's own pooled connection and is released when
+// that transaction commits or rolls back, so the statements protected by the lock run
+// on the same connection that holds it: a lock holder never has to wait for a second
+// pooled connection, and connection-pool exhaustion cannot starve it. Prefer this form
+// over LockFactory whenever the protected reads and writes can run on one transaction.
+// The lock is recorded in the advisory lock acquisition metrics; its release is the
+// transaction end, so it produces no separate unlock metric.
+func LockInTx(tx *gorm.DB, id string, lockType LockType) error {
+	idAsInt, typeAsInt := advisoryLockKeys(id, lockType)
+	if err := tx.Exec("select pg_advisory_xact_lock(?, ?)", idAsInt, typeAsInt).Error; err != nil {
+		UpdateAdvisoryLockCountMetric(lockType, "ERROR")
+		return err
+	}
+	UpdateAdvisoryLockCountMetric(lockType, "OK")
+	return nil
+}
+
 // newAdvisoryLock constructs a new AdvisoryLock object.
 func newAdvisoryLock(ctx context.Context, connection SessionFactory) (*AdvisoryLock, error) {
 	// it requires a new DB session to start the advisory lock.
@@ -241,8 +266,7 @@ func (l *AdvisoryLock) lock() error {
 		return errors.New("AdvisoryLock: lockType is missing")
 	}
 
-	idAsInt := hash(*l.id)
-	typeAsInt := hash(string(*l.lockType))
+	idAsInt, typeAsInt := advisoryLockKeys(*l.id, *l.lockType)
 	err := l.g2.Exec("select pg_advisory_xact_lock(?, ?)", idAsInt, typeAsInt).Error
 	if err != nil {
 		return err
@@ -261,8 +285,7 @@ func (l *AdvisoryLock) nonBlockingLock() (bool, error) {
 		return false, errors.New("AdvisoryLock: lockType is missing")
 	}
 
-	idAsInt := hash(*l.id)
-	typeAsInt := hash(string(*l.lockType))
+	idAsInt, typeAsInt := advisoryLockKeys(*l.id, *l.lockType)
 	var acquired bool
 	var result string
 	err := l.g2.Raw("select pg_try_advisory_xact_lock(?, ?)", idAsInt, typeAsInt).Scan(&result).Error

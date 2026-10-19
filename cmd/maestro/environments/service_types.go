@@ -46,8 +46,16 @@ func NewStatusEventServiceLocator(env *Env) StatusEventServiceLocator {
 
 type ConsumerServiceLocator func() services.ConsumerService
 
+// NewConsumerServiceLocator wires ordinary or cascade-enabled deletion from startup configuration.
 func NewConsumerServiceLocator(env *Env) ConsumerServiceLocator {
 	return func() services.ConsumerService {
+		if env.Config.EventServer.ConsumerDeleteCascade {
+			return services.NewConsumerServiceWithCascade(
+				dao.NewConsumerDao(&env.Database.SessionFactory),
+				dao.NewConsumerCascadeDao(env.Database.SessionFactory),
+				env.Config.EventServer.StaleDeleteEventThreshold,
+			)
+		}
 		return services.NewConsumerService(
 			dao.NewConsumerDao(&env.Database.SessionFactory),
 		)

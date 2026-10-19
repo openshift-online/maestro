@@ -33,17 +33,24 @@ const source = "maestro"
 
 var _ EventServer = &GRPCBroker{}
 
+// GRPCBrokerService handles agent status updates and terminal acknowledgements.
 type GRPCBrokerService struct {
 	resourceService    services.ResourceService
 	statusEventService services.StatusEventService
+	finalizer          dao.ConsumerCascadeDao
 }
 
+// NewGRPCBrokerService wires agent status handling and terminal-acknowledgement coordination.
 func NewGRPCBrokerService(resourceService services.ResourceService,
-	statusEventService services.StatusEventService) *GRPCBrokerService {
-	return &GRPCBrokerService{
+	statusEventService services.StatusEventService, finalizers ...dao.ConsumerCascadeDao) *GRPCBrokerService {
+	svc := &GRPCBrokerService{
 		resourceService:    resourceService,
 		statusEventService: statusEventService,
 	}
+	if len(finalizers) > 0 {
+		svc.finalizer = finalizers[0]
+	}
+	return svc
 }
 
 // List the cloudEvent from the service
@@ -74,7 +81,11 @@ func (s *GRPCBrokerService) HandleStatusUpdate(ctx context.Context, evt *ce.Even
 	}
 
 	// handle the resource status update according status update type
-	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService); err != nil {
+	var finalizers []dao.ConsumerCascadeDao
+	if s.finalizer != nil {
+		finalizers = append(finalizers, s.finalizer)
+	}
+	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService, finalizers...); err != nil {
 		return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 	}
 
@@ -170,6 +181,15 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 	resourceService := env().Services.Resources()
 	statusEventService := env().Services.StatusEvents()
 
+	// The per-consumer advisory lock coordinates terminal acknowledgements with
+	// consumer deletion cascades. It is wired only when the cascade is enabled:
+	// with the flag off, acknowledgements keep the pre-cascade behaviour and take
+	// no per-consumer lock at all.
+	var finalizers []dao.ConsumerCascadeDao
+	if env().Config.EventServer.ConsumerDeleteCascade {
+		finalizers = append(finalizers, dao.NewConsumerCascadeDao(sessionFactory))
+	}
+
 	// TODO after the sdk go support source grpc server
 	grpcServer := grpc.NewServer(grpcServerOptions...)
 	eventServer := servergrpc.NewGRPCBroker(&servergrpc.BrokerOptions{
@@ -177,7 +197,7 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 		HeartbeatCheckInterval: config.HeartbeatCheckInterval,
 	})
 	pbv1.RegisterCloudEventServiceServer(grpcServer, eventServer)
-	svc := NewGRPCBrokerService(resourceService, statusEventService)
+	svc := NewGRPCBrokerService(resourceService, statusEventService, finalizers...)
 	eventServer.RegisterService(context.Background(), workpayload.ManifestBundleEventDataType, svc)
 
 	return &GRPCBroker{
