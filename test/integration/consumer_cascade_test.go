@@ -30,6 +30,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/client/cloudevents/grpcsource"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/db"
+	"github.com/openshift-online/maestro/pkg/db/db_session"
 	"github.com/openshift-online/maestro/pkg/handlers"
 	"github.com/openshift-online/maestro/pkg/services"
 	"github.com/openshift-online/maestro/test"
@@ -38,7 +39,7 @@ import (
 // cascadeConsumerService enables the real transactional cascade with a one-hour age guard.
 func cascadeConsumerService(h *test.Helper) services.ConsumerService {
 	return services.NewConsumerServiceWithCascade(dao.NewConsumerDao(&h.DBFactory),
-		dao.NewConsumerCascadeDao(h.DBFactory), db.NewAdvisoryLockFactory(h.DBFactory), 3600)
+		dao.NewConsumerCascadeDao(h.DBFactory), 3600)
 }
 
 // cascadeResource creates a watchable resource and optionally backdates its soft deletion.
@@ -275,6 +276,21 @@ func TestConsumerCascadeGRPCWatcher(t *testing.T) {
 	Expect(meta.IsStatusConditionTrue(deletedWork.Status.Conditions, common.ResourceDeleted)).To(BeTrue())
 }
 
+// terminalAck builds an agent acknowledgement carrying a ResourceDeleted condition.
+func terminalAck(resource *api.Resource, consumerName string) *api.Resource {
+	evt := cloudevents.NewEvent()
+	evt.SetID(uuid.NewString())
+	evt.SetSource("agent")
+	evt.SetType((&cetypes.CloudEventsType{CloudEventsDataType: workpayload.ManifestBundleEventDataType,
+		SubResource: cetypes.SubResourceStatus, Action: cetypes.UpdateRequestAction}).String())
+	Expect(evt.SetData(cloudevents.ApplicationJSON, &workpayload.ManifestBundleStatus{Conditions: []metav1.Condition{
+		{Type: common.ResourceDeleted, Status: metav1.ConditionTrue, Reason: "Deleted", LastTransitionTime: metav1.Now()},
+	}})).To(Succeed())
+	status, err := api.CloudEventToJSONMap(&evt)
+	Expect(err).NotTo(HaveOccurred())
+	return &api.Resource{Meta: api.Meta{ID: resource.ID}, ConsumerName: consumerName, Version: resource.Version, Status: status}
+}
+
 // TestConsumerCascadeAcknowledgementRace checks acknowledgement and cascade emit one terminal event.
 func TestConsumerCascadeAcknowledgementRace(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
@@ -284,22 +300,12 @@ func TestConsumerCascadeAcknowledgementRace(t *testing.T) {
 		consumer, err := h.CreateConsumer("cascade-" + uuid.NewString())
 		Expect(err).NotTo(HaveOccurred())
 		resource := cascadeResource(h, consumer.Name, 2*time.Hour)
-		evt := cloudevents.NewEvent()
-		evt.SetID(uuid.NewString())
-		evt.SetSource("agent")
-		evt.SetType((&cetypes.CloudEventsType{CloudEventsDataType: workpayload.ManifestBundleEventDataType,
-			SubResource: cetypes.SubResourceStatus, Action: cetypes.UpdateRequestAction}).String())
-		Expect(evt.SetData(cloudevents.ApplicationJSON, &workpayload.ManifestBundleStatus{Conditions: []metav1.Condition{
-			{Type: common.ResourceDeleted, Status: metav1.ConditionTrue, Reason: "Deleted", LastTransitionTime: metav1.Now()},
-		}})).To(Succeed())
-		status, err := api.CloudEventToJSONMap(&evt)
-		Expect(err).NotTo(HaveOccurred())
-		ack := &api.Resource{Meta: api.Meta{ID: resource.ID}, ConsumerName: consumer.Name, Version: resource.Version, Status: status}
+		ack := terminalAck(resource, consumer.Name)
 		start := make(chan struct{})
 		results := make(chan error, 2)
 		go func() {
 			<-start
-			results <- server.HandleStatusUpdate(ctx, ack, h.Env().Services.Resources(), h.Env().Services.StatusEvents(), db.NewAdvisoryLockFactory(h.DBFactory))
+			results <- server.HandleStatusUpdate(ctx, ack, h.Env().Services.Resources(), h.Env().Services.StatusEvents(), dao.NewConsumerCascadeDao(h.DBFactory))
 		}()
 		go func() {
 			<-start
@@ -323,6 +329,77 @@ func TestConsumerCascadeAcknowledgementRace(t *testing.T) {
 		Expect(svcErr).NotTo(BeNil())
 		Expect(svcErr.Is404()).To(BeTrue())
 	}
+}
+
+// TestTerminalAckSmallPoolContention verifies that concurrent terminal acknowledgements and
+// a delete cascade complete when workers outnumber a small connection pool. The consumer
+// advisory lock is acquired on the transaction that performs the protected writes, so the
+// lock holder never waits for a second pooled connection: pool exhaustion by lock waiters
+// cannot starve the holder. With the lock held on a separate connection instead, the holder
+// deadlocks here waiting for a query connection and every worker fails on the context deadline.
+func TestTerminalAckSmallPoolContention(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	consumer, err := h.CreateConsumer("cascade-" + uuid.NewString())
+	Expect(err).NotTo(HaveOccurred())
+	const acks = 8
+	resources := make([]*api.Resource, acks)
+	for i := range acks {
+		resources[i] = cascadeResource(h, consumer.Name, 0)
+	}
+	// A live resource that is never acknowledged keeps the cascade deterministically
+	// refused, so it participates in the consumer lock contention without deleting the consumer.
+	blocker := cascadeResource(h, consumer.Name, 0)
+
+	// A dedicated session factory with a small pool over the same database: the workers
+	// outnumber the pool while the suite's shared pool and its background users are untouched.
+	var smallPool db.SessionFactory = db_session.NewTestFactory(h.Env().Config.Database)
+	defer smallPool.Close()
+	smallPool.DirectDB().SetMaxOpenConns(3)
+	finalizer := dao.NewConsumerCascadeDao(smallPool)
+	cascade := services.NewConsumerServiceWithCascade(dao.NewConsumerDao(&smallPool),
+		dao.NewConsumerCascadeDao(smallPool), 3600)
+
+	start := make(chan struct{})
+	results := make(chan error, acks+1)
+	for i := range acks {
+		go func(i int) {
+			<-start
+			results <- server.HandleStatusUpdate(ctx, terminalAck(resources[i], consumer.Name),
+				h.Env().Services.Resources(), h.Env().Services.StatusEvents(), finalizer)
+		}(i)
+	}
+	go func() {
+		<-start
+		if svcErr := cascade.Delete(ctx, consumer.ID); svcErr != nil && svcErr.HttpCode != http.StatusForbidden {
+			results <- fmt.Errorf("cascade: %s", svcErr.Error())
+		} else {
+			results <- nil
+		}
+	}()
+	close(start)
+	for range acks + 1 {
+		var err error
+		Eventually(results, 30*time.Second).Should(Receive(&err))
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	// every acknowledged resource was finalized exactly once
+	for _, resource := range resources {
+		var count int64
+		Expect(h.DBFactory.New(ctx).Raw("SELECT count(*) FROM status_events WHERE resource_id = ? AND status_event_type = ?",
+			resource.ID, api.StatusDeleteEventType).Scan(&count).Error).To(Succeed())
+		Expect(count).To(Equal(int64(1)), "each acknowledgement must emit exactly one terminal event")
+		_, svcErr := h.Env().Services.Resources().Get(ctx, resource.ID)
+		Expect(svcErr).NotTo(BeNil())
+		Expect(svcErr.Is404()).To(BeTrue())
+	}
+	_, svcErr := h.Env().Services.Resources().Get(ctx, blocker.ID)
+	Expect(svcErr).To(BeNil())
+	_, err = dao.NewConsumerDao(&h.DBFactory).Get(ctx, consumer.ID)
+	Expect(err).NotTo(HaveOccurred())
 }
 
 // TestConsumerCascadeConcurrentCreate verifies a new resource can pass its FK check under NO KEY UPDATE.

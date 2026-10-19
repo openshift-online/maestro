@@ -29,8 +29,9 @@ sequenceDiagram
     participant PostgreSQL
     participant Watcher as Source gRPC watcher
     Caller->>Maestro: DELETE consumer (cascade flag enabled)
-    Maestro->>PostgreSQL: Acquire consumer advisory lock
-    Maestro->>PostgreSQL: Begin transaction and lock consumer and resources
+    Maestro->>PostgreSQL: Begin transaction
+    Maestro->>PostgreSQL: Take consumer advisory lock on the transaction
+    Maestro->>PostgreSQL: Lock consumer and resources
     Maestro->>PostgreSQL: Validate every resource against original deleted_at
     alt Any live or recent resource
         Maestro->>PostgreSQL: Roll back
@@ -38,12 +39,11 @@ sequenceDiagram
     else All remaining resources are eligible
         Maestro->>PostgreSQL: Hard-delete resources and reconcile pending Delete events
         Maestro->>PostgreSQL: Insert terminal StatusDelete events and NOTIFY
-        Maestro->>PostgreSQL: Delete consumer and commit
+        Maestro->>PostgreSQL: Delete consumer and commit (releases advisory lock)
         PostgreSQL-->>Maestro: Deliver committed status-event notifications
         Maestro-->>Watcher: ResourceDeleted / Deleted
         Maestro-->>Caller: 204 No Content
     end
-    Maestro->>PostgreSQL: Release advisory lock
 ```
 
 Each remaining resource must have `deleted_at` strictly older than the existing
@@ -78,6 +78,16 @@ creating a terminal event, so an acknowledgement racing a cascade cannot emit a
 second terminal event for a resource already finalized by the cascade. All
 servers must use this coordination code before enabling the flag; it cannot
 coordinate older binaries during a mixed-version rollout.
+
+The advisory lock is taken on the database transaction that performs the
+protected reads and writes, and is released when that transaction commits or
+rolls back. The lock holder therefore runs every protected statement on the
+same pooled connection that holds the lock: concurrent waiters can occupy the
+remaining pool connections, but they can never starve the holder of the
+connection it needs to finish and release the lock. An acknowledgement commits
+its recheck, terminal event, notification and resource removal in that single
+transaction, so a failure cannot leave a terminal event without the resource
+removal or the reverse.
 
 Within the transaction, the consumer is locked `FOR NO KEY UPDATE` and resource
 rows are locked in ID order. The weaker consumer row lock permits the recovery

@@ -25,7 +25,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/client/cloudevents"
 	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/event"
 	"github.com/openshift-online/maestro/pkg/services"
 )
@@ -34,21 +33,22 @@ const source = "maestro"
 
 var _ EventServer = &GRPCBroker{}
 
+// GRPCBrokerService handles agent status updates and terminal acknowledgements.
 type GRPCBrokerService struct {
 	resourceService    services.ResourceService
 	statusEventService services.StatusEventService
-	consumerLocks      db.LockFactory
+	finalizer          dao.ConsumerCascadeDao
 }
 
-// NewGRPCBrokerService wires agent status handling and optional terminal-acknowledgement coordination.
+// NewGRPCBrokerService wires agent status handling and terminal-acknowledgement coordination.
 func NewGRPCBrokerService(resourceService services.ResourceService,
-	statusEventService services.StatusEventService, consumerLocks ...db.LockFactory) *GRPCBrokerService {
+	statusEventService services.StatusEventService, finalizers ...dao.ConsumerCascadeDao) *GRPCBrokerService {
 	svc := &GRPCBrokerService{
 		resourceService:    resourceService,
 		statusEventService: statusEventService,
 	}
-	if len(consumerLocks) > 0 {
-		svc.consumerLocks = consumerLocks[0]
+	if len(finalizers) > 0 {
+		svc.finalizer = finalizers[0]
 	}
 	return svc
 }
@@ -81,11 +81,11 @@ func (s *GRPCBrokerService) HandleStatusUpdate(ctx context.Context, evt *ce.Even
 	}
 
 	// handle the resource status update according status update type
-	var locks []db.LockFactory
-	if s.consumerLocks != nil {
-		locks = append(locks, s.consumerLocks)
+	var finalizers []dao.ConsumerCascadeDao
+	if s.finalizer != nil {
+		finalizers = append(finalizers, s.finalizer)
 	}
-	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService, locks...); err != nil {
+	if err := HandleStatusUpdate(ctx, resource, s.resourceService, s.statusEventService, finalizers...); err != nil {
 		return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 	}
 
@@ -188,7 +188,7 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 		HeartbeatCheckInterval: config.HeartbeatCheckInterval,
 	})
 	pbv1.RegisterCloudEventServiceServer(grpcServer, eventServer)
-	svc := NewGRPCBrokerService(resourceService, statusEventService, db.NewAdvisoryLockFactory(sessionFactory))
+	svc := NewGRPCBrokerService(resourceService, statusEventService, dao.NewConsumerCascadeDao(sessionFactory))
 	eventServer.RegisterService(context.Background(), workpayload.ManifestBundleEventDataType, svc)
 
 	return &GRPCBroker{

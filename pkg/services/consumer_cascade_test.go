@@ -18,7 +18,6 @@ import (
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
 	"github.com/openshift-online/maestro/pkg/dao/mocks"
-	dbmocks "github.com/openshift-online/maestro/pkg/db/mocks"
 )
 
 // TestBuildConsumerCascadeEvent verifies the terminal condition and source identity round-trip through the SDK.
@@ -61,12 +60,17 @@ func TestBuildConsumerCascadeEvent(t *testing.T) {
 	}
 }
 
-type consumerCascadeFunc func(context.Context, string, time.Duration, dao.ConsumerCascadeEventBuilder) (api.ResourceList, error)
+type consumerCascadeFunc func(context.Context, string, string, time.Duration, dao.ConsumerCascadeEventBuilder) (api.ResourceList, error)
 
 // Delete delegates to the test callback to inject cascade results and commit failures.
-func (f consumerCascadeFunc) Delete(ctx context.Context, id string, threshold time.Duration,
+func (f consumerCascadeFunc) Delete(ctx context.Context, id, consumerName string, threshold time.Duration,
 	build dao.ConsumerCascadeEventBuilder) (api.ResourceList, error) {
-	return f(ctx, id, threshold, build)
+	return f(ctx, id, consumerName, threshold, build)
+}
+
+// FinalizeTerminalAck satisfies the DAO interface; the consumer service never finalizes acknowledgements.
+func (f consumerCascadeFunc) FinalizeTerminalAck(context.Context, string, string, dao.ConsumerCascadeEventBuilder) (bool, error) {
+	return false, errors.New("unexpected terminal acknowledgement in consumer service test")
 }
 
 // TestConsumerCascadeService checks error translation and committed-only resource accounting.
@@ -87,14 +91,14 @@ func TestConsumerCascadeService(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			cascade := consumerCascadeFunc(func(ctx context.Context, id string, threshold time.Duration,
+			cascade := consumerCascadeFunc(func(ctx context.Context, id, consumerName string, threshold time.Duration,
 				build dao.ConsumerCascadeEventBuilder) (api.ResourceList, error) {
-				if id != "id" || threshold != time.Hour || build == nil {
+				if id != "id" || consumerName != "consumer" || threshold != time.Hour || build == nil {
 					t.Fatal("incorrect cascade inputs")
 				}
 				return api.ResourceList{&api.Resource{Meta: api.Meta{ID: "resource"}}}, tc.err
 			})
-			service := NewConsumerServiceWithCascade(consumerDao, cascade, dbmocks.NewMockAdvisoryLockFactory(), 3600)
+			service := NewConsumerServiceWithCascade(consumerDao, cascade, 3600)
 			before := testutil.ToFloat64(consumerCascadedResourcesTotal)
 			svcErr := service.Delete(context.Background(), "id")
 			if tc.wantCode == 0 && svcErr != nil {
@@ -113,11 +117,11 @@ func TestConsumerCascadeService(t *testing.T) {
 // TestConsumerCascadeInvalidThresholdFailsClosed ensures invalid inputs cannot reach the destructive DAO.
 func TestConsumerCascadeInvalidThresholdFailsClosed(t *testing.T) {
 	for _, threshold := range []int{0, -1, math.MaxInt, int(math.MaxInt64/int64(time.Second))*2 + 100} {
-		cascade := consumerCascadeFunc(func(context.Context, string, time.Duration, dao.ConsumerCascadeEventBuilder) (api.ResourceList, error) {
+		cascade := consumerCascadeFunc(func(context.Context, string, string, time.Duration, dao.ConsumerCascadeEventBuilder) (api.ResourceList, error) {
 			t.Fatal("invalid threshold must never reach the cascade DAO")
 			return nil, nil
 		})
-		service := NewConsumerServiceWithCascade(nil, cascade, nil, threshold)
+		service := NewConsumerServiceWithCascade(nil, cascade, threshold)
 		if err := service.Delete(context.Background(), "consumer"); err == nil || err.HttpCode != 403 {
 			t.Fatalf("threshold %d: got %v, want forbidden", threshold, err)
 		}

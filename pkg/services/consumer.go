@@ -11,7 +11,6 @@ import (
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
-	"github.com/openshift-online/maestro/pkg/db"
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 
@@ -35,7 +34,7 @@ func NewConsumerService(consumerDao dao.ConsumerDao) ConsumerService {
 
 // NewConsumerServiceWithCascade enables explicit finalization for decommissioned consumers.
 func NewConsumerServiceWithCascade(consumerDao dao.ConsumerDao, cascade dao.ConsumerCascadeDao,
-	locks db.LockFactory, thresholdSeconds int) ConsumerService {
+	thresholdSeconds int) ConsumerService {
 	var threshold time.Duration
 	if thresholdSeconds > 0 && int64(thresholdSeconds) <= math.MaxInt64/int64(time.Second) {
 		threshold = time.Duration(thresholdSeconds) * time.Second
@@ -43,7 +42,6 @@ func NewConsumerServiceWithCascade(consumerDao dao.ConsumerDao, cascade dao.Cons
 	return &sqlConsumerService{
 		consumerDao:    consumerDao,
 		cascade:        cascade,
-		locks:          locks,
 		staleThreshold: threshold,
 	}
 }
@@ -53,7 +51,6 @@ var _ ConsumerService = &sqlConsumerService{}
 type sqlConsumerService struct {
 	consumerDao    dao.ConsumerDao
 	cascade        dao.ConsumerCascadeDao
-	locks          db.LockFactory
 	staleThreshold time.Duration
 }
 
@@ -100,6 +97,8 @@ func (s *sqlConsumerService) Delete(ctx context.Context, id string) *errors.Serv
 }
 
 // deleteWithCascade coordinates terminal acknowledgements and records only committed finalizations.
+// The consumer advisory lock is taken inside the cascade transaction on the connection that
+// performs the protected writes, so this path never pins a second pooled connection.
 func (s *sqlConsumerService) deleteWithCascade(ctx context.Context, id string) *errors.ServiceError {
 	if s.staleThreshold <= 0 {
 		return errors.Forbidden("Consumer delete cascade requires a positive stale threshold")
@@ -111,12 +110,7 @@ func (s *sqlConsumerService) deleteWithCascade(ctx context.Context, id string) *
 	if err != nil {
 		return handleGetError("Consumer", "id", id, err)
 	}
-	owner, err := s.locks.NewAdvisoryLock(ctx, consumer.Name, db.Consumers)
-	defer s.locks.Unlock(ctx, owner)
-	if err != nil {
-		return errors.DatabaseAdvisoryLock(err)
-	}
-	resources, err := s.cascade.Delete(ctx, id, s.staleThreshold, buildConsumerCascadeEvent)
+	resources, err := s.cascade.Delete(ctx, id, consumer.Name, s.staleThreshold, buildConsumerCascadeEvent)
 	if stderrors.Is(err, dao.ErrConsumerCascadeBlocked) {
 		return errors.Forbidden("Unable to delete consumer: all resources must be soft-deleted longer than the stale threshold")
 	}
