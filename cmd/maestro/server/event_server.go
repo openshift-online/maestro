@@ -171,8 +171,8 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // When a finalizer is given, the terminal acknowledgement runs in one database transaction that
 // takes the consumer advisory lock on its own connection, so concurrent acknowledgements and
 // consumer deletion cascades serialize without pinning extra pooled connections. The finalizer is
-// wired only when --consumer-delete-cascade is enabled; without it, acknowledgements keep the
-// legacy uncoordinated path and take no per-consumer lock.
+// wired only when --consumer-delete-cascade is enabled; without it (or when a nil finalizer is
+// passed), acknowledgements keep the legacy uncoordinated path and take no per-consumer lock.
 func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService,
 	statusEventService services.StatusEventService, finalizers ...dao.ConsumerCascadeDao) error {
 	logger := klog.FromContext(ctx)
@@ -248,7 +248,9 @@ func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceSer
 
 	// if the resource has been deleted from agent, create status event and delete it from maestro
 	if meta.IsStatusConditionTrue(statusPayload.Conditions, common.ResourceDeleted) {
-		if len(finalizers) > 0 {
+		// a nil finalizer is treated as absent: passing a nil interface through the
+		// variadic must select the legacy path, not panic on a nil method call.
+		if len(finalizers) > 0 && finalizers[0] != nil {
 			// The recheck, the terminal status event and the resource removal commit in one
 			// transaction that holds the consumer advisory lock on its own connection.
 			finalized, err := finalizers[0].FinalizeTerminalAck(ctx, resource.ID, resource.ConsumerName,

@@ -91,6 +91,19 @@ its recheck, terminal event, notification and resource removal in that single
 transaction, so a failure cannot leave a terminal event without the resource
 removal or the reverse.
 
+Enabling the flag also changes the acknowledgement path of every consumer,
+not only the ones being decommissioned: each terminal delete acknowledgement
+acquires its consumer's advisory lock, so delete acknowledgements for one
+consumer serialize across all replicas for the duration of each finalization
+transaction. Where acknowledgement handling is already latency-bound, this
+coordination adds to that latency. **When enabling the flag, put a watch on the
+advisory lock metrics**: `advisory_lock_count_total{type="consumers"}` follows
+the terminal acknowledgement volume, and its `status="ERROR"` series reports
+acquisition failures. Transaction-scoped consumer locks report acquisitions and
+errors only — their release is the transaction commit — so they produce no
+unlock counter and no hold-duration samples; the wait itself shows up as
+acknowledgement latency, not as lock metrics.
+
 Within the transaction, the consumer is locked `FOR NO KEY UPDATE` and resource
 rows are locked in ID order. The weaker consumer row lock permits the recovery
 scheduler's foreign-key checks while it holds resource locks, avoiding a
@@ -112,13 +125,21 @@ Each committed resource finalization also produces an audit log with its resourc
 ID and consumer ID. The counter is process-local, not an exactly-once audit
 ledger: a crash after commit but before recording the metric can undercount.
 
+While the cascade flag is enabled, also watch the advisory lock metrics
+described in _Concurrency and recovery state_: every terminal acknowledgement
+acquires the consumer advisory lock, so `advisory_lock_count_total{type="consumers"}`
+tracks acknowledgement coordination volume and its `status="ERROR"` series
+acquisition failures.
+
 ## Trade-offs
 
 The all-or-nothing transaction holds locks for the complete consumer cleanup.
 Large consumers may require a long request and delay acknowledgements for that
 consumer. This is an explicit decommissioning operation, not a periodic sweep or
 a way to increase normal deletion throughput. Other consumers do not take its
-advisory lock.
+advisory lock. While the flag is enabled, terminal acknowledgements for one
+consumer serialize on its advisory lock across replicas; bulk decommissioning
+makes that visible in acknowledgement latency.
 
 ## Alternatives
 

@@ -402,9 +402,10 @@ func TestTerminalAckSmallPoolContention(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 }
 
-// TestTerminalAckWithoutFinalizerSkipsConsumerLock pins the flag-off contract: with no
-// finalizer wired (the default without --consumer-delete-cascade), a terminal acknowledgement
-// keeps the pre-cascade behaviour and does not block on the per-consumer advisory lock.
+// TestTerminalAckWithoutFinalizerSkipsConsumerLock pins the flag-off contract: with a nil
+// finalizer (what NewMessageQueueEventServer leaves in place without --consumer-delete-cascade,
+// and what its subscription passes through the variadic), a terminal acknowledgement keeps the
+// pre-cascade behaviour and does not block on the per-consumer advisory lock.
 func TestTerminalAckWithoutFinalizerSkipsConsumerLock(t *testing.T) {
 	h, _ := test.RegisterIntegration(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -420,10 +421,13 @@ func TestTerminalAckWithoutFinalizerSkipsConsumerLock(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 	defer locks.Unlock(ctx, owner)
 
+	// the message-queue subscription passes its nil finalizer through the variadic, so an
+	// explicit nil (not a missing argument) must select the legacy path rather than panic
+	var finalizer dao.ConsumerCascadeDao
 	ackErr := make(chan error, 1)
 	go func() {
 		ackErr <- server.HandleStatusUpdate(ctx, terminalAck(resource, consumer.Name),
-			h.Env().Services.Resources(), h.Env().Services.StatusEvents())
+			h.Env().Services.Resources(), h.Env().Services.StatusEvents(), finalizer)
 	}()
 	Eventually(ackErr, 5*time.Second).Should(Receive(BeNil()), "the uncoordinated path must not wait on the consumer lock")
 
