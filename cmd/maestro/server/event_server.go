@@ -112,7 +112,11 @@ func (s *MessageQueueEventServer) startSubscription(ctx context.Context) {
 		}
 
 		// handle the resource status update according status update type
-		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService, s.finalizer); err != nil {
+		var finalizers []dao.ConsumerCascadeDao
+		if s.finalizer != nil {
+			finalizers = append(finalizers, s.finalizer)
+		}
+		if err := HandleStatusUpdate(subCtx, resource, s.resourceService, s.statusEventService, finalizers...); err != nil {
 			return fmt.Errorf("failed to handle resource status update %s: %s", resource.ID, err.Error())
 		}
 
