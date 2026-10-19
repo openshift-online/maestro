@@ -75,9 +75,11 @@ acknowledgement.
 Consumer cascades and terminal agent acknowledgements share a per-consumer
 advisory lock. An acknowledgement re-reads the resource under that lock before
 creating a terminal event, so an acknowledgement racing a cascade cannot emit a
-second terminal event for a resource already finalized by the cascade. All
-servers must use this coordination code before enabling the flag; it cannot
-coordinate older binaries during a mixed-version rollout.
+second terminal event for a resource already finalized by the cascade. The
+coordination is wired only when `--consumer-delete-cascade` is enabled: with the
+flag off, terminal acknowledgements keep the pre-cascade behaviour and take no
+per-consumer lock. All servers must use this coordination code before enabling
+the flag; it cannot coordinate older binaries during a mixed-version rollout.
 
 The advisory lock is taken on the database transaction that performs the
 protected reads and writes, and is released when that transaction commits or

@@ -402,6 +402,36 @@ func TestTerminalAckSmallPoolContention(t *testing.T) {
 	Expect(err).NotTo(HaveOccurred())
 }
 
+// TestTerminalAckWithoutFinalizerSkipsConsumerLock pins the flag-off contract: with no
+// finalizer wired (the default without --consumer-delete-cascade), a terminal acknowledgement
+// keeps the pre-cascade behaviour and does not block on the per-consumer advisory lock.
+func TestTerminalAckWithoutFinalizerSkipsConsumerLock(t *testing.T) {
+	h, _ := test.RegisterIntegration(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	consumer, err := h.CreateConsumer("cascade-" + uuid.NewString())
+	Expect(err).NotTo(HaveOccurred())
+	resource := cascadeResource(h, consumer.Name, 0)
+
+	// hold the consumer advisory lock the way an enabled cascade would
+	locks := db.NewAdvisoryLockFactory(h.DBFactory)
+	owner, err := locks.NewAdvisoryLock(ctx, consumer.Name, db.Consumers)
+	Expect(err).NotTo(HaveOccurred())
+	defer locks.Unlock(ctx, owner)
+
+	ackErr := make(chan error, 1)
+	go func() {
+		ackErr <- server.HandleStatusUpdate(ctx, terminalAck(resource, consumer.Name),
+			h.Env().Services.Resources(), h.Env().Services.StatusEvents())
+	}()
+	Eventually(ackErr, 5*time.Second).Should(Receive(BeNil()), "the uncoordinated path must not wait on the consumer lock")
+
+	_, svcErr := h.Env().Services.Resources().Get(ctx, resource.ID)
+	Expect(svcErr).NotTo(BeNil())
+	Expect(svcErr.Is404()).To(BeTrue())
+}
+
 // TestConsumerCascadeConcurrentCreate verifies a new resource can pass its FK check under NO KEY UPDATE.
 // The final consumer DELETE must then refuse and roll back the complete cascade.
 func TestConsumerCascadeConcurrentCreate(t *testing.T) {

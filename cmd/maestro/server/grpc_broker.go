@@ -181,6 +181,15 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 	resourceService := env().Services.Resources()
 	statusEventService := env().Services.StatusEvents()
 
+	// The per-consumer advisory lock coordinates terminal acknowledgements with
+	// consumer deletion cascades. It is wired only when the cascade is enabled:
+	// with the flag off, acknowledgements keep the pre-cascade behaviour and take
+	// no per-consumer lock at all.
+	var finalizers []dao.ConsumerCascadeDao
+	if env().Config.EventServer.ConsumerDeleteCascade {
+		finalizers = append(finalizers, dao.NewConsumerCascadeDao(sessionFactory))
+	}
+
 	// TODO after the sdk go support source grpc server
 	grpcServer := grpc.NewServer(grpcServerOptions...)
 	eventServer := servergrpc.NewGRPCBroker(&servergrpc.BrokerOptions{
@@ -188,7 +197,7 @@ func NewGRPCBroker(ctx context.Context, eventBroadcaster *event.EventBroadcaster
 		HeartbeatCheckInterval: config.HeartbeatCheckInterval,
 	})
 	pbv1.RegisterCloudEventServiceServer(grpcServer, eventServer)
-	svc := NewGRPCBrokerService(resourceService, statusEventService, dao.NewConsumerCascadeDao(sessionFactory))
+	svc := NewGRPCBrokerService(resourceService, statusEventService, finalizers...)
 	eventServer.RegisterService(context.Background(), workpayload.ManifestBundleEventDataType, svc)
 
 	return &GRPCBroker{

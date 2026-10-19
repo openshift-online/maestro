@@ -62,16 +62,23 @@ type MessageQueueEventServer struct {
 
 func NewMessageQueueEventServer(eventBroadcaster *event.EventBroadcaster, statusDispatcher dispatcher.Dispatcher) EventServer {
 	sessionFactory := env().Database.SessionFactory
-	return &MessageQueueEventServer{
+	eventServer := &MessageQueueEventServer{
 		instanceID:         env().Config.MessageBroker.ClientID,
 		eventInstanceDao:   dao.NewEventInstanceDao(&sessionFactory),
-		finalizer:          dao.NewConsumerCascadeDao(sessionFactory),
 		eventBroadcaster:   eventBroadcaster,
 		resourceService:    env().Services.Resources(),
 		statusEventService: env().Services.StatusEvents(),
 		sourceClient:       env().Clients.CloudEventsSource,
 		statusDispatcher:   statusDispatcher,
 	}
+	// The per-consumer advisory lock coordinates terminal acknowledgements with
+	// consumer deletion cascades. It is wired only when the cascade is enabled:
+	// with the flag off, acknowledgements keep the pre-cascade behaviour and take
+	// no per-consumer lock at all.
+	if env().Config.EventServer.ConsumerDeleteCascade {
+		eventServer.finalizer = dao.NewConsumerCascadeDao(sessionFactory)
+	}
+	return eventServer
 }
 
 // Start initializes and runs the event server. It starts the subscription
@@ -159,7 +166,9 @@ func (s *MessageQueueEventServer) PredicateEvent(ctx context.Context, eventID st
 // otherwise, updates the resource status and creates a status event.
 // When a finalizer is given, the terminal acknowledgement runs in one database transaction that
 // takes the consumer advisory lock on its own connection, so concurrent acknowledgements and
-// consumer deletion cascades serialize without pinning extra pooled connections.
+// consumer deletion cascades serialize without pinning extra pooled connections. The finalizer is
+// wired only when --consumer-delete-cascade is enabled; without it, acknowledgements keep the
+// legacy uncoordinated path and take no per-consumer lock.
 func HandleStatusUpdate(ctx context.Context, resource *api.Resource, resourceService services.ResourceService,
 	statusEventService services.StatusEventService, finalizers ...dao.ConsumerCascadeDao) error {
 	logger := klog.FromContext(ctx)
