@@ -7,7 +7,7 @@ on:
       - backplane-5.0
 
 env:
-  GO_VERSION: '1.25'
+  GO_VERSION: '1.26.10'
   GO_REQUIRED_MIN_VERSION: ''
 
 permissions:
