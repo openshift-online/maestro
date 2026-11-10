@@ -6,6 +6,7 @@ import (
 
 	"github.com/jinzhu/inflection"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/openshift-online/maestro/pkg/db"
 )
@@ -15,7 +16,9 @@ type GenericDao interface {
 
 	GetInstanceDao(ctx context.Context, model interface{}) GenericDao
 	Preload(preload string)
-	OrderBy(orderBy string)
+	OrderBy(field string, descending bool) bool
+	ResolveColumn(field string) (string, bool)
+	ColumnNames() []string
 	Joins(sql string)
 	Group(sql string)
 	Where(sql string, values []interface{})
@@ -61,8 +64,81 @@ func (d *sqlGenericDao) Preload(preload string) {
 	d.g2 = d.g2.Preload(preload)
 }
 
-func (d *sqlGenericDao) OrderBy(orderBy string) {
-	d.g2 = d.g2.Order(orderBy)
+func (d *sqlGenericDao) OrderBy(field string, descending bool) bool {
+	column, ok := d.resolveColumn(field, false)
+	if !ok {
+		return false
+	}
+	d.g2 = d.g2.Order(clause.OrderByColumn{Column: column, Desc: descending})
+	return true
+}
+
+// ResolveColumn resolves a field name to its canonical database column,
+// e.g. "CreatedAt" -> "created_at" or "resources.CreatedAt" ->
+// "resources.created_at". The second return value is false when the field
+// does not resolve to a column of the model (or of a related model), so
+// callers can reject user-controlled identifiers before they reach SQL.
+func (d *sqlGenericDao) ResolveColumn(field string) (string, bool) {
+	column, ok := d.resolveColumn(field, true)
+	if !ok {
+		return "", false
+	}
+	if column.Table != "" {
+		return column.Table + "." + column.Name, true
+	}
+	return column.Name, true
+}
+
+func (d *sqlGenericDao) ColumnNames() []string {
+	if d.g2 == nil || d.g2.Statement == nil || d.g2.Statement.Parse(d.g2.Statement.Model) != nil || d.g2.Statement.Schema == nil {
+		return nil
+	}
+	return append([]string(nil), d.g2.Statement.Schema.DBNames...)
+}
+
+func (d *sqlGenericDao) resolveColumn(name string, allowRelated bool) (clause.Column, bool) {
+	if d.g2 == nil || d.g2.Statement == nil || d.g2.Statement.Parse(d.g2.Statement.Model) != nil || d.g2.Statement.Schema == nil {
+		return clause.Column{}, false
+	}
+
+	parts := strings.Split(name, ".")
+	if len(parts) > 2 || len(parts) == 0 {
+		return clause.Column{}, false
+	}
+
+	rootSchema := d.g2.Statement.Schema
+	fieldName := parts[0]
+	fieldSchema := rootSchema
+	if len(parts) == 2 {
+		tableName := parts[0]
+		fieldName = parts[1]
+		if tableName != rootSchema.Table {
+			if !allowRelated {
+				return clause.Column{}, false
+			}
+			fieldSchema = nil
+			for _, relation := range rootSchema.Relationships.Relations {
+				if relation.FieldSchema != nil && relation.FieldSchema.Table == tableName {
+					fieldSchema = relation.FieldSchema
+					break
+				}
+			}
+			if fieldSchema == nil {
+				return clause.Column{}, false
+			}
+		}
+	}
+
+	field := fieldSchema.LookUpField(fieldName)
+	if field == nil || field.DBName == "" {
+		return clause.Column{}, false
+	}
+
+	column := clause.Column{Name: field.DBName}
+	if len(parts) == 2 {
+		column.Table = parts[0]
+	}
+	return column, true
 }
 
 func (d *sqlGenericDao) Joins(sql string) {
