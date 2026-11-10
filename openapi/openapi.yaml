@@ -507,19 +507,22 @@ components:
       description: |-
         Specifies the search criteria. The syntax of this parameter is
         similar to the syntax of the _where_ clause of an SQL statement,
-        using the names of the json attributes / column names of the account. 
-        For example, in order to retrieve all the accounts with a username
-        starting with `my`:
+        using persisted column names from the listed resource model. Search
+        identifiers must resolve to a model column or a permitted related
+        resource column; SQL expressions are not accepted. JSONB operators may
+        be used only with a persisted JSONB column.
+        For example, to find resources or consumers whose name starts with
+        `prod`:
 
         ```sql
-        username like 'my%'
+        name like 'prod%'
         ```
 
-        The search criteria can also be applied on related resource.
-        For example, in order to retrieve all the subscriptions labeled by `foo=bar`,
+        JSONB fields can be searched using JSONB operators. For example, to
+        find resources whose payload metadata has a label `cluster=east`:
 
         ```sql
-        subscription_labels.key = 'foo' and subscription_labels.value = 'bar'
+        payload -> 'metadata' -> 'labels' @> '{"cluster":"east"}'
         ```
 
         If the parameter isn't provided, or if the value is empty, then
@@ -534,17 +537,20 @@ components:
       description: |-
         Specifies the order by criteria. The syntax of this parameter is
         similar to the syntax of the _order by_ clause of an SQL statement,
-        but using the names of the json attributes / column of the account.
-        For example, in order to retrieve all accounts ordered by username:
+        but using a persisted column name from the listed resource model.
+        Each field must resolve to a model column; SQL expressions and related
+        resource fields are not accepted. The optional direction must be
+        `asc` or `desc` (default: `asc`).
+        For example, to order by name:
 
         ```sql
-        username asc
+        name asc
         ```
 
-        Or in order to retrieve all accounts ordered by username _and_ first name:
+        Or to order by name and then creation time:
 
         ```sql
-        username asc, firstName asc
+        name asc, created_at desc
         ```
 
         If the parameter isn't provided, or if the value is empty, then
