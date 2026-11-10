@@ -139,7 +139,16 @@ func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao
 			return false, serviceErr
 		}
 		for _, orderByArg := range orderByArgs {
-			(*d).OrderBy(orderByArg)
+			// Resolve the field to a canonical model column and re-check the
+			// disallowlist against the resolved name so field-name aliases
+			// (e.g. "ID" for "id") cannot bypass it.
+			resolved, ok := (*d).ResolveColumn(orderByArg.Field)
+			if !ok || disallowedColumn(resolved, *listCtx.disallowedFields) {
+				return false, errors.BadRequest("%s is not a valid order field", orderByArg.Field)
+			}
+			if !(*d).OrderBy(resolved, orderByArg.Descending) {
+				return false, errors.BadRequest("%s is not a valid order field", orderByArg.Field)
+			}
 		}
 	}
 	return false, nil
@@ -152,7 +161,17 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	}
 
 	if isJSONBSearch(listCtx.args.Search) {
-		parser := sql_parser.NewSQLParser()
+		validColumns := make([]string, 0)
+		for _, column := range (*d).ColumnNames() {
+			if _, disallowed := (*listCtx.disallowedFields)[column]; !disallowed {
+				validColumns = append(validColumns, column)
+				validColumns = append(validColumns, (*d).GetTableName()+"."+column)
+			}
+		}
+		if len(validColumns) == 0 {
+			return false, errors.BadRequest("no searchable columns are available for this resource")
+		}
+		parser := sql_parser.NewSQLParser(sql_parser.WithValidColumns(validColumns...))
 		sql, values, err := parser.Parse(listCtx.args.Search)
 		if err != nil {
 			return false, errors.BadRequest("failed to parse the search query: %v", err)
@@ -177,7 +196,7 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 		return false, serviceErr
 	}
 	// convert to sqlizer
-	_, sqlizer, serviceErr := s.treeWalkForSqlizer(listCtx, tslTree)
+	_, sqlizer, serviceErr := s.treeWalkForSqlizer(listCtx, tslTree, d)
 	if serviceErr != nil {
 		return false, serviceErr
 	}
@@ -325,11 +344,26 @@ func (s *sqlGenericService) treeWalkForAddingTableName(tslTree tsl.Node, dao *da
 	return tslTree, nil
 }
 
-func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl.Node) (tsl.Node, squirrel.Sqlizer, *errors.ServiceError) {
+func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl.Node, d *dao.GenericDao) (tsl.Node, squirrel.Sqlizer, *errors.ServiceError) {
 	// Check field names in tree
 	tslTree, serviceErr := db.FieldNameWalk(tslTree, *listCtx.disallowedFields)
 	if serviceErr != nil {
 		return tslTree, nil, serviceErr
+	}
+
+	// Resolve every identifier to a canonical model column (or a column of a
+	// declared related model) before the SQL walker emits it as an expression.
+	// Re-checking the disallowlist against the resolved name prevents
+	// field-name aliases from bypassing it.
+	tslTree, err := ident.Walk(tslTree, func(field string) (string, error) {
+		resolved, ok := (*d).ResolveColumn(field)
+		if !ok || disallowedColumn(resolved, *listCtx.disallowedFields) {
+			return field, fmt.Errorf("%s is not a valid field name", field)
+		}
+		return resolved, nil
+	})
+	if err != nil {
+		return tslTree, nil, errors.BadRequest("%s", err.Error())
 	}
 
 	// Convert the search tree into SQL [Squirrel] filter
@@ -346,4 +380,14 @@ func isJSONBSearch(search string) bool {
 		return true
 	}
 	return false
+}
+
+// disallowedColumn reports whether the bare column name of a canonical
+// table-qualified column (e.g. "id" of "resources.id") is disallowed.
+func disallowedColumn(column string, disallowedFields map[string]string) bool {
+	if idx := strings.LastIndex(column, "."); idx >= 0 {
+		column = column[idx+1:]
+	}
+	_, disallowed := disallowedFields[column]
+	return disallowed
 }
