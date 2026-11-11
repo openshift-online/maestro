@@ -13,6 +13,7 @@ import (
 	"github.com/yaacov/tree-search-language/pkg/walkers/ident"
 	sqlFilter "github.com/yaacov/tree-search-language/pkg/walkers/sql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -50,7 +51,7 @@ type listContext struct {
 	disallowedFields *map[string]string
 	resourceType     string
 	joins            map[string]dao.TableRelation
-	groupBy          []string
+	groupBy          []clause.Column
 	set              map[string]struct{}
 }
 
@@ -132,6 +133,7 @@ func (s *sqlGenericService) buildPreload(listCtx *listContext, d *dao.GenericDao
 	return false, nil
 }
 
+// buildOrderBy validates each requested field against the model before ordering.
 func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao) (bool, *errors.ServiceError) {
 	if len(listCtx.args.OrderBy) != 0 {
 		orderByArgs, serviceErr := db.ArgsToOrderBy(listCtx.args.OrderBy, *listCtx.disallowedFields)
@@ -144,16 +146,17 @@ func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao
 			// (e.g. "ID" for "id") cannot bypass it.
 			resolved, ok := (*d).ResolveColumn(orderByArg.Field)
 			if !ok || disallowedColumn(resolved, *listCtx.disallowedFields) {
-				return false, errors.BadRequest("%s is not a valid order field", orderByArg.Field)
+				return false, errors.BadRequest("an order field is not valid")
 			}
 			if !(*d).OrderBy(resolved, orderByArg.Descending) {
-				return false, errors.BadRequest("%s is not a valid order field", orderByArg.Field)
+				return false, errors.BadRequest("an order field is not valid")
 			}
 		}
 	}
 	return false, nil
 }
 
+// buildSearch translates a validated search expression into parameterized SQL.
 func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao) (bool, *errors.ServiceError) {
 	if listCtx.args.Search == "" {
 		s.addJoins(listCtx, d)
@@ -174,7 +177,7 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 		parser := sql_parser.NewSQLParser(sql_parser.WithValidColumns(validColumns...))
 		sql, values, err := parser.Parse(listCtx.args.Search)
 		if err != nil {
-			return false, errors.BadRequest("failed to parse the search query: %v", err)
+			return false, errors.BadRequest("failed to parse the search query")
 		}
 		(*d).Where(sql, values.([]interface{}))
 		return true, nil
@@ -183,7 +186,7 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	// create the TSL tree
 	tslTree, err := tsl.ParseTSL(listCtx.args.Search)
 	if err != nil {
-		return false, errors.BadRequest("Failed to parse search query: %s", listCtx.args.Search)
+		return false, errors.BadRequest("failed to parse the search query")
 	}
 	// find all related tables
 	tslTree, serviceErr := s.treeWalkForRelatedTables(listCtx, tslTree, d)
@@ -212,24 +215,21 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	return true, nil
 }
 
-// JOIN the tables that appear in the search string
+// addJoins adds schema-derived joins and groups for related search fields.
 func (s *sqlGenericService) addJoins(listCtx *listContext, d *dao.GenericDao) {
 	for _, r := range listCtx.joins {
 		if _, ok := listCtx.set[r.ForeignTableName]; ok {
 			// skip already included preloads
 			continue
 		}
-		sql := fmt.Sprintf(
-			"LEFT JOIN %s ON %s.%s = %s.%s AND %s.deleted_at IS NULL",
-			r.ForeignTableName, r.ForeignTableName, r.ForeignColumnName, r.TableName, r.ColumnName, r.ForeignTableName)
-		(*d).Joins(sql)
+		(*d).Joins(r)
 
-		listCtx.groupBy = append(listCtx.groupBy, r.ForeignTableName+".id")
+		listCtx.groupBy = append(listCtx.groupBy, clause.Column{Table: r.ForeignTableName, Name: "id"})
 	}
 	if len(listCtx.joins) > 0 {
 		// Add base relation
-		listCtx.groupBy = append(listCtx.groupBy, (*d).GetTableName()+".id")
-		(*d).Group(strings.Join(listCtx.groupBy, ","))
+		listCtx.groupBy = append(listCtx.groupBy, clause.Column{Table: (*d).GetTableName(), Name: "id"})
+		(*d).Group(listCtx.groupBy...)
 	}
 
 	// Reset list of joins and group by's
@@ -315,7 +315,7 @@ func (s *sqlGenericService) treeWalkForRelatedTables(listCtx *listContext, tslTr
 
 	tslTree, err := ident.Walk(tslTree, walkFn)
 	if err != nil {
-		return tslTree, errors.BadRequest("%s", err.Error())
+		return tslTree, errors.BadRequest("search contains an invalid related field")
 	}
 
 	return tslTree, nil
@@ -338,7 +338,7 @@ func (s *sqlGenericService) treeWalkForAddingTableName(tslTree tsl.Node, dao *da
 
 	tslTree, err := ident.Walk(tslTree, walkFn)
 	if err != nil {
-		return tslTree, errors.BadRequest("%s", err.Error())
+		return tslTree, errors.BadRequest("search contains an invalid field")
 	}
 
 	return tslTree, nil
@@ -363,13 +363,13 @@ func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl
 		return resolved, nil
 	})
 	if err != nil {
-		return tslTree, nil, errors.BadRequest("%s", err.Error())
+		return tslTree, nil, errors.BadRequest("search contains an invalid field")
 	}
 
 	// Convert the search tree into SQL [Squirrel] filter
 	sqlizer, err := sqlFilter.Walk(tslTree)
 	if err != nil {
-		return tslTree, nil, errors.BadRequest("%s", err.Error())
+		return tslTree, nil, errors.BadRequest("failed to build the search query")
 	}
 
 	return tslTree, sqlizer, nil

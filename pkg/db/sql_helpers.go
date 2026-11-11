@@ -20,12 +20,12 @@ func getField(name string, disallowedFields map[string]string) (field string, er
 	checkName := trimmedName
 	fieldParts := strings.Split(trimmedName, ".")
 	if len(fieldParts) > 2 {
-		err = errors.BadRequest("%s is not a valid field name", name)
+		err = errors.BadRequest("a search field is not valid")
 		return
 	}
 	for _, part := range fieldParts {
 		if !isSQLIdentifier(part) {
-			err = errors.BadRequest("%s is not a valid field name", name)
+			err = errors.BadRequest("a search field is not valid")
 			return
 		}
 	}
@@ -36,7 +36,7 @@ func getField(name string, disallowedFields map[string]string) (field string, er
 	// Check for allowed fields
 	_, ok := disallowedFields[checkName]
 	if ok {
-		err = errors.BadRequest("%s is not a valid field name", name)
+		err = errors.BadRequest("a search field is not valid")
 		return
 	}
 	field = trimmedName
@@ -161,13 +161,13 @@ func ArgsToOrderBy(
 		for _, arg := range orderByArgs {
 			parts := strings.Fields(arg)
 			if len(parts) < 1 || len(parts) > 2 {
-				err = errors.BadRequest("bad order value '%s'", arg)
+				err = errors.BadRequest("an order value is not valid")
 				return
 			}
 
 			field, fieldErr := getField(parts[0], disallowedFields)
 			if fieldErr != nil {
-				err = errors.BadRequest("bad order value '%s'", arg)
+				err = errors.BadRequest("an order value is not valid")
 				return
 			}
 
@@ -178,7 +178,7 @@ func ArgsToOrderBy(
 				case "desc":
 					descending = true
 				default:
-					err = errors.BadRequest("bad order value '%s'", arg)
+					err = errors.BadRequest("an order value is not valid")
 					return
 				}
 			}
@@ -188,6 +188,7 @@ func ArgsToOrderBy(
 	return
 }
 
+// GetTableName returns the table name associated with the GORM model.
 func GetTableName(g2 *gorm.DB) string {
 	if g2.Statement.Parse(g2.Statement.Model) != nil {
 		return "xxx"
