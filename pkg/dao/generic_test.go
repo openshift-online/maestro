@@ -6,6 +6,7 @@ import (
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/openshift-online/maestro/pkg/api"
 )
@@ -115,4 +116,33 @@ func TestColumnNamesAreDerivedFromModelSchema(t *testing.T) {
 		}
 	}
 	t.Fatalf("expected payload in model columns, got %v", columns)
+}
+
+// TestJoinsAndGroupsUseStructuredColumns checks that GORM quotes relation identifiers.
+func TestJoinsAndGroupsUseStructuredColumns(t *testing.T) {
+	g2, err := gorm.Open(postgres.New(postgres.Config{
+		DSN: "host=localhost user=postgres dbname=maestro sslmode=disable",
+	}), &gorm.Config{DryRun: true, DisableAutomaticPing: true})
+	if err != nil {
+		t.Fatalf("failed to create dry-run GORM session: %v", err)
+	}
+
+	d := &sqlGenericDao{g2: g2.Model(&api.Resource{})}
+	d.Joins(TableRelation{
+		TableName:         "resources",
+		ColumnName:        "consumer_name",
+		ForeignTableName:  "consumers",
+		ForeignColumnName: "name",
+	})
+	d.Group(clause.Column{Table: "resources", Name: "id"}, clause.Column{Table: "consumers", Name: "id"})
+
+	query := d.g2.Find(&[]api.Resource{}).Statement.SQL.String()
+	for _, expected := range []string{
+		`LEFT JOIN "consumers" ON "consumers"."name" = "resources"."consumer_name" AND "consumers"."deleted_at" IS NULL`,
+		`GROUP BY "resources"."id","consumers"."id"`,
+	} {
+		if !strings.Contains(query, expected) {
+			t.Fatalf("expected structured join/group fragment %q, got SQL: %s", expected, query)
+		}
+	}
 }

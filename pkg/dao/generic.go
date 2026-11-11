@@ -11,6 +11,7 @@ import (
 	"github.com/openshift-online/maestro/pkg/db"
 )
 
+// GenericDao exposes schema-aware query operations for list endpoints.
 type GenericDao interface {
 	Fetch(offset int, limit int, resourceList interface{}) error
 
@@ -19,8 +20,8 @@ type GenericDao interface {
 	OrderBy(field string, descending bool) bool
 	ResolveColumn(field string) (string, bool)
 	ColumnNames() []string
-	Joins(sql string)
-	Group(sql string)
+	Joins(relation TableRelation)
+	Group(columns ...clause.Column)
 	Where(sql string, values []interface{})
 	Count(model interface{}, total *int64)
 	Validate(resourceList interface{}) error
@@ -36,7 +37,7 @@ type sqlGenericDao struct {
 	g2             *gorm.DB
 }
 
-// represents a relationship between two tables. They can be joined,
+// TableRelation represents a relationship between two tables. They can be joined,
 // ON TableName.ColumnName = ForeignTableName.ForeignColumnName
 type TableRelation struct {
 	TableName         string
@@ -45,10 +46,12 @@ type TableRelation struct {
 	ForeignColumnName string
 }
 
+// NewGenericDao creates a generic DAO backed by the provided session factory.
 func NewGenericDao(sessionFactory *db.SessionFactory) GenericDao {
 	return &sqlGenericDao{sessionFactory: sessionFactory}
 }
 
+// GetInstanceDao returns a DAO session scoped to the supplied model.
 func (d *sqlGenericDao) GetInstanceDao(ctx context.Context, model interface{}) GenericDao {
 	return &sqlGenericDao{
 		sessionFactory: d.sessionFactory,
@@ -56,14 +59,17 @@ func (d *sqlGenericDao) GetInstanceDao(ctx context.Context, model interface{}) G
 	}
 }
 
+// Fetch loads a page of records into resourceList.
 func (d *sqlGenericDao) Fetch(offset int, limit int, resourceList interface{}) error {
 	return d.g2.Debug().Unscoped().Offset(offset).Limit(limit).Find(resourceList).Error
 }
 
+// Preload adds a model association to preload when fetching records.
 func (d *sqlGenericDao) Preload(preload string) {
 	d.g2 = d.g2.Preload(preload)
 }
 
+// OrderBy adds an ordering for a field resolved from the model schema.
 func (d *sqlGenericDao) OrderBy(field string, descending bool) bool {
 	column, ok := d.resolveColumn(field, false)
 	if !ok {
@@ -89,6 +95,7 @@ func (d *sqlGenericDao) ResolveColumn(field string) (string, bool) {
 	return column.Name, true
 }
 
+// ColumnNames returns the database column names declared by the model schema.
 func (d *sqlGenericDao) ColumnNames() []string {
 	if d.g2 == nil || d.g2.Statement == nil || d.g2.Statement.Parse(d.g2.Statement.Model) != nil || d.g2.Statement.Schema == nil {
 		return nil
@@ -141,18 +148,36 @@ func (d *sqlGenericDao) resolveColumn(name string, allowRelated bool) (clause.Co
 	return column, true
 }
 
-func (d *sqlGenericDao) Joins(sql string) {
-	d.g2 = d.g2.Joins(sql)
+// Joins adds a left join using schema-derived table and column identifiers.
+func (d *sqlGenericDao) Joins(relation TableRelation) {
+	foreignTable := clause.Table{Name: relation.ForeignTableName}
+	d.g2 = d.g2.Clauses(clause.Join{
+		Type:  clause.LeftJoin,
+		Table: foreignTable,
+		ON: clause.Where{Exprs: []clause.Expression{
+			clause.Eq{
+				Column: clause.Column{Table: relation.ForeignTableName, Name: relation.ForeignColumnName},
+				Value:  clause.Column{Table: relation.TableName, Name: relation.ColumnName},
+			},
+			clause.Eq{
+				Column: clause.Column{Table: relation.ForeignTableName, Name: "deleted_at"},
+				Value:  nil,
+			},
+		}},
+	})
 }
 
-func (d *sqlGenericDao) Group(sql string) {
-	d.g2 = d.g2.Group(sql)
+// Group adds a GROUP BY clause using structured column identifiers.
+func (d *sqlGenericDao) Group(columns ...clause.Column) {
+	d.g2 = d.g2.Clauses(clause.GroupBy{Columns: columns})
 }
 
+// Where adds a predicate and its bound values to the query.
 func (d *sqlGenericDao) Where(sql string, values []interface{}) {
 	d.g2 = d.g2.Where(sql, values...)
 }
 
+// Count records matching the current query into total.
 func (d *sqlGenericDao) Count(model interface{}, total *int64) {
 	g2 := d.g2.Session(&gorm.Session{DryRun: false}).Model(model)
 	// There is no need in ORDER BY, GROUP BY and LIMIT in order to count records
@@ -180,8 +205,9 @@ func (d *sqlGenericDao) Count(model interface{}, total *int64) {
 	}
 }
 
-// Gorm finishers (Take, First, Last, etc.) are not idempotent
-// Use a new session to execute these checks
+// Validate checks whether at least one matching record exists.
+// GORM finishers (Take, First, Last, etc.) are not idempotent, so this uses a
+// new session to execute the check.
 func (d *sqlGenericDao) Validate(resourceList interface{}) error {
 	if err := d.g2.Session(&gorm.Session{DryRun: false}).Take(resourceList).Error; err != nil {
 		return err
@@ -189,11 +215,12 @@ func (d *sqlGenericDao) Validate(resourceList interface{}) error {
 	return nil
 }
 
+// GetTableName returns the table name from the model schema.
 func (d *sqlGenericDao) GetTableName() string {
 	return db.GetTableName(d.g2)
 }
 
-// extract the relation from the api model
+// GetTableRelation returns the model association corresponding to fieldName.
 func (d *sqlGenericDao) GetTableRelation(fieldName string) (TableRelation, bool) {
 	// try singular
 	fieldName = strings.ToUpper(fieldName[:1]) + fieldName[1:]
