@@ -118,6 +118,36 @@ func TestColumnNamesAreDerivedFromModelSchema(t *testing.T) {
 	t.Fatalf("expected payload in model columns, got %v", columns)
 }
 
+func TestIsJSONColumnUsesModelSchema(t *testing.T) {
+	g2, err := gorm.Open(postgres.New(postgres.Config{
+		DSN: "host=localhost user=postgres dbname=maestro sslmode=disable",
+	}), &gorm.Config{DryRun: true, DisableAutomaticPing: true})
+	if err != nil {
+		t.Fatalf("failed to create dry-run GORM session: %v", err)
+	}
+
+	resourceDAO := &sqlGenericDao{g2: g2.Model(&api.Resource{})}
+	for _, field := range []string{"payload", "status"} {
+		if !resourceDAO.IsJSONColumn(field) {
+			t.Errorf("expected %s to be recognized as a JSON column", field)
+		}
+	}
+	if !resourceDAO.IsJSONColumn("PAYLOAD") {
+		t.Error("expected uppercase payload to be recognized as a JSON column")
+	}
+	if resourceDAO.IsJSONColumn("name") {
+		t.Error("expected resource name to be recognized as a non-JSON column")
+	}
+
+	consumerDAO := &sqlGenericDao{g2: g2.Model(&api.Consumer{})}
+	if !consumerDAO.IsJSONColumn("labels") {
+		t.Error("expected consumer labels to be recognized as a JSON column")
+	}
+	if consumerDAO.IsJSONColumn("name") {
+		t.Error("expected consumer name to be recognized as a non-JSON column")
+	}
+}
+
 // TestJoinsAndGroupsUseStructuredColumns checks that relation identifiers are
 // quoted, that joins extend the FROM clause rather than the WHERE clause, and
 // that repeated joins accumulate instead of replacing each other.

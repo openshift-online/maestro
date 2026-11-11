@@ -164,6 +164,12 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	}
 
 	if isJSONBSearch(listCtx.args.Search) {
+		for _, field := range jsonOperatorBaseColumns(listCtx.args.Search) {
+			if !(*d).IsJSONColumn(field) {
+				return false, errors.BadRequest("JSON operators require a JSON column")
+			}
+		}
+
 		validColumns := make([]string, 0)
 		for _, column := range (*d).ColumnNames() {
 			if _, disallowed := (*listCtx.disallowedFields)[column]; !disallowed {
@@ -380,6 +386,74 @@ func isJSONBSearch(search string) bool {
 		return true
 	}
 	return false
+}
+
+// jsonOperatorBaseColumns finds column identifiers immediately before JSON
+// operators, skipping quoted string values so JSON keys and scalar literals
+// are not mistaken for column names.
+func jsonOperatorBaseColumns(search string) []string {
+	var columns []string
+	seen := make(map[string]struct{})
+	for i := 0; i < len(search); {
+		if search[i] == '\'' {
+			i = skipQuotedSearchValue(search, i)
+			continue
+		}
+
+		operatorLength := 0
+		switch {
+		case strings.HasPrefix(search[i:], "->>"):
+			operatorLength = len("->>")
+		case strings.HasPrefix(search[i:], "->"), strings.HasPrefix(search[i:], "@>"):
+			operatorLength = 2
+		}
+		if operatorLength == 0 {
+			i++
+			continue
+		}
+
+		end := i
+		for end > 0 && (search[end-1] == ' ' || search[end-1] == '\t' || search[end-1] == '\n' || search[end-1] == '\r') {
+			end--
+		}
+		start := end
+		for start > 0 && isSQLIdentifierByte(search[start-1]) {
+			start--
+		}
+		if start < end {
+			column := search[start:end]
+			if _, exists := seen[column]; !exists {
+				seen[column] = struct{}{}
+				columns = append(columns, column)
+			}
+		}
+		i += operatorLength
+	}
+	return columns
+}
+
+func skipQuotedSearchValue(search string, start int) int {
+	for i := start + 1; i < len(search); i++ {
+		switch search[i] {
+		case '\\':
+			if i+1 < len(search) {
+				i++
+			}
+		case '\'':
+			if i+1 < len(search) && search[i+1] == '\'' {
+				i++
+				continue
+			}
+			return i + 1
+		}
+	}
+	return len(search)
+}
+
+func isSQLIdentifierByte(value byte) bool {
+	return value == '_' || value == '.' ||
+		(value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
+		(value >= '0' && value <= '9')
 }
 
 // disallowedColumn reports whether the bare column name of a canonical

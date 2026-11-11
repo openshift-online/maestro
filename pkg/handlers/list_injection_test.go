@@ -91,6 +91,24 @@ func (d *recordingGenericDao) ResolveColumn(field string) (string, bool) {
 	return column, true
 }
 
+func (d *recordingGenericDao) IsJSONColumn(field string) bool {
+	resolved, ok := d.ResolveColumn(field)
+	if !ok {
+		return false
+	}
+	if idx := strings.LastIndex(resolved, "."); idx >= 0 {
+		resolved = resolved[idx+1:]
+	}
+	switch d.table {
+	case "resources":
+		return resolved == "payload" || resolved == "status"
+	case "consumers":
+		return resolved == "labels"
+	default:
+		return false
+	}
+}
+
 // toDBName converts a Go struct field name to its database column name the
 // way GORM's naming strategy does, e.g. "CreatedAt" -> "created_at" and
 // "ID" -> "id". Names that are already lowercase are returned unchanged.
