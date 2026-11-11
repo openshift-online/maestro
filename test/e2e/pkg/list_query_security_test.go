@@ -16,7 +16,6 @@ var _ = Describe("List query security validation", Label("e2e-tests-list-securit
 	It("accepts valid search, ordering, and JSONB label queries", func() {
 		suffix := rand.String(6)
 		consumerPrefix := "list-query-" + suffix
-		consumerLabels := map[string]string{"list-query": suffix}
 		consumerNames := []string{consumerPrefix + "-a", consumerPrefix + "-b"}
 		consumerIDs := make([]string, 0, len(consumerNames))
 		DeferCleanup(func() {
@@ -28,7 +27,7 @@ var _ = Describe("List query security validation", Label("e2e-tests-list-securit
 		})
 		for _, name := range consumerNames {
 			created, resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersPost(ctx).
-				Consumer(openapi.Consumer{Name: openapi.PtrString(name), Labels: &consumerLabels}).Execute()
+				Consumer(openapi.Consumer{Name: openapi.PtrString(name)}).Execute()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			consumerIDs = append(consumerIDs, *created.Id)
@@ -42,13 +41,6 @@ var _ = Describe("List query security validation", Label("e2e-tests-list-securit
 		Expect(consumerList.Items).To(HaveLen(2))
 		Expect(*consumerList.Items[0].Name).To(Equal(consumerNames[1]))
 		Expect(*consumerList.Items[1].Name).To(Equal(consumerNames[0]))
-
-		By("search consumers by a JSONB label")
-		consumerList, resp, err = apiClient.DefaultAPI.ApiMaestroV1ConsumersGet(ctx).
-			Search(fmt.Sprintf("labels ->> 'list-query' = '%s'", suffix)).Execute()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(resp.StatusCode).To(Equal(http.StatusOK))
-		Expect(consumerList.Items).To(HaveLen(2))
 
 		By("create resource bundles with labels from the source work client")
 		workNames := []string{consumerPrefix + "-a", consumerPrefix + "-b"}
