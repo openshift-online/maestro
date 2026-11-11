@@ -3,7 +3,6 @@ package e2e_test
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -34,6 +33,8 @@ var _ = Describe("List query security validation", Label("e2e-tests-list-securit
 			Expect(resp.StatusCode).To(Equal(http.StatusCreated))
 			consumerIDs = append(consumerIDs, *created.Id)
 		}
+
+		By("search consumers by name and order the result descending")
 		consumerList, resp, err := apiClient.DefaultAPI.ApiMaestroV1ConsumersGet(ctx).
 			Search(fmt.Sprintf("name like '%s%%'", consumerPrefix)).OrderBy("name desc").Execute()
 		Expect(err).NotTo(HaveOccurred())
@@ -42,16 +43,21 @@ var _ = Describe("List query security validation", Label("e2e-tests-list-securit
 		Expect(*consumerList.Items[0].Name).To(Equal(consumerNames[1]))
 		Expect(*consumerList.Items[1].Name).To(Equal(consumerNames[0]))
 
+		By("search consumers by a JSONB label")
 		consumerList, resp, err = apiClient.DefaultAPI.ApiMaestroV1ConsumersGet(ctx).
 			Search(fmt.Sprintf("labels ->> 'list-query' = '%s'", suffix)).Execute()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))
 		Expect(consumerList.Items).To(HaveLen(2))
 
-		workPrefix := "list-query-" + suffix
-		workNames := []string{workPrefix + "-a", workPrefix + "-b"}
+		By("create resource bundles with labels from the source work client")
+		workNames := []string{consumerPrefix + "-a", consumerPrefix + "-b"}
 		workClient := sourceWorkClient.ManifestWorks(agentTestOpts.consumerName)
 		createdWorkNames := make([]string, 0, len(workNames))
+		// a resource defaults its name to its id, and the resource id is the uid
+		// of the created work, so the resource bundles are searched by the ids
+		// of the created works
+		resourceIDs := make([]string, 0, len(workNames))
 		DeferCleanup(func() {
 			for _, name := range createdWorkNames {
 				Expect(workClient.Delete(ctx, name, metav1.DeleteOptions{})).To(Succeed())
@@ -59,32 +65,26 @@ var _ = Describe("List query security validation", Label("e2e-tests-list-securit
 			}
 		})
 		for _, name := range workNames {
-			labels := map[string]string{"list-query": suffix}
-			_, err := workClient.Create(ctx, NewManifestWorkWithLabels(name, labels), metav1.CreateOptions{})
+			createdWork, err := workClient.Create(ctx, NewManifestWorkWithLabels(name, map[string]string{"list-query": suffix}), metav1.CreateOptions{})
 			Expect(err).NotTo(HaveOccurred())
 			createdWorkNames = append(createdWorkNames, name)
+			resourceIDs = append(resourceIDs, string(createdWork.UID))
 		}
-		var resourceNames []string
-		Eventually(func() error {
-			resourceList, response, listErr := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).
-				Search(fmt.Sprintf("name like '%s%%'", workPrefix)).OrderBy("name desc").Execute()
-			if listErr != nil {
-				return listErr
-			}
-			if response.StatusCode != http.StatusOK {
-				return fmt.Errorf("unexpected resource list status: %d", response.StatusCode)
-			}
-			if len(resourceList.Items) != 2 {
-				return fmt.Errorf("expected two matching resources, got %d", len(resourceList.Items))
-			}
-			resourceNames = []string{*resourceList.Items[0].Name, *resourceList.Items[1].Name}
-			if resourceNames[0] != workNames[1] || resourceNames[1] != workNames[0] {
-				return fmt.Errorf("unexpected descending resource order: %v", resourceNames)
-			}
-			return nil
-		}).WithTimeout(2 * time.Minute).Should(Succeed())
 
+		By("search resource bundles by name and order the result descending")
 		resourceList, resp, err := apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).
+			Search(fmt.Sprintf("name in ('%s', '%s')", resourceIDs[0], resourceIDs[1])).OrderBy("name desc").Execute()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(resp.StatusCode).To(Equal(http.StatusOK))
+		Expect(resourceList.Items).To(HaveLen(2))
+		expectedNames := []string{resourceIDs[0], resourceIDs[1]}
+		if expectedNames[0] < expectedNames[1] {
+			expectedNames[0], expectedNames[1] = expectedNames[1], expectedNames[0]
+		}
+		Expect([]string{*resourceList.Items[0].Name, *resourceList.Items[1].Name}).To(Equal(expectedNames))
+
+		By("search resource bundles by a JSONB payload label")
+		resourceList, resp, err = apiClient.DefaultAPI.ApiMaestroV1ResourceBundlesGet(ctx).
 			Search(fmt.Sprintf(`payload -> 'metadata' -> 'labels' @> '{"list-query":"%s"}'`, suffix)).Execute()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(resp.StatusCode).To(Equal(http.StatusOK))

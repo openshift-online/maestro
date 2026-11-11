@@ -118,7 +118,9 @@ func TestColumnNamesAreDerivedFromModelSchema(t *testing.T) {
 	t.Fatalf("expected payload in model columns, got %v", columns)
 }
 
-// TestJoinsAndGroupsUseStructuredColumns checks that GORM quotes relation identifiers.
+// TestJoinsAndGroupsUseStructuredColumns checks that relation identifiers are
+// quoted, that joins extend the FROM clause rather than the WHERE clause, and
+// that repeated joins accumulate instead of replacing each other.
 func TestJoinsAndGroupsUseStructuredColumns(t *testing.T) {
 	g2, err := gorm.Open(postgres.New(postgres.Config{
 		DSN: "host=localhost user=postgres dbname=maestro sslmode=disable",
@@ -134,15 +136,35 @@ func TestJoinsAndGroupsUseStructuredColumns(t *testing.T) {
 		ForeignTableName:  "consumers",
 		ForeignColumnName: "name",
 	})
+	d.Joins(TableRelation{
+		TableName:         "resources",
+		ColumnName:        "id",
+		ForeignTableName:  "events",
+		ForeignColumnName: "source_id",
+	})
+	d.Where("name = ?", []interface{}{"findme"})
 	d.Group(clause.Column{Table: "resources", Name: "id"}, clause.Column{Table: "consumers", Name: "id"})
 
 	query := d.g2.Find(&[]api.Resource{}).Statement.SQL.String()
-	for _, expected := range []string{
+
+	// The fragments must appear in this order: a join routed into the WHERE
+	// clause, or a join replacing a previously added one, fails the test.
+	fragments := []string{
+		`FROM "resources"`,
 		`LEFT JOIN "consumers" ON "consumers"."name" = "resources"."consumer_name" AND "consumers"."deleted_at" IS NULL`,
+		`LEFT JOIN "events" ON "events"."source_id" = "resources"."id" AND "events"."deleted_at" IS NULL`,
+		`WHERE name = $1`,
 		`GROUP BY "resources"."id","consumers"."id"`,
-	} {
-		if !strings.Contains(query, expected) {
-			t.Fatalf("expected structured join/group fragment %q, got SQL: %s", expected, query)
+	}
+	last := -1
+	for _, fragment := range fragments {
+		idx := strings.Index(query, fragment)
+		if idx < 0 {
+			t.Fatalf("expected SQL fragment %q, got SQL: %s", fragment, query)
 		}
+		if idx < last {
+			t.Fatalf("expected SQL fragment %q after the preceding fragment, got SQL: %s", fragment, query)
+		}
+		last = idx
 	}
 }
