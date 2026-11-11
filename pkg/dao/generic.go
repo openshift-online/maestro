@@ -97,7 +97,8 @@ func (d *sqlGenericDao) ResolveColumn(field string) (string, bool) {
 	return column.Name, true
 }
 
-// IsJSONColumn reports whether a model field is stored as a JSON or JSONB column.
+// IsJSONColumn reports whether the model schema declares fieldName as a JSON
+// or JSONB column. It does not inspect the live database schema.
 func (d *sqlGenericDao) IsJSONColumn(fieldName string) bool {
 	// The SQL parser normalizes column identifiers to lowercase before query
 	// construction, so apply the same normalization for type validation.
@@ -112,6 +113,7 @@ func (d *sqlGenericDao) IsJSONColumn(fieldName string) bool {
 	return isJSONDataType(field.DataType) || isJSONDataType(field.GORMDataType)
 }
 
+// isJSONDataType reports whether a GORM data type represents JSON storage.
 func isJSONDataType(dataType schema.DataType) bool {
 	switch strings.ToLower(string(dataType)) {
 	case "json", "jsonb", "jsonmap":
