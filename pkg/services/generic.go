@@ -13,6 +13,7 @@ import (
 	"github.com/yaacov/tree-search-language/pkg/walkers/ident"
 	sqlFilter "github.com/yaacov/tree-search-language/pkg/walkers/sql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
@@ -50,7 +51,7 @@ type listContext struct {
 	disallowedFields *map[string]string
 	resourceType     string
 	joins            map[string]dao.TableRelation
-	groupBy          []string
+	groupBy          []clause.Column
 	set              map[string]struct{}
 }
 
@@ -132,6 +133,7 @@ func (s *sqlGenericService) buildPreload(listCtx *listContext, d *dao.GenericDao
 	return false, nil
 }
 
+// buildOrderBy validates each requested field against the model before ordering.
 func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao) (bool, *errors.ServiceError) {
 	if len(listCtx.args.OrderBy) != 0 {
 		orderByArgs, serviceErr := db.ArgsToOrderBy(listCtx.args.OrderBy, *listCtx.disallowedFields)
@@ -139,12 +141,23 @@ func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao
 			return false, serviceErr
 		}
 		for _, orderByArg := range orderByArgs {
-			(*d).OrderBy(orderByArg)
+			// Resolve the field to a canonical model column and re-check the
+			// disallowlist against the resolved name so field-name aliases
+			// (e.g. "ID" for "id") cannot bypass it.
+			resolved, ok := (*d).ResolveColumn(orderByArg.Field)
+			if !ok || disallowedColumn(resolved, *listCtx.disallowedFields) {
+				return false, errors.BadRequest("an order field is not valid")
+			}
+			if !(*d).OrderBy(resolved, orderByArg.Descending) {
+				return false, errors.BadRequest("an order field is not valid")
+			}
 		}
 	}
 	return false, nil
 }
 
+// buildSearch validates search identifiers, including JSON operator base
+// columns, before translating accepted expressions into parameterized SQL.
 func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao) (bool, *errors.ServiceError) {
 	if listCtx.args.Search == "" {
 		s.addJoins(listCtx, d)
@@ -152,10 +165,26 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	}
 
 	if isJSONBSearch(listCtx.args.Search) {
-		parser := sql_parser.NewSQLParser()
+		for _, field := range jsonOperatorBaseColumns(listCtx.args.Search) {
+			if !(*d).IsJSONColumn(field) {
+				return false, errors.BadRequest("JSON operators require a JSON column")
+			}
+		}
+
+		validColumns := make([]string, 0)
+		for _, column := range (*d).ColumnNames() {
+			if _, disallowed := (*listCtx.disallowedFields)[column]; !disallowed {
+				validColumns = append(validColumns, column)
+				validColumns = append(validColumns, (*d).GetTableName()+"."+column)
+			}
+		}
+		if len(validColumns) == 0 {
+			return false, errors.BadRequest("no searchable columns are available for this resource")
+		}
+		parser := sql_parser.NewSQLParser(sql_parser.WithValidColumns(validColumns...))
 		sql, values, err := parser.Parse(listCtx.args.Search)
 		if err != nil {
-			return false, errors.BadRequest("failed to parse the search query: %v", err)
+			return false, errors.BadRequest("failed to parse the search query")
 		}
 		(*d).Where(sql, values.([]interface{}))
 		return true, nil
@@ -164,7 +193,7 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	// create the TSL tree
 	tslTree, err := tsl.ParseTSL(listCtx.args.Search)
 	if err != nil {
-		return false, errors.BadRequest("Failed to parse search query: %s", listCtx.args.Search)
+		return false, errors.BadRequest("failed to parse the search query")
 	}
 	// find all related tables
 	tslTree, serviceErr := s.treeWalkForRelatedTables(listCtx, tslTree, d)
@@ -177,7 +206,7 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 		return false, serviceErr
 	}
 	// convert to sqlizer
-	_, sqlizer, serviceErr := s.treeWalkForSqlizer(listCtx, tslTree)
+	_, sqlizer, serviceErr := s.treeWalkForSqlizer(listCtx, tslTree, d)
 	if serviceErr != nil {
 		return false, serviceErr
 	}
@@ -193,24 +222,21 @@ func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao)
 	return true, nil
 }
 
-// JOIN the tables that appear in the search string
+// addJoins adds schema-derived joins and groups for related search fields.
 func (s *sqlGenericService) addJoins(listCtx *listContext, d *dao.GenericDao) {
 	for _, r := range listCtx.joins {
 		if _, ok := listCtx.set[r.ForeignTableName]; ok {
 			// skip already included preloads
 			continue
 		}
-		sql := fmt.Sprintf(
-			"LEFT JOIN %s ON %s.%s = %s.%s AND %s.deleted_at IS NULL",
-			r.ForeignTableName, r.ForeignTableName, r.ForeignColumnName, r.TableName, r.ColumnName, r.ForeignTableName)
-		(*d).Joins(sql)
+		(*d).Joins(r)
 
-		listCtx.groupBy = append(listCtx.groupBy, r.ForeignTableName+".id")
+		listCtx.groupBy = append(listCtx.groupBy, clause.Column{Table: r.ForeignTableName, Name: "id"})
 	}
 	if len(listCtx.joins) > 0 {
 		// Add base relation
-		listCtx.groupBy = append(listCtx.groupBy, (*d).GetTableName()+".id")
-		(*d).Group(strings.Join(listCtx.groupBy, ","))
+		listCtx.groupBy = append(listCtx.groupBy, clause.Column{Table: (*d).GetTableName(), Name: "id"})
+		(*d).Group(listCtx.groupBy...)
 	}
 
 	// Reset list of joins and group by's
@@ -296,7 +322,7 @@ func (s *sqlGenericService) treeWalkForRelatedTables(listCtx *listContext, tslTr
 
 	tslTree, err := ident.Walk(tslTree, walkFn)
 	if err != nil {
-		return tslTree, errors.BadRequest("%s", err.Error())
+		return tslTree, errors.BadRequest("search contains an invalid related field")
 	}
 
 	return tslTree, nil
@@ -319,31 +345,130 @@ func (s *sqlGenericService) treeWalkForAddingTableName(tslTree tsl.Node, dao *da
 
 	tslTree, err := ident.Walk(tslTree, walkFn)
 	if err != nil {
-		return tslTree, errors.BadRequest("%s", err.Error())
+		return tslTree, errors.BadRequest("search contains an invalid field")
 	}
 
 	return tslTree, nil
 }
 
-func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl.Node) (tsl.Node, squirrel.Sqlizer, *errors.ServiceError) {
+func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl.Node, d *dao.GenericDao) (tsl.Node, squirrel.Sqlizer, *errors.ServiceError) {
 	// Check field names in tree
 	tslTree, serviceErr := db.FieldNameWalk(tslTree, *listCtx.disallowedFields)
 	if serviceErr != nil {
 		return tslTree, nil, serviceErr
 	}
 
+	// Resolve every identifier to a canonical model column (or a column of a
+	// declared related model) before the SQL walker emits it as an expression.
+	// Re-checking the disallowlist against the resolved name prevents
+	// field-name aliases from bypassing it.
+	tslTree, err := ident.Walk(tslTree, func(field string) (string, error) {
+		resolved, ok := (*d).ResolveColumn(field)
+		if !ok || disallowedColumn(resolved, *listCtx.disallowedFields) {
+			return field, fmt.Errorf("%s is not a valid field name", field)
+		}
+		return resolved, nil
+	})
+	if err != nil {
+		return tslTree, nil, errors.BadRequest("search contains an invalid field")
+	}
+
 	// Convert the search tree into SQL [Squirrel] filter
 	sqlizer, err := sqlFilter.Walk(tslTree)
 	if err != nil {
-		return tslTree, nil, errors.BadRequest("%s", err.Error())
+		return tslTree, nil, errors.BadRequest("failed to build the search query")
 	}
 
 	return tslTree, sqlizer, nil
 }
 
+// isJSONBSearch reports whether search uses operators handled by the JSON/JSONB
+// SQL parser rather than the regular TSL parser.
 func isJSONBSearch(search string) bool {
 	if strings.Contains(search, "->>") || strings.Contains(search, "@>") {
 		return true
 	}
 	return false
+}
+
+// jsonOperatorBaseColumns returns the SQL column tokens immediately before
+// JSON operators. It skips quoted keys and values and returns each base column
+// only once, so path keys and scalar literals are not treated as identifiers.
+func jsonOperatorBaseColumns(search string) []string {
+	var columns []string
+	seen := make(map[string]struct{})
+	for i := 0; i < len(search); {
+		if search[i] == '\'' {
+			i = skipQuotedSearchValue(search, i)
+			continue
+		}
+
+		operatorLength := 0
+		switch {
+		case strings.HasPrefix(search[i:], "->>"):
+			operatorLength = len("->>")
+		case strings.HasPrefix(search[i:], "->"), strings.HasPrefix(search[i:], "@>"):
+			operatorLength = 2
+		}
+		if operatorLength == 0 {
+			i++
+			continue
+		}
+
+		end := i
+		for end > 0 && (search[end-1] == ' ' || search[end-1] == '\t' || search[end-1] == '\n' || search[end-1] == '\r') {
+			end--
+		}
+		start := end
+		for start > 0 && isSQLIdentifierByte(search[start-1]) {
+			start--
+		}
+		if start < end {
+			column := search[start:end]
+			if _, exists := seen[column]; !exists {
+				seen[column] = struct{}{}
+				columns = append(columns, column)
+			}
+		}
+		i += operatorLength
+	}
+	return columns
+}
+
+// skipQuotedSearchValue returns the index after a single-quoted search value,
+// including backslash-escaped and doubled quote characters.
+func skipQuotedSearchValue(search string, start int) int {
+	for i := start + 1; i < len(search); i++ {
+		switch search[i] {
+		case '\\':
+			if i+1 < len(search) {
+				i++
+			}
+		case '\'':
+			if i+1 < len(search) && search[i+1] == '\'' {
+				i++
+				continue
+			}
+			return i + 1
+		}
+	}
+	return len(search)
+}
+
+// isSQLIdentifierByte reports whether value can appear in a supported SQL
+// identifier token.
+func isSQLIdentifierByte(value byte) bool {
+	return value == '_' || value == '.' ||
+		(value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||
+		(value >= '0' && value <= '9')
+}
+
+// disallowedColumn reports whether the bare column name of a canonical
+// table-qualified column (e.g. "id" of "resources.id") is disallowed.
+func disallowedColumn(column string, disallowedFields map[string]string) bool {
+	if idx := strings.LastIndex(column, "."); idx >= 0 {
+		column = column[idx+1:]
+	}
+	_, disallowed := disallowedFields[column]
+	return disallowed
 }

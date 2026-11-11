@@ -6,18 +6,24 @@ import (
 
 	"github.com/jinzhu/inflection"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 
 	"github.com/openshift-online/maestro/pkg/db"
 )
 
+// GenericDao exposes schema-aware query operations for list endpoints.
 type GenericDao interface {
 	Fetch(offset int, limit int, resourceList interface{}) error
 
 	GetInstanceDao(ctx context.Context, model interface{}) GenericDao
 	Preload(preload string)
-	OrderBy(orderBy string)
-	Joins(sql string)
-	Group(sql string)
+	OrderBy(field string, descending bool) bool
+	ResolveColumn(field string) (string, bool)
+	IsJSONColumn(field string) bool
+	ColumnNames() []string
+	Joins(relation TableRelation)
+	Group(columns ...clause.Column)
 	Where(sql string, values []interface{})
 	Count(model interface{}, total *int64)
 	Validate(resourceList interface{}) error
@@ -33,7 +39,7 @@ type sqlGenericDao struct {
 	g2             *gorm.DB
 }
 
-// represents a relationship between two tables. They can be joined,
+// TableRelation represents a relationship between two tables. They can be joined,
 // ON TableName.ColumnName = ForeignTableName.ForeignColumnName
 type TableRelation struct {
 	TableName         string
@@ -42,10 +48,12 @@ type TableRelation struct {
 	ForeignColumnName string
 }
 
+// NewGenericDao creates a generic DAO backed by the provided session factory.
 func NewGenericDao(sessionFactory *db.SessionFactory) GenericDao {
 	return &sqlGenericDao{sessionFactory: sessionFactory}
 }
 
+// GetInstanceDao returns a DAO session scoped to the supplied model.
 func (d *sqlGenericDao) GetInstanceDao(ctx context.Context, model interface{}) GenericDao {
 	return &sqlGenericDao{
 		sessionFactory: d.sessionFactory,
@@ -53,30 +61,158 @@ func (d *sqlGenericDao) GetInstanceDao(ctx context.Context, model interface{}) G
 	}
 }
 
+// Fetch loads a page of records into resourceList.
 func (d *sqlGenericDao) Fetch(offset int, limit int, resourceList interface{}) error {
 	return d.g2.Debug().Unscoped().Offset(offset).Limit(limit).Find(resourceList).Error
 }
 
+// Preload adds a model association to preload when fetching records.
 func (d *sqlGenericDao) Preload(preload string) {
 	d.g2 = d.g2.Preload(preload)
 }
 
-func (d *sqlGenericDao) OrderBy(orderBy string) {
-	d.g2 = d.g2.Order(orderBy)
+// OrderBy adds an ordering for a field resolved from the model schema.
+func (d *sqlGenericDao) OrderBy(field string, descending bool) bool {
+	column, ok := d.resolveColumn(field, false)
+	if !ok {
+		return false
+	}
+	d.g2 = d.g2.Order(clause.OrderByColumn{Column: column, Desc: descending})
+	return true
 }
 
-func (d *sqlGenericDao) Joins(sql string) {
-	d.g2 = d.g2.Joins(sql)
+// ResolveColumn resolves a field name to its canonical database column,
+// e.g. "CreatedAt" -> "created_at" or "resources.CreatedAt" ->
+// "resources.created_at". The second return value is false when the field
+// does not resolve to a column of the model (or of a related model), so
+// callers can reject user-controlled identifiers before they reach SQL.
+func (d *sqlGenericDao) ResolveColumn(field string) (string, bool) {
+	column, ok := d.resolveColumn(field, true)
+	if !ok {
+		return "", false
+	}
+	if column.Table != "" {
+		return column.Table + "." + column.Name, true
+	}
+	return column.Name, true
 }
 
-func (d *sqlGenericDao) Group(sql string) {
-	d.g2 = d.g2.Group(sql)
+// IsJSONColumn reports whether the model schema declares fieldName as a JSON
+// or JSONB column. It does not inspect the live database schema.
+func (d *sqlGenericDao) IsJSONColumn(fieldName string) bool {
+	// The SQL parser normalizes column identifiers to lowercase before query
+	// construction, so apply the same normalization for type validation.
+	column, ok := d.resolveColumn(strings.ToLower(fieldName), false)
+	if !ok || d.g2.Statement.Schema == nil {
+		return false
+	}
+	field := d.g2.Statement.Schema.FieldsByDBName[column.Name]
+	if field == nil {
+		return false
+	}
+	return isJSONDataType(field.DataType) || isJSONDataType(field.GORMDataType)
 }
 
+// isJSONDataType reports whether a GORM data type represents JSON storage.
+func isJSONDataType(dataType schema.DataType) bool {
+	switch strings.ToLower(string(dataType)) {
+	case "json", "jsonb", "jsonmap":
+		return true
+	default:
+		return false
+	}
+}
+
+// ColumnNames returns the database column names declared by the model schema.
+func (d *sqlGenericDao) ColumnNames() []string {
+	if d.g2 == nil || d.g2.Statement == nil || d.g2.Statement.Parse(d.g2.Statement.Model) != nil || d.g2.Statement.Schema == nil {
+		return nil
+	}
+	return append([]string(nil), d.g2.Statement.Schema.DBNames...)
+}
+
+func (d *sqlGenericDao) resolveColumn(name string, allowRelated bool) (clause.Column, bool) {
+	if d.g2 == nil || d.g2.Statement == nil || d.g2.Statement.Parse(d.g2.Statement.Model) != nil || d.g2.Statement.Schema == nil {
+		return clause.Column{}, false
+	}
+
+	parts := strings.Split(name, ".")
+	if len(parts) > 2 || len(parts) == 0 {
+		return clause.Column{}, false
+	}
+
+	rootSchema := d.g2.Statement.Schema
+	fieldName := parts[0]
+	fieldSchema := rootSchema
+	if len(parts) == 2 {
+		tableName := parts[0]
+		fieldName = parts[1]
+		if tableName != rootSchema.Table {
+			if !allowRelated {
+				return clause.Column{}, false
+			}
+			fieldSchema = nil
+			for _, relation := range rootSchema.Relationships.Relations {
+				if relation.FieldSchema != nil && relation.FieldSchema.Table == tableName {
+					fieldSchema = relation.FieldSchema
+					break
+				}
+			}
+			if fieldSchema == nil {
+				return clause.Column{}, false
+			}
+		}
+	}
+
+	field := fieldSchema.LookUpField(fieldName)
+	if field == nil || field.DBName == "" {
+		return clause.Column{}, false
+	}
+
+	column := clause.Column{Name: field.DBName}
+	if len(parts) == 2 {
+		column.Table = parts[0]
+	}
+	return column, true
+}
+
+// Joins adds a left join using schema-derived table and column identifiers.
+// clause.Join is only a clause.Expression, so passing it to Clauses directly
+// would render the join as a WHERE condition; joins must extend the FROM
+// clause, and repeated calls accumulate instead of replacing each other.
+func (d *sqlGenericDao) Joins(relation TableRelation) {
+	join := clause.Join{
+		Type:  clause.LeftJoin,
+		Table: clause.Table{Name: relation.ForeignTableName},
+		ON: clause.Where{Exprs: []clause.Expression{
+			clause.Eq{
+				Column: clause.Column{Table: relation.ForeignTableName, Name: relation.ForeignColumnName},
+				Value:  clause.Column{Table: relation.TableName, Name: relation.ColumnName},
+			},
+			clause.Eq{
+				Column: clause.Column{Table: relation.ForeignTableName, Name: "deleted_at"},
+				Value:  nil,
+			},
+		}},
+	}
+	from := clause.From{Joins: []clause.Join{join}}
+	if existing, ok := d.g2.Statement.Clauses["FROM"].Expression.(clause.From); ok {
+		from.Joins = append(existing.Joins, join)
+	}
+	d.g2 = d.g2.Clauses(from)
+}
+
+// Group adds a GROUP BY clause using structured column identifiers.
+func (d *sqlGenericDao) Group(columns ...clause.Column) {
+	d.g2 = d.g2.Clauses(clause.GroupBy{Columns: columns})
+}
+
+// Where adds a predicate and its bound values to the query.
 func (d *sqlGenericDao) Where(sql string, values []interface{}) {
 	d.g2 = d.g2.Where(sql, values...)
 }
 
+// Count records matching the current query into total.
 func (d *sqlGenericDao) Count(model interface{}, total *int64) {
 	g2 := d.g2.Session(&gorm.Session{DryRun: false}).Model(model)
 	// There is no need in ORDER BY, GROUP BY and LIMIT in order to count records
@@ -104,8 +240,9 @@ func (d *sqlGenericDao) Count(model interface{}, total *int64) {
 	}
 }
 
-// Gorm finishers (Take, First, Last, etc.) are not idempotent
-// Use a new session to execute these checks
+// Validate checks whether at least one matching record exists.
+// GORM finishers (Take, First, Last, etc.) are not idempotent, so this uses a
+// new session to execute the check.
 func (d *sqlGenericDao) Validate(resourceList interface{}) error {
 	if err := d.g2.Session(&gorm.Session{DryRun: false}).Take(resourceList).Error; err != nil {
 		return err
@@ -113,11 +250,12 @@ func (d *sqlGenericDao) Validate(resourceList interface{}) error {
 	return nil
 }
 
+// GetTableName returns the table name from the model schema.
 func (d *sqlGenericDao) GetTableName() string {
 	return db.GetTableName(d.g2)
 }
 
-// extract the relation from the api model
+// GetTableRelation returns the model association corresponding to fieldName.
 func (d *sqlGenericDao) GetTableRelation(fieldName string) (TableRelation, bool) {
 	// try singular
 	fieldName = strings.ToUpper(fieldName[:1]) + fieldName[1:]

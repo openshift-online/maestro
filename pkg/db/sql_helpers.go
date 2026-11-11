@@ -1,7 +1,6 @@
 package db
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -12,44 +11,23 @@ import (
 	"github.com/openshift-online/maestro/pkg/errors"
 )
 
-// Check if a field name starts with properties.
-func startsWithProperties(s string) bool {
-	return strings.HasPrefix(s, "properties.")
-}
-
-// hasProperty return true if node has a property identifier on left hand side.
-func hasProperty(n tsl.Node) bool {
-	// Get the left side operator.
-	l, ok := n.Left.(tsl.Node)
-	if !ok {
-		return false
-	}
-
-	// If left side hand is not a `properties` identifier, return.
-	if l.Func != tsl.IdentOp || !startsWithProperties(l.Left.(string)) {
-		return false
-	}
-
-	return true
-}
-
 // getField gets the sql field associated with a name.
 func getField(name string, disallowedFields map[string]string) (field string, err *errors.ServiceError) {
 	// We want to accept names with trailing and leading spaces
 	trimmedName := strings.Trim(name, " ")
 
-	// Check for properties ->> '<some field name>'
-	if strings.HasPrefix(trimmedName, "properties ->>") {
-		field = trimmedName
-		return
-	}
-
 	// Check for nested field, e.g., subscription_labels.key
 	checkName := trimmedName
 	fieldParts := strings.Split(trimmedName, ".")
 	if len(fieldParts) > 2 {
-		err = errors.BadRequest("%s is not a valid field name", name)
+		err = errors.BadRequest("a search field is not valid")
 		return
+	}
+	for _, part := range fieldParts {
+		if !isSQLIdentifier(part) {
+			err = errors.BadRequest("a search field is not valid")
+			return
+		}
 	}
 	if len(fieldParts) > 1 {
 		checkName = fieldParts[1]
@@ -58,43 +36,25 @@ func getField(name string, disallowedFields map[string]string) (field string, er
 	// Check for allowed fields
 	_, ok := disallowedFields[checkName]
 	if ok {
-		err = errors.BadRequest("%s is not a valid field name", name)
+		err = errors.BadRequest("a search field is not valid")
 		return
 	}
 	field = trimmedName
 	return
 }
 
-// propertiesNodeConverter converts a node with a properties identifier
-// to a properties node.
-//
-// For example, it will convert:
-// ( properties.<name> = <value> ) to
-// ( properties ->> <name> = <value> )
-func propertiesNodeConverter(n tsl.Node) tsl.Node {
-
-	// Get the left side operator.
-	l, ok := n.Left.(tsl.Node)
-	if !ok {
-		return n
+func isSQLIdentifier(value string) bool {
+	if value == "" {
+		return false
 	}
-
-	// Get the property name.
-	propetyName := l.Left.(string)[11:]
-
-	// Build a new node that converts:
-	// ( properties.<name> = <value> ) to
-	// ( properties ->> <name> = <value> )
-	propertyNode := tsl.Node{
-		Func: n.Func,
-		Left: tsl.Node{
-			Func: tsl.IdentOp,
-			Left: fmt.Sprintf("properties ->> '%s'", propetyName),
-		},
-		Right: n.Right,
+	for i, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || r == '_' ||
+			(i > 0 && r >= '0' && r <= '9') {
+			continue
+		}
+		return false
 	}
-
-	return propertyNode
+	return true
 }
 
 // FieldNameWalk walks on the filter tree and check/replace
@@ -107,13 +67,6 @@ func FieldNameWalk(
 
 	var field string
 	var l, r tsl.Node
-
-	// Check for properties.<name> = <value> nodes, and convert them to
-	// ( properties ->> <name> = <value> )
-	// nodes.
-	if hasProperty(n) {
-		n = propertiesNodeConverter(n)
-	}
 
 	switch n.Func {
 	case tsl.IdentOp:
@@ -189,54 +142,53 @@ func FieldNameWalk(
 	return
 }
 
-// cleanOrderBy takes the orderBy arg and cleans it.
-func cleanOrderBy(userArg string, disallowedFields map[string]string) (orderBy string, err *errors.ServiceError) {
-	var orderField string
-
-	// We want to accept user params with trailing and leading spaces
-	trimedName := strings.Trim(userArg, " ")
-
-	// Each OrderBy can be a "<field-name>" or a "<field-name> asc|desc"
-	order := strings.Split(trimedName, " ")
-	direction := "none valid"
-
-	if len(order) == 1 {
-		orderField, err = getField(order[0], disallowedFields)
-		direction = "asc"
-	} else if len(order) == 2 {
-		orderField, err = getField(order[0], disallowedFields)
-		direction = order[1]
-	}
-	if err != nil || (direction != "asc" && direction != "desc") {
-		err = errors.BadRequest("bad order value '%s'", userArg)
-		return
-	}
-
-	orderBy = fmt.Sprintf("%s %s", orderField, direction)
-	return
+// OrderByField contains a validated field and direction. Keeping these
+// separate prevents callers from passing a user-built SQL fragment to GORM.
+type OrderByField struct {
+	Field      string
+	Descending bool
 }
 
-// ArgsToOrderBy returns cleaned orderBy list.
+// ArgsToOrderBy parses orderBy arguments without constructing SQL. The DAO
+// resolves each field against its model schema and passes it to GORM as a
+// structured column.
 func ArgsToOrderBy(
 	orderByArgs []string,
-	disallowedFields map[string]string) (orderBy []string, err *errors.ServiceError) {
+	disallowedFields map[string]string) (orderBy []OrderByField, err *errors.ServiceError) {
 
-	var order string
 	if len(orderByArgs) != 0 {
-		orderBy = []string{}
-		for _, o := range orderByArgs {
-			order, err = cleanOrderBy(o, disallowedFields)
-			if err != nil {
+		orderBy = make([]OrderByField, 0, len(orderByArgs))
+		for _, arg := range orderByArgs {
+			parts := strings.Fields(arg)
+			if len(parts) < 1 || len(parts) > 2 {
+				err = errors.BadRequest("an order value is not valid")
 				return
 			}
 
-			// If valid add the user entered order by, to the order by list
-			orderBy = append(orderBy, order)
+			field, fieldErr := getField(parts[0], disallowedFields)
+			if fieldErr != nil {
+				err = errors.BadRequest("an order value is not valid")
+				return
+			}
+
+			descending := false
+			if len(parts) == 2 {
+				switch strings.ToLower(parts[1]) {
+				case "asc":
+				case "desc":
+					descending = true
+				default:
+					err = errors.BadRequest("an order value is not valid")
+					return
+				}
+			}
+			orderBy = append(orderBy, OrderByField{Field: field, Descending: descending})
 		}
 	}
 	return
 }
 
+// GetTableName returns the table name associated with the GORM model.
 func GetTableName(g2 *gorm.DB) string {
 	if g2.Statement.Parse(g2.Statement.Model) != nil {
 		return "xxx"
