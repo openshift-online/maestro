@@ -156,7 +156,8 @@ func (s *sqlGenericService) buildOrderBy(listCtx *listContext, d *dao.GenericDao
 	return false, nil
 }
 
-// buildSearch translates a validated search expression into parameterized SQL.
+// buildSearch validates search identifiers, including JSON operator base
+// columns, before translating accepted expressions into parameterized SQL.
 func (s *sqlGenericService) buildSearch(listCtx *listContext, d *dao.GenericDao) (bool, *errors.ServiceError) {
 	if listCtx.args.Search == "" {
 		s.addJoins(listCtx, d)
@@ -381,6 +382,8 @@ func (s *sqlGenericService) treeWalkForSqlizer(listCtx *listContext, tslTree tsl
 	return tslTree, sqlizer, nil
 }
 
+// isJSONBSearch reports whether search uses operators handled by the JSON/JSONB
+// SQL parser rather than the regular TSL parser.
 func isJSONBSearch(search string) bool {
 	if strings.Contains(search, "->>") || strings.Contains(search, "@>") {
 		return true
@@ -388,9 +391,9 @@ func isJSONBSearch(search string) bool {
 	return false
 }
 
-// jsonOperatorBaseColumns finds column identifiers immediately before JSON
-// operators, skipping quoted string values so JSON keys and scalar literals
-// are not mistaken for column names.
+// jsonOperatorBaseColumns returns the SQL column tokens immediately before
+// JSON operators. It skips quoted keys and values and returns each base column
+// only once, so path keys and scalar literals are not treated as identifiers.
 func jsonOperatorBaseColumns(search string) []string {
 	var columns []string
 	seen := make(map[string]struct{})
@@ -432,6 +435,8 @@ func jsonOperatorBaseColumns(search string) []string {
 	return columns
 }
 
+// skipQuotedSearchValue returns the index after a single-quoted search value,
+// including backslash-escaped and doubled quote characters.
 func skipQuotedSearchValue(search string, start int) int {
 	for i := start + 1; i < len(search); i++ {
 		switch search[i] {
@@ -450,6 +455,8 @@ func skipQuotedSearchValue(search string, start int) int {
 	return len(search)
 }
 
+// isSQLIdentifierByte reports whether value can appear in a supported SQL
+// identifier token.
 func isSQLIdentifierByte(value byte) bool {
 	return value == '_' || value == '.' ||
 		(value >= 'a' && value <= 'z') || (value >= 'A' && value <= 'Z') ||

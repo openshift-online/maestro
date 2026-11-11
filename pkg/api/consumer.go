@@ -14,7 +14,8 @@ type Consumer struct {
 	// When creating a consumer, if its name is not specified, the consumer id will be used as its name.
 	//
 	// Cannot be updated.
-	Name   string
+	Name string
+	// Labels are persisted as JSONB and can be searched with JSON operators.
 	Labels *db.StringMap `gorm:"type:jsonb"`
 }
 
