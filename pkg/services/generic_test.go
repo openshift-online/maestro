@@ -316,6 +316,32 @@ func TestListJSONBSearchParameterizesKeys(t *testing.T) {
 		Expect(testDao.whereSQL[0]).To(Equal("payload -> ? -> ? @> ?"))
 		Expect(testDao.whereValues[0]).To(Equal([]interface{}{"metadata", "labels", `{"cluster":"east"}`}))
 	})
+
+	t.Run("JSON operators on scalar columns are rejected before the DAO", func(t *testing.T) {
+		testDao := newGenericTestDao("resources", resourceColumns...)
+		service := sqlGenericService{genericDao: testDao}
+		args := NewListArguments(url.Values{"search": {`name = 'resource' and name -> 'metadata' ->> 'name' = 'resource'`}})
+
+		_, serviceErr := service.List(context.Background(), "", args, &[]api.Resource{})
+
+		Expect(serviceErr).To(HaveOccurred())
+		Expect(serviceErr.Code).To(Equal(errors.ErrorBadRequest))
+		Expect(testDao.whereSQL).To(BeEmpty())
+		Expect(testDao.counted).To(BeFalse())
+		Expect(testDao.fetched).To(BeFalse())
+	})
+
+	t.Run("scalar predicates remain valid in mixed JSON searches", func(t *testing.T) {
+		testDao := newGenericTestDao("resources", resourceColumns...)
+		service := sqlGenericService{genericDao: testDao}
+		args := NewListArguments(url.Values{"search": {`name = 'resource' and payload -> 'metadata' ->> 'name' = 'resource'`}})
+
+		_, serviceErr := service.List(context.Background(), "", args, &[]api.Resource{})
+
+		Expect(serviceErr).NotTo(HaveOccurred())
+		Expect(testDao.whereSQL).To(Equal([]string{"name = ? and payload -> ? ->> ? = ?"}))
+		Expect(testDao.whereValues[0]).To(Equal([]interface{}{"resource", "metadata", "name", "resource"}))
+	})
 }
 
 // TestListCanonicalizesFieldAliases proves that field-name aliases (the Go
@@ -441,6 +467,24 @@ func (d *genericTestDao) ResolveColumn(field string) (string, bool) {
 		return parts[0] + "." + column, true
 	}
 	return column, true
+}
+
+func (d *genericTestDao) IsJSONColumn(field string) bool {
+	resolved, ok := d.ResolveColumn(field)
+	if !ok {
+		return false
+	}
+	if idx := strings.LastIndex(resolved, "."); idx >= 0 {
+		resolved = resolved[idx+1:]
+	}
+	switch d.table {
+	case "resources":
+		return resolved == "payload" || resolved == "status"
+	case "consumers":
+		return resolved == "labels"
+	default:
+		return false
+	}
 }
 
 // toDBName converts a Go struct field name to its database column name the
