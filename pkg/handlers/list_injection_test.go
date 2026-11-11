@@ -202,9 +202,10 @@ func TestListValidationLogsDoNotIncludeUserIdentifiers(t *testing.T) {
 		name      string
 		parameter string
 		value     string
+		leak      string
 	}{
-		{name: "search", parameter: "search", value: "sensitive_search_identifier = 'x'"},
-		{name: "orderBy", parameter: "orderBy", value: "sensitive_order_identifier desc"},
+		{name: "search", parameter: "search", value: "sensitive_search_identifier = 'x'", leak: "sensitive_search_identifier"},
+		{name: "orderBy", parameter: "orderBy", value: "sensitive_order_identifier desc", leak: "sensitive_order_identifier"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			logs := &strings.Builder{}
@@ -216,7 +217,8 @@ func TestListValidationLogsDoNotIncludeUserIdentifiers(t *testing.T) {
 
 			Expect(recorder.Code).To(Equal(http.StatusBadRequest))
 			Expect(logs.String()).To(ContainSubstring("user request error"))
-			Expect(logs.String()).ToNot(ContainSubstring(test.value))
+			// the rejected identifier itself must not be echoed into the logs
+			Expect(logs.String()).ToNot(ContainSubstring(test.leak))
 		})
 	}
 }
