@@ -142,7 +142,7 @@ func TestJoinsAndGroupsUseStructuredColumns(t *testing.T) {
 		ForeignTableName:  "events",
 		ForeignColumnName: "source_id",
 	})
-	d.Where("name = ?", []interface{}{"findme"})
+	d.Where("resources.name = ?", []interface{}{"findme"})
 	d.Group(clause.Column{Table: "resources", Name: "id"}, clause.Column{Table: "consumers", Name: "id"})
 
 	query := d.g2.Find(&[]api.Resource{}).Statement.SQL.String()
@@ -153,7 +153,7 @@ func TestJoinsAndGroupsUseStructuredColumns(t *testing.T) {
 		`FROM "resources"`,
 		`LEFT JOIN "consumers" ON "consumers"."name" = "resources"."consumer_name" AND "consumers"."deleted_at" IS NULL`,
 		`LEFT JOIN "events" ON "events"."source_id" = "resources"."id" AND "events"."deleted_at" IS NULL`,
-		`WHERE name = $1`,
+		`WHERE resources.name = $1`,
 		`GROUP BY "resources"."id","consumers"."id"`,
 	}
 	last := -1
