@@ -15,7 +15,7 @@ type Consumer struct {
 	//
 	// Cannot be updated.
 	Name   string
-	Labels *db.StringMap
+	Labels *db.StringMap `gorm:"type:jsonb"`
 }
 
 type ConsumerList []*Consumer

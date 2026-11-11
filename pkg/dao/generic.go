@@ -7,6 +7,7 @@ import (
 	"github.com/jinzhu/inflection"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"gorm.io/gorm/schema"
 
 	"github.com/openshift-online/maestro/pkg/db"
 )
@@ -19,6 +20,7 @@ type GenericDao interface {
 	Preload(preload string)
 	OrderBy(field string, descending bool) bool
 	ResolveColumn(field string) (string, bool)
+	IsJSONColumn(field string) bool
 	ColumnNames() []string
 	Joins(relation TableRelation)
 	Group(columns ...clause.Column)
@@ -93,6 +95,30 @@ func (d *sqlGenericDao) ResolveColumn(field string) (string, bool) {
 		return column.Table + "." + column.Name, true
 	}
 	return column.Name, true
+}
+
+// IsJSONColumn reports whether a model field is stored as a JSON or JSONB column.
+func (d *sqlGenericDao) IsJSONColumn(fieldName string) bool {
+	// The SQL parser normalizes column identifiers to lowercase before query
+	// construction, so apply the same normalization for type validation.
+	column, ok := d.resolveColumn(strings.ToLower(fieldName), false)
+	if !ok || d.g2.Statement.Schema == nil {
+		return false
+	}
+	field := d.g2.Statement.Schema.FieldsByDBName[column.Name]
+	if field == nil {
+		return false
+	}
+	return isJSONDataType(field.DataType) || isJSONDataType(field.GORMDataType)
+}
+
+func isJSONDataType(dataType schema.DataType) bool {
+	switch strings.ToLower(string(dataType)) {
+	case "json", "jsonb", "jsonmap":
+		return true
+	default:
+		return false
+	}
 }
 
 // ColumnNames returns the database column names declared by the model schema.
