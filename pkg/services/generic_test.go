@@ -10,6 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
 	"github.com/yaacov/tree-search-language/pkg/tsl"
+	"gorm.io/gorm/clause"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -29,11 +30,11 @@ func TestSQLTranslation(t *testing.T) {
 	tests := []map[string]interface{}{
 		{
 			"search": "garbage",
-			"error":  "maestro-21: Failed to parse search query: garbage",
+			"error":  "maestro-21: failed to parse the search query",
 		},
 		{
 			"search": "id in ('123')",
-			"error":  "maestro-21: resources.id is not a valid field name",
+			"error":  "maestro-21: a search field is not valid",
 		},
 	}
 	for _, test := range tests {
@@ -485,9 +486,9 @@ func (d *genericTestDao) ColumnNames() []string {
 	return columns
 }
 
-func (d *genericTestDao) Joins(string) {}
+func (d *genericTestDao) Joins(dao.TableRelation) {}
 
-func (d *genericTestDao) Group(string) {}
+func (d *genericTestDao) Group(...clause.Column) {}
 
 func (d *genericTestDao) Where(sql string, values []interface{}) {
 	d.whereSQL = append(d.whereSQL, sql)

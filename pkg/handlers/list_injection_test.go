@@ -2,13 +2,17 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/go-logr/logr"
 	. "github.com/onsi/gomega"
+	"gorm.io/gorm/clause"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift-online/maestro/pkg/api"
 	"github.com/openshift-online/maestro/pkg/dao"
@@ -130,9 +134,9 @@ func (d *recordingGenericDao) ColumnNames() []string {
 	return columns
 }
 
-func (d *recordingGenericDao) Joins(string) {}
+func (d *recordingGenericDao) Joins(dao.TableRelation) {}
 
-func (d *recordingGenericDao) Group(string) {}
+func (d *recordingGenericDao) Group(...clause.Column) {}
 
 func (d *recordingGenericDao) Where(sql string, values []interface{}) {
 	d.whereSQL = append(d.whereSQL, sql)
@@ -164,11 +168,57 @@ func (s delegatingResourceService) ListWithArgs(ctx context.Context, username st
 }
 
 func performConsumersList(d dao.GenericDao, query url.Values) *httptest.ResponseRecorder {
+	return performConsumersListWithContext(context.Background(), d, query)
+}
+
+func performConsumersListWithContext(ctx context.Context, d dao.GenericDao, query url.Values) *httptest.ResponseRecorder {
 	handler := NewConsumerHandler(nil, nil, services.NewGenericService(d))
 	request := httptest.NewRequest(http.MethodGet, "/api/maestro/v1/consumers?"+query.Encode(), nil)
+	request = request.WithContext(ctx)
 	recorder := httptest.NewRecorder()
 	handler.List(recorder, request)
 	return recorder
+}
+
+type captureLogSink struct{ output *strings.Builder }
+
+func (s *captureLogSink) Init(logr.RuntimeInfo) {}
+func (s *captureLogSink) Enabled(int) bool      { return true }
+func (s *captureLogSink) Info(_ int, message string, values ...any) {
+	fmt.Fprintln(s.output, message, values)
+}
+func (s *captureLogSink) Error(err error, message string, values ...any) {
+	fmt.Fprintln(s.output, message, err, values)
+}
+func (s *captureLogSink) WithValues(...any) logr.LogSink { return s }
+func (s *captureLogSink) WithName(string) logr.LogSink   { return s }
+
+// TestListValidationLogsDoNotIncludeUserIdentifiers verifies rejected search
+// and orderBy values are not exposed through the HTTP handler's validation logs.
+func TestListValidationLogsDoNotIncludeUserIdentifiers(t *testing.T) {
+	RegisterTestingT(t)
+
+	for _, test := range []struct {
+		name      string
+		parameter string
+		value     string
+	}{
+		{name: "search", parameter: "search", value: "sensitive_search_identifier = 'x'"},
+		{name: "orderBy", parameter: "orderBy", value: "sensitive_order_identifier desc"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			logs := &strings.Builder{}
+			ctx := klog.NewContext(context.Background(), logr.New(&captureLogSink{output: logs}))
+			d := newRecordingGenericDao("consumers", consumerListColumns...)
+			query := url.Values{test.parameter: {test.value}}
+
+			recorder := performConsumersListWithContext(ctx, d, query)
+
+			Expect(recorder.Code).To(Equal(http.StatusBadRequest))
+			Expect(logs.String()).To(ContainSubstring("user request error"))
+			Expect(logs.String()).ToNot(ContainSubstring(test.value))
+		})
+	}
 }
 
 func performResourceBundlesList(d dao.GenericDao, query url.Values) *httptest.ResponseRecorder {
