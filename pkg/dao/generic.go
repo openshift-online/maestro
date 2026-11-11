@@ -149,11 +149,13 @@ func (d *sqlGenericDao) resolveColumn(name string, allowRelated bool) (clause.Co
 }
 
 // Joins adds a left join using schema-derived table and column identifiers.
+// clause.Join is only a clause.Expression, so passing it to Clauses directly
+// would render the join as a WHERE condition; joins must extend the FROM
+// clause, and repeated calls accumulate instead of replacing each other.
 func (d *sqlGenericDao) Joins(relation TableRelation) {
-	foreignTable := clause.Table{Name: relation.ForeignTableName}
-	d.g2 = d.g2.Clauses(clause.Join{
+	join := clause.Join{
 		Type:  clause.LeftJoin,
-		Table: foreignTable,
+		Table: clause.Table{Name: relation.ForeignTableName},
 		ON: clause.Where{Exprs: []clause.Expression{
 			clause.Eq{
 				Column: clause.Column{Table: relation.ForeignTableName, Name: relation.ForeignColumnName},
@@ -164,7 +166,12 @@ func (d *sqlGenericDao) Joins(relation TableRelation) {
 				Value:  nil,
 			},
 		}},
-	})
+	}
+	from := clause.From{Joins: []clause.Join{join}}
+	if existing, ok := d.g2.Statement.Clauses["FROM"].Expression.(clause.From); ok {
+		from.Joins = append(existing.Joins, join)
+	}
+	d.g2 = d.g2.Clauses(from)
 }
 
 // Group adds a GROUP BY clause using structured column identifiers.
